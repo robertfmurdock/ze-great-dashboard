@@ -1,0 +1,39 @@
+{
+  "name": "ze-great-dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A team-visible trust dashboard: a lens on your engineering state, not a ledger of it.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/shared",
+    "packages/server",
+    "packages/client"
+  ],
+  "scripts": {
+    "check": "npm run lint && npm run typecheck && npm run test",
+    "lint": "biome ci .",
+    "format": "biome check --write .",
+    "typecheck": "concurrently -g --kill-others-on-fail -n root,shared,server,client \"tsc -p tsconfig.json\" \"tsc -p packages/shared\" \"tsc -p packages/server\" \"tsc -p packages/client\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "concurrently -k -n client,server -c cyan,green \"npm:dev:client\" \"npm:dev:server\"",
+    "dev:client": "npm run dev --workspace @ze-great-dashboard/client",
+    "dev:server": "ASSET_PATH=http://localhost:5173/__ASSET_PATH__ TEMPLATE_WAIT_MS=20000 npm run dev --workspace @ze-great-dashboard/server",
+    "build": "npm run build --workspace @ze-great-dashboard/client",
+    "postinstall": "git config core.hooksPath .githooks || true"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.8",
+    "@types/node": "^26.2.0",
+    "concurrently": "^9.2.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

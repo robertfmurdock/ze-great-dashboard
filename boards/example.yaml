@@ -1,0 +1,44 @@
+# Example board config.
+#
+# `npm run check` validates this file against the zod schema, which is how the schema is kept
+# from drifting away from its own documentation. Credentials never appear here — sources name
+# the environment variable holding a token, and nothing more.
+#
+# Note that the panels below name signals (what question does this answer) rather than systems.
+# A `pipeline-status` panel means the same thing whether ADO or GitHub Actions produced the run;
+# the board author changes `source`, not `type`.
+
+sources:
+  ado-main:
+    type: azure-devops
+    org: https://dev.azure.com/myorg
+    project: myproject
+    token_env: ADO_PAT
+
+  gh-main:
+    type: github-actions
+    repo: myorg/myrepo
+    token_env: GITHUB_TOKEN
+
+boards:
+  team-alpha:
+    refresh: 60s
+    panels:
+      - id: api-build
+        type: pipeline-status
+        source: ado-main
+        pipeline: 42
+        position: { x: 0, y: 0, w: 6, h: 4 }
+
+      - id: web-build
+        type: pipeline-status
+        source: gh-main
+        pipeline: build.yml
+        refresh: 30s
+        position: { x: 6, y: 0, w: 6, h: 4 }
+
+      - id: prod-version
+        type: http-value
+        url: https://my-app.example.com/version
+        json_path: $.version
+        position: { x: 0, y: 4, w: 12, h: 2 }

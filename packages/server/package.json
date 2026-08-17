@@ -1,0 +1,24 @@
+{
+  "name": "@ze-great-dashboard/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Renders the entrypoint and (from Stage 2) proxies signal data. Holds the credentials; stores nothing.",
+  "scripts": {
+    "dev": "tsx watch src/node-server.ts",
+    "start": "tsx src/node-server.ts",
+    "build:lambda": "esbuild src/lambda.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/index.mjs --banner:js=\"import{createRequire}from'node:module';const require=createRequire(import.meta.url);\""
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "@ze-great-dashboard/shared": "*",
+    "hono": "^4.13.2",
+    "yaml": "^2.8.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.162",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.12"
+  }
+}

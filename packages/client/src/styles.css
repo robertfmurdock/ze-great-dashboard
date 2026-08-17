@@ -1,0 +1,176 @@
+/*
+ * Design tokens for the radiator.
+ *
+ * Dark surface by default: this thing is meant to live on a wall-mounted screen, where a bright
+ * page is glare. Sizes are generous for the same reason — legibility at TV distance is a Stage 5
+ * goal, but starting large costs nothing and means the layout was never designed for a laptop.
+ *
+ * The status colors are validated against this surface (separation and 3:1 contrast both pass).
+ * They are deliberately NOT the whole signal: every status must be paired with a glyph, because
+ * a red/green-colorblind viewer has to read the same thing everyone else does. That rule is
+ * cheap to honor now and dishonest to defer, so the tokens ship with the glyph convention
+ * already stated rather than as a later correction.
+ */
+:root {
+  --surface: #12140f;
+  --surface-raised: #1a1a19;
+  --ink-primary: #ffffff;
+  --ink-secondary: #c3c2b7;
+  --ink-muted: #898781;
+  --edge: #2f312b;
+
+  /* Status — always paired with a glyph, never color alone. */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+
+  --gap: 1rem;
+  --radius: 0.5rem;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--surface);
+  color: var(--ink-primary);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  /* Scales with the viewport so the same board reads on a laptop and on a wall. */
+  font-size: clamp(16px, 1.1vw + 0.5rem, 28px);
+  line-height: 1.4;
+}
+
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: 100%;
+  padding: var(--gap);
+}
+
+.board__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
+  border-bottom: 1px solid var(--edge);
+  padding-bottom: var(--gap);
+}
+
+.board__title {
+  margin: 0;
+  font-size: 1.75em;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.board__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--gap) * 1.5);
+  margin: 0;
+  font-size: 0.7em;
+}
+
+.board__meta div {
+  display: flex;
+  flex-direction: column;
+}
+
+.board__meta dt {
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8em;
+}
+
+.board__meta dd {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * A fixed 12-column grid, per the design doc's v1 decision. `position` from the board config is
+ * advisory — Stage 5 reads {x,y,w,h} into these tracks, and a panel without a position still
+ * renders in config order rather than not at all.
+ */
+.board__grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--gap);
+  flex: 1;
+  align-content: start;
+}
+
+.panel {
+  grid-column: span 6;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.25em;
+  min-height: 6em;
+  padding: var(--gap);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+}
+
+.panel--wide {
+  grid-column: span 12;
+}
+
+.panel__label {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ink-secondary);
+}
+
+.panel__hint {
+  margin: 0;
+  font-size: 0.75em;
+  color: var(--ink-muted);
+}
+
+.board__footer {
+  color: var(--ink-muted);
+  font-size: 0.75em;
+}
+
+.config-error {
+  margin: 0 auto;
+  max-width: 60ch;
+  padding: 2rem;
+  color: var(--ink-primary);
+}
+
+.config-error pre {
+  padding: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--status-critical);
+  background: var(--surface-raised);
+  color: var(--ink-secondary);
+  font-size: 0.75em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 60rem) {
+  .panel {
+    grid-column: span 12;
+  }
+}

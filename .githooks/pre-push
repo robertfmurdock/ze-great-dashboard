@@ -1,0 +1,19 @@
+#!/bin/sh
+#
+# Push auto-deploys, so this gate is the last cheap place to catch a break.
+#
+# It runs `npm run check` again (the commit being pushed may not be the one that was checked — think
+# rebases and amends) plus the production builds, because a build that only breaks in CI is a broken
+# deploy discovered from a red pipeline instead of from a failing test.
+#
+# To bypass in a genuine emergency: `git push --no-verify`.
+set -e
+
+echo "pre-push: npm run check"
+npm run check
+
+echo "pre-push: production client build"
+npm run build
+
+echo "pre-push: lambda bundle"
+npm run build:lambda --workspace @ze-great-dashboard/server
