@@ -6,7 +6,8 @@ It shows whether the things your team relies on are currently working — builds
 whatever a team actually walks over to check. It stores nothing, computes no trends, and holds no
 opinion about your process. Every panel is a live read of a system that already knows the answer.
 
-Design doc: `ze-great-idea-pit/tool-ideas/trust-dashboard.md`.
+Design doc: `ze-great-idea-pit/tool-ideas/trust-dashboard.md`. How this repo came to be shaped the
+way it is, including the quirks that look like bugs: `docs/initialization-log.md`.
 
 **Status: Stage 1.** The shell renders and the deploy mechanism works. There is no data yet — panels
 are placeholders. Adapters are Stage 2.
