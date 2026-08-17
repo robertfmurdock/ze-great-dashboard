@@ -1,5 +1,7 @@
-import type { ClientEnv } from '@ze-great-dashboard/shared'
+import type { Board, ClientEnv, Envelope } from '@ze-great-dashboard/shared'
+import { useEffect, useState } from 'react'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
+import { PipelinePanel, parseEnvelope } from './PipelinePanel.tsx'
 
 /**
  * The board shell.
@@ -10,6 +12,49 @@ import { PanelPlaceholder } from './PanelPlaceholder.tsx'
  * whole point of the Stage 1 exit criterion.
  */
 export function App({ env }: { env: ClientEnv }) {
+  const [board, setBoard] = useState<Board>()
+  const [signals, setSignals] = useState<Record<string, Envelope | undefined>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`${env.proxyPath}/boards/${encodeURIComponent(env.board)}`)
+      .then((response) =>
+        response.ok
+          ? response.json()
+          : Promise.reject(new Error(`Board configuration returned ${response.status}`)),
+      )
+      .then((value: unknown) => {
+        if (!cancelled) setBoard(value as Board)
+      })
+      .catch(() => {
+        if (!cancelled) setBoard({ panels: [] })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [env.board, env.proxyPath])
+
+  useEffect(() => {
+    if (!board) return
+    let cancelled = false
+    for (const panel of board.panels) {
+      if (panel.type !== 'pipeline-status') continue
+      fetch(
+        `${env.proxyPath}/panel/${encodeURIComponent(env.board)}/${encodeURIComponent(panel.id)}`,
+      )
+        .then((response) => (response.status === 304 ? undefined : response.json()))
+        .then((value: unknown) => {
+          const envelope = parseEnvelope(value)
+          if (!cancelled && envelope)
+            setSignals((current) => ({ ...current, [panel.id]: envelope }))
+        })
+        .catch(() => undefined)
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [board, env.board, env.proxyPath])
+
   return (
     <div className="board">
       <header className="board__header">
@@ -27,13 +72,18 @@ export function App({ env }: { env: ClientEnv }) {
       </header>
 
       <main className="board__grid">
-        <PanelPlaceholder label="pipeline-status" hint="Stage 2" />
-        <PanelPlaceholder label="pipeline-status" hint="Stage 3" />
-        <PanelPlaceholder label="http-value" hint="Stage 4" wide />
+        {!board && <PanelPlaceholder label="board" hint="Loading configuration…" wide />}
+        {board?.panels.map((panel) =>
+          panel.type === 'pipeline-status' ? (
+            <PipelinePanel key={panel.id} panel={panel} data={signals[panel.id]} />
+          ) : (
+            <PanelPlaceholder key={panel.id} label={panel.type} hint="Not wired yet" wide />
+          ),
+        )}
       </main>
 
       <footer className="board__footer">
-        No signals wired yet — this is the immutable shell. Panels arrive in Stage 2.
+        Signals are read live from their configured authorities.
       </footer>
     </div>
   )

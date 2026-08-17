@@ -1,0 +1,48 @@
+# The real team radiator configuration. This is intentionally separate from example.yaml so
+# changes made for visual use do not become part of the smallest schema/demo fixture.
+
+sources:
+  coupling:
+    type: github-actions
+    repo: robertfmurdock/coupling
+    token_env: GITHUB_TOKEN
+  jsmints:
+    type: github-actions
+    repo: robertfmurdock/jsmints
+    token_env: GITHUB_TOKEN
+  testmints:
+    type: github-actions
+    repo: robertfmurdock/testmints
+    token_env: GITHUB_TOKEN
+  ze-great-tools:
+    type: github-actions
+    repo: robertfmurdock/ze-great-tools
+    token_env: GITHUB_TOKEN
+
+boards:
+  ze-great-team:
+    refresh: 60s
+    panels:
+      - id: coupling-build
+        type: pipeline-status
+        source: coupling
+        pipeline: main.yml
+        position: { x: 0, y: 0, w: 6, h: 4 }
+
+      - id: jsmints-build
+        type: pipeline-status
+        source: jsmints
+        pipeline: main.yml
+        position: { x: 6, y: 0, w: 6, h: 4 }
+
+      - id: testmints-build
+        type: pipeline-status
+        source: testmints
+        pipeline: main.yml
+        position: { x: 0, y: 4, w: 6, h: 4 }
+
+      - id: ze-great-tools-build
+        type: pipeline-status
+        source: ze-great-tools
+        pipeline: main.yml
+        position: { x: 6, y: 4, w: 6, h: 4 }

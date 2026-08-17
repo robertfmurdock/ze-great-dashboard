@@ -1,5 +1,7 @@
+import type { BoardConfig } from '@ze-great-dashboard/shared'
 import type { Hono } from 'hono'
 import { createApp } from './app.ts'
+import { loadBoardConfig } from './board-config.ts'
 import { isLocalHost, loadConfig, type ServerConfig } from './config.ts'
 import { type Fetcher, fetchTemplate } from './template.ts'
 
@@ -20,10 +22,30 @@ export async function startup(options: { fetcher?: Fetcher } = {}): Promise<Star
   // Fail at boot rather than serving a 500 per request. A typo'd ASSET_PATH should fail like the
   // misconfiguration it is, while someone is still watching the logs.
   await waitForTemplate(config, fetcher)
+  const boardConfig = await loadBoardConfig(config.boardConfigUrl, fetcher)
+  const board = selectBoard(config.board, boardConfig)
+  const resolvedConfig = { ...config, board }
 
-  warnAboutMissingAuth(config)
+  warnAboutMissingAuth(resolvedConfig)
 
-  return { app: createApp({ config, fetcher }), config }
+  return {
+    app: createApp({ config: resolvedConfig, fetcher, boardConfig }),
+    config: resolvedConfig,
+  }
+}
+
+export function selectBoard(requested: string | undefined, config: BoardConfig): string {
+  if (requested) {
+    if (!config.boards[requested]) {
+      throw new Error(
+        `Board "${requested}" is not defined; available boards: ${Object.keys(config.boards).join(', ')}`,
+      )
+    }
+    return requested
+  }
+  const names = Object.keys(config.boards)
+  if (names.length === 1 && names[0]) return names[0]
+  throw new Error(`BOARD is required when board configuration contains ${names.length} boards`)
 }
 
 /**

@@ -15,7 +15,6 @@ services:
       # serving the wrong client.
       ASSET_PATH: ${ASSET_PATH:?set ASSET_PATH in .env — see .env.example}
       PROXY_PATH: ${PROXY_PATH:-/api}
-      BOARD: ${BOARD:-team-alpha}
       BOARD_CONFIG_URL: ${BOARD_CONFIG_URL:-./boards/example.yaml}
       HOST: 0.0.0.0
       PORT: '3000'

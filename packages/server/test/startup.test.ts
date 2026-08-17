@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { loadConfig } from '../src/config.ts'
+import { selectBoard } from '../src/startup.ts'
 import { fetchTemplate, TemplateCache } from '../src/template.ts'
 
 /**
@@ -97,6 +98,27 @@ describe('the template cache', () => {
 })
 
 describe('server configuration', () => {
+  it('selects the only board when BOARD is omitted', () => {
+    expect(
+      selectBoard(undefined, {
+        sources: {},
+        boards: { 'my-board': { panels: [{ id: 'p', type: 'x' }] } },
+      }),
+    ).toBe('my-board')
+  })
+
+  it('requires BOARD when a config contains multiple boards', () => {
+    expect(() =>
+      selectBoard(undefined, {
+        sources: {},
+        boards: {
+          one: { panels: [{ id: 'p', type: 'x' }] },
+          two: { panels: [{ id: 'q', type: 'x' }] },
+        },
+      }),
+    ).toThrow(/BOARD is required/)
+  })
+
   it('fails closed when ASSET_PATH is absent', () => {
     expect(() => loadConfig({})).toThrow(/ASSET_PATH is required/)
   })

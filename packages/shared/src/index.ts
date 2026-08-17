@@ -22,4 +22,6 @@ export {
   envelopeSchema,
   errorKindSchema,
   type OkEnvelope,
+  type PipelineStatus,
+  pipelineStatusSchema,
 } from './envelope.ts'

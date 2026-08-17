@@ -146,6 +146,39 @@ body {
   color: var(--ink-muted);
 }
 
+.panel__status {
+  margin: 0;
+  font-size: 1.35em;
+  font-weight: 650;
+}
+
+.panel__status--passed {
+  color: var(--status-good);
+}
+.panel__status--failed {
+  color: var(--status-critical);
+}
+.panel__status--running {
+  color: var(--status-warning);
+}
+.panel__status--cancelled,
+.panel__status--unknown {
+  color: var(--ink-secondary);
+}
+
+.panel--error {
+  border-color: var(--status-serious);
+}
+
+.panel__link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.panel__link:hover .panel__status {
+  text-decoration: underline;
+}
+
 .board__footer {
   color: var(--ink-muted);
   font-size: 0.75em;

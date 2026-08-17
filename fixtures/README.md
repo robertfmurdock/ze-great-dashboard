@@ -1,7 +1,12 @@
 # Fixtures
 
 Captured upstream responses, used to build adapters against reality instead of against an
-imagination of it. **Nothing here yet** — this directory is Stage 0, and Stage 0 has not happened.
+imagination of it.
+
+GitHub Actions fixtures have been captured from public community repositories and redacted while
+preserving their JSON shape. Azure DevOps build responses are still outstanding: its REST API
+requires authorization even for the public-looking community sample projects tried, so a real
+read-scoped token and a project/pipeline are needed to capture those honestly.
 
 ## The rule: captured, never invented
 
@@ -49,3 +54,14 @@ fixtures/
 ```
 
 One response per file, named for the case it demonstrates.
+
+## Current captures
+
+`github-actions/` contains one real, redacted workflow-run response for each status currently
+needed by the first adapter: `success`, `failure`, `in_progress`, and `cancelled`. Its local
+README records the source and response-cache details without retaining repository or user
+identifiers.
+
+`azure-devops/` deliberately does not contain a made-up successful build response. Add it only
+after capturing a real response with a read-scoped token; the cases above still apply, including
+ADO's distinct `succeededWithIssues` result.

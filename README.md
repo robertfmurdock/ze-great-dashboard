@@ -9,8 +9,8 @@ opinion about your process. Every panel is a live read of a system that already 
 Design doc: `ze-great-idea-pit/tool-ideas/trust-dashboard.md`. How this repo came to be shaped the
 way it is, including the quirks that look like bugs: `docs/initialization-log.md`.
 
-**Status: Stage 1.** The shell renders and the deploy mechanism works. There is no data yet — panels
-are placeholders. Adapters are Stage 2.
+**Status: first Stage 2 slice.** GitHub Actions `pipeline-status` panels work end to end. Azure
+DevOps and `http-value` adapters remain to be built.
 
 ## Quickstart
 
@@ -24,6 +24,15 @@ Then open <http://localhost:3000>.
 That runs the Vite dev server on 5173 and the app server on 3000, with the server rendering the
 entrypoint from Vite. Edit a component and the page updates — through the real server rendering path,
 not a bypass of it. This is the loop for the visual work.
+
+To run a different single-board YAML file, only its path is needed; the server selects its sole
+board automatically:
+
+```sh
+BOARD_CONFIG_URL="$PWD/boards/ze-great-team.yaml" npm run dev
+```
+
+Set `BOARD` as well only when the selected YAML contains multiple boards.
 
 Before you commit anything:
 
@@ -81,8 +90,9 @@ client versions with different hashed filenames, over real HTTP, with no AWS and
 
 ## Configuration
 
-Boards are YAML — see `boards/example.yaml`. Panels name a signal type and a source; the schema is in
-`packages/shared/src/board-config.ts`.
+Boards are YAML — see `boards/example.yaml` for the small public demo and
+`boards/ze-great-team.yaml` for the realistic radiator. Panels name a signal type and a source; the
+schema is in `packages/shared/src/board-config.ts`.
 
 **Credentials never appear in board config.** A source names an environment variable (`token_env:`)
 and the value lives in the environment. `.env` is gitignored; `.env.example` names every variable and

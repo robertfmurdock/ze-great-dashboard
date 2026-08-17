@@ -31,7 +31,7 @@ describe('the example board configs', () => {
 describe('the board config schema', () => {
   const validConfig = {
     boards: {
-      'team-alpha': {
+      'ze-great-team': {
         refresh: '60s',
         panels: [{ id: 'api-build', type: 'pipeline-status', source: 'ado-main' }],
       },
@@ -41,7 +41,7 @@ describe('the board config schema', () => {
   it('rejects duplicate panel ids loudly rather than picking one', () => {
     const result = boardConfigSchema.safeParse({
       boards: {
-        'team-alpha': {
+        'ze-great-team': {
           panels: [
             { id: 'api-build', type: 'pipeline-status' },
             { id: 'api-build', type: 'http-value' },

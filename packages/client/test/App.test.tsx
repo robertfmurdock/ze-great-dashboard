@@ -2,18 +2,27 @@ import type { ClientEnv } from '@ze-great-dashboard/shared'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { act } from 'react-dom/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../src/App.tsx'
 import { ConfigError } from '../src/ConfigError.tsx'
 
 const env: ClientEnv = {
   assetPath: 'https://assets.example.com/dashboard/1.0.7',
   proxyPath: '/api',
-  board: 'team-alpha',
+  board: 'ze-great-team',
   clientVersion: '1.0.7',
 }
 
 let container: HTMLDivElement | undefined
+
+beforeEach(() => {
+  // The shell tests do not exercise networking; keep their effects local rather than allowing
+  // happy-dom to try a relative request during teardown.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify({ panels: [] }))),
+  )
+})
 
 function render(node: React.ReactNode): HTMLDivElement {
   container = document.createElement('div')
@@ -26,11 +35,12 @@ function render(node: React.ReactNode): HTMLDivElement {
 afterEach(() => {
   container?.remove()
   container = undefined
+  vi.unstubAllGlobals()
 })
 
 describe('the board shell', () => {
   it('names the board it was told it is', () => {
-    expect(render(<App env={env} />).textContent).toContain('team-alpha')
+    expect(render(<App env={env} />).textContent).toContain('ze-great-team')
   })
 
   it('shows which client version is running', () => {
@@ -41,13 +51,12 @@ describe('the board shell', () => {
     expect(text).toContain('https://assets.example.com/dashboard/1.0.7')
   })
 
-  it('renders the panel grid', () => {
-    expect(render(<App env={env} />).querySelectorAll('.panel').length).toBe(3)
+  it('renders a loading panel until the server provides its board config', () => {
+    expect(render(<App env={env} />).textContent).toMatch(/Loading configuration/i)
   })
 
-  it('says plainly that no signals are wired yet', () => {
-    // An empty grid with no explanation reads as "everything is fine", which would be a lie.
-    expect(render(<App env={env} />).textContent).toMatch(/No signals wired yet/i)
+  it('explains that signals come from their configured authorities', () => {
+    expect(render(<App env={env} />).textContent).toMatch(/read live/i)
   })
 })
 

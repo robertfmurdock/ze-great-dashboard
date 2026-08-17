@@ -57,3 +57,14 @@ export const envelopeSchema = z.discriminatedUnion('state', [
 export type Envelope = z.infer<typeof envelopeSchema>
 export type OkEnvelope = Extract<Envelope, { state: 'ok' }>
 export type ErrorEnvelope = Extract<Envelope, { state: 'error' }>
+
+/** The normalized vocabulary used by every CI adapter. */
+export const pipelineStatusSchema = z.object({
+  type: z.literal('pipeline-status'),
+  status: z.enum(['passed', 'failed', 'running', 'cancelled', 'unknown']),
+  /** The source's unmodified status/result vocabulary, for an honest display. */
+  rawStatus: z.string(),
+  name: z.string().min(1),
+})
+
+export type PipelineStatus = z.infer<typeof pipelineStatusSchema>

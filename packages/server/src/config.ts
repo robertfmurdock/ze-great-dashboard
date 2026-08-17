@@ -1,4 +1,9 @@
+import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
+
+const DEFAULT_BOARD_CONFIG_URL = fileURLToPath(
+  new URL('../../../boards/example.yaml', import.meta.url),
+)
 
 /**
  * Environment configuration for the server.
@@ -20,8 +25,9 @@ const configSchema = z.object({
     .transform((value) => value.replace(/\/+$/, '')),
   proxyPath: z.string().min(1).default('/api'),
   /** A URL or a local file path. Local development uses a path and needs no credential. */
-  boardConfigUrl: z.string().min(1).default('./boards/example.yaml'),
-  board: z.string().min(1).default('team-alpha'),
+  boardConfigUrl: z.string().min(1).default(DEFAULT_BOARD_CONFIG_URL),
+  /** Optional for single-board files; startup selects the only board automatically. */
+  board: z.string().min(1).optional(),
   port: z.coerce.number().int().min(1).max(65535).default(3000),
   host: z.string().min(1).default('localhost'),
   /**

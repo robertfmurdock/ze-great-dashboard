@@ -1,5 +1,7 @@
-import type { ClientEnv } from '@ze-great-dashboard/shared'
+import type { BoardConfig, ClientEnv } from '@ze-great-dashboard/shared'
 import { Hono } from 'hono'
+import { fetchGithubActionsPipeline } from './adapters/github-actions.ts'
+import { deriveAllowlist } from './allowlist.ts'
 import type { ServerConfig } from './config.ts'
 import { renderIndexHtml } from './render.ts'
 import { ASSET_PATH_SENTINEL, type Fetcher, TemplateCache } from './template.ts'
@@ -13,19 +15,50 @@ export type AppDependencies = {
   fetcher?: Fetcher
   /** Surfaced in `window.env` so two published versions are visibly distinguishable. */
   clientVersion?: string
+  boardConfig?: BoardConfig
 }
 
 export function createApp(deps: AppDependencies): Hono {
   const { config } = deps
   const templates = new TemplateCache(deps.fetcher ?? globalThis.fetch)
   const clientVersion = deps.clientVersion ?? deriveVersionLabel(config.assetPath)
+  const selectedBoard =
+    config.board ?? Object.keys(deps.boardConfig?.boards ?? {})[0] ?? 'ze-great-team'
+  const allowlist = deps.boardConfig ? deriveAllowlist(deps.boardConfig) : new Map()
 
   const app = new Hono()
 
   app.get('/health', (c) => c.json({ status: 'ok' }))
 
-  app.get('/', (c) => renderEntrypoint(c.req.raw, config.board))
+  app.get('/', (c) => renderEntrypoint(c.req.raw, selectedBoard))
   app.get('/boards/:board', (c) => renderEntrypoint(c.req.raw, c.req.param('board')))
+  app.get('/api/boards/:board', (c) => {
+    const board = deps.boardConfig?.boards[c.req.param('board')]
+    return board ? c.json(board) : c.notFound()
+  })
+  app.get('/api/panel/:board/:panelId', async (c) => {
+    const boardName = c.req.param('board')
+    const panelId = c.req.param('panelId')
+    const board = deps.boardConfig?.boards[boardName]
+    const panel = board?.panels.find((candidate) => candidate.id === panelId)
+    const source = panel?.source ? deps.boardConfig?.sources[panel.source] : undefined
+    if (!panel || !source || !allowlist.has(`${boardName}/${panelId}`)) return c.notFound()
+
+    if (panel.type === 'pipeline-status' && source.type === 'github-actions') {
+      const result = await fetchGithubActionsPipeline({
+        panel,
+        source,
+        requestHeaders: c.req.raw.headers,
+        fetcher: deps.fetcher ?? globalThis.fetch,
+      })
+      const headers = passthroughHeaders(result.response.headers)
+      if (result.response.status === 304) return new Response(null, { status: 304, headers })
+      const envelope = result.envelope ?? JSON.parse(await result.response.text())
+      headers.set('content-type', 'application/json; charset=utf-8')
+      return new Response(JSON.stringify(envelope), { status: 200, headers })
+    }
+    return c.notFound()
+  })
 
   async function renderEntrypoint(_request: Request, board: string): Promise<Response> {
     const template = await templates.get(config.assetPath)
@@ -47,6 +80,15 @@ export function createApp(deps: AppDependencies): Hono {
   }
 
   return app
+}
+
+function passthroughHeaders(upstream: Headers): Headers {
+  const headers = new Headers()
+  for (const name of ['cache-control', 'etag', 'last-modified', 'date', 'vary']) {
+    const value = upstream.get(name)
+    if (value) headers.set(name, value)
+  }
+  return headers
 }
 
 /**
