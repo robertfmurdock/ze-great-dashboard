@@ -33,6 +33,16 @@ describe('the http-value adapter', () => {
     })
   })
 
+  it('extracts a scalar from a numeric JSON array index', async () => {
+    const result = await fetchHttpValue({
+      panel: { ...panel, json_path: '$.response.docs[0].latestVersion' },
+      requestHeaders: new Headers(),
+      fetcher: upstream(JSON.stringify({ response: { docs: [{ latestVersion: '2.0.0' }] } })),
+    })
+
+    expect(result.envelope).toMatchObject({ signal: { type: 'http-value', value: '2.0.0' } })
+  })
+
   it('supports plain text and forwards validators', async () => {
     const fetcher = upstream('healthy', { etag: 'W/"fixture"' })
     await fetchHttpValue({

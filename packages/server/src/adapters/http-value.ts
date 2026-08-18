@@ -8,7 +8,7 @@ const httpValuePanelSchema = z.object({
   url: z.url(),
   json_path: z
     .string()
-    .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/)
+    .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/)
     .optional(),
   link: z.url().optional(),
 })
@@ -93,7 +93,14 @@ function parseValue(text: string): string | number | boolean {
 
 function extractJsonPath(value: unknown, path: string): string | number | boolean {
   let current = value
-  for (const segment of path === '$' ? [] : path.slice(2).split('.')) {
+  const segments =
+    path === '$'
+      ? []
+      : path
+          .slice(1)
+          .split(/\.|\[|\]/)
+          .filter(Boolean)
+  for (const segment of segments) {
     if (typeof current !== 'object' || current === null || !(segment in current))
       throw new Error(`JSON path ${path} was not found`)
     current = (current as Record<string, unknown>)[segment]

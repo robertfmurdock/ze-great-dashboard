@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Renders the entrypoint and (from Stage 2) proxies signal data. Holds the credentials; stores nothing.",
   "scripts": {
-    "dev": "tsx watch src/node-server.ts",
+    "dev": "case \"$BOARD_CONFIG_URL\" in http://*|https://*) tsx watch src/node-server.ts;; *) tsx watch --include \"${BOARD_CONFIG_URL:-../../boards/example.yaml}\" src/node-server.ts;; esac",
     "start": "tsx src/node-server.ts",
     "build:lambda": "esbuild src/lambda.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/index.mjs --banner:js=\"import{createRequire}from'node:module';const require=createRequire(import.meta.url);\" && cp ../../boards/example.yaml dist/board.yaml"
   },

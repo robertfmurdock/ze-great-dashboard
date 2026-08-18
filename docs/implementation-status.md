@@ -21,12 +21,21 @@ locally. The current implementation includes:
 - Independent client polling with panel/board/default refresh precedence, no overlapping requests,
   304 preservation, and lifecycle cleanup.
 - Source-agnostic `http-value` panels. They fetch configured HTTP(S) endpoints, accept plain scalar
-  text or JSON, and support the deliberately small `$.field.nested` JSON-path subset.
+  text or JSON, and support the deliberately small field-and-index JSON-path subset.
+- Local development watches the configured board file, so editing deployable board configuration
+  restarts the server listener without making the example board itself part of the product contract.
 - Docker, Lambda bundling, fixture-driven tests, and the repository-wide `npm run check` gate.
 
-Verification currently passes with 73 tests, the client production build, and the Lambda bundle.
+Verification currently passes with 74 tests, the client production build, and the Lambda bundle.
 No infrastructure has been deployed from this repository yet; deployment claims remain recorded in
 the initialization log until observed against real AWS resources.
+
+## Development workflow log
+
+Recorded 2026-08-18: the server's TypeScript watcher now includes a local `BOARD_CONFIG_URL` path.
+This keeps board edits in the normal local feedback loop. Remote board URLs are not treated as
+filesystem watch targets, and deployed behavior is unchanged. The realistic team board remains an
+example configuration rather than an ongoing product-history concern.
 
 ## Deliberate differences from the pitch
 

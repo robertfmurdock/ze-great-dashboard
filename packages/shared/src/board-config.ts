@@ -35,10 +35,10 @@ export const panelSchema = z.looseObject({
   link: z.url().optional(),
   /** Source-agnostic endpoint used by the http-value signal. */
   url: z.url().optional(),
-  /** Small, deliberate JSON path subset: $.version or $.deployment.version. */
+  /** Small, deliberate JSON path subset: $.version, $.deployment.version, or $.response.docs[0].latestVersion. */
   json_path: z
     .string()
-    .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/, 'must be a simple JSON path')
+    .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/, 'must be a simple JSON path')
     .optional(),
 })
 
