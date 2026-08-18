@@ -18,6 +18,10 @@ sources:
     type: github-actions
     repo: robertfmurdock/ze-great-tools
     token_env: GITHUB_TOKEN
+  ze-great-dashboard:
+    type: github-actions
+    repo: robertfmurdock/ze-great-dashboard
+    token_env: GITHUB_TOKEN
 
 boards:
   ze-great-team:
@@ -46,3 +50,9 @@ boards:
         source: ze-great-tools
         pipeline: main.yml
         position: { x: 6, y: 4, w: 6, h: 4 }
+
+      - id: ze-great-dashboard-build
+        type: pipeline-status
+        source: ze-great-dashboard
+        pipeline: main.yml
+        position: { x: 0, y: 8, w: 6, h: 4 }
