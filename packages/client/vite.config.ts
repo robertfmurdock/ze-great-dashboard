@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { cdnExternalization } from './vite-cdn.ts'
 
 /**
  * The `base` is a sentinel, not a URL, and it is set unconditionally — in dev as well as in the
@@ -16,7 +17,7 @@ import { defineConfig } from 'vite'
  */
 export default defineConfig({
   base: '/__ASSET_PATH__/',
-  plugins: [react()],
+  plugins: [cdnExternalization(), react()],
   server: {
     port: 5173,
     strictPort: true,

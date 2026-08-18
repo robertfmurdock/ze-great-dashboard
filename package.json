@@ -20,7 +20,9 @@
     "lint": "biome ci .",
     "format": "biome check --write .",
     "typecheck": "concurrently -g --kill-others-on-fail -n root,shared,core,server,client,aws \"tsc -p tsconfig.json\" \"tsc -p packages/shared\" \"tsc -p packages/core\" \"tsc -p packages/server\" \"tsc -p packages/client\" \"tsc -p packages/aws\"",
-    "test": "vitest run",
+    "test": "npm run test:unit && npm run test:browser",
+    "test:unit": "vitest run",
+    "test:browser": "npm run test:browser --workspace @ze-great-dashboard/client",
     "test:watch": "vitest",
     "dev": "concurrently -k -n client,server -c cyan,green \"npm:dev:client\" \"npm:dev:server\"",
     "dev:client": "npm run dev --workspace @ze-great-dashboard/client",
@@ -36,6 +38,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.8",
     "@continuous-excellence/tagger": "3.6.14",
+    "@playwright/test": "^1.62.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^26.2.0",
     "concurrently": "^9.2.1",

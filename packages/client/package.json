@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "description": "The board renderer. Built once, published to a versioned path, holds zero environment values.",
+  "cdn": {
+    "bundle": []
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:browser": "npm run build && playwright test --config ../../playwright.config.ts",
     "preview": "vite preview"
   },
   "dependencies": {
