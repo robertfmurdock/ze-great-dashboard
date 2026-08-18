@@ -22,6 +22,27 @@ the source:
 - Fixture-driven tests cover success, failure, in-progress, cancelled, validator forwarding,
   unreachable-upstream errors, source links, and rejection of unknown panel ids.
 
+## Client polling follow-up
+
+Recorded 2026-08-18 after completing the next Stage 2 slice.
+
+`packages/client/src/App.tsx` now keeps every supported `pipeline-status` panel current without a
+page reload. Each panel is fetched immediately, then refreshed independently using panel `refresh`,
+board `refresh`, or a 60-second default. Requests are guarded per panel so a slow upstream cannot
+overlap with its next scheduled request. `304 Not Modified` responses leave the current envelope
+in place, while fetch failures retain the existing panel behavior.
+
+Polling timers are cleared when the board changes or the component unmounts, and late responses are
+ignored. Board identity is tracked while configuration loads so a previous board cannot start
+panel requests under a newly selected board name. The API and YAML schema remain unchanged.
+
+Client tests cover immediate reads, interval precedence and defaults, rendered refreshes,
+unsupported panel types, independent schedules, in-flight request protection, and lifecycle
+cleanup. Verification passed with 67 tests, the production client build, and the Lambda bundle.
+
+The shareable JetBrains project files are now committed under `.idea`; user-specific
+`.idea/workspace.xml` remains ignored according to JetBrains' version-control guidance.
+
 ## Sequencing decision
 
 Azure DevOps was intentionally not made a prerequisite. Its build REST API redirected to sign-in
@@ -69,8 +90,9 @@ At this checkpoint `npm run check` passes:
 - Typecheck: root, shared, server, and client all pass
 - Vitest: 9 files, 59 tests passing
 
-The remaining known work is polling/refresh scheduling in the client, the `http-value` adapter,
-the second-source validation (ADO when credentials are available), and visual radiator polish.
+The remaining known work is the `http-value` adapter, the second-source validation (ADO when
+credentials are available), and visual radiator polish such as stale emphasis, jitter, and
+backoff.
 
 ## Team board update
 
