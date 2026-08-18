@@ -24,10 +24,16 @@
     "dev:client": "npm run dev --workspace @ze-great-dashboard/client",
     "dev:server": "ASSET_PATH=http://localhost:5173/__ASSET_PATH__ TEMPLATE_WAIT_MS=20000 npm run dev --workspace @ze-great-dashboard/server",
     "build": "npm run build --workspace @ze-great-dashboard/client",
+    "build:release": "npm run build && npm run build:lambda --workspace @ze-great-dashboard/server && tar -czf release-build.tgz packages/client/dist packages/server/dist",
+    "release:version": "bash scripts/release-version.sh",
+    "release:provision": "bash scripts/provision-aws.sh",
+    "release:deploy": "bash scripts/deploy-aws.sh",
+    "release:tag": "bash scripts/tag-release.sh",
     "postinstall": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.8",
+    "@continuous-excellence/tagger": "3.6.14",
     "@types/node": "^26.2.0",
     "concurrently": "^9.2.1",
     "typescript": "^7.0.2",

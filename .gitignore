@@ -2,6 +2,8 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+lambda.zip
+release-build.tgz
 
 # Local credentials — never commit. See .env.example for the variable names.
 .env

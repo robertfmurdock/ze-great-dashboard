@@ -7,25 +7,17 @@ on:
       - '**'
   workflow_dispatch:
 
-permissions:
-  # Required for the OIDC token exchanged for AWS credentials — no long-lived keys in secrets.
-  id-token: write
-  # Tagger pushes the version tag.
-  contents: write
+concurrency:
+  group: ${{ github.ref }}
 
 jobs:
-  build:
-    name: Build
+  check:
+    name: Check and build
     runs-on: ubuntu-latest
-    concurrency:
-      group: ${{ github.ref }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
-        with:
-          # Tagger reads the whole tag history to calculate the next version.
-          fetch-depth: 0
-          # Do not leave a write-capable repository token available to build commands.
-          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
@@ -35,138 +27,91 @@ jobs:
       - name: Install
         run: npm ci --ignore-scripts
 
-      # The same command the pre-commit hook runs. If this fails and the hook passed, the two have
-      # drifted, and that is worth fixing rather than working around.
       - name: Check 🔎
         run: npm run check
+
+      - name: Build release 🔨
+        run: npm run build:release
+
+      - name: Save release build
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build
+          path: release-build.tgz
+          retention-days: 1
+
+  release:
+    name: Release
+    if: github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install release tooling
+        run: npm ci --ignore-scripts
+
+      - name: Restore release build
+        uses: actions/download-artifact@v4
+        with:
+          name: release-build
+
+      - name: Unpack release build
+        run: tar -xzf release-build.tgz
 
       - name: Version
         id: version
         run: |
-          if git describe --tags --abbrev=0 >/dev/null 2>&1; then
-            version="$(npx --yes @continuous-excellence/tagger@3 calculate-version)"
-          else
-            version="0.1.0"
-          fi
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid calculated version: '$version'" >&2
-            exit 1
-          fi
+          version="$(npm run --silent release:version)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Build client 🔨
-        run: npm run build
-
-      - name: Build server bundle 🔨
-        run: npm run build:lambda --workspace @ze-great-dashboard/server
-
-      # Everything below this line only runs on main. Branches get the full check and build — they
-      # just don't publish.
       - name: AWS provisioning credentials
-        if: github.ref == 'refs/heads/main'
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
-          # One-time bootstrap: this role and the shared GitHub OIDC provider must already exist.
-          # Its AWS trust policy must allow only this repository's main branch.
           role-to-assume: arn:aws:iam::174159267544:role/ZeGreatDashboardProvision
           aws-region: us-east-1
 
       - name: Provision AWS infrastructure
-        if: github.ref == 'refs/heads/main'
-        run: |
-          aws cloudformation deploy \
-            --stack-name ze-great-dashboard \
-            --template-file infra/stack.yml \
-            --role-arn arn:aws:iam::174159267544:role/ZeGreatDashboardCloudFormationExecution \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --tags Project=ze-great-dashboard ManagedBy=cloudformation \
-            --no-fail-on-empty-changeset \
-            --no-cli-pager
-
-      - name: Read infrastructure outputs
-        if: github.ref == 'refs/heads/main'
         id: infrastructure
-        run: |
-          output() {
-            aws cloudformation describe-stacks \
-              --stack-name ze-great-dashboard \
-              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" \
-              --output text
-          }
-          echo "assets_bucket=$(output AssetsBucket)" >> "$GITHUB_OUTPUT"
-          echo "assets_base_url=$(output AssetsBaseUrl)" >> "$GITHUB_OUTPUT"
-          echo "function_name=$(output ServerFunctionName)" >> "$GITHUB_OUTPUT"
-          echo "server_url=$(output ServerUrl)" >> "$GITHUB_OUTPUT"
-          echo "deploy_role_arn=$(output DeployRoleArn)" >> "$GITHUB_OUTPUT"
+        run: npm run --silent release:provision
 
-      # Provisioning credentials end here. Publishing uses the much narrower role created by the
-      # stack, and AWS independently restricts both roles to this repository's main branch.
+      # Artifact publishing does not retain the more powerful provisioning credentials.
       - name: AWS release credentials
-        if: github.ref == 'refs/heads/main'
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           role-to-assume: ${{ steps.infrastructure.outputs.deploy_role_arn }}
           aws-region: us-east-1
 
-      # Assets first, then the function. A version must be fully published before anything can be
-      # pointed at it, or a rollout serves 404s for its own JavaScript.
-      #
-      # index.html is included in the sync — it is part of the published version, and the server
-      # fetches it from here at runtime. It is the one file in the bundle that must not be cached
-      # hard, because it names the hashed filenames of exactly this version.
-      - name: Publish client 🚀
-        if: github.ref == 'refs/heads/main'
+      - name: Deploy application 🚀
         env:
           ASSETS_BUCKET: ${{ steps.infrastructure.outputs.assets_bucket }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          aws s3 sync packages/client/dist "s3://${ASSETS_BUCKET}/dashboard/${VERSION}/" \
-            --exclude 'index.html' \
-            --cache-control 'public, max-age=31536000, immutable'
-          aws s3 cp packages/client/dist/index.html "s3://${ASSETS_BUCKET}/dashboard/${VERSION}/index.html" \
-            --cache-control 'public, max-age=60'
-
-      - name: Deploy server 🚀
-        if: github.ref == 'refs/heads/main'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
+          ASSETS_BASE_URL: ${{ steps.infrastructure.outputs.assets_base_url }}
           FUNCTION_NAME: ${{ steps.infrastructure.outputs.function_name }}
-          ASSET_BASE: ${{ steps.infrastructure.outputs.assets_base_url }}
-        run: |
-          cd packages/server/dist && zip -q -r ../../../lambda.zip . && cd -
-          aws lambda update-function-code \
-            --function-name "$FUNCTION_NAME" \
-            --zip-file fileb://lambda.zip \
-            --no-cli-pager > /dev/null
-          aws lambda wait function-updated --function-name "$FUNCTION_NAME"
-
-          # The IWA payoff, made operational: promoting a client version is one variable.
-          aws lambda update-function-configuration \
-            --function-name "$FUNCTION_NAME" \
-            --environment "Variables={ASSET_PATH=${ASSET_BASE}/dashboard/${VERSION},BOARD_CONFIG_URL=./board.yaml,HOST=0.0.0.0}" \
-            --no-cli-pager > /dev/null
-          aws lambda wait function-updated --function-name "$FUNCTION_NAME"
+          VERSION: ${{ steps.version.outputs.version }}
+        run: npm run --silent release:deploy
 
       - name: Smoke test deployed release
-        if: github.ref == 'refs/heads/main'
         env:
           SERVER_URL: ${{ steps.infrastructure.outputs.server_url }}
         run: |
-          curl --fail --silent --show-error \
-            --retry 5 --retry-all-errors --retry-delay 2 \
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
             "${SERVER_URL}health" > /dev/null
-          curl --fail --silent --show-error \
-            --retry 5 --retry-all-errors --retry-delay 2 \
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
             "$SERVER_URL" > /dev/null
 
       - name: Tag
-        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          version="${{ steps.version.outputs.version }}"
-          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
-          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic $auth"
-          trap 'git config --local --unset-all http.https://github.com/.extraheader' EXIT
-          npx --yes @continuous-excellence/tagger@3 tag --version "$version"
-          git ls-remote --exit-code --tags origin "refs/tags/$version" > /dev/null
+        run: npm run --silent release:tag -- "${{ steps.version.outputs.version }}"
