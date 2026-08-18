@@ -4,13 +4,18 @@ Description: One-time GitHub OIDC bootstrap for Ze Great Dashboard
 Parameters:
   GitHubRepository:
     Type: String
-    Default: robertfmurdock/ze-great-dashboard
+    Description: owner/repository allowed to provision the stack
   GitHubOwnerId:
     Type: String
-    Default: '6215634'
+    Description: numeric GitHub owner id
   GitHubRepositoryId:
     Type: String
-    Default: '1338375095'
+    Description: numeric GitHub repository id
+  StackName: { Type: String, Default: dashboard }
+  AssetsBucketName: { Type: String }
+  FunctionName: { Type: String }
+  ServerRoleName: { Type: String }
+  DeployRoleName: { Type: String }
 
 Resources:
   CloudFormationExecutionRole:
@@ -18,7 +23,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      RoleName: ZeGreatDashboardCloudFormationExecution
+      RoleName: !Sub '${StackName}-cloudformation'
       Description: CloudFormation execution role for Ze Great Dashboard
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -36,8 +41,8 @@ Resources:
                 Effect: Allow
                 Action: s3:*
                 Resource:
-                  - arn:aws:s3:::ze-great-dashboard-assets
-                  - arn:aws:s3:::ze-great-dashboard-assets/*
+                  - !Sub 'arn:${AWS::Partition}:s3:::${AssetsBucketName}'
+                  - !Sub 'arn:${AWS::Partition}:s3:::${AssetsBucketName}/*'
               - Sid: CloudFront
                 Effect: Allow
                 Action: cloudfront:*
@@ -45,11 +50,11 @@ Resources:
               - Sid: DashboardLambda
                 Effect: Allow
                 Action: lambda:*
-                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:ze-great-dashboard'
+                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}'
               - Sid: DashboardLogs
                 Effect: Allow
                 Action: logs:*
-                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ze-great-dashboard:*'
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${FunctionName}:*'
               - Sid: DashboardRoles
                 Effect: Allow
                 Action:
@@ -68,8 +73,8 @@ Resources:
                   - iam:UntagRole
                   - iam:PassRole
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ze-great-dashboard-server'
-                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardDeploy'
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ServerRoleName}'
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${DeployRoleName}'
 
   GitHubProvisionRole:
     Type: AWS::IAM::Role
@@ -115,7 +120,7 @@ Resources:
                   - cloudformation:DescribeStackEvents
                   - cloudformation:GetTemplate
                   - cloudformation:GetTemplateSummary
-                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ze-great-dashboard/*'
+              Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${StackName}/*'
               - Sid: PassCloudFormationExecutionRole
                 Effect: Allow
                 Action: iam:PassRole

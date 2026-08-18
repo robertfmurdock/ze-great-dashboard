@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Provider adapter for a Ze Great Dashboard Lambda deployment
+
+Parameters:
+  Name: { Type: String, Default: dashboard }
+  LambdaArtifactBucket: { Type: String }
+  LambdaArtifactKey: { Type: String }
+  DashboardVersion: { Type: String }
+  AssetBaseUrl: { Type: String, Default: https://assets.zegreatrob.com }
+  BoardConfigPath: { Type: String, Default: ./board.yaml }
+  MemorySize: { Type: Number, Default: 256, MinValue: 128 }
+  Timeout: { Type: Number, Default: 10, MinValue: 1, MaxValue: 900 }
+  LogRetentionInDays: { Type: Number, Default: 14, MinValue: 1 }
+  ReservedConcurrentExecutions: { Type: Number, Default: 0, MinValue: 0 }
+  SecretReference: { Type: String, Default: '' }
+
+Conditions:
+  HasSecretReference: !Not [!Equals [!Ref SecretReference, '']]
+  HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrentExecutions, 0]]
+
+Resources:
+  ServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Service: lambda.amazonaws.com }, Action: sts:AssumeRole }]
+      ManagedPolicyArns: [arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole]
+      Policies:
+        - PolicyName: read-consumer-secret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [secretsmanager:DescribeSecret, secretsmanager:GetSecretValue]
+                Resource: !If [HasSecretReference, !Ref SecretReference, !Ref AWS::NoValue]
+  ServerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: { RetentionInDays: !Ref LogRetentionInDays, LogGroupName: !Sub /aws/lambda/${Name} }
+  ServerFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: ServerLogGroup
+    Properties:
+      FunctionName: !Ref Name
+      Architectures: [arm64]
+      Runtime: nodejs22.x
+      Handler: index.handler
+      MemorySize: !Ref MemorySize
+      Timeout: !Ref Timeout
+      ReservedConcurrentExecutions: !If [HasReservedConcurrency, !Ref ReservedConcurrentExecutions, !Ref AWS::NoValue]
+      Role: !GetAtt ServerRole.Arn
+      Code: { S3Bucket: !Ref LambdaArtifactBucket, S3Key: !Ref LambdaArtifactKey }
+      Environment:
+        Variables:
+          ASSET_PATH: !Sub '${AssetBaseUrl}/dashboard/${DashboardVersion}'
+          BOARD_CONFIG_URL: !Ref BoardConfigPath
+          HOST: 0.0.0.0
+          SECRET_REFERENCE: !If [HasSecretReference, !Ref SecretReference, !Ref AWS::NoValue]
+  ServerUrl:
+    Type: AWS::Lambda::Url
+    Properties: { TargetFunctionArn: !GetAtt ServerFunction.Arn, AuthType: NONE }
+  ServerUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties: { FunctionName: !Ref ServerFunction, Action: lambda:InvokeFunctionUrl, Principal: '*', FunctionUrlAuthType: NONE }
+  ServerInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties: { FunctionName: !Ref ServerFunction, Action: lambda:InvokeFunction, Principal: '*', InvokedViaFunctionUrl: true }
+
+Outputs:
+  ServerUrl: { Value: !GetAtt ServerUrl.FunctionUrl }
+  ServerFunctionName: { Value: !Ref ServerFunction }
+  AssetPath: { Value: !Sub '${AssetBaseUrl}/dashboard/${DashboardVersion}' }

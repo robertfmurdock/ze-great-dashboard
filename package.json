@@ -10,21 +10,23 @@
   },
   "workspaces": [
     "packages/shared",
+    "packages/core",
     "packages/server",
-    "packages/client"
+    "packages/client",
+    "packages/aws"
   ],
   "scripts": {
     "check": "npm run lint && npm run typecheck && npm run test",
     "lint": "biome ci .",
     "format": "biome check --write .",
-    "typecheck": "concurrently -g --kill-others-on-fail -n root,shared,server,client \"tsc -p tsconfig.json\" \"tsc -p packages/shared\" \"tsc -p packages/server\" \"tsc -p packages/client\"",
+    "typecheck": "concurrently -g --kill-others-on-fail -n root,shared,core,server,client,aws \"tsc -p tsconfig.json\" \"tsc -p packages/shared\" \"tsc -p packages/core\" \"tsc -p packages/server\" \"tsc -p packages/client\" \"tsc -p packages/aws\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "concurrently -k -n client,server -c cyan,green \"npm:dev:client\" \"npm:dev:server\"",
     "dev:client": "npm run dev --workspace @ze-great-dashboard/client",
     "dev:server": "ASSET_PATH=http://localhost:5173/__ASSET_PATH__ TEMPLATE_WAIT_MS=20000 npm run dev --workspace @ze-great-dashboard/server",
     "build": "npm run build --workspace @ze-great-dashboard/client",
-    "build:release": "npm run build && npm run build:lambda --workspace @ze-great-dashboard/server && tar -czf release-build.tgz packages/client/dist packages/server/dist",
+    "build:release": "npm run build && npx tsx packages/core/src/cli.ts validate --board-config boards/example.yaml && tar -czf release-build.tgz packages/client/dist",
     "release:version": "bash scripts/release-version.sh",
     "release:provision": "bash scripts/provision-aws.sh",
     "release:deploy": "bash scripts/deploy-aws.sh",

@@ -31,6 +31,11 @@ export function createApp(deps: AppDependencies): Hono {
 
   app.get('/health', (c) => c.json({ status: 'ok' }))
 
+  // AUTHORIZATION_BOUNDARY: the public initial deployment is intentionally authless. Keep this
+  // middleware immediately before dashboard/API routes so an Auth0 or gateway check can be added
+  // without changing packaging, route handlers, or the client contract.
+  app.use('/api/*', async (_c, next) => next())
+
   app.get('/', (c) => renderEntrypoint(c.req.raw, selectedBoard))
   app.get('/boards/:board', (c) => renderEntrypoint(c.req.raw, c.req.param('board')))
   app.get('/api/boards/:board', (c) => {

@@ -85,7 +85,20 @@ jobs:
 
       - name: Provision AWS infrastructure
         id: infrastructure
+        env:
+          CLOUDFORMATION_ROLE_ARN: arn:aws:iam::174159267544:role/ZeGreatDashboardCloudFormationExecution
+          GITHUB_OWNER_ID: '6215634'
+          GITHUB_REPOSITORY_ID: '1338375095'
         run: npm run --silent release:provision
+
+      - name: Package AWS release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          npx tsx packages/aws/src/cli.ts package \
+            --board-config boards/example.yaml \
+            --version "$VERSION" \
+            --output aws-release
 
       # Artifact publishing does not retain the more powerful provisioning credentials.
       - name: AWS release credentials
@@ -96,11 +109,15 @@ jobs:
 
       - name: Deploy application 🚀
         env:
-          ASSETS_BUCKET: ${{ steps.infrastructure.outputs.assets_bucket }}
-          ASSETS_BASE_URL: ${{ steps.infrastructure.outputs.assets_base_url }}
-          FUNCTION_NAME: ${{ steps.infrastructure.outputs.function_name }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: npm run --silent release:deploy
+        run: |
+          npx tsx packages/aws/src/cli.ts deploy \
+            --artifact-dir aws-release \
+            --assets-dir packages/client/dist \
+            --assets-bucket "${{ steps.infrastructure.outputs.assets_bucket }}" \
+            --assets-base-url "${{ steps.infrastructure.outputs.assets_base_url }}" \
+            --function-name "${{ steps.infrastructure.outputs.function_name }}" \
+            --version "$VERSION"
 
       - name: Smoke test deployed release
         env:

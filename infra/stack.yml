@@ -7,13 +7,13 @@ Parameters:
     Default: ze-great-dashboard
   GitHubRepository:
     Type: String
-    Default: robertfmurdock/ze-great-dashboard
+    Description: owner/repository allowed to assume the deployment role
   GitHubOwnerId:
     Type: String
-    Default: '6215634'
+    Description: numeric GitHub owner id
   GitHubRepositoryId:
     Type: String
-    Default: '1338375095'
+    Description: numeric GitHub repository id
 
 Resources:
   AssetsBucket:
@@ -159,6 +159,7 @@ Resources:
   DeployRole:
     Type: AWS::IAM::Role
     Properties:
+      # Kept stable for the one-time bootstrap policy and exposed as the deployment contract.
       RoleName: ZeGreatDashboardDeploy
       Description: !Sub 'GitHub Actions release role for ${GitHubRepository}'
       AssumeRolePolicyDocument:

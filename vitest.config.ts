@@ -17,6 +17,13 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'core',
+          root: './packages/core',
+          environment: 'node',
+        },
+      },
+      {
+        test: {
           name: 'server',
           root: './packages/server',
           environment: 'node',
@@ -27,6 +34,13 @@ export default defineConfig({
           name: 'client',
           root: './packages/client',
           environment: 'happy-dom',
+        },
+      },
+      {
+        test: {
+          name: 'aws',
+          root: './packages/aws',
+          environment: 'node',
         },
       },
     ],

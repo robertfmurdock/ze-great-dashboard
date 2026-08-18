@@ -1,0 +1,23 @@
+{
+  "name": "@continuous-excellence/ze-great-dashboard-aws",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "AWS Lambda and CloudFormation adapter for Ze Great Dashboard.",
+  "bin": {
+    "ze-great-dashboard-aws": "src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "template.yml"
+  ],
+  "dependencies": {
+    "@continuous-excellence/ze-great-dashboard": "*",
+    "esbuild": "^0.28.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.12"
+  }
+}

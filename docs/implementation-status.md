@@ -5,8 +5,9 @@ records the product idea and architectural reasoning as it existed before implem
 document records what is actually in the repository, what has been verified, and where reality has
 changed the sequence or scope.
 
-Detailed dated slices are recorded in [the Stage 4 HTTP value log](./stage4-http-value-log.md) and
-the earlier [Stage 2 GitHub Actions log](./stage2-github-actions-log.md).
+Detailed dated slices are recorded in [the Stage 4 HTTP value log](./stage4-http-value-log.md), the
+earlier [Stage 2 GitHub Actions log](./stage2-github-actions-log.md), and the [dashboard package
+and deployment log](./dashboard-package-log.md).
 
 ## Current checkpoint
 
@@ -26,11 +27,12 @@ locally. The current implementation includes:
   readable single column, and every observation discloses relative age with stale readings emphasized.
 - Local development watches the configured board file, so editing deployable board configuration
   restarts the server listener without making the example board itself part of the product contract.
-- Docker, Lambda bundling, fixture-driven tests, and the repository-wide `npm run check` gate.
+- Docker, Lambda bundling, local consumer/AWS package tooling, fixture-driven tests, and the
+  repository-wide `npm run check` gate.
 
-Verification currently passes with 75 tests, the client production build, and the Lambda bundle.
-No infrastructure has been deployed from this repository yet; deployment claims remain recorded in
-the initialization log until observed against real AWS resources.
+Verification currently passes with 80 tests, the client production build, the core board validator,
+and the AWS adapter Lambda archive. npm publishing remains intentionally deferred. No infrastructure
+has been deployed from this repository yet; live AWS claims remain unverified.
 
 ## Development workflow log
 

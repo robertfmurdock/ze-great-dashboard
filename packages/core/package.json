@@ -1,0 +1,23 @@
+{
+  "name": "@continuous-excellence/ze-great-dashboard",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Provider-neutral release and board packaging for Ze Great Dashboard.",
+  "bin": {
+    "ze-great-dashboard": "src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "@ze-great-dashboard/shared": "*",
+    "yaml": "^2.8.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.12"
+  }
+}
