@@ -1,5 +1,5 @@
-# Small public board used by the quickstart and schema tests. Keep this intentionally simple;
-# realistic team configurations belong in their own files (for example ze-great-team.yaml).
+# Small public board used by the quickstart and schema tests. It is intentionally asymmetric so
+# the grid layout is obvious when trying the dashboard locally.
 
 sources:
   example-github:
@@ -15,10 +15,10 @@ boards:
         type: pipeline-status
         source: example-github
         pipeline: '88506573'
-        position: { x: 0, y: 0, w: 12, h: 4 }
+        position: { x: 0, y: 0, w: 8, h: 6 }
 
       - id: example-version
         type: http-value
         url: https://example.com/version.json
         json_path: $.version
-        position: { x: 0, y: 4, w: 12, h: 2 }
+        position: { x: 8, y: 0, w: 4, h: 6 }

@@ -249,4 +249,40 @@ describe('http-value panels', () => {
       'https://service.example.com/version',
     )
   })
+
+  it('uses configured panel positions in the board grid', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) =>
+        String(input).startsWith('/api/boards/')
+          ? new Response(
+              JSON.stringify({
+                panels: [
+                  { id: 'build', type: 'pipeline-status', position: { x: 6, y: 4, w: 6, h: 3 } },
+                ],
+              }),
+            )
+          : new Response(
+              JSON.stringify({
+                panelId: 'build',
+                state: 'ok',
+                observedAt: '2026-08-18T12:00:00.000Z',
+                link: null,
+                signal: {
+                  type: 'pipeline-status',
+                  status: 'passed',
+                  rawStatus: 'passed',
+                  name: 'build',
+                },
+              }),
+            ),
+      ),
+    )
+
+    const rendered = render(<App env={env} />)
+    await act(async () => {})
+    const panel = rendered.querySelector('.panel')
+    expect(panel?.getAttribute('style')).toContain('--panel-column: 7 / span 6')
+    expect(panel?.getAttribute('style')).toContain('--panel-row: 5 / span 3')
+  })
 })

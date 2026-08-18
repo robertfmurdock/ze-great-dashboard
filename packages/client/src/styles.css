@@ -116,7 +116,8 @@ body {
 }
 
 .panel {
-  grid-column: span 6;
+  grid-column: var(--panel-column, span 6);
+  grid-row: var(--panel-row, auto);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -126,6 +127,7 @@ body {
   border: 1px solid var(--edge);
   border-radius: var(--radius);
   background: var(--surface-raised);
+  overflow: hidden;
 }
 
 .panel--wide {
@@ -144,6 +146,16 @@ body {
   margin: 0;
   font-size: 0.75em;
   color: var(--ink-muted);
+}
+
+.panel__observed {
+  display: flex;
+  gap: 0.35em;
+  align-items: center;
+}
+
+.panel__observed--stale {
+  color: var(--status-warning);
 }
 
 .panel__status {
@@ -203,7 +215,12 @@ body {
 }
 
 @media (max-width: 60rem) {
+  .board__grid {
+    grid-template-columns: 1fr;
+  }
+
   .panel {
-    grid-column: span 12;
+    grid-column: 1 / -1;
+    grid-row: auto;
   }
 }

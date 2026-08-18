@@ -27,6 +27,7 @@ boards:
   ze-great-team:
     refresh: 60s
     panels:
+      # Build health: two balanced rows, then the dashboard itself as the full-width anchor.
       - id: coupling-build
         type: pipeline-status
         source: coupling
@@ -55,15 +56,16 @@ boards:
         type: pipeline-status
         source: ze-great-dashboard
         pipeline: main.yml
-        position: { x: 0, y: 8, w: 6, h: 4 }
+        position: { x: 0, y: 8, w: 12, h: 4 }
 
+      # Published versions: a regular two-column comparison section.
       - id: tagger-latest-version
         type: http-value
         url: https://registry.npmjs.org/@continuous-excellence%2Ftagger/latest
         json_path: $.version
         link: https://www.npmjs.com/package/@continuous-excellence/tagger
         refresh: 15m
-        position: { x: 6, y: 8, w: 6, h: 4 }
+        position: { x: 0, y: 12, w: 6, h: 4 }
 
       - id: coupling-latest-version
         type: http-value
@@ -71,7 +73,7 @@ boards:
         json_path: $.version
         link: https://www.npmjs.com/package/@continuous-excellence/coupling-cli
         refresh: 15m
-        position: { x: 0, y: 12, w: 6, h: 4 }
+        position: { x: 6, y: 12, w: 6, h: 4 }
 
       - id: jsmints-latest-version
         type: http-value
@@ -79,7 +81,7 @@ boards:
         json_path: $.response.docs[0].latestVersion
         link: https://central.sonatype.com/artifact/com.zegreatrob.jsmints/plugins
         refresh: 15m
-        position: { x: 6, y: 12, w: 6, h: 4 }
+        position: { x: 0, y: 16, w: 6, h: 4 }
 
       - id: testmints-latest-version
         type: http-value
@@ -87,4 +89,4 @@ boards:
         json_path: $.response.docs[0].latestVersion
         link: https://central.sonatype.com/artifact/com.zegreatrob.testmints/report
         refresh: 15m
-        position: { x: 0, y: 16, w: 6, h: 4 }
+        position: { x: 6, y: 16, w: 6, h: 4 }

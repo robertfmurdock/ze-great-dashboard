@@ -22,11 +22,13 @@ locally. The current implementation includes:
   304 preservation, and lifecycle cleanup.
 - Source-agnostic `http-value` panels. They fetch configured HTTP(S) endpoints, accept plain scalar
   text or JSON, and support the deliberately small field-and-index JSON-path subset.
+- Radiator layout polish: configured 12-column positions are rendered, narrow screens collapse to a
+  readable single column, and every observation discloses relative age with stale readings emphasized.
 - Local development watches the configured board file, so editing deployable board configuration
   restarts the server listener without making the example board itself part of the product contract.
 - Docker, Lambda bundling, fixture-driven tests, and the repository-wide `npm run check` gate.
 
-Verification currently passes with 74 tests, the client production build, and the Lambda bundle.
+Verification currently passes with 75 tests, the client production build, and the Lambda bundle.
 No infrastructure has been deployed from this repository yet; deployment claims remain recorded in
 the initialization log until observed against real AWS resources.
 
@@ -36,6 +38,12 @@ Recorded 2026-08-18: the server's TypeScript watcher now includes a local `BOARD
 This keeps board edits in the normal local feedback loop. Remote board URLs are not treated as
 filesystem watch targets, and deployed behavior is unchanged. The realistic team board remains an
 example configuration rather than an ongoing product-history concern.
+
+Recorded 2026-08-18: completed the first radiator layout pass. The example board now demonstrates an
+asymmetric 8/4 split, while the team board groups build health first, gives the dashboard build a
+full-width anchor, and presents published versions in a regular two-column section. Coordinates were
+adjusted as a set so panels do not overlap. The client now renders those positions and marks readings
+older than five minutes as stale while retaining the exact observation time.
 
 ## Deliberate differences from the pitch
 
