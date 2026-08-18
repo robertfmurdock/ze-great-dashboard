@@ -163,4 +163,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx --yes @continuous-excellence/tagger@3 tag --version "${{ steps.version.outputs.version }}"
+        run: >-
+          npx --yes @continuous-excellence/tagger@3 tag
+          --release-branch main
+          --version "${{ steps.version.outputs.version }}"
