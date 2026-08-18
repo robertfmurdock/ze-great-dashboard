@@ -165,5 +165,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version="${{ steps.version.outputs.version }}"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic $auth"
+          trap 'git config --local --unset-all http.https://github.com/.extraheader' EXIT
           npx --yes @continuous-excellence/tagger@3 tag --version "$version"
           git ls-remote --exit-code --tags origin "refs/tags/$version" > /dev/null
