@@ -6,6 +6,7 @@ import {
   resolveRefreshMillis,
 } from '@ze-great-dashboard/shared'
 import { useEffect, useState } from 'react'
+import { HttpValuePanel } from './HttpValuePanel.tsx'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PipelinePanel, parseEnvelope } from './PipelinePanel.tsx'
 
@@ -56,7 +57,7 @@ export function App({ env }: { env: ClientEnv }) {
     const timers: number[] = []
 
     for (const panel of board.panels) {
-      if (panel.type !== 'pipeline-status') continue
+      if (panel.type !== 'pipeline-status' && panel.type !== 'http-value') continue
 
       let inFlight = false
       const refreshMillis = resolveRefreshMillis({
@@ -115,6 +116,8 @@ export function App({ env }: { env: ClientEnv }) {
         {board?.panels.map((panel) =>
           panel.type === 'pipeline-status' ? (
             <PipelinePanel key={panel.id} panel={panel} data={signals[panel.id]} />
+          ) : panel.type === 'http-value' ? (
+            <HttpValuePanel key={panel.id} panel={panel} data={signals[panel.id]} />
           ) : (
             <PanelPlaceholder key={panel.id} label={panel.type} hint="Not wired yet" wide />
           ),

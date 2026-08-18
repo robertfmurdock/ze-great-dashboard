@@ -16,3 +16,9 @@ boards:
         source: example-github
         pipeline: '88506573'
         position: { x: 0, y: 0, w: 12, h: 4 }
+
+      - id: example-version
+        type: http-value
+        url: https://example.com/version.json
+        json_path: $.version
+        position: { x: 0, y: 4, w: 12, h: 2 }

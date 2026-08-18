@@ -217,3 +217,36 @@ describe('pipeline-status refresh scheduling', () => {
     resolvePanel?.()
   })
 })
+
+describe('http-value panels', () => {
+  it('fetches and renders a configured value', async () => {
+    const requests: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) => {
+        const url = String(input)
+        requests.push(url)
+        if (url.startsWith('/api/boards/')) {
+          return new Response(JSON.stringify({ panels: [{ id: 'version', type: 'http-value' }] }))
+        }
+        return new Response(
+          JSON.stringify({
+            panelId: 'version',
+            state: 'ok',
+            observedAt: '2026-08-18T12:00:00.000Z',
+            link: 'https://service.example.com/version',
+            signal: { type: 'http-value', value: '1.2.3' },
+          }),
+        )
+      }),
+    )
+
+    const rendered = render(<App env={env} />)
+    await act(async () => {})
+    expect(requests.some((url) => url.endsWith('/version'))).toBe(true)
+    expect(rendered.textContent).toContain('1.2.3')
+    expect(rendered.querySelector('a')?.getAttribute('href')).toBe(
+      'https://service.example.com/version',
+    )
+  })
+})

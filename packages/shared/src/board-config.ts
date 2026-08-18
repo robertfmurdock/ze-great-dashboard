@@ -33,6 +33,13 @@ export const panelSchema = z.looseObject({
   refresh: durationSchema.optional(),
   /** A deliberate override only. Adapters derive links; hand-written ones drift. */
   link: z.url().optional(),
+  /** Source-agnostic endpoint used by the http-value signal. */
+  url: z.url().optional(),
+  /** Small, deliberate JSON path subset: $.version or $.deployment.version. */
+  json_path: z
+    .string()
+    .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/, 'must be a simple JSON path')
+    .optional(),
 })
 
 export type Panel = z.infer<typeof panelSchema>

@@ -1,6 +1,7 @@
 import type { BoardConfig, ClientEnv } from '@ze-great-dashboard/shared'
 import { Hono } from 'hono'
 import { fetchGithubActionsPipeline } from './adapters/github-actions.ts'
+import { fetchHttpValue } from './adapters/http-value.ts'
 import { deriveAllowlist } from './allowlist.ts'
 import type { ServerConfig } from './config.ts'
 import { renderIndexHtml } from './render.ts'
@@ -42,12 +43,29 @@ export function createApp(deps: AppDependencies): Hono {
     const board = deps.boardConfig?.boards[boardName]
     const panel = board?.panels.find((candidate) => candidate.id === panelId)
     const source = panel?.source ? deps.boardConfig?.sources[panel.source] : undefined
-    if (!panel || !source || !allowlist.has(`${boardName}/${panelId}`)) return c.notFound()
+    if (
+      !panel ||
+      (panel.type !== 'http-value' && !source) ||
+      !allowlist.has(`${boardName}/${panelId}`)
+    )
+      return c.notFound()
 
-    if (panel.type === 'pipeline-status' && source.type === 'github-actions') {
+    if (panel.type === 'pipeline-status' && source?.type === 'github-actions' && source) {
       const result = await fetchGithubActionsPipeline({
         panel,
         source,
+        requestHeaders: c.req.raw.headers,
+        fetcher: deps.fetcher ?? globalThis.fetch,
+      })
+      const headers = passthroughHeaders(result.response.headers)
+      if (result.response.status === 304) return new Response(null, { status: 304, headers })
+      const envelope = result.envelope ?? JSON.parse(await result.response.text())
+      headers.set('content-type', 'application/json; charset=utf-8')
+      return new Response(JSON.stringify(envelope), { status: 200, headers })
+    }
+    if (panel.type === 'http-value') {
+      const result = await fetchHttpValue({
+        panel,
         requestHeaders: c.req.raw.headers,
         fetcher: deps.fetcher ?? globalThis.fetch,
       })

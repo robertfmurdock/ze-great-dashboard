@@ -68,3 +68,10 @@ export const pipelineStatusSchema = z.object({
 })
 
 export type PipelineStatus = z.infer<typeof pipelineStatusSchema>
+
+export const httpValueSchema = z.object({
+  type: z.literal('http-value'),
+  value: z.union([z.string(), z.number(), z.boolean()]),
+})
+
+export type HttpValue = z.infer<typeof httpValueSchema>

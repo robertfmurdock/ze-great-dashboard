@@ -4,6 +4,7 @@ import {
   type Panel,
   pipelineStatusSchema,
 } from '@ze-great-dashboard/shared'
+import { ObservedAt } from './ObservedAt.tsx'
 
 export function PipelinePanel({ panel, data }: { panel: Panel; data: Envelope | undefined }) {
   if (!data)
@@ -57,11 +58,6 @@ export function PipelinePanel({ panel, data }: { panel: Panel; data: Envelope | 
       )}
     </section>
   )
-}
-
-function ObservedAt({ value }: { value: string }) {
-  const formatted = new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  return <p className="panel__hint">As of {formatted}</p>
 }
 
 function statusPresentation(status: 'passed' | 'failed' | 'running' | 'cancelled' | 'unknown') {

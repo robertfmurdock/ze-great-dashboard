@@ -21,6 +21,8 @@ export {
   type ErrorKind,
   envelopeSchema,
   errorKindSchema,
+  type HttpValue,
+  httpValueSchema,
   type OkEnvelope,
   type PipelineStatus,
   pipelineStatusSchema,
