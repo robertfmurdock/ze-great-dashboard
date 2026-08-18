@@ -8,7 +8,7 @@
   "patchRegex": "\\[patch\\]",
   "noneRegex": "\\[none\\]",
   "versionRegex": null,
-  "userName": null,
-  "userEmail": null,
+  "userName": "github-actions[bot]",
+  "userEmail": "41898282+github-actions[bot]@users.noreply.github.com",
   "warningsAsErrors": false
 }
