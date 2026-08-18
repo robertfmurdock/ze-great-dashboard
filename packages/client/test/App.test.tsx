@@ -1,6 +1,6 @@
 import type { ClientEnv } from '@ze-great-dashboard/shared'
 import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react-dom/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../src/App.tsx'
@@ -14,6 +14,7 @@ const env: ClientEnv = {
 }
 
 let container: HTMLDivElement | undefined
+let root: Root | undefined
 
 beforeEach(() => {
   // The shell tests do not exercise networking; keep their effects local rather than allowing
@@ -27,15 +28,19 @@ beforeEach(() => {
 function render(node: React.ReactNode): HTMLDivElement {
   container = document.createElement('div')
   document.body.append(container)
-  const root = createRoot(container)
-  act(() => root.render(<StrictMode>{node}</StrictMode>))
+  const createdRoot = createRoot(container)
+  root = createdRoot
+  act(() => createdRoot.render(<StrictMode>{node}</StrictMode>))
   return container
 }
 
 afterEach(() => {
+  root?.unmount()
+  root = undefined
   container?.remove()
   container = undefined
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 describe('the board shell', () => {
@@ -70,5 +75,158 @@ describe('when configuration never arrived', () => {
 
   it('announces itself to assistive technology', () => {
     expect(render(<ConfigError message="broken" />).querySelector('[role="alert"]')).not.toBeNull()
+  })
+})
+
+describe('pipeline-status refresh scheduling', () => {
+  const okEnvelope = (panelId: string, status: 'passed' | 'failed') =>
+    JSON.stringify({
+      panelId,
+      state: 'ok',
+      observedAt: '2026-08-18T12:00:00.000Z',
+      link: null,
+      signal: { type: 'pipeline-status', status, rawStatus: status, name: panelId },
+    })
+
+  function setup(
+    board: Record<string, unknown>,
+    responses: Record<string, Array<Response | Promise<Response>>> = {},
+  ) {
+    const requests: string[] = []
+    const fetcher = vi.fn((input: string | URL) => {
+      const url = String(input)
+      requests.push(url)
+      if (url.startsWith('/api/boards/'))
+        return Promise.resolve(new Response(JSON.stringify(board)))
+      const panelId = decodeURIComponent(url.split('/').at(-1) ?? '')
+      const panelResponses = responses[panelId] ?? [new Response(okEnvelope(panelId, 'passed'))]
+      const response = panelResponses.shift()
+      return response
+        ? Promise.resolve(response)
+        : Promise.resolve(new Response(okEnvelope(panelId, 'passed')))
+    })
+    vi.stubGlobal('fetch', fetcher)
+    return { fetcher, requests }
+  }
+
+  async function settle() {
+    await act(async () => {})
+  }
+
+  it('fetches each supported panel immediately and does not fetch unsupported panels', async () => {
+    const { requests } = setup({
+      panels: [
+        { id: 'build', type: 'pipeline-status' },
+        { id: 'note', type: 'markdown' },
+        { id: 'deploy', type: 'pipeline-status' },
+      ],
+    })
+
+    render(<App env={env} />)
+    await settle()
+
+    expect(requests.filter((url) => url.includes('/panel/'))).toHaveLength(2)
+    expect(requests.some((url) => url.endsWith('/note'))).toBe(false)
+  })
+
+  it('uses panel refresh before the board refresh', async () => {
+    vi.useFakeTimers()
+    const { requests } = setup({
+      refresh: '200ms',
+      panels: [
+        { id: 'board-default', type: 'pipeline-status' },
+        { id: 'panel-override', type: 'pipeline-status', refresh: '100ms' },
+        { id: 'fallback', type: 'pipeline-status' },
+      ],
+    })
+
+    render(<App env={env} />)
+    await settle()
+    const panelRequests = () => requests.filter((url) => url.includes('/panel/'))
+
+    await act(async () => vi.advanceTimersByTime(99))
+    expect(panelRequests()).toHaveLength(3)
+    await act(async () => vi.advanceTimersByTime(1))
+    expect(panelRequests().filter((url) => url.endsWith('/panel-override'))).toHaveLength(2)
+    await act(async () => vi.advanceTimersByTime(100))
+    expect(panelRequests().filter((url) => url.endsWith('/board-default'))).toHaveLength(2)
+  })
+
+  it('uses a 60-second default when neither board nor panel sets refresh', async () => {
+    vi.useFakeTimers()
+    const { requests } = setup({ panels: [{ id: 'fallback', type: 'pipeline-status' }] })
+
+    render(<App env={env} />)
+    await settle()
+    await act(async () => vi.advanceTimersByTime(59_999))
+    expect(requests.filter((url) => url.endsWith('/fallback'))).toHaveLength(1)
+    await act(async () => vi.advanceTimersByTime(1))
+    expect(requests.filter((url) => url.endsWith('/fallback'))).toHaveLength(2)
+  })
+
+  it('updates the rendered signal on refresh', async () => {
+    vi.useFakeTimers()
+    setup(
+      { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
+      {
+        build: [
+          new Response(okEnvelope('build', 'passed')),
+          new Response(okEnvelope('build', 'failed')),
+        ],
+      },
+    )
+
+    const rendered = render(<App env={env} />)
+    await settle()
+    expect(rendered.textContent).toContain('Passed')
+    await act(async () => vi.advanceTimersByTime(1_000))
+    await settle()
+    expect(rendered.textContent).toContain('Failed')
+  })
+
+  it('cleans up timers and ignores an in-flight response on unmount', async () => {
+    vi.useFakeTimers()
+    let resolvePanel: ((response: Response) => void) | undefined
+    const pending = new Promise<Response>((resolve) => {
+      resolvePanel = resolve
+    })
+    const { requests } = setup(
+      { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
+      { build: [pending] },
+    )
+
+    render(<App env={env} />)
+    await settle()
+    root?.unmount()
+    root = undefined
+    const countAfterUnmount = requests.length
+    await act(async () => vi.advanceTimersByTime(2_000))
+    resolvePanel?.(new Response(okEnvelope('build', 'failed')))
+    await settle()
+    expect(requests).toHaveLength(countAfterUnmount)
+  })
+
+  it('polls panels independently and never overlaps a pending request', async () => {
+    vi.useFakeTimers()
+    let resolvePanel: (() => void) | undefined
+    const pending = new Promise<Response>((resolve) => {
+      resolvePanel = () => resolve(new Response(okEnvelope('slow', 'passed')))
+    })
+    const { requests } = setup(
+      {
+        panels: [
+          { id: 'slow', type: 'pipeline-status', refresh: '1s' },
+          { id: 'fast', type: 'pipeline-status', refresh: '2s' },
+        ],
+      },
+      { slow: [pending] },
+    )
+
+    render(<App env={env} />)
+    await settle()
+    await act(async () => vi.advanceTimersByTime(2_000))
+    expect(requests.filter((url) => url.endsWith('/slow'))).toHaveLength(1)
+    expect(requests.filter((url) => url.endsWith('/fast'))).toHaveLength(2)
+    resolvePanel?.()
   })
 })

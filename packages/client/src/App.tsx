@@ -1,4 +1,10 @@
-import type { Board, ClientEnv, Envelope } from '@ze-great-dashboard/shared'
+import {
+  type Board,
+  type ClientEnv,
+  type Envelope,
+  parseDuration,
+  resolveRefreshMillis,
+} from '@ze-great-dashboard/shared'
 import { useEffect, useState } from 'react'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PipelinePanel, parseEnvelope } from './PipelinePanel.tsx'
@@ -13,10 +19,14 @@ import { PipelinePanel, parseEnvelope } from './PipelinePanel.tsx'
  */
 export function App({ env }: { env: ClientEnv }) {
   const [board, setBoard] = useState<Board>()
+  const [loadedBoardName, setLoadedBoardName] = useState<string>()
   const [signals, setSignals] = useState<Record<string, Envelope | undefined>>({})
 
   useEffect(() => {
     let cancelled = false
+    setBoard(undefined)
+    setLoadedBoardName(undefined)
+    setSignals({})
     fetch(`${env.proxyPath}/boards/${encodeURIComponent(env.board)}`)
       .then((response) =>
         response.ok
@@ -24,10 +34,16 @@ export function App({ env }: { env: ClientEnv }) {
           : Promise.reject(new Error(`Board configuration returned ${response.status}`)),
       )
       .then((value: unknown) => {
-        if (!cancelled) setBoard(value as Board)
+        if (!cancelled) {
+          setBoard(value as Board)
+          setLoadedBoardName(env.board)
+        }
       })
       .catch(() => {
-        if (!cancelled) setBoard({ panels: [] })
+        if (!cancelled) {
+          setBoard({ panels: [] })
+          setLoadedBoardName(env.board)
+        }
       })
     return () => {
       cancelled = true
@@ -35,25 +51,48 @@ export function App({ env }: { env: ClientEnv }) {
   }, [env.board, env.proxyPath])
 
   useEffect(() => {
-    if (!board) return
+    if (!board || loadedBoardName !== env.board) return
     let cancelled = false
+    const timers: number[] = []
+
     for (const panel of board.panels) {
       if (panel.type !== 'pipeline-status') continue
-      fetch(
-        `${env.proxyPath}/panel/${encodeURIComponent(env.board)}/${encodeURIComponent(panel.id)}`,
-      )
-        .then((response) => (response.status === 304 ? undefined : response.json()))
-        .then((value: unknown) => {
-          const envelope = parseEnvelope(value)
-          if (!cancelled && envelope)
-            setSignals((current) => ({ ...current, [panel.id]: envelope }))
-        })
-        .catch(() => undefined)
+
+      let inFlight = false
+      const refreshMillis = resolveRefreshMillis({
+        boardDefaultMillis: parseDuration(board.refresh ?? '60s') ?? 60_000,
+        panelOverrideMillis: panel.refresh
+          ? (parseDuration(panel.refresh) ?? undefined)
+          : undefined,
+        adapterFloorMillis: 0,
+      })
+
+      const refresh = () => {
+        if (cancelled || inFlight) return
+        inFlight = true
+        fetch(
+          `${env.proxyPath}/panel/${encodeURIComponent(env.board)}/${encodeURIComponent(panel.id)}`,
+        )
+          .then((response) => (response.status === 304 ? undefined : response.json()))
+          .then((value: unknown) => {
+            const envelope = parseEnvelope(value)
+            if (!cancelled && envelope)
+              setSignals((current) => ({ ...current, [panel.id]: envelope }))
+          })
+          .catch(() => undefined)
+          .finally(() => {
+            inFlight = false
+          })
+      }
+
+      refresh()
+      timers.push(window.setInterval(refresh, refreshMillis))
     }
     return () => {
       cancelled = true
+      for (const timer of timers) window.clearInterval(timer)
     }
-  }, [board, env.board, env.proxyPath])
+  }, [board, env.board, env.proxyPath, loadedBoardName])
 
   return (
     <div className="board">
