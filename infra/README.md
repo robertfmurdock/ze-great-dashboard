@@ -1,83 +1,59 @@
 # Infrastructure
 
-Terraform for the assets bucket, its CloudFront distribution, the server Lambda, and the GitHub
-Actions deploy role. Account `174159267544`.
+`stack.yml` is the complete application stack. CloudFormation keeps its state in AWS; there is no
+Terraform state file or state bucket.
 
-Applied **manually**, from a session with write access. CI never runs Terraform: the deploy role can
-publish assets and update one function, and cannot create infrastructure. Publishing artifacts and
-provisioning are different privileges and only one of them belongs in a pipeline.
+The release workflow deploys this stack before publishing the client and server. It then reads the
+bucket, CDN URL, function name, and release-role ARN from stack outputs, so deployment configuration
+does not duplicate infrastructure names.
 
-State is local and gitignored. Fine for one operator on a prototype; worth a state bucket the moment
-that stops being true.
+## One-time bootstrap
 
-## What gets created
+GitHub cannot create the AWS identity it needs to authenticate as. Before the first release, an AWS
+administrator must create `ZeGreatDashboardProvision` and allow GitHub OIDC tokens matching exactly:
 
-| Resource | Notes |
-|---|---|
-| `s3://ze-great-dashboard-assets` | Private, encrypted, CORS `*` for GET/HEAD |
-| CloudFront distribution | OAC to the bucket; the only way in |
-| ACM certificate (us-east-1) | Only if `assets_domain` is set; DNS-validated by hand |
-| Lambda `ze-great-dashboard` + Function URL | `nodejs22.x`, arm64, auth `NONE` |
-| IAM role `ZeGreatDashboardDeploy` | OIDC, scoped to `repo:robertfmurdock/ze-great-dashboard:*` |
-
-The CORS policy is `Access-Control-Allow-Origin: *`, which is deliberate and safe *because of what
-is in the bucket*: immutable build artifacts holding zero environment values and zero secrets. It
-has to be that wide because the server fetches `index.html` cross-origin from wherever it runs —
-localhost, Lambda, anywhere later — and enumerating those would mean editing infrastructure to add a
-developer.
-
-## The two-phase apply
-
-`zegreatrob.com` is served by GoDaddy nameservers. There is no Route53 hosted zone, so Terraform can
-neither create the alias record nor validate its own certificate. Two records get added by hand.
-
-**1. Create the certificate and read its validation record.**
-
-```sh
-terraform apply -target=aws_acm_certificate.assets
-terraform output certificate_validation_record
+```text
+repo:robertfmurdock/ze-great-dashboard:ref:refs/heads/main
 ```
 
-**2. Add that CNAME at GoDaddy.** Name and value come from the output above. GoDaddy appends the
-zone automatically, so strip the trailing `.zegreatrob.com.` from the name it gives you. Then wait
-for the certificate to reach `ISSUED` — usually a few minutes:
+The shared OIDC provider `token.actions.githubusercontent.com` already exists in account
+`174159267544`. The administrator also creates `ZeGreatDashboardCloudFormationExecution`, which
+CloudFormation—not GitHub—assumes to operate the resources in `stack.yml`. The provisioning role can
+operate only the `ze-great-dashboard` stack and pass only that execution role. It must not trust pull
+requests, tags, or other branches.
+
+This role is the sole bootstrap boundary. The stack creates a narrower `ZeGreatDashboardDeploy`
+role, which the workflow assumes for publishing assets and updating Lambda code.
+
+The two bootstrap roles are declared in `bootstrap.yml`. Upload that file in AWS CloudShell and run:
 
 ```sh
-aws acm describe-certificate --region us-east-1 \
-  --certificate-arn "$(terraform state show -no-color 'aws_acm_certificate.assets[0]' \
-    | awk '/^ *arn *=/ {print $3; exit}' | tr -d '"')" \
-  --query 'Certificate.Status' --output text
+aws cloudformation deploy \
+  --region us-east-1 \
+  --stack-name ze-great-dashboard-bootstrap \
+  --template-file bootstrap.yml \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --tags Project=ze-great-dashboard ManagedBy=cloudformation
 ```
 
-**3. Apply everything else.**
+This command is safe to rerun. It assumes the account's shared GitHub OIDC provider already exists.
 
-```sh
-terraform apply
-```
+## Resources
 
-**4. Add the alias CNAME at GoDaddy**: `assets.dashboard` → the value of
-`terraform output alias_record`.
+- Private, encrypted, versioned `ze-great-dashboard-assets` S3 bucket, retained on stack deletion
+- CloudFront distribution with signed origin access to that bucket
+- ARM64 Node.js 22 Lambda `ze-great-dashboard`
+- Public Lambda Function URL
+- Lambda execution role and 14-day CloudWatch log group
+- Main-branch-only GitHub release role `ZeGreatDashboardDeploy`
 
-Those two records live outside Terraform. They are named here so that in six months it is a
-documented gap rather than a mystery.
+The distribution initially uses its generated `d*.cloudfront.net` HTTPS hostname. This keeps stack
+deployment automatic: an ACM certificate for `assets.dashboard.zegreatrob.com` cannot finish until
+its validation record is added at GoDaddy. Add the custom hostname only alongside an automated or
+explicit DNS-validation process.
 
-### Skipping DNS entirely
+## Manual inspection
 
-Set `assets_domain = ""` and there is no certificate, no alias, and no GoDaddy involvement — assets
-serve from the `d*.cloudfront.net` name. Everything works; `ASSET_PATH` just points there instead.
-That this is a real option rather than a degraded mode is the one-variable property doing its job.
-
-## First apply expects a broken function
-
-The server refuses to start without a reachable client template, and on a fresh apply nothing has
-been published yet. So the function exists and fails until the first CI deploy overwrites its code
-and `ASSET_PATH`. That is accurate — there is no client — rather than a bug to work around.
-
-Terraform `ignore_changes` covers the function's code and environment for the same reason: CI owns
-those, Terraform owns the shape of the function. Otherwise every plan after a deploy would propose
-reverting production to the placeholder.
-
-## After the first apply
-
-Confirm the workflow's hardcoded values match the outputs — `ASSETS_BUCKET`, `FUNCTION_NAME`,
-`role-to-assume`, and `ASSET_BASE` in `.github/workflows/main.yml`.
+To preview an infrastructure change without applying it, create a CloudFormation change set in AWS
+or run the workflow from a branch after temporarily adding a separate read-only planning job. Normal
+branch pushes deliberately receive no AWS credentials.

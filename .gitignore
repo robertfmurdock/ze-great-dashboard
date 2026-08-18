@@ -7,12 +7,4 @@ coverage/
 .env
 .env.local
 
-# Terraform state and locals
-infra/.terraform/
-infra/*.tfstate
-infra/*.tfstate.*
-infra/*.tfvars
-!infra/*.tfvars.example
-infra/.terraform.lock.hcl
-
 .DS_Store

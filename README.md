@@ -105,9 +105,10 @@ Server environment variables are documented in `.env.example`. The one that matt
 Push to `main`. CI checks, versions with [Tagger](https://github.com/robertfmurdock/tagger), publishes
 the client to S3, and points the Lambda at the new version.
 
-Infrastructure is Terraform under `infra/`, applied **manually** — CI can publish assets and update
-one function, and cannot create infrastructure. The first apply needs two DNS records added by hand
-because the zone is at GoDaddy; `infra/README.md` has the sequence.
+Infrastructure is a CloudFormation stack under `infra/`. On `main`, CI deploys the stack before it
+publishes assets and updates the Lambda. Other branches receive no AWS credentials. CloudFormation
+keeps the infrastructure state in AWS; `infra/README.md` documents the one-time GitHub OIDC role
+bootstrap.
 
 ## License
 

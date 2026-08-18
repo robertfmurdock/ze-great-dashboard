@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/node-server.ts",
     "start": "tsx src/node-server.ts",
-    "build:lambda": "esbuild src/lambda.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/index.mjs --banner:js=\"import{createRequire}from'node:module';const require=createRequire(import.meta.url);\""
+    "build:lambda": "esbuild src/lambda.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/index.mjs --banner:js=\"import{createRequire}from'node:module';const require=createRequire(import.meta.url);\" && cp ../../boards/example.yaml dist/board.yaml"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
