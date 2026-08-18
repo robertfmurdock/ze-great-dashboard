@@ -8,6 +8,12 @@ Parameters:
   GitHubRepository:
     Type: String
     Default: robertfmurdock/ze-great-dashboard
+  GitHubOwnerId:
+    Type: String
+    Default: '6215634'
+  GitHubRepositoryId:
+    Type: String
+    Default: '1338375095'
 
 Resources:
   AssetsBucket:
@@ -165,7 +171,16 @@ Resources:
             Condition:
               StringEquals:
                 'token.actions.githubusercontent.com:aud': sts.amazonaws.com
-                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubRepository}:ref:refs/heads/main'
+                'token.actions.githubusercontent.com:sub': !Sub
+                  - 'repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:ref:refs/heads/main'
+                  - Owner:
+                      Fn::Select:
+                        - 0
+                        - Fn::Split: ['/', !Ref GitHubRepository]
+                    Repository:
+                      Fn::Select:
+                        - 1
+                        - Fn::Split: ['/', !Ref GitHubRepository]
       Policies:
         - PolicyName: deploy
           PolicyDocument:

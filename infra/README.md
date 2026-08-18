@@ -13,7 +13,7 @@ GitHub cannot create the AWS identity it needs to authenticate as. Before the fi
 administrator must create `ZeGreatDashboardProvision` and allow GitHub OIDC tokens matching exactly:
 
 ```text
-repo:robertfmurdock/ze-great-dashboard:ref:refs/heads/main
+repo:robertfmurdock@6215634/ze-great-dashboard@1338375095:ref:refs/heads/main
 ```
 
 The shared OIDC provider `token.actions.githubusercontent.com` already exists in account

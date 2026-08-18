@@ -54,7 +54,7 @@ jobs:
       # just don't publish.
       - name: AWS provisioning credentials
         if: github.ref == 'refs/heads/main'
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           # One-time bootstrap: this role and the shared GitHub OIDC provider must already exist.
           # Its AWS trust policy must allow only this repository's main branch.
@@ -93,7 +93,7 @@ jobs:
       # stack, and AWS independently restricts both roles to this repository's main branch.
       - name: AWS release credentials
         if: github.ref == 'refs/heads/main'
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           role-to-assume: ${{ steps.infrastructure.outputs.deploy_role_arn }}
           aws-region: us-east-1
