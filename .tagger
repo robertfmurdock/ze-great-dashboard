@@ -1,0 +1,14 @@
+{
+  "releaseBranch": "main",
+  "implicitPatch": true,
+  "allowDetachedHead": false,
+  "forceSnapshot": false,
+  "majorRegex": "\\[major\\]",
+  "minorRegex": "\\[minor\\]",
+  "patchRegex": "\\[patch\\]",
+  "noneRegex": "\\[none\\]",
+  "versionRegex": null,
+  "userName": null,
+  "userEmail": null,
+  "warningsAsErrors": false
+}
