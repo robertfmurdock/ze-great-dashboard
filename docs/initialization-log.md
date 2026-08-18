@@ -108,6 +108,15 @@ gate slow enough to skip gets skipped. Defend it as tests accumulate.
 Playwright was deliberately not added. It is right for Stage 5's visual work and far too slow for a
 pre-commit gate; the IWA test covers the integration risk that exists today.
 
+### React Testing Library belongs in the client tests
+
+The client tests originally used a small hand-rolled `createRoot` renderer with manual DOM cleanup.
+That was enough to test the Stage 1 shell, but the tests already described rendered behavior and an
+accessibility contract (`role="alert"`), so maintaining a second rendering harness had no value.
+`@testing-library/react` was added on 2026-08-18 and the existing tests were migrated without adding
+test cases or changing the check-in gate. RTL now owns rendering and cleanup; Vitest still runs the
+same complete `npm run check` loop, with no separate slow-test block or coverage requirement.
+
 ### Hooks: committed `.githooks` + `core.hooksPath`, no husky
 
 Wired by a root `postinstall` running `git config core.hooksPath .githooks`. Arrives with

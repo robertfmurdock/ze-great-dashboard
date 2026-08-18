@@ -1,7 +1,6 @@
+import { cleanup, render as rtlRender } from '@testing-library/react'
 import type { ClientEnv } from '@ze-great-dashboard/shared'
-import { StrictMode } from 'react'
-import { createRoot, type Root } from 'react-dom/client'
-import { act } from 'react-dom/test-utils'
+import { act, StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../src/App.tsx'
 import { ConfigError } from '../src/ConfigError.tsx'
@@ -13,9 +12,6 @@ const env: ClientEnv = {
   clientVersion: '1.0.7',
 }
 
-let container: HTMLDivElement | undefined
-let root: Root | undefined
-
 beforeEach(() => {
   // The shell tests do not exercise networking; keep their effects local rather than allowing
   // happy-dom to try a relative request during teardown.
@@ -25,20 +21,12 @@ beforeEach(() => {
   )
 })
 
-function render(node: React.ReactNode): HTMLDivElement {
-  container = document.createElement('div')
-  document.body.append(container)
-  const createdRoot = createRoot(container)
-  root = createdRoot
-  act(() => createdRoot.render(<StrictMode>{node}</StrictMode>))
-  return container
+function render(node: React.ReactNode): HTMLElement {
+  return rtlRender(<StrictMode>{node}</StrictMode>).container
 }
 
 afterEach(() => {
-  root?.unmount()
-  root = undefined
-  container?.remove()
-  container = undefined
+  cleanup()
   vi.unstubAllGlobals()
   vi.useRealTimers()
 })
@@ -197,8 +185,7 @@ describe('pipeline-status refresh scheduling', () => {
 
     render(<App env={env} />)
     await settle()
-    root?.unmount()
-    root = undefined
+    cleanup()
     const countAfterUnmount = requests.length
     await act(async () => vi.advanceTimersByTime(2_000))
     resolvePanel?.(new Response(okEnvelope('build', 'failed')))
