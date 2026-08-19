@@ -33,11 +33,21 @@ jobs:
       - name: Install
         run: npm ci --ignore-scripts
 
-      - name: Install Chromium for browser smoke test
-        run: npx playwright install --with-deps --only-shell chromium
+      - name: Start containerized browser
+        run: |
+          playwright_version="$(node -p "require('./node_modules/@playwright/test/package.json').version")"
+          echo "PLAYWRIGHT_VERSION=$playwright_version" >> "$GITHUB_ENV"
+          PLAYWRIGHT_VERSION="$playwright_version" \
+            docker compose -f compose.playwright.yml up --detach --wait --wait-timeout 60
 
       - name: Check 🔎
+        env:
+          PW_TEST_CONNECT_WS_ENDPOINT: ws://127.0.0.1:3000/
         run: npm run check
+
+      - name: Stop containerized browser
+        if: always()
+        run: docker compose -f compose.playwright.yml down
 
       - name: Build release 🔨
         run: npm run build:release

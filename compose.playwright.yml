@@ -1,0 +1,26 @@
+services:
+  playwright:
+    image: mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION:-1.62.1}-noble
+    init: true
+    ipc: host
+    network_mode: host
+    working_dir: /workspace
+    volumes:
+      - .:/workspace:ro
+    command:
+      - npx
+      - playwright
+      - run-server
+      - --port
+      - '3000'
+      - --host
+      - 0.0.0.0
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "const s=require('node:net').connect(3000,'127.0.0.1',
+          ()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1))"
+      interval: 1s
+      timeout: 1s
+      retries: 30
