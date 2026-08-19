@@ -1,0 +1,4 @@
+#!/bin/sh
+# Keep Git Duet co-author attribution compatible with this repository's
+# tracked core.hooksPath instead of the default .git/hooks directory.
+exec git duet-prepare-commit-msg "$@"
