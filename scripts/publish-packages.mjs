@@ -1,4 +1,5 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -7,27 +8,47 @@ import { packageLayout } from './package-layout.mjs'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const releaseVersion = normalizeVersion(process.env.RELEASE_VERSION)
-const dryRun = process.argv.includes('--dry-run')
+const args = process.argv.slice(2)
+const packIndex = args.indexOf('--pack')
+const publishIndex = args.indexOf('--publish-tarball')
 
-const stagingRoot = process.env.PUBLISH_STAGING_DIR
-  ? resolve(process.env.PUBLISH_STAGING_DIR)
-  : await mkdtemp(join(tmpdir(), 'ze-great-dashboard-publish-'))
+if (publishIndex >= 0) {
+  const tarball = resolve(requiredArgument(publishIndex, '--publish-tarball'))
+  await publishTarball(tarball)
+} else {
+  const stagingRoot = process.env.PUBLISH_STAGING_DIR
+    ? resolve(process.env.PUBLISH_STAGING_DIR)
+    : await mkdtemp(join(tmpdir(), 'ze-great-dashboard-publish-'))
+  try {
+    for (const packageSpec of packageLayout)
+      await stagePackage(packageSpec, join(stagingRoot, packageSpec.id))
 
-try {
-  for (const packageSpec of packageLayout) {
-    const sourceDirectory = join(root, packageSpec.directory)
-    const destinationDirectory = join(stagingRoot, packageSpec.id)
-    await copyPackage(sourceDirectory, destinationDirectory, packageSpec.publishFiles)
-    const publishArgs = ['publish', '--access', 'public', '--provenance']
-    if (dryRun) publishArgs.push('--dry-run')
-    execFileSync('npm', publishArgs, {
-      cwd: destinationDirectory,
-      stdio: 'inherit',
-      env: { ...process.env, NPM_CONFIG_IGNORE_SCRIPTS: 'true' },
-    })
+    if (packIndex >= 0) {
+      if (packageLayout.length !== 1) throw new Error('--pack requires exactly one public package')
+      await packPackage(
+        join(stagingRoot, packageLayout[0].id),
+        requiredArgument(packIndex, '--pack'),
+      )
+    } else {
+      for (const packageSpec of packageLayout) {
+        const publishArgs = ['publish', '--access', 'public', '--provenance']
+        if (args.includes('--dry-run')) publishArgs.push('--dry-run')
+        execFileSync('npm', publishArgs, {
+          cwd: join(stagingRoot, packageSpec.id),
+          stdio: 'inherit',
+          env: { ...process.env, NPM_CONFIG_IGNORE_SCRIPTS: 'true' },
+        })
+      }
+    }
+  } finally {
+    if (!process.env.PUBLISH_STAGING_DIR) await rm(stagingRoot, { recursive: true, force: true })
   }
-} finally {
-  if (!process.env.PUBLISH_STAGING_DIR) await rm(stagingRoot, { recursive: true, force: true })
+}
+
+function requiredArgument(index, flag) {
+  const value = args[index + 1]
+  if (!value || value.startsWith('--')) throw new Error(`${flag} requires a path`)
+  return value
 }
 
 function normalizeVersion(value) {
@@ -37,8 +58,10 @@ function normalizeVersion(value) {
   return version
 }
 
-async function copyPackage(sourceDirectory, destinationDirectory, files) {
-  await copyFiles(sourceDirectory, destinationDirectory, files)
+async function stagePackage(packageSpec, destinationDirectory) {
+  const sourceDirectory = join(root, packageSpec.directory)
+  for (const file of packageSpec.publishFiles)
+    await cp(join(sourceDirectory, file), join(destinationDirectory, file), { recursive: true })
   await cp(join(root, 'LICENSE'), join(destinationDirectory, 'LICENSE'))
   const manifest = JSON.parse(await readFile(join(sourceDirectory, 'package.json'), 'utf8'))
   manifest.version = releaseVersion
@@ -49,8 +72,63 @@ async function copyPackage(sourceDirectory, destinationDirectory, files) {
   )
 }
 
-async function copyFiles(sourceDirectory, destinationDirectory, files) {
-  for (const file of files) {
-    await cp(join(sourceDirectory, file), join(destinationDirectory, file), { recursive: true })
+async function packPackage(stagedDirectory, requestedPath) {
+  const target = resolve(requestedPath)
+  const packRoot = await mkdtemp(join(tmpdir(), 'ze-great-dashboard-pack-'))
+  try {
+    const output = execFileSync(
+      'npm',
+      ['pack', stagedDirectory, '--pack-destination', packRoot, '--json', '--ignore-scripts'],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        env: { ...process.env, npm_config_cache: join(packRoot, 'npm-cache') },
+      },
+    )
+    const result = JSON.parse(output)
+    if (!Array.isArray(result) || typeof result[0]?.filename !== 'string')
+      throw new Error('npm pack did not report a tarball filename')
+    await cp(join(packRoot, result[0].filename), target)
+    console.log(`${target} (${result[0].integrity})`)
+  } finally {
+    await rm(packRoot, { recursive: true, force: true })
   }
+}
+
+async function publishTarball(tarball) {
+  const packageName = packageLayout[0]?.directory
+    ? JSON.parse(await readFile(join(root, packageLayout[0].directory, 'package.json'), 'utf8'))
+        .name
+    : undefined
+  if (!packageName) throw new Error('No public package is configured')
+  const localIntegrity = `sha512-${createHash('sha512')
+    .update(await readFile(tarball))
+    .digest('base64')}`
+  const lookup = spawnSync(
+    'npm',
+    ['view', `${packageName}@${releaseVersion}`, 'dist.integrity', '--json'],
+    {
+      cwd: root,
+      encoding: 'utf8',
+    },
+  )
+  if (lookup.status === 0) {
+    const registryIntegrity = JSON.parse(lookup.stdout)
+    if (registryIntegrity !== localIntegrity)
+      throw new Error(
+        `Immutable npm version collision for ${packageName}@${releaseVersion}: registry ${registryIntegrity}, local ${localIntegrity}`,
+      )
+    console.log(
+      `${packageName}@${releaseVersion} is already published with matching integrity; skipping`,
+    )
+    return
+  }
+  const lookupError = `${lookup.stdout}\n${lookup.stderr}`
+  if (!/E404|404 Not Found|is not in this registry/i.test(lookupError))
+    throw new Error(`Unable to check npm registry integrity: ${lookupError.trim()}`)
+  execFileSync('npm', ['publish', tarball, '--access', 'public', '--provenance'], {
+    cwd: root,
+    stdio: 'inherit',
+    env: { ...process.env, NPM_CONFIG_IGNORE_SCRIPTS: 'true' },
+  })
 }

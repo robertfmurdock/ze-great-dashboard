@@ -9,7 +9,7 @@ Parameters:
   LambdaArtifactBucket: { Type: String }
   LambdaArtifactKey: { Type: String }
   DashboardVersion: { Type: String }
-  AssetBaseUrl: { Type: String, Default: https://assets.zegreatrob.com }
+  AssetBaseUrl: { Type: String, Default: https://d3bvpdr9syk35m.cloudfront.net }
   BoardConfigPath: { Type: String, Default: ./board.yaml }
   MemorySize: { Type: Number, Default: 256, MinValue: 128 }
   Timeout: { Type: Number, Default: 10, MinValue: 1, MaxValue: 900 }

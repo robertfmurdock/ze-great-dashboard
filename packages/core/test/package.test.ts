@@ -11,7 +11,7 @@ describe('consumer release contract', () => {
       fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url)),
     )
     expect(board.config.boards.example).toBeDefined()
-    expect(clientAssetUrl('1.2.3')).toBe('https://assets.zegreatrob.com/dashboard/1.2.3')
+    expect(clientAssetUrl('1.2.3')).toBe('https://d3bvpdr9syk35m.cloudfront.net/dashboard/1.2.3')
   })
 
   it('rejects invalid consumer board configuration', async () => {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -32,7 +33,7 @@ try {
   const manifest = JSON.parse(await readFile(join(stagingRoot, 'aws', 'package.json'), 'utf8'))
   assert.equal(manifest.license, 'MIT')
   assert.match(await readFile(join(stagingRoot, 'aws', 'LICENSE'), 'utf8'), /MIT License/)
-  assert.deepEqual(Object.keys(manifest.dependencies).sort(), ['yaml', 'zod'])
+  assert.deepEqual(Object.keys(manifest.dependencies).sort(), ['fflate', 'yaml', 'zod'])
   const publishedFiles = []
   async function collect(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -56,14 +57,35 @@ try {
   const publicApi = await import(pathToFileURL(join(stagingRoot, 'aws', 'dist', 'index.js')).href)
   const artifactRoot = await mkdtemp(join(tmpdir(), 'ze-great-dashboard-published-smoke-'))
   try {
-    const metadata = await publicApi.packageLambda({
-      boardConfigPath: join(root, 'boards/example.yaml'),
-      outputDir: artifactRoot,
-      version: '9.8.7',
-    })
+    const parametersPath = join(artifactRoot, 'aws-dashboard-parameters.json')
+    const releasePath = join(artifactRoot, 'release')
+    const cli = join(stagingRoot, 'aws', 'dist', 'cli.js')
+    execFileSync(
+      process.execPath,
+      [cli, 'parameters', '--artifact-bucket', 'consumer-artifacts', '--output', parametersPath],
+      { cwd: root, stdio: 'pipe' },
+    )
+    execFileSync(
+      process.execPath,
+      [
+        cli,
+        'package',
+        '--board-config',
+        join(root, 'boards/example.yaml'),
+        '--output',
+        releasePath,
+      ],
+      { cwd: root, stdio: 'pipe' },
+    )
+    const parameters = JSON.parse(await readFile(parametersPath, 'utf8'))
+    assert.deepEqual(parameters, [
+      { ParameterKey: 'LambdaArtifactBucket', ParameterValue: 'consumer-artifacts' },
+    ])
+    const metadata = JSON.parse(await readFile(join(releasePath, 'release.json'), 'utf8'))
     assert.equal(metadata.dashboardVersion, '9.8.7')
+    assert.match(metadata.artifactKey, /^lambda\/[a-f0-9]{64}\.zip$/)
     await publicApi.deployLambda({
-      artifactDir: artifactRoot,
+      artifactDir: releasePath,
       assetsDir: join(stagingRoot, 'aws', 'client'),
       assetsBucket: 'unused',
       assetsBaseUrl: 'https://unused.example',
@@ -71,10 +93,61 @@ try {
       version: '9.8.7',
       dryRun: true,
     })
-    assert.ok((await readdir(artifactRoot)).includes('lambda.zip'))
-    assert.ok((await readdir(artifactRoot)).includes('template.yml'))
+    assert.ok((await readdir(releasePath)).includes('lambda.zip'))
+    assert.ok((await readdir(releasePath)).includes('template.yml'))
   } finally {
     await rm(artifactRoot, { recursive: true, force: true })
+  }
+
+  const registryTestRoot = await mkdtemp(join(tmpdir(), 'ze-great-dashboard-registry-test-'))
+  try {
+    const tarball = join(registryTestRoot, 'package.tgz')
+    const fakeNpm = join(registryTestRoot, 'npm')
+    await writeFile(tarball, 'exact tarball bytes')
+    await writeFile(
+      fakeNpm,
+      `#!/usr/bin/env node
+if (process.argv[2] === 'view') console.log(JSON.stringify(process.env.FAKE_REGISTRY_INTEGRITY))
+else throw new Error('publish must not be called when the version exists')
+`,
+    )
+    await chmod(fakeNpm, 0o755)
+    const integrity = `sha512-${createHash('sha512')
+      .update(await readFile(tarball))
+      .digest('base64')}`
+    const publishEnvironment = {
+      ...process.env,
+      PATH: `${registryTestRoot}:${process.env.PATH}`,
+      RELEASE_VERSION: '9.8.7',
+    }
+    const rerun = execFileSync(
+      process.execPath,
+      ['scripts/publish-packages.mjs', '--publish-tarball', tarball],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        env: { ...publishEnvironment, FAKE_REGISTRY_INTEGRITY: integrity },
+      },
+    )
+    assert.match(rerun, /matching integrity; skipping/)
+    assert.throws(
+      () =>
+        execFileSync(
+          process.execPath,
+          ['scripts/publish-packages.mjs', '--publish-tarball', tarball],
+          {
+            cwd: root,
+            stdio: 'pipe',
+            env: {
+              ...publishEnvironment,
+              FAKE_REGISTRY_INTEGRITY: 'sha512-different-immutable-bytes',
+            },
+          },
+        ),
+      (error) => String(error.stderr).includes('Immutable npm version collision'),
+    )
+  } finally {
+    await rm(registryTestRoot, { recursive: true, force: true })
   }
 } finally {
   await rm(stagingRoot, { recursive: true, force: true })

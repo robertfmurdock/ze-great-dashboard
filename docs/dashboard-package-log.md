@@ -13,7 +13,8 @@ packages.
 - Added `@continuous-excellence/ze-great-dashboard` under `packages/core`.
   - Validates consumer board YAML using the shared schema.
   - Normalizes board YAML for deterministic artifacts.
-  - Resolves immutable client asset URLs under `https://assets.zegreatrob.com/dashboard/<version>`.
+  - Resolves immutable client asset URLs under the project's CloudFront distribution at
+    `https://d3bvpdr9syk35m.cloudfront.net/dashboard/<version>`.
   - Emits release metadata, runtime compatibility, and SHA-256 checksums.
   - Provides `validate` and `package` CLI commands.
 - Added `@continuous-excellence/ze-great-dashboard-aws` under `packages/aws`.
@@ -65,6 +66,67 @@ Verified locally:
 - 83 unit tests passing across 13 test files
 - Clean temporary consumer installation and package/deploy dry run
 - `git diff --check`
+
+## Published setup dogfood
+
+Recorded 2026-08-19: the repository's publish job now installs its exact newly published AWS package
+into an isolated temporary consumer, follows the documented `parameters` and `package` CLI path,
+checks the generated CloudFormation handoff, and fetches that release's hosted client. The staging
+test follows the same CLI path before publication, so command-level regressions fail before release
+and registry/package/CDN integration failures fail after publication.
+
+The first run exposed two setup frictions:
+
+- Lambda archives originally depended on the system `zip` command. Packaging now uses bundled
+  `fflate`, stable entry ordering, and a fixed archive timestamp, so repeated builds are
+  byte-identical and consumers need no additional archive tool.
+- The consumer default used `assets.zegreatrob.com`, while this repository publishes to its generated
+  CloudFront hostname. Provider releases masked the mismatch by injecting the stack output. The
+  package, template, documentation, and contract tests now use the live distribution origin.
+
+The local automation shell also surfaced a stale `/usr/local/bin/npm` ahead of the Homebrew npm in
+`PATH`, plus an unwritable default npm cache. The dogfood script avoids depending on `npm init` and
+uses an isolated temporary cache, keeping the consumer check reproducible across developer and CI
+machines.
+
+## Shipped-package production dogfood
+
+Recorded 2026-08-19: the `main` release now treats one exact-version npm tarball as the release
+artifact. It installs that tarball in a clean consumer for the documented parameter, package,
+artifact-validation, and deploy-dry-run path; provisions infrastructure; then packages and deploys
+production with the CLI, Lambda runtime, and client from the isolated installation. After the
+production health and root smoke tests pass, the workflow publishes the same tarball, repeats the
+consumer checks from an exact registry install, verifies the hosted client, and only then creates
+the Git tag.
+
+Publication is safe to rerun. If the calculated version already exists, the release compares the
+registry integrity with the local tarball and skips publication only for an exact match. A differing
+tarball at the immutable version fails the release rather than silently accepting a collision.
+
+The AWS CLI now derives omitted deploy version and client asset arguments from its installed
+package. A new read-only `doctor` command aggregates Node, npm, AWS CLI, `jq`, AWS identity,
+parameter/template, artifact-bucket Region, and hosted-client checks without issuing AWS writes.
+The production deploy role permits `s3:GetBucketLocation` so CI exercises this public diagnostic.
+
+Repository packaging no longer invokes the system `zip` executable. Bundled `fflate` creates ZIPs
+with stable entry ordering and a fixed 1980 timestamp; tests assert byte-identical archives,
+checksums, artifact keys, entries, and readable contents. Repository development is pinned to npm
+`11.19.0` through `packageManager`, the root npm engine policy, and explicit CI installation and
+version verification. The published consumer package retains only its Node engine requirement.
+
+Verified locally for this slice:
+
+- TypeScript typecheck and Biome lint
+- 87 unit tests across 14 test files
+- Playwright production-client browser smoke test
+- npm publish staging, registry integrity rerun/collision behavior, and `git diff --check`
+- Exact tarball install in a clean consumer with parameters, package validation, ZIP inspection,
+  and deploy dry run
+
+The first `main` run is the external acceptance gate: production smoke tests, exact registry
+reinstall, hosted-client fetch, and final tagging must all succeed. Follow-up infrastructure work is
+tracked in the implementation status: automate ACM/DNS for `assets.dashboard.zegreatrob.com`, and
+add an isolated least-privilege consumer canary stack and artifact bucket.
 
 ## Explicitly deferred
 

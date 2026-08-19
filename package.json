@@ -5,8 +5,17 @@
   "type": "module",
   "description": "A team-visible trust dashboard: a lens on your engineering state, not a ledger of it.",
   "license": "MIT",
+  "packageManager": "npm@11.19.0",
+  "devEngines": {
+    "packageManager": {
+      "name": "npm",
+      "version": "11.19.0",
+      "onFail": "error"
+    }
+  },
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "npm": "11.19.0"
   },
   "workspaces": [
     "packages/shared",
@@ -23,6 +32,7 @@
     "test": "npm run test:unit && npm run test:browser",
     "test:unit": "npm run build:packages && vitest run",
     "test:published": "node scripts/test-published-packages.mjs",
+    "test:installed": "node scripts/test-installed-package.mjs",
     "test:browser": "npm run test:browser --workspace @ze-great-dashboard/client",
     "test:watch": "vitest",
     "dev": "concurrently -k -n client,server -c cyan,green \"npm:dev:client\" \"npm:dev:server\"",

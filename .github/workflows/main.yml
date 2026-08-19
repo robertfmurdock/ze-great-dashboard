@@ -24,6 +24,12 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Pin npm
+        run: |
+          cd "$RUNNER_TEMP"
+          npm install --global npm@11.19.0
+          test "$(npm --version)" = "11.19.0"
+
       - name: Install
         run: npm ci --ignore-scripts
 
@@ -66,7 +72,14 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+          registry-url: https://registry.npmjs.org
           cache: npm
+
+      - name: Pin npm
+        run: |
+          cd "$RUNNER_TEMP"
+          npm install --global npm@11.19.0
+          test "$(npm --version)" = "11.19.0"
 
       - name: Install release tooling
         run: npm ci --ignore-scripts
@@ -85,6 +98,32 @@ jobs:
           version="$(npm run --silent release:version)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      - name: Build the exact-version npm tarball
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: node scripts/publish-packages.mjs --pack aws-package.tgz
+
+      - name: Verify the tarball as an isolated consumer
+        run: npm run test:installed -- ./aws-package.tgz "${{ steps.version.outputs.version }}" --skip-client
+
+      - name: Prepare the production release from the tarball
+        run: |
+          mkdir .release-consumer
+          npm install --prefix .release-consumer --ignore-scripts --save-exact "$GITHUB_WORKSPACE/aws-package.tgz"
+          cp boards/example.yaml .release-consumer/board.yaml
+          .release-consumer/node_modules/.bin/ze-great-dashboard-aws parameters \
+            --artifact-bucket ze-great-dashboard-preflight \
+            --output .release-consumer/aws-dashboard-parameters.json
+          .release-consumer/node_modules/.bin/ze-great-dashboard-aws package \
+            --board-config .release-consumer/board.yaml \
+            --output .release-consumer/preflight-release
+          .release-consumer/node_modules/.bin/ze-great-dashboard-aws deploy \
+            --artifact-dir .release-consumer/preflight-release \
+            --assets-bucket unused \
+            --assets-base-url https://unused.example \
+            --function-name unused \
+            --dry-run
+
       - name: AWS provisioning credentials
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
@@ -99,15 +138,6 @@ jobs:
           GITHUB_REPOSITORY_ID: '1338375095'
         run: npm run --silent release:provision
 
-      - name: Package AWS release
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          npx tsx packages/aws/src/cli.ts package \
-            --board-config boards/example.yaml \
-            --version "$VERSION" \
-            --output aws-release
-
       # Artifact publishing does not retain the more powerful provisioning credentials.
       - name: AWS release credentials
         uses: aws-actions/configure-aws-credentials@v6.2.3
@@ -116,16 +146,15 @@ jobs:
           aws-region: us-east-1
 
       - name: Deploy application 🚀
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          npx tsx packages/aws/src/cli.ts deploy \
-            --artifact-dir aws-release \
-            --assets-dir packages/aws/client \
+          .release-consumer/node_modules/.bin/ze-great-dashboard-aws package \
+            --board-config .release-consumer/board.yaml \
+            --output .release-consumer/aws-release
+          .release-consumer/node_modules/.bin/ze-great-dashboard-aws deploy \
+            --artifact-dir .release-consumer/aws-release \
             --assets-bucket "${{ steps.infrastructure.outputs.assets_bucket }}" \
             --assets-base-url "${{ steps.infrastructure.outputs.assets_base_url }}" \
-            --function-name "${{ steps.infrastructure.outputs.function_name }}" \
-            --version "$VERSION"
+            --function-name "${{ steps.infrastructure.outputs.function_name }}"
 
       - name: Smoke test deployed release
         env:
@@ -136,29 +165,24 @@ jobs:
           curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
             "$SERVER_URL" > /dev/null
 
-      - name: Tag
+      - name: Dogfood the deployment doctor
+        run: |
+          .release-consumer/node_modules/.bin/ze-great-dashboard-aws parameters \
+            --artifact-bucket "${{ steps.infrastructure.outputs.assets_bucket }}" \
+            --output .release-consumer/aws-dashboard-parameters.json
+          .release-consumer/node_modules/.bin/ze-great-dashboard-aws doctor \
+            --parameters .release-consumer/aws-dashboard-parameters.json \
+            --region us-east-1
+
+      - name: Publish the same npm tarball
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: node scripts/publish-packages.mjs --publish-tarball aws-package.tgz
+
+      - name: Verify the exact registry package and hosted client
+        run: npm run test:installed -- "${{ steps.version.outputs.version }}"
+
+      - name: Tag verified release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run --silent release:tag -- "${{ steps.version.outputs.version }}"
-
-  publish:
-    name: Publish packages
-    if: github.ref == 'refs/heads/main'
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org
-          cache: npm
-      - run: npm ci --ignore-scripts
-      - run: npm run build:packages
-      - name: Publish packages
-        env:
-          RELEASE_VERSION: ${{ needs.release.outputs.version }}
-        run: npm run publish:packages

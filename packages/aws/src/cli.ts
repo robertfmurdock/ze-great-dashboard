@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
+import { runDoctor } from './doctor.ts'
 import { cloudFormationTemplate, deployLambda, packageLambda } from './index.ts'
 
 const args = process.argv.slice(2)
@@ -88,18 +89,45 @@ async function templateParameters(): Promise<TemplateParameterData> {
 }
 
 try {
+  const packageVersion = await installedPackageVersion()
+  const bundledAssets = fileURLToPath(new URL('../client', import.meta.url))
   if (args[0] === 'deploy') {
     const artifactDir = requiredOption('--artifact-dir')
+    const version = requiredOption('--version', packageVersion)
     await deployLambda({
       artifactDir,
-      assetsDir: option('--assets-dir', join(artifactDir, 'assets')) ?? join(artifactDir, 'assets'),
+      assetsDir: option('--assets-dir', bundledAssets) ?? bundledAssets,
       assetsBucket: requiredOption('--assets-bucket'),
       assetsBaseUrl: requiredOption('--assets-base-url'),
       functionName: requiredOption('--function-name'),
-      version: requiredOption('--version'),
+      version,
       dryRun: args.includes('--dry-run'),
     })
-    console.log(JSON.stringify({ deployed: true, version: requiredOption('--version') }))
+    console.log(JSON.stringify({ deployed: true, version }))
+  } else if (args[0] === 'doctor') {
+    const parametersPath =
+      option('--parameters', 'aws-dashboard-parameters.json') ?? 'aws-dashboard-parameters.json'
+    const region =
+      option('--region', process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? 'us-east-1') ??
+      'us-east-1'
+    const checks = await runDoctor(
+      { parametersPath, region },
+      {
+        async execute(command, commandArgs) {
+          const { execFile } = await import('node:child_process')
+          const { promisify } = await import('node:util')
+          return (await promisify(execFile)(command, commandArgs)).stdout.trim()
+        },
+        async fetch(url) {
+          return fetch(url)
+        },
+        nodeVersion: process.versions.node,
+        packageVersion,
+      },
+    )
+    for (const check of checks)
+      console.log(`${check.ok ? 'PASS' : 'FAIL'} ${check.name}: ${check.detail}`)
+    if (checks.some(({ ok }) => !ok)) process.exitCode = 1
   } else if (args[0] === 'parameters') {
     const output =
       option('--output', 'aws-dashboard-parameters.json') ?? 'aws-dashboard-parameters.json'
@@ -144,10 +172,9 @@ try {
     await writeFile(output, `${JSON.stringify(parameters, null, 2)}\n`)
     console.log(JSON.stringify({ output }))
   } else if (args[0] !== 'package')
-    throw new Error('Usage: ze-great-dashboard-aws package|parameters|deploy [options]')
+    throw new Error('Usage: ze-great-dashboard-aws package|parameters|deploy|doctor [options]')
   else {
     const boardConfig = option('--board-config')
-    const packageVersion = await installedPackageVersion()
     // Consumers should omit --version so the package and client release stay paired. The explicit
     // override exists for the provider's release workflow, which packages before publishing.
     const version = option('--version', process.env.DASHBOARD_VERSION ?? packageVersion)

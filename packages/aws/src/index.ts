@@ -3,6 +3,7 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { strToU8, zipSync } from 'fflate'
 import { assembleRelease, sha256 } from './release.ts'
 
 const run = promisify(execFile)
@@ -78,7 +79,19 @@ export async function packageLambda(options: LambdaPackageOptions): Promise<Pack
     .join('\n')
   await writeFile(join(runtimeDir, 'SHA256SUMS'), `${sums}\n`)
   const lambdaPath = join(outputDir, 'lambda.zip')
-  await run('zip', ['-X', '-q', '-r', lambdaPath, '.'], { cwd: runtimeDir })
+  const archiveFiles = ['SHA256SUMS', 'board.yaml', 'index.mjs', 'release.json'].sort()
+  const archive = Object.fromEntries(
+    await Promise.all(
+      archiveFiles.map(async (name) => [
+        name,
+        [
+          strToU8(await readFile(join(runtimeDir, name), 'utf8')),
+          { mtime: new Date(1980, 0, 1, 0, 0, 0), level: 9 },
+        ],
+      ]),
+    ),
+  )
+  await writeFile(lambdaPath, zipSync(archive))
   await rm(runtimeDir, { recursive: true, force: true })
   const lambdaChecksum = sha256(await readFile(lambdaPath))
   const deploymentChecksum = sha256(JSON.stringify(runtimeMetadata))

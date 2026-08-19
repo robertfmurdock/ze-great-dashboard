@@ -32,7 +32,21 @@ npm install --save-exact @continuous-excellence/ze-great-dashboard-aws@1.2.3
 ```
 
 The package includes the CLI, Lambda runtime, and CloudFormation template. The matching client is
-hosted at `https://assets.zegreatrob.com`; you do not need a client asset bucket.
+hosted on the project's CloudFront distribution at `https://d3bvpdr9syk35m.cloudfront.net`; you do
+not need a client asset bucket.
+
+Before deploying, run the read-only setup doctor. It checks the local tools, AWS identity, parameter
+compatibility, artifact bucket and Region, and the client hosted for the installed package version,
+reporting every problem it finds in one run:
+
+```sh
+npx ze-great-dashboard-aws doctor \
+  --parameters aws-dashboard-parameters.json \
+  --region us-east-1
+```
+
+`--parameters` defaults to `aws-dashboard-parameters.json`. `--region` defaults to `AWS_REGION`,
+then `AWS_DEFAULT_REGION`, then `us-east-1`. The doctor only makes read requests.
 
 ## Write a board configuration
 
@@ -66,6 +80,10 @@ npm exec -- ze-great-dashboard-aws package \
 The command validates the board and writes `lambda.zip`, `release.json`, and `template.yml` under
 `aws-dashboard-release`. The generated template identifies this Lambda artifact and the matching
 hosted client version.
+
+Provider automation can also use `ze-great-dashboard-aws deploy`. Its `--version` defaults to the
+installed package version and `--assets-dir` defaults to that package's bundled client. Explicit
+values for either option continue to override those defaults.
 
 ## Upload the Lambda artifact
 
@@ -277,7 +295,7 @@ fields to the environment names used by `token_env` before the dashboard handles
   [board configuration guide](board-configuration.md).
 - **Multiple boards:** use a file containing one board, or customize the template to set `BOARD`.
 - **Missing assets:** confirm
-  `https://assets.zegreatrob.com/dashboard/<version>/index.html` returns HTTPS 200.
+  `https://d3bvpdr9syk35m.cloudfront.net/dashboard/<version>/index.html` returns HTTPS 200.
 - **Wrong `AssetBaseUrl`:** provide only the origin; the template adds `/dashboard/<version>`.
 - **AWS access denied:** check `aws sts get-caller-identity`, region, and IAM permissions.
 - **Node incompatibility:** use Node.js 22+ locally and the included `nodejs22.x` template runtime.

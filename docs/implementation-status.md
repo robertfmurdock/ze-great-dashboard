@@ -9,6 +9,13 @@ Detailed dated slices are recorded in [the Stage 4 HTTP value log](./stage4-http
 earlier [Stage 2 GitHub Actions log](./stage2-github-actions-log.md), and the [dashboard package
 and deployment log](./dashboard-package-log.md).
 
+## Prioritized infrastructure follow-ups
+
+1. Complete `assets.dashboard.zegreatrob.com` with ACM certificate and DNS automation, then replace
+   the generated CloudFront hostname as the stable package contract.
+2. Add an isolated consumer canary stack, artifact bucket, and least-privilege role that exercises
+   the public CloudFormation deployment path without risking the production stack.
+
 ## Current checkpoint
 
 The repository has the immutable web application shell and the first live data slices working
@@ -32,9 +39,9 @@ locally. The current implementation includes:
 
 Verification currently passes with 83 unit tests, the client production build, the core board
 validator, the AWS adapter Lambda archive, publish staging dry runs, and a clean consumer install.
-The GitHub workflow now publishes the single AWS adapter package through npm trusted publishing
-after a tagged release; core and shared remain internal workspace packages. No infrastructure has
-been deployed from this repository yet; live AWS claims remain unverified.
+The GitHub workflow now deploys from one exact-version AWS adapter tarball, publishes that same
+tarball through npm trusted publishing, verifies a fresh registry install and hosted client, and
+only then creates the Git tag; core and shared remain internal workspace packages.
 
 ## Development workflow log
 

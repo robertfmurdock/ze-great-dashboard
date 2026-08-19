@@ -6,7 +6,7 @@ import { parse, stringify } from 'yaml'
 import { z } from 'zod'
 
 export const CORE_RUNTIME_VERSION = '1.0.0'
-export const CANONICAL_ASSET_DOMAIN = 'https://assets.zegreatrob.com'
+export const CANONICAL_ASSET_DOMAIN = 'https://d3bvpdr9syk35m.cloudfront.net'
 
 export const releaseMetadataSchema = z.object({
   dashboardVersion: z.string().min(1),
