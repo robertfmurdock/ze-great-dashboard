@@ -3,6 +3,10 @@
   "version": "0.0.0-dev",
   "type": "module",
   "description": "AWS Lambda and CloudFormation adapter for Ze Great Dashboard.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/robertfmurdock/ze-great-dashboard.git"
+  },
   "bin": {
     "ze-great-dashboard-aws": "dist/cli.js"
   },
