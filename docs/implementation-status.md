@@ -27,12 +27,14 @@ locally. The current implementation includes:
   readable single column, and every observation discloses relative age with stale readings emphasized.
 - Local development watches the configured board file, so editing deployable board configuration
   restarts the server listener without making the example board itself part of the product contract.
-- Docker, Lambda bundling, local consumer/AWS package tooling, fixture-driven tests, and the
+- Docker, Lambda bundling, publishable local consumer/AWS packages, fixture-driven tests, and the
   repository-wide `npm run check` gate.
 
-Verification currently passes with 80 tests, the client production build, the core board validator,
-and the AWS adapter Lambda archive. npm publishing remains intentionally deferred. No infrastructure
-has been deployed from this repository yet; live AWS claims remain unverified.
+Verification currently passes with 83 unit tests, the client production build, the core board
+validator, the AWS adapter Lambda archive, publish staging dry runs, and a clean consumer install.
+The GitHub workflow now publishes the three packages through npm trusted publishing after a tagged
+release. No infrastructure has been deployed from this repository yet; live AWS claims remain
+unverified.
 
 ## Development workflow log
 

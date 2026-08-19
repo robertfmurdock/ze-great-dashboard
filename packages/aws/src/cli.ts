@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { join } from 'node:path'
 import { deployLambda, packageLambda } from './index.ts'
 
 const args = process.argv.slice(2)
@@ -14,13 +15,15 @@ try {
       if (!value) throw new Error(`${name} is required`)
       return value
     }
+    const artifactDir = required('--artifact-dir')
     await deployLambda({
-      artifactDir: required('--artifact-dir'),
-      assetsDir: required('--assets-dir'),
+      artifactDir,
+      assetsDir: option('--assets-dir', join(artifactDir, 'assets')) ?? join(artifactDir, 'assets'),
       assetsBucket: required('--assets-bucket'),
       assetsBaseUrl: required('--assets-base-url'),
       functionName: required('--function-name'),
       version: required('--version'),
+      dryRun: args.includes('--dry-run'),
     })
     console.log(JSON.stringify({ deployed: true, version: required('--version') }))
   } else if (args[0] !== 'package')

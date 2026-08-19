@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -8,7 +8,6 @@ import {
   type ReleaseMetadata,
   sha256,
 } from '@continuous-excellence/ze-great-dashboard'
-import { build } from 'esbuild'
 
 const run = promisify(execFile)
 
@@ -16,7 +15,6 @@ export type LambdaPackageOptions = {
   boardConfigPath: string
   outputDir: string
   version: string
-  entrypoint?: string
   assetDomain?: string
 }
 
@@ -25,19 +23,8 @@ export async function packageLambda(options: LambdaPackageOptions): Promise<Rele
   await mkdir(outputDir, { recursive: true })
   const runtimeDir = join(outputDir, 'lambda')
   await mkdir(runtimeDir, { recursive: true })
-  await build({
-    entryPoints: [
-      resolve(options.entrypoint ?? join(process.cwd(), 'packages/server/src/lambda.ts')),
-    ],
-    bundle: true,
-    platform: 'node',
-    target: 'node22',
-    format: 'esm',
-    outfile: join(runtimeDir, 'index.mjs'),
-    banner: {
-      js: "import{createRequire}from'node:module';const require=createRequire(import.meta.url);",
-    },
-  })
+  const lambdaSource = fileURLToPath(new URL('../dist/lambda.mjs', import.meta.url))
+  await cp(lambdaSource, join(runtimeDir, 'index.mjs'))
   const release = await assembleRelease({
     boardConfigPath: options.boardConfigPath,
     outputDir: runtimeDir,
@@ -52,6 +39,8 @@ export async function packageLambda(options: LambdaPackageOptions): Promise<Rele
       'index.mjs': sha256(await readFile(join(runtimeDir, 'index.mjs'))),
     },
   }
+  const clientSource = fileURLToPath(new URL('../client', import.meta.url))
+  await cp(clientSource, join(outputDir, 'assets'), { recursive: true })
   await writeFile(join(runtimeDir, 'release.json'), `${JSON.stringify(runtimeMetadata, null, 2)}\n`)
   const sums = Object.entries(runtimeMetadata.artifactChecksums)
     .map(([name, digest]) => `${digest}  ${name}`)
@@ -68,12 +57,16 @@ export type DeployLambdaOptions = {
   assetsBaseUrl: string
   functionName: string
   version: string
+  dryRun?: boolean
 }
 
 /** Performs the AWS-specific half of a release using explicit deployment outputs. */
 export async function deployLambda(options: DeployLambdaOptions): Promise<void> {
   const artifactDir = resolve(options.artifactDir)
   const assetsDir = resolve(options.assetsDir)
+  await readFile(join(artifactDir, 'lambda.zip'))
+  await readFile(join(assetsDir, 'index.html'))
+  if (options.dryRun) return
   const assetPath = `${options.assetsBaseUrl.replace(/\/+$/, '')}/dashboard/${options.version}`
   await run('aws', [
     's3',

@@ -1,12 +1,17 @@
 {
   "name": "@ze-great-dashboard/shared",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.0.0-dev",
   "type": "module",
   "description": "The board config schema and signal envelope — the one definition the server and client both agree on.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
+  "files": [
+    "dist"
+  ],
   "dependencies": {
     "zod": "^4.4.3"
   },
