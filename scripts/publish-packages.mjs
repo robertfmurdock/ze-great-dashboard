@@ -39,6 +39,7 @@ function normalizeVersion(value) {
 
 async function copyPackage(sourceDirectory, destinationDirectory, files) {
   await copyFiles(sourceDirectory, destinationDirectory, files)
+  await cp(join(root, 'LICENSE'), join(destinationDirectory, 'LICENSE'))
   const manifest = JSON.parse(await readFile(join(sourceDirectory, 'package.json'), 'utf8'))
   manifest.version = releaseVersion
   delete manifest.scripts

@@ -1,6 +1,6 @@
 # Dashboard Consumer Package and Deployment Log
 
-Recorded 2026-08-18.
+Recorded 2026-08-18; release administration completed 2026-08-19.
 
 ## Objective
 
@@ -68,8 +68,29 @@ Verified locally:
 
 ## Explicitly deferred
 
-The remaining release prerequisite is repository administration: npm trusted publishing must be
-enabled for the single AWS package name and the GitHub Actions identity. AWS infrastructure
-ownership and credentials remain consumer/deployment concerns; the repository's existing
-deployment workflow continues to build internal packages, package/deploy AWS, and publish the one
-public package through its configured AWS roles.
+AWS infrastructure ownership and credentials remain consumer/deployment concerns; the repository's
+existing deployment workflow continues to build internal packages, package/deploy AWS, and publish
+the one public package through its configured AWS roles.
+
+## Release administration follow-up
+
+The first real release exposed the one-time npm bootstrap sequence:
+
+- The first `main` run (`32204395844`) passed checks, packaging, AWS provisioning, deployment, smoke
+  tests, and tagging at `0.1.12`. Only npm publication failed because the package did not yet exist.
+- The package was manually staged and published as `0.0.0` using npm account authentication and a
+  one-time password. This bootstrap version was subsequently unpublished after Trusted Publishing
+  was configured; npm now reports `0.1.13` as the only version and `latest`.
+- npm Trusted Publishing was configured for `@continuous-excellence/ze-great-dashboard-aws` with
+  GitHub repository `robertfmurdock/ze-great-dashboard`, workflow `main.yml`, and `npm publish`
+  permission. The GitHub publish job must retain `id-token: write`.
+- npm's failed Trusted Publishing attempts returned a misleading `E404` on the package PUT even
+  though OIDC provenance was successfully signed. The package manifest therefore includes an exact
+  public repository URL in `packages/aws/package.json`:
+  `git+https://github.com/robertfmurdock/ze-great-dashboard.git`.
+- The follow-up `main` run (`32205432049`) successfully produced the `0.1.13` release and deployed
+  the application. Registry verification confirmed `latest: 0.1.13`.
+
+For future repositories using npm Trusted Publishing, publish one manual public version first,
+configure the package's trusted publisher, ensure the package manifest identifies the matching public
+GitHub repository, and then let the main-branch workflow publish subsequent versions.
