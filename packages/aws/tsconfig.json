@@ -3,7 +3,10 @@
   "compilerOptions": {
     "lib": ["ES2023", "DOM"],
     "types": ["node"],
-    "paths": { "@continuous-excellence/ze-great-dashboard": ["../core/src/index.ts"] }
+    "paths": {
+      "@ze-great-dashboard/shared": ["../shared/src/index.ts"],
+      "@continuous-excellence/ze-great-dashboard": ["../core/src/index.ts"]
+    }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }

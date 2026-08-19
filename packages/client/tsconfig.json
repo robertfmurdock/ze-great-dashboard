@@ -3,6 +3,7 @@
   "compilerOptions": {
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node"],
+    "paths": { "@ze-great-dashboard/shared": ["../shared/src/index.ts"] },
     "jsx": "react-jsx"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "test/**/*.tsx", "vite.config.ts"]
