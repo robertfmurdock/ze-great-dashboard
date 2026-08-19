@@ -63,6 +63,7 @@ async function stagePackage(packageSpec, destinationDirectory) {
   for (const file of packageSpec.publishFiles)
     await cp(join(sourceDirectory, file), join(destinationDirectory, file), { recursive: true })
   await cp(join(root, 'LICENSE'), join(destinationDirectory, 'LICENSE'))
+  await cp(join(root, 'README.md'), join(destinationDirectory, 'README.md'))
   const manifest = JSON.parse(await readFile(join(sourceDirectory, 'package.json'), 'utf8'))
   manifest.version = releaseVersion
   delete manifest.scripts

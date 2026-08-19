@@ -33,6 +33,10 @@ try {
   const manifest = JSON.parse(await readFile(join(stagingRoot, 'aws', 'package.json'), 'utf8'))
   assert.equal(manifest.license, 'MIT')
   assert.match(await readFile(join(stagingRoot, 'aws', 'LICENSE'), 'utf8'), /MIT License/)
+  assert.equal(
+    await readFile(join(stagingRoot, 'aws', 'README.md'), 'utf8'),
+    await readFile(join(root, 'README.md'), 'utf8'),
+  )
   assert.deepEqual(Object.keys(manifest.dependencies).sort(), ['fflate', 'yaml', 'zod'])
   const publishedFiles = []
   async function collect(directory) {
