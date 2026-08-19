@@ -47,10 +47,16 @@ This command is safe to rerun. It assumes the account's shared GitHub OIDC provi
 - Lambda execution role and 14-day CloudWatch log group
 - Main-branch-only GitHub release role `ZeGreatDashboardDeploy`
 
-The distribution initially uses its generated `d*.cloudfront.net` HTTPS hostname. This keeps stack
-deployment automatic: an ACM certificate for `assets.dashboard.zegreatrob.com` cannot finish until
-its validation record is added at GoDaddy. Add the custom hostname only alongside an automated or
-explicit DNS-validation process.
+The distribution initially uses its generated `d*.cloudfront.net` HTTPS hostname. To use
+`public-assets.zegreatrob.com`, request an ACM certificate in `us-east-1`, validate it with a CNAME
+at GoDaddy, then record its ARN in the `AssetsCertificateArn` parameter default in `stack.yml`.
+The release workflow's infrastructure step attaches the certificate and waits for CloudFront before
+the client is published and tested at the custom hostname. Both parameters remain overridable for a
+different deployment.
+
+After CloudFront finishes deploying the hostname, add a second GoDaddy CNAME with name
+`public-assets` and value equal to the `AssetsDistributionDomain` stack output. Keep the ACM
+validation CNAME permanently so ACM can renew the certificate automatically.
 
 ## Manual inspection
 

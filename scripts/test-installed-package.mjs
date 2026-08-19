@@ -99,7 +99,7 @@ try {
   const releaseRoot = join(consumerRoot, 'aws-dashboard-release')
   const release = JSON.parse(await readFile(join(releaseRoot, 'release.json'), 'utf8'))
   assert.equal(release.dashboardVersion, version)
-  assert.equal(release.clientAssetUrl, `https://d3bvpdr9syk35m.cloudfront.net/dashboard/${version}`)
+  assert.equal(release.clientAssetUrl, `https://public-assets.zegreatrob.com/dashboard/${version}`)
   assert.match(release.artifactKey, /^lambda\/[a-f0-9]{64}\.zip$/)
   const archive = unzipSync(await readFile(join(releaseRoot, 'lambda.zip')))
   assert.deepEqual(Object.keys(archive).sort(), [

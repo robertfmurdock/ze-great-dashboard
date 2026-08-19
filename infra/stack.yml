@@ -14,6 +14,24 @@ Parameters:
   GitHubRepositoryId:
     Type: String
     Description: numeric GitHub repository id
+  AssetsDomain:
+    Type: String
+    Default: public-assets.zegreatrob.com
+    Description: optional public hostname for the client asset distribution
+  AssetsCertificateArn:
+    Type: String
+    Default: arn:aws:acm:us-east-1:174159267544:certificate/8cf94ea9-b380-45dc-a773-afe54a35608b
+    Description: us-east-1 ACM certificate ARN covering AssetsDomain
+
+Rules:
+  AssetsDomainRequiresCertificate:
+    RuleCondition: !Not [!Equals [!Ref AssetsDomain, '']]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref AssetsCertificateArn, '']]
+        AssertDescription: AssetsCertificateArn is required when AssetsDomain is set
+
+Conditions:
+  HasAssetsDomain: !Not [!Equals [!Ref AssetsDomain, '']]
 
 Resources:
   AssetsBucket:
@@ -53,6 +71,10 @@ Resources:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
+        Aliases: !If
+          - HasAssetsDomain
+          - [!Ref AssetsDomain]
+          - !Ref AWS::NoValue
         Comment: !Sub '${Name} client assets'
         Enabled: true
         HttpVersion: http2
@@ -72,8 +94,12 @@ Resources:
           Compress: true
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
           ResponseHeadersPolicyId: 5cc3b908-e619-4b99-88e5-2cf7f45965bd
-        ViewerCertificate:
-          CloudFrontDefaultCertificate: true
+        ViewerCertificate: !If
+          - HasAssetsDomain
+          - AcmCertificateArn: !Ref AssetsCertificateArn
+            MinimumProtocolVersion: TLSv1.2_2021
+            SslSupportMethod: sni-only
+          - CloudFrontDefaultCertificate: true
 
   AssetsBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -211,7 +237,10 @@ Outputs:
   AssetsBucket:
     Value: !Ref AssetsBucket
   AssetsBaseUrl:
-    Value: !Sub 'https://${AssetsDistribution.DomainName}'
+    Value: !If
+      - HasAssetsDomain
+      - !Sub 'https://${AssetsDomain}'
+      - !Sub 'https://${AssetsDistribution.DomainName}'
   AssetsDistributionDomain:
     Value: !GetAtt AssetsDistribution.DomainName
   ServerFunctionName:

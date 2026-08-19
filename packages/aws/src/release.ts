@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { boardConfigSchema } from './internal-board.ts'
 
 export const CORE_RUNTIME_VERSION = '1.0.0'
-const CANONICAL_ASSET_DOMAIN = 'https://d3bvpdr9syk35m.cloudfront.net'
+const CANONICAL_ASSET_DOMAIN = 'https://public-assets.zegreatrob.com'
 
 export type ReleaseMetadata = {
   dashboardVersion: string

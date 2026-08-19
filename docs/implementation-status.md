@@ -11,8 +11,8 @@ and deployment log](./dashboard-package-log.md).
 
 ## Prioritized infrastructure follow-ups
 
-1. Complete `assets.dashboard.zegreatrob.com` with ACM certificate and DNS automation, then replace
-   the generated CloudFront hostname as the stable package contract.
+1. Complete `public-assets.zegreatrob.com` with an ACM certificate and GoDaddy DNS records, then
+   replace the generated CloudFront hostname as the stable package contract.
 2. Add an isolated consumer canary stack, artifact bucket, and least-privilege role that exercises
    the public CloudFormation deployment path without risking the production stack.
 

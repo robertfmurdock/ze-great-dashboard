@@ -32,7 +32,7 @@ npm install --save-exact @continuous-excellence/ze-great-dashboard-aws@1.2.3
 ```
 
 The package includes the CLI, Lambda runtime, and CloudFormation template. The matching client is
-hosted on the project's CloudFront distribution at `https://d3bvpdr9syk35m.cloudfront.net`; you do
+hosted on the project's public asset CDN at `https://public-assets.zegreatrob.com`; you do
 not need a client asset bucket.
 
 Before deploying, run the read-only setup doctor. It checks the local tools, AWS identity, parameter
@@ -295,7 +295,7 @@ fields to the environment names used by `token_env` before the dashboard handles
   [board configuration guide](board-configuration.md).
 - **Multiple boards:** use a file containing one board, or customize the template to set `BOARD`.
 - **Missing assets:** confirm
-  `https://d3bvpdr9syk35m.cloudfront.net/dashboard/<version>/index.html` returns HTTPS 200.
+  `https://public-assets.zegreatrob.com/dashboard/<version>/index.html` returns HTTPS 200.
 - **Wrong `AssetBaseUrl`:** provide only the origin; the template adds `/dashboard/<version>`.
 - **AWS access denied:** check `aws sts get-caller-identity`, region, and IAM permissions.
 - **Node incompatibility:** use Node.js 22+ locally and the included `nodejs22.x` template runtime.

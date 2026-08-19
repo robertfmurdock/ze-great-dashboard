@@ -12,7 +12,7 @@ describe('AWS deployment contract', () => {
     expect(template).toContain('BoardConfigPath')
     expect(template).toContain('DashboardVersion')
     expect(template).toContain(
-      'AssetBaseUrl: { Type: String, Default: https://d3bvpdr9syk35m.cloudfront.net }',
+      'AssetBaseUrl: { Type: String, Default: https://public-assets.zegreatrob.com }',
     )
     expect(template).toContain('AuthType: NONE')
     expect(template).not.toMatch(/174159267544|robertfmurdock|1338375095|ZeGreatDashboardDeploy/)
@@ -26,7 +26,7 @@ describe('AWS deployment contract', () => {
       outputDir,
       version: '1.2.3',
     })
-    expect(metadata.clientAssetUrl).toBe('https://d3bvpdr9syk35m.cloudfront.net/dashboard/1.2.3')
+    expect(metadata.clientAssetUrl).toBe('https://public-assets.zegreatrob.com/dashboard/1.2.3')
     expect(metadata.artifactKey).toMatch(/^lambda\/[a-f0-9]{64}\.zip$/)
     expect(await stat(join(outputDir, 'lambda.zip'))).toBeTruthy()
     expect(await stat(join(outputDir, 'release.json'))).toBeTruthy()
