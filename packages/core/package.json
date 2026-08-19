@@ -1,6 +1,7 @@
 {
   "name": "@continuous-excellence/ze-great-dashboard",
   "version": "0.0.0-dev",
+  "private": true,
   "type": "module",
   "description": "Provider-neutral release and board packaging for Ze Great Dashboard.",
   "bin": {

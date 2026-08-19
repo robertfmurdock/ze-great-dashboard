@@ -3,16 +3,16 @@ import { cp, mkdir, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
-import { packageLayout } from './package-layout.mjs'
+import { internalPackageLayout } from './package-layout.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const directories = Object.fromEntries(
-  packageLayout.map((packageSpec) => [packageSpec.id, join(root, packageSpec.directory)]),
+  internalPackageLayout.map((packageSpec) => [packageSpec.id, join(root, packageSpec.directory)]),
 )
 const tsc = join(root, 'node_modules/.bin/tsc')
 
 await Promise.all(
-  packageLayout.map((packageSpec) =>
+  internalPackageLayout.map((packageSpec) =>
     rm(join(directories[packageSpec.id], 'dist'), { recursive: true, force: true }),
   ),
 )
@@ -75,12 +75,13 @@ for (const [entry, outfile] of [
     platform: 'node',
     target: 'node22',
     external: [
-      '@continuous-excellence/ze-great-dashboard',
       'node:child_process',
       'node:fs/promises',
       'node:path',
       'node:url',
       'node:util',
+      'yaml',
+      'zod',
     ],
     outfile: join(directories.aws, 'dist', outfile),
   })

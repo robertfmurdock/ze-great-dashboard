@@ -1,6 +1,7 @@
 {
   "name": "@ze-great-dashboard/shared",
   "version": "0.0.0-dev",
+  "private": true,
   "type": "module",
   "description": "The board config schema and signal envelope — the one definition the server and client both agree on.",
   "exports": {

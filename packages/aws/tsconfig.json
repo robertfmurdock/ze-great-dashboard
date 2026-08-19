@@ -2,11 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2023", "DOM"],
-    "types": ["node"],
-    "paths": {
-      "@ze-great-dashboard/shared": ["../shared/src/index.ts"],
-      "@continuous-excellence/ze-great-dashboard": ["../core/src/index.ts"]
-    }
+    "types": ["node"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }

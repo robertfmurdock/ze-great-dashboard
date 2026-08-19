@@ -4,8 +4,9 @@ Recorded 2026-08-18.
 
 ## Objective
 
-Prepare this repository to publish the provider-neutral dashboard package and the AWS Lambda
-adapter as self-contained npm packages that another system can install and deploy.
+Prepare this repository to publish one public AWS Lambda adapter as a self-contained npm package
+that another system can install and deploy. Core and shared remain internal workspace/build
+packages.
 
 ## Implemented
 
@@ -40,19 +41,26 @@ adapter as self-contained npm packages that another system can install and deplo
   manifests at `0.0.0-dev`.
 - Centralized package layout and declaration-build configuration to keep build, publish, and
   verification paths consistent.
+- Simplified the public boundary to exactly `@continuous-excellence/ze-great-dashboard-aws`.
+  `shared` and `core` are now private internal packages, and the AWS adapter bundles its release
+  assembly plus the shared board-schema runtime it needs. Its public `ReleaseMetadata` type is
+  self-contained and its runtime manifest has no unpublished workspace dependency.
 
 ## Assurance
 
-The repository now tests the package boundaries directly. The AWS test bundles the published Lambda
+The repository now tests the package boundary directly. The AWS test bundles the published Lambda
 runtime, embeds the example board as a consumer input, creates `lambda.zip` and client assets, and
-checks the release metadata. The publish dry run checks matching staged versions and verifies that
-checked-in package manifests are unchanged.
+checks the release metadata. The publish dry run stages exactly one package, checks its manifest and
+files for unpublished dependencies and TypeScript, then imports it and exercises package/deploy
+dry-run behavior without AWS credentials.
 
 Verified locally:
 
 - `npm run check`
 - `npm run build:release`
 - `npm run test:published`
+- `npm run typecheck`
+- AWS staged-package import and package/deploy dry run
 - AWS adapter Lambda packaging smoke test
 - 83 unit tests passing across 13 test files
 - Clean temporary consumer installation and package/deploy dry run
@@ -61,6 +69,7 @@ Verified locally:
 ## Explicitly deferred
 
 The remaining release prerequisite is repository administration: npm trusted publishing must be
-enabled for these package names and the GitHub Actions identity. AWS infrastructure ownership and
-credentials remain consumer/deployment concerns; the repository's existing deployment workflow
-continues to use its configured AWS roles.
+enabled for the single AWS package name and the GitHub Actions identity. AWS infrastructure
+ownership and credentials remain consumer/deployment concerns; the repository's existing
+deployment workflow continues to build internal packages, package/deploy AWS, and publish the one
+public package through its configured AWS roles.

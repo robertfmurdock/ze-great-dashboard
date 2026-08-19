@@ -25,8 +25,11 @@ describe('AWS deployment contract', () => {
     expect(metadata.clientAssetUrl).toContain('/dashboard/1.2.3')
     expect(await stat(join(outputDir, 'lambda.zip'))).toBeTruthy()
     expect(await stat(join(outputDir, 'lambda', 'board.yaml'))).toBeTruthy()
+    expect(await stat(join(outputDir, 'lambda', 'release.json'))).toBeTruthy()
+    expect(await stat(join(outputDir, 'lambda', 'SHA256SUMS'))).toBeTruthy()
     expect(await stat(join(outputDir, 'assets', 'index.html'))).toBeTruthy()
     expect(await stat(join(outputDir, 'lambda', 'index.mjs'))).toBeTruthy()
+    expect(metadata.artifactChecksums['index.mjs']).toMatch(/^[a-f0-9]{64}$/)
   })
 
   it('validates a deployment without contacting AWS', async () => {

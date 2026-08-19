@@ -18,7 +18,8 @@
     "template.yml"
   ],
   "dependencies": {
-    "@continuous-excellence/ze-great-dashboard": "0.0.0-dev"
+    "yaml": "^2.8.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",

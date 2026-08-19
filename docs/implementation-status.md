@@ -32,9 +32,9 @@ locally. The current implementation includes:
 
 Verification currently passes with 83 unit tests, the client production build, the core board
 validator, the AWS adapter Lambda archive, publish staging dry runs, and a clean consumer install.
-The GitHub workflow now publishes the three packages through npm trusted publishing after a tagged
-release. No infrastructure has been deployed from this repository yet; live AWS claims remain
-unverified.
+The GitHub workflow now publishes the single AWS adapter package through npm trusted publishing
+after a tagged release; core and shared remain internal workspace packages. No infrastructure has
+been deployed from this repository yet; live AWS claims remain unverified.
 
 ## Development workflow log
 

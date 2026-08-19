@@ -3,13 +3,18 @@ import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import {
-  assembleRelease,
-  type ReleaseMetadata,
-  sha256,
-} from '@continuous-excellence/ze-great-dashboard'
+import { assembleRelease, sha256 } from './release.ts'
 
 const run = promisify(execFile)
+
+export type ReleaseMetadata = {
+  dashboardVersion: string
+  clientAssetUrl: string
+  serverRuntimeVersion: string
+  supportedProviders: string[]
+  artifactChecksums: Record<string, string>
+  runtimeCompatibility: { node: string }
+}
 
 export type LambdaPackageOptions = {
   boardConfigPath: string
