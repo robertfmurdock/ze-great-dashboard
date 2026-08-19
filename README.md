@@ -1,5 +1,10 @@
 # ze-great-dashboard
 
+[![Build](https://github.com/robertfmurdock/ze-great-dashboard/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/robertfmurdock/ze-great-dashboard/actions/workflows/main.yml)
+[![Socket](https://socket.dev/api/badge/npm/package/@continuous-excellence/ze-great-dashboard-aws)](https://socket.dev/npm/package/@continuous-excellence/ze-great-dashboard-aws)
+[![npm version](https://img.shields.io/npm/v/@continuous-excellence/ze-great-dashboard-aws?label=npm)](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A team-visible trust dashboard: **a lens on your engineering state, not a ledger of it.**
 
 It shows whether the things your team relies on are currently working — builds, deploys, versions,
