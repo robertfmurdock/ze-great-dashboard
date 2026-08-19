@@ -44,6 +44,14 @@ Lint, typecheck, and tests, in about a second and a half. The pre-commit hook ru
 broken change can't be committed by accident — the hooks arrive with `npm install` via
 `core.hooksPath`, no extra setup.
 
+Set `PLAYWRIGHT_DOCKER=1` to run the browser portion through the matching official Playwright
+container. The root test script starts the Compose service, connects the existing test to it, and
+tears it down afterward:
+
+```sh
+PLAYWRIGHT_DOCKER=1 npm run check
+```
+
 ### The other mode: the deployed shape
 
 ```sh

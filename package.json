@@ -33,7 +33,7 @@
     "test:unit": "npm run build:packages && vitest run",
     "test:published": "node scripts/test-published-packages.mjs",
     "test:installed": "node scripts/test-installed-package.mjs",
-    "test:browser": "npm run test:browser --workspace @ze-great-dashboard/client",
+    "test:browser": "node scripts/test-browser.mjs",
     "test:watch": "vitest",
     "dev": "concurrently -k -n client,server -c cyan,green \"npm:dev:client\" \"npm:dev:server\"",
     "dev:client": "npm run dev --workspace @ze-great-dashboard/client",

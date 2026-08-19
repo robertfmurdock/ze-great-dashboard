@@ -1,6 +1,6 @@
 services:
   playwright:
-    image: mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION:-1.62.1}-noble
+    image: mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION:?Set PLAYWRIGHT_VERSION}-noble
     init: true
     ipc: host
     network_mode: host
