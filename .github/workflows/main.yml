@@ -34,7 +34,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Install Chromium for browser smoke test
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps --only-shell chromium
 
       - name: Check 🔎
         run: npm run check
