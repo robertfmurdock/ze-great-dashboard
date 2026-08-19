@@ -110,6 +110,8 @@ publishes assets and updates the Lambda. Other branches receive no AWS credentia
 keeps the infrastructure state in AWS; `infra/README.md` documents the one-time GitHub OIDC role
 bootstrap.
 
+For a consumer-managed deployment with the published AWS package, see [`docs/aws-setup.md`](docs/aws-setup.md).
+
 ## License
 
 MIT

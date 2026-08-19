@@ -64,7 +64,7 @@ try {
     assert.equal(metadata.dashboardVersion, '9.8.7')
     await publicApi.deployLambda({
       artifactDir: artifactRoot,
-      assetsDir: join(artifactRoot, 'assets'),
+      assetsDir: join(stagingRoot, 'aws', 'client'),
       assetsBucket: 'unused',
       assetsBaseUrl: 'https://unused.example',
       functionName: 'unused',
@@ -72,6 +72,7 @@ try {
       dryRun: true,
     })
     assert.ok((await readdir(artifactRoot)).includes('lambda.zip'))
+    assert.ok((await readdir(artifactRoot)).includes('template.yml'))
   } finally {
     await rm(artifactRoot, { recursive: true, force: true })
   }

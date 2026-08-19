@@ -1,6 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Provider adapter for a Ze Great Dashboard Lambda deployment
 
+Metadata:
+  PackageManagedParameters: [LambdaArtifactKey, DashboardVersion]
+
 Parameters:
   Name: { Type: String, Default: dashboard }
   LambdaArtifactBucket: { Type: String }
@@ -36,7 +39,7 @@ Resources:
                 Resource: !If [HasSecretReference, !Ref SecretReference, !Ref AWS::NoValue]
   ServerLogGroup:
     Type: AWS::Logs::LogGroup
-    Properties: { RetentionInDays: !Ref LogRetentionInDays, LogGroupName: !Sub /aws/lambda/${Name} }
+    Properties: { RetentionInDays: !Ref LogRetentionInDays, LogGroupName: !Sub '/aws/lambda/${Name}' }
   ServerFunction:
     Type: AWS::Lambda::Function
     DependsOn: ServerLogGroup

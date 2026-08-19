@@ -121,7 +121,7 @@ jobs:
         run: |
           npx tsx packages/aws/src/cli.ts deploy \
             --artifact-dir aws-release \
-            --assets-dir aws-release/assets \
+            --assets-dir packages/aws/client \
             --assets-bucket "${{ steps.infrastructure.outputs.assets_bucket }}" \
             --assets-base-url "${{ steps.infrastructure.outputs.assets_base_url }}" \
             --function-name "${{ steps.infrastructure.outputs.function_name }}" \

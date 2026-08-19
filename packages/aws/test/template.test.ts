@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -15,7 +15,7 @@ describe('AWS deployment contract', () => {
     expect(template).not.toContain('boards/example.yaml')
   })
 
-  it('packages the published runtime and client with the consumer board', async () => {
+  it('packages the published runtime with the consumer board', async () => {
     const outputDir = await mkdtemp('/tmp/dashboard-aws-dogfood-')
     const metadata = await packageLambda({
       boardConfigPath: fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url)),
@@ -23,13 +23,31 @@ describe('AWS deployment contract', () => {
       version: '1.2.3',
     })
     expect(metadata.clientAssetUrl).toContain('/dashboard/1.2.3')
+    expect(metadata.artifactKey).toMatch(/^lambda\/[a-f0-9]{64}\.zip$/)
     expect(await stat(join(outputDir, 'lambda.zip'))).toBeTruthy()
-    expect(await stat(join(outputDir, 'lambda', 'board.yaml'))).toBeTruthy()
-    expect(await stat(join(outputDir, 'lambda', 'release.json'))).toBeTruthy()
-    expect(await stat(join(outputDir, 'lambda', 'SHA256SUMS'))).toBeTruthy()
-    expect(await stat(join(outputDir, 'assets', 'index.html'))).toBeTruthy()
-    expect(await stat(join(outputDir, 'lambda', 'index.mjs'))).toBeTruthy()
+    expect(await stat(join(outputDir, 'release.json'))).toBeTruthy()
+    const deploymentTemplate = await readFile(join(outputDir, 'template.yml'), 'utf8')
+    expect(deploymentTemplate).toContain(`Default: "${metadata.artifactKey}"`)
+    expect(deploymentTemplate).toContain('Default: "1.2.3"')
     expect(metadata.artifactChecksums['index.mjs']).toMatch(/^[a-f0-9]{64}$/)
+    expect(metadata.artifactChecksums['lambda.zip']).toMatch(/^[a-f0-9]{64}$/)
+
+    const changedBoard = join(outputDir, 'changed-board.yaml')
+    await writeFile(
+      changedBoard,
+      (
+        await readFile(
+          fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url)),
+          'utf8',
+        )
+      ).replace('refresh: 60s', 'refresh: 61s'),
+    )
+    const changed = await packageLambda({
+      boardConfigPath: changedBoard,
+      outputDir: await mkdtemp('/tmp/dashboard-aws-changed-board-'),
+      version: '1.2.3',
+    })
+    expect(changed.artifactKey).not.toBe(metadata.artifactKey)
   })
 
   it('validates a deployment without contacting AWS', async () => {
