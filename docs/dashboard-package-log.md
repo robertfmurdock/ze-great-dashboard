@@ -128,6 +128,23 @@ reinstall, hosted-client fetch, and final tagging must all succeed. Follow-up in
 tracked in the implementation status: automate ACM/DNS for `assets.dashboard.zegreatrob.com`, and
 add an isolated least-privilege consumer canary stack and artifact bucket.
 
+## Registry propagation during acceptance
+
+Recorded 2026-08-19: release run `32264792126` successfully built and installed the `0.1.16`
+tarball, provisioned infrastructure, deployed production, passed `/health` and `/` smoke tests,
+passed every deployment-doctor check, and published the exact tarball with npm provenance. The
+final clean registry install then failed with `ETARGET` because the newly published version was not
+yet visible from the registry endpoint. As intended, the workflow stopped before creating the Git
+tag.
+
+The original consumer check retried five times over roughly twenty seconds, but reused one npm
+cache. That window was too short for this publication, and cached package metadata could preserve
+the initial miss. Registry installs now use `--prefer-online` and retry only propagation-shaped
+`ETARGET` or `E404` failures for up to roughly one minute; unrelated install errors still fail
+immediately, and local tarball checks do not retry. A subsequent clean consumer install of
+`@continuous-excellence/ze-great-dashboard-aws@0.1.16`, including package validation, deploy dry
+run, and hosted-client fetch, passed locally.
+
 ## Explicitly deferred
 
 AWS infrastructure ownership and credentials remain consumer/deployment concerns; the repository's

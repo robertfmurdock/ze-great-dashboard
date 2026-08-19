@@ -44,14 +44,21 @@ try {
   await cp(join(repositoryRoot, 'boards/example.yaml'), join(consumerRoot, 'board.yaml'))
 
   let installError
-  for (let attempt = 1; attempt <= 5; attempt += 1) {
+  const installAttempts = isTarball ? 1 : 12
+  for (let attempt = 1; attempt <= installAttempts; attempt += 1) {
     try {
-      npm(['install', '--ignore-scripts', '--save-exact', installSpec])
+      npm(['install', '--ignore-scripts', '--prefer-online', '--save-exact', installSpec])
       installError = undefined
       break
     } catch (error) {
       installError = error
-      if (attempt < 5) await wait(5000)
+      const output = error && typeof error === 'object' && 'stderr' in error ? error.stderr : error
+      const retryable = /ETARGET|E404/.test(String(output))
+      if (!retryable || attempt === installAttempts) break
+      console.warn(
+        `Registry version is not visible yet; retrying install (${attempt}/${installAttempts})`,
+      )
+      await wait(5000)
     }
   }
   if (installError) throw installError
