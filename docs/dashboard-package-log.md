@@ -35,8 +35,9 @@ adapter as self-contained npm packages that another system can install and deplo
   files, checksums, and CloudFormation template.
 - Added a deployment dry run that validates the Lambda archive and client entrypoint without calling
   AWS.
-- Added npm trusted publishing through GitHub Actions. Release versions are applied only to
-  temporary staging manifests, leaving the repository manifests at `0.0.0-dev`.
+- Added npm trusted publishing through GitHub Actions after the successful `main` release job.
+  Release versions are applied only to temporary staging manifests, leaving the repository
+  manifests at `0.0.0-dev`.
 - Centralized package layout and declaration-build configuration to keep build, publish, and
   verification paths consistent.
 
