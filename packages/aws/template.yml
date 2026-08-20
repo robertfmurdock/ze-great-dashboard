@@ -39,7 +39,12 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: [secretsmanager:DescribeSecret, secretsmanager:GetSecretValue]
-                Resource: !If [HasSecretReference, !Ref SecretReference, !Ref AWS::NoValue]
+                # IAM requires every statement to have a resource. When no secret is configured,
+                # keep this read permission pointed at a nonexistent ARN rather than widening it.
+                Resource: !If
+                  - HasSecretReference
+                  - !Ref SecretReference
+                  - !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ze-great-dashboard-no-secret-configured'
   ServerLogGroup:
     Type: AWS::Logs::LogGroup
     Properties: { RetentionInDays: !Ref LogRetentionInDays, LogGroupName: !Sub '/aws/lambda/${Name}' }
