@@ -67,5 +67,8 @@ describe('persistent consumer reference', () => {
     expect(workflow).not.toContain('Deploy application 🚀')
     expect(workflow).toContain('reference_artifact_bucket')
     expect(workflow).toContain('reference_execution_role_arn')
+    expect(workflow).toContain('reference_status')
+    expect(workflow).toContain('ROLLBACK_COMPLETE')
+    expect(infrastructure).toContain('cloudformation:DeleteStack')
   })
 })
