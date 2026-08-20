@@ -17,7 +17,7 @@ repo:robertfmurdock@6215634/ze-great-dashboard@1338375095:ref:refs/heads/main
 ```
 
 The shared OIDC provider `token.actions.githubusercontent.com` already exists in account
-`174159267544`. The administrator also creates `ZeGreatDashboardCloudFormationExecution`, which
+`174159267544`. The administrator also creates `ze-great-dashboard-cloudformation`, which
 CloudFormation—not GitHub—assumes to operate the resources in `stack.yml`. The provisioning role can
 operate only the `ze-great-dashboard` stack and pass only that execution role. It must not trust pull
 requests, tags, or other branches.

@@ -111,7 +111,7 @@ jobs:
       - name: Provision AWS infrastructure
         id: infrastructure
         env:
-          CLOUDFORMATION_ROLE_ARN: arn:aws:iam::174159267544:role/ZeGreatDashboardCloudFormationExecution
+          CLOUDFORMATION_ROLE_ARN: arn:aws:iam::174159267544:role/ze-great-dashboard-cloudformation
           GITHUB_OWNER_ID: '6215634'
           GITHUB_REPOSITORY_ID: '1338375095'
         run: npm run --silent release:provision
