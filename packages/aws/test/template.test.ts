@@ -15,6 +15,7 @@ describe('AWS deployment contract', () => {
       'AssetBaseUrl: { Type: String, Default: https://public-assets.zegreatrob.com }',
     )
     expect(template).toContain('AuthType: NONE')
+    expect(template).toContain(`RoleName: !Sub '\${Name}-server'`)
     expect(template).not.toMatch(/174159267544|robertfmurdock|1338375095|ZeGreatDashboardDeploy/)
     expect(template).not.toContain('boards/example.yaml')
   })

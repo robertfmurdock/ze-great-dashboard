@@ -25,6 +25,9 @@ Resources:
   ServerRole:
     Type: AWS::IAM::Role
     Properties:
+      # A stable, Name-derived role name lets consumer bootstrap policies scope CloudFormation
+      # execution to this stack's runtime role rather than every role in the account.
+      RoleName: !Sub '${Name}-server'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement: [{ Effect: Allow, Principal: { Service: lambda.amazonaws.com }, Action: sts:AssumeRole }]

@@ -23,7 +23,7 @@ operate only the `ze-great-dashboard` stack and pass only that execution role. I
 requests, tags, or other branches.
 
 This role is the sole bootstrap boundary. The stack creates a narrower `ZeGreatDashboardDeploy`
-role, which the workflow assumes for publishing assets and updating Lambda code.
+role, which the workflow assumes only for publishing immutable client assets.
 
 The two bootstrap roles are declared in `bootstrap.yml`. Upload that file in AWS CloudShell and run:
 
@@ -42,21 +42,34 @@ This command is safe to rerun. It assumes the account's shared GitHub OIDC provi
 
 - Private, encrypted, versioned `ze-great-dashboard-assets` S3 bucket, retained on stack deletion
 - CloudFront distribution with signed origin access to that bucket
-- ARM64 Node.js 22 Lambda `ze-great-dashboard`
-- Public Lambda Function URL
-- Lambda execution role and 14-day CloudWatch log group
-- Main-branch-only GitHub release role `ZeGreatDashboardDeploy`
+- Main-branch-only GitHub asset-publishing role `ZeGreatDashboardDeploy`
 
-The distribution initially uses its generated `d*.cloudfront.net` HTTPS hostname. To use
-`public-assets.zegreatrob.com`, request an ACM certificate in `us-east-1`, validate it with a CNAME
-at GoDaddy, then record its ARN in the `AssetsCertificateArn` parameter default in `stack.yml`.
-The release workflow's infrastructure step attaches the certificate and waits for CloudFront before
-the client is published and tested at the custom hostname. Both parameters remain overridable for a
-different deployment.
+`public-assets.zegreatrob.com` is the live CloudFront custom domain and the stable public package
+contract. Keep its ACM validation CNAME in DNS so the certificate can renew automatically.
 
-After CloudFront finishes deploying the hostname, add a second GoDaddy CNAME with name
-`public-assets` and value equal to the `AssetsDistributionDomain` stack output. Keep the ACM
-validation CNAME permanently so ACM can renew the certificate automatically.
+## One-time consumer reference bootstrap
+
+The release workflow deploys the exact pre-publish tarball to one persistent consumer reference stack:
+`ze-great-dashboard-reference`. Its checked-in consumer inputs are under `../reference/`; it has no
+runtime secrets or third-party source. An administrator must create its bootstrap stack once:
+
+```sh
+aws cloudformation deploy \
+  --region us-east-1 \
+  --stack-name ze-great-dashboard-reference-bootstrap \
+  --template-file reference-bootstrap.yml \
+  --parameter-overrides \
+    GitHubRepository=robertfmurdock/ze-great-dashboard \
+    GitHubOwnerId=6215634 \
+    GitHubRepositoryId=1338375095 \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --tags Project=ze-great-dashboard ManagedBy=cloudformation
+```
+
+`reference-bootstrap.yml` retains a private, encrypted, versioned
+`ze-great-dashboard-reference-artifacts` bucket; a main-branch-only GitHub OIDC role can upload only
+there and operate only the reference stack. CloudFormation assumes a separate execution role scoped to
+the reference Lambda, its log group, and `ze-great-dashboard-reference-*` runtime roles.
 
 ## Manual inspection
 

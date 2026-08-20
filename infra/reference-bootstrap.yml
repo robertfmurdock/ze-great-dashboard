@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: One-time isolated consumer reference bootstrap for Ze Great Dashboard
+
+Parameters:
+  GitHubRepository:
+    Type: String
+    Description: owner/repository allowed to update the reference
+  GitHubOwnerId:
+    Type: String
+    Description: numeric GitHub owner id
+  GitHubRepositoryId:
+    Type: String
+    Description: numeric GitHub repository id
+
+Resources:
+  ReferenceArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: ze-great-dashboard-reference-artifacts
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      VersioningConfiguration: { Status: Enabled }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  ReferenceCloudFormationExecutionRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RoleName: ZeGreatDashboardReferenceCloudFormationExecution
+      Description: CloudFormation execution role for the isolated consumer reference
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudformation.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ReferenceStackResources
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReferenceLambda
+                Effect: Allow
+                Action: lambda:*
+                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:ze-great-dashboard-reference'
+              - Sid: ReferenceLogs
+                Effect: Allow
+                Action: logs:*
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ze-great-dashboard-reference:*'
+              - Sid: ReferenceServerRoles
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:GetRole
+                  - iam:DeleteRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:PassRole
+                Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ze-great-dashboard-reference-*'
+
+  GitHubReferenceDeployRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RoleName: ZeGreatDashboardReferenceDeploy
+      Description: Main-only GitHub deployment role for the isolated consumer reference
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+                'token.actions.githubusercontent.com:sub': !Sub
+                  - 'repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:ref:refs/heads/main'
+                  - Owner: { Fn::Select: [0, { Fn::Split: ['/', !Ref GitHubRepository] }] }
+                    Repository: { Fn::Select: [1, { Fn::Split: ['/', !Ref GitHubRepository] }] }
+      Policies:
+        - PolicyName: DeployReferenceConsumer
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: UploadReferenceArtifact
+                Effect: Allow
+                Action: [s3:PutObject, s3:GetObject]
+                Resource: !Sub '${ReferenceArtifactBucket.Arn}/*'
+              - Sid: InspectReferenceArtifactBucket
+                Effect: Allow
+                Action: [s3:GetBucketLocation, s3:ListBucket]
+                Resource: !GetAtt ReferenceArtifactBucket.Arn
+              - Sid: OperateReferenceStack
+                Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:GetTemplate
+                  - cloudformation:GetTemplateSummary
+                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ze-great-dashboard-reference/*'
+              - Sid: PassReferenceExecutionRole
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt ReferenceCloudFormationExecutionRole.Arn
+                Condition:
+                  StringEquals:
+                    'iam:PassedToService': cloudformation.amazonaws.com
+
+Outputs:
+  ArtifactBucket:
+    Value: !Ref ReferenceArtifactBucket
+  DeployRoleArn:
+    Value: !GetAtt GitHubReferenceDeployRole.Arn
+  ExecutionRoleArn:
+    Value: !GetAtt ReferenceCloudFormationExecutionRole.Arn

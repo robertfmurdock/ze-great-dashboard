@@ -14,8 +14,8 @@ opinion about your process. Every panel is a live read of a system that already 
 Design doc: `ze-great-idea-pit/tool-ideas/trust-dashboard.md`. How this repo came to be shaped the
 way it is, including the quirks that look like bugs: `docs/initialization-log.md`.
 
-**Status: first Stage 2 slice.** GitHub Actions `pipeline-status` panels work end to end. Azure
-DevOps and `http-value` adapters remain to be built.
+**Status: MVP in active use.** GitHub Actions `pipeline-status` and source-agnostic `http-value`
+panels work end to end. Azure DevOps remains to be built.
 
 ## Quickstart
 
@@ -116,12 +116,14 @@ Server environment variables are documented in `.env.example`. The one that matt
 ## Deploying
 
 Push to `main`. CI checks, versions with [Tagger](https://github.com/robertfmurdock/tagger), publishes
-the client to S3, and points the Lambda at the new version.
+the immutable client assets, then deploys the exact npm tarball to the repository-owned consumer
+reference before publishing that same tarball.
 
 Infrastructure is a CloudFormation stack under `infra/`. On `main`, CI deploys the stack before it
-publishes assets and updates the Lambda. Other branches receive no AWS credentials. CloudFormation
+publishes assets and updates the Lambda. The public client origin is
+`https://public-assets.zegreatrob.com`. Other branches receive no AWS credentials. CloudFormation
 keeps the infrastructure state in AWS; `infra/README.md` documents the one-time GitHub OIDC role
-bootstrap.
+bootstraps, including the consumer reference.
 
 For a consumer-managed deployment with the published AWS package, see [`docs/aws-setup.md`](docs/aws-setup.md).
 

@@ -85,6 +85,18 @@ Provider automation can also use `ze-great-dashboard-aws deploy`. Its `--version
 installed package version and `--assets-dir` defaults to that package's bundled client. Explicit
 values for either option continue to override those defaults.
 
+Repository maintainers that host the matching immutable client separately can use the provider-only
+asset step without changing a Lambda:
+
+```sh
+npm exec -- ze-great-dashboard-aws publish-assets \
+  --assets-bucket my-dashboard-client-assets \
+  --assets-base-url https://assets.example.com
+```
+
+The command publishes the installed package version under `dashboard/<version>`. It is not needed
+for normal consumer deployments, which use the project's public asset CDN.
+
 ## Upload the Lambda artifact
 
 Read the destination from the checked-in parameters and generated release metadata:

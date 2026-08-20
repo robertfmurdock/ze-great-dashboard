@@ -102,27 +102,6 @@ jobs:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: node scripts/publish-packages.mjs --pack aws-package.tgz
 
-      - name: Verify the tarball as an isolated consumer
-        run: npm run test:installed -- ./aws-package.tgz "${{ steps.version.outputs.version }}" --skip-client
-
-      - name: Prepare the production release from the tarball
-        run: |
-          mkdir .release-consumer
-          npm install --prefix .release-consumer --ignore-scripts --save-exact "$GITHUB_WORKSPACE/aws-package.tgz"
-          cp boards/example.yaml .release-consumer/board.yaml
-          .release-consumer/node_modules/.bin/ze-great-dashboard-aws parameters \
-            --artifact-bucket ze-great-dashboard-preflight \
-            --output .release-consumer/aws-dashboard-parameters.json
-          .release-consumer/node_modules/.bin/ze-great-dashboard-aws package \
-            --board-config .release-consumer/board.yaml \
-            --output .release-consumer/preflight-release
-          .release-consumer/node_modules/.bin/ze-great-dashboard-aws deploy \
-            --artifact-dir .release-consumer/preflight-release \
-            --assets-bucket unused \
-            --assets-base-url https://unused.example \
-            --function-name unused \
-            --dry-run
-
       - name: AWS provisioning credentials
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
@@ -137,49 +116,69 @@ jobs:
           GITHUB_REPOSITORY_ID: '1338375095'
         run: npm run --silent release:provision
 
-      # Artifact publishing does not retain the more powerful provisioning credentials.
-      - name: AWS release credentials
+      # Immutable client publishing does not retain the more powerful provisioning credentials.
+      - name: AWS asset publishing credentials
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           role-to-assume: ${{ steps.infrastructure.outputs.deploy_role_arn }}
           aws-region: us-east-1
 
-      - name: Deploy application 🚀
+      - name: Publish immutable client assets from the tarball
         run: |
-          .release-consumer/node_modules/.bin/ze-great-dashboard-aws package \
-            --board-config .release-consumer/board.yaml \
-            --output .release-consumer/aws-release
-          .release-consumer/node_modules/.bin/ze-great-dashboard-aws deploy \
-            --artifact-dir .release-consumer/aws-release \
+          mkdir .reference-consumer
+          npm install --prefix .reference-consumer --ignore-scripts --save-exact "$GITHUB_WORKSPACE/aws-package.tgz"
+          .reference-consumer/node_modules/.bin/ze-great-dashboard-aws publish-assets \
             --assets-bucket "${{ steps.infrastructure.outputs.assets_bucket }}" \
-            --assets-base-url "${{ steps.infrastructure.outputs.assets_base_url }}" \
-            --function-name "${{ steps.infrastructure.outputs.function_name }}"
+            --assets-base-url "${{ steps.infrastructure.outputs.assets_base_url }}"
 
-      - name: Smoke test deployed release
-        env:
-          SERVER_URL: ${{ steps.infrastructure.outputs.server_url }}
-        run: |
-          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
-            "${SERVER_URL}health" > /dev/null
-          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
-            "$SERVER_URL" > /dev/null
+      - name: AWS reference deployment credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: arn:aws:iam::174159267544:role/ZeGreatDashboardReferenceDeploy
+          aws-region: us-east-1
 
-      - name: Dogfood the deployment doctor
+      - name: Deploy the exact tarball as the consumer reference
         run: |
-          .release-consumer/node_modules/.bin/ze-great-dashboard-aws parameters \
-            --artifact-bucket "${{ steps.infrastructure.outputs.assets_bucket }}" \
-            --output .release-consumer/aws-dashboard-parameters.json
-          .release-consumer/node_modules/.bin/ze-great-dashboard-aws doctor \
-            --parameters .release-consumer/aws-dashboard-parameters.json \
+          cp reference/board.yaml reference/aws-dashboard-parameters.json .reference-consumer/
+          reference_cli=.reference-consumer/node_modules/.bin/ze-great-dashboard-aws
+          "$reference_cli" parameters \
+            --artifact-bucket ze-great-dashboard-reference-artifacts \
+            --output .reference-consumer/aws-dashboard-parameters.json
+          "$reference_cli" package \
+            --board-config .reference-consumer/board.yaml \
+            --output .reference-consumer/aws-dashboard-release
+          artifact_key="$(jq -er '.artifactKey' .reference-consumer/aws-dashboard-release/release.json)"
+          aws s3 cp .reference-consumer/aws-dashboard-release/lambda.zip \
+            "s3://ze-great-dashboard-reference-artifacts/${artifact_key}" \
             --region us-east-1
+          aws cloudformation deploy \
+            --stack-name ze-great-dashboard-reference \
+            --template-file .reference-consumer/aws-dashboard-release/template.yml \
+            --role-arn arn:aws:iam::174159267544:role/ZeGreatDashboardReferenceCloudFormationExecution \
+            --region us-east-1 \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides file://.reference-consumer/aws-dashboard-parameters.json \
+            --no-fail-on-empty-changeset \
+            --no-cli-pager
+          function_url="$(aws cloudformation describe-stacks \
+            --stack-name ze-great-dashboard-reference \
+            --region us-east-1 \
+            --query \"Stacks[0].Outputs[?OutputKey=='ServerUrl'].OutputValue\" \
+            --output text)"
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
+            "${function_url%/}/health" > /dev/null
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
+            "$function_url" > /dev/null
 
       - name: Publish the same npm tarball
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: node scripts/publish-packages.mjs --publish-tarball aws-package.tgz
 
-      - name: Verify the exact registry package and hosted client
-        run: npm run test:installed -- "${{ steps.version.outputs.version }}"
+      - name: Confirm the published version is visible
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: test "$(npm view @continuous-excellence/ze-great-dashboard-aws@\"$RELEASE_VERSION\" version --prefer-online)" = "$RELEASE_VERSION"
 
       - name: Tag verified release
         env:

@@ -3,7 +3,12 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 import { runDoctor } from './doctor.ts'
-import { cloudFormationTemplate, deployLambda, packageLambda } from './index.ts'
+import {
+  cloudFormationTemplate,
+  deployLambda,
+  packageLambda,
+  publishClientAssets,
+} from './index.ts'
 
 const args = process.argv.slice(2)
 const option = (name: string, fallback?: string) => {
@@ -104,6 +109,15 @@ try {
       dryRun: args.includes('--dry-run'),
     })
     console.log(JSON.stringify({ deployed: true, version }))
+  } else if (args[0] === 'publish-assets') {
+    const version = requiredOption('--version', packageVersion)
+    const assetPath = await publishClientAssets({
+      assetsDir: option('--assets-dir', bundledAssets) ?? bundledAssets,
+      assetsBucket: requiredOption('--assets-bucket'),
+      assetsBaseUrl: requiredOption('--assets-base-url'),
+      version,
+    })
+    console.log(JSON.stringify({ published: true, version, assetPath }))
   } else if (args[0] === 'doctor') {
     const parametersPath =
       option('--parameters', 'aws-dashboard-parameters.json') ?? 'aws-dashboard-parameters.json'
@@ -172,7 +186,9 @@ try {
     await writeFile(output, `${JSON.stringify(parameters, null, 2)}\n`)
     console.log(JSON.stringify({ output }))
   } else if (args[0] !== 'package')
-    throw new Error('Usage: ze-great-dashboard-aws package|parameters|deploy|doctor [options]')
+    throw new Error(
+      'Usage: ze-great-dashboard-aws package|parameters|publish-assets|deploy|doctor [options]',
+    )
   else {
     const boardConfig = option('--board-config')
     // Consumers should omit --version so the package and client release stay paired. The explicit

@@ -31,6 +31,4 @@ output() {
 
 echo "assets_bucket=$(output AssetsBucket)" >> "$GITHUB_OUTPUT"
 echo "assets_base_url=$(output AssetsBaseUrl)" >> "$GITHUB_OUTPUT"
-echo "function_name=$(output ServerFunctionName)" >> "$GITHUB_OUTPUT"
-echo "server_url=$(output ServerUrl)" >> "$GITHUB_OUTPUT"
 echo "deploy_role_arn=$(output DeployRoleArn)" >> "$GITHUB_OUTPUT"

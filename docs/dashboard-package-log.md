@@ -13,8 +13,8 @@ packages.
 - Added `@continuous-excellence/ze-great-dashboard` under `packages/core`.
   - Validates consumer board YAML using the shared schema.
   - Normalizes board YAML for deterministic artifacts.
-  - Resolves immutable client asset URLs under the project's CloudFront distribution at
-    `https://d3bvpdr9syk35m.cloudfront.net/dashboard/<version>`.
+  - Resolves immutable client asset URLs under the public custom domain at
+    `https://public-assets.zegreatrob.com/dashboard/<version>`.
   - Emits release metadata, runtime compatibility, and SHA-256 checksums.
   - Provides `validate` and `package` CLI commands.
 - Added `@continuous-excellence/ze-great-dashboard-aws` under `packages/aws`.
@@ -89,24 +89,23 @@ The local automation shell also surfaced a stale `/usr/local/bin/npm` ahead of t
 uses an isolated temporary cache, keeping the consumer check reproducible across developer and CI
 machines.
 
-## Shipped-package production dogfood
+## Shipped-package reference deployment
 
-Recorded 2026-08-19: the `main` release now treats one exact-version npm tarball as the release
-artifact. It installs that tarball in a clean consumer for the documented parameter, package,
-artifact-validation, and deploy-dry-run path; provisions infrastructure; then packages and deploys
-production with the CLI, Lambda runtime, and client from the isolated installation. After the
-production health and root smoke tests pass, the workflow publishes the same tarball, repeats the
-consumer checks from an exact registry install, verifies the hosted client, and only then creates
-the Git tag.
+Recorded 2026-08-20: the `main` release now treats one exact-version npm tarball as the release
+artifact. It first publishes that tarball's immutable client assets to the public CDN, then
+clean-installs the same tarball as a consumer and runs the documented `parameters`, `package`, S3
+upload, and CloudFormation deployment path against one persistent reference stack. The reference
+checks both `/health` and `/` before npm publishes that unchanged tarball. Publication is followed
+only by a lightweight exact-version registry visibility check before tagging.
 
 Publication is safe to rerun. If the calculated version already exists, the release compares the
 registry integrity with the local tarball and skips publication only for an exact match. A differing
 tarball at the immutable version fails the release rather than silently accepting a collision.
 
 The AWS CLI now derives omitted deploy version and client asset arguments from its installed
-package. A new read-only `doctor` command aggregates Node, npm, AWS CLI, `jq`, AWS identity,
-parameter/template, artifact-bucket Region, and hosted-client checks without issuing AWS writes.
-The production deploy role permits `s3:GetBucketLocation` so CI exercises this public diagnostic.
+package. Its provider-only `publish-assets` command publishes the immutable client without updating
+a Lambda; the repository then uses the public CloudFormation consumer flow for its one reference
+Lambda. The read-only `doctor` command remains available for consumer diagnostics.
 
 Repository packaging no longer invokes the system `zip` executable. Bundled `fflate` creates ZIPs
 with stable entry ordering and a fixed 1980 timestamp; tests assert byte-identical archives,
@@ -123,10 +122,8 @@ Verified locally for this slice:
 - Exact tarball install in a clean consumer with parameters, package validation, ZIP inspection,
   and deploy dry run
 
-The first `main` run is the external acceptance gate: production smoke tests, exact registry
-reinstall, hosted-client fetch, and final tagging must all succeed. Follow-up infrastructure work is
-tracked in the implementation status: automate ACM/DNS for `assets.dashboard.zegreatrob.com`, and
-add an isolated least-privilege consumer canary stack and artifact bucket.
+The release gate is the consumer reference smoke test; it exercises the public package contract
+before publication without rebuilding the archive or updating a second Lambda.
 
 ## Registry propagation during acceptance
 

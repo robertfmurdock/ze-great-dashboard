@@ -9,12 +9,13 @@ Detailed dated slices are recorded in [the Stage 4 HTTP value log](./stage4-http
 earlier [Stage 2 GitHub Actions log](./stage2-github-actions-log.md), and the [dashboard package
 and deployment log](./dashboard-package-log.md).
 
-## Prioritized infrastructure follow-ups
+## Deployment status
 
-1. Complete `public-assets.zegreatrob.com` with an ACM certificate and GoDaddy DNS records, then
-   replace the generated CloudFront hostname as the stable package contract.
-2. Add an isolated consumer canary stack, artifact bucket, and least-privilege role that exercises
-   the public CloudFormation deployment path without risking the production stack.
+`public-assets.zegreatrob.com` is live and is the stable public package contract. The release
+workflow publishes that tarball's immutable client assets, then deploys the exact pre-publish tarball
+through one persistent consumer reference stack. Its board has no third-party source, so it verifies
+package, artifact, CloudFormation, Lambda, and hosted-client integration without asserting an
+upstream panel's availability.
 
 ## Current checkpoint
 
@@ -37,11 +38,12 @@ locally. The current implementation includes:
 - Docker, Lambda bundling, publishable local consumer/AWS packages, fixture-driven tests, and the
   repository-wide `npm run check` gate.
 
-Verification currently passes with 83 unit tests, the client production build, the core board
-validator, the AWS adapter Lambda archive, publish staging dry runs, and a clean consumer install.
-The GitHub workflow now deploys from one exact-version AWS adapter tarball, publishes that same
-tarball through npm trusted publishing, verifies a fresh registry install and hosted client, and
-only then creates the Git tag; core and shared remain internal workspace packages.
+Verification covers the client production build, the core board validator, AWS adapter Lambda
+archives, publish staging, the checked-in reference consumer inputs, scoped reference IAM names, and
+the release ordering. The GitHub workflow builds one exact-version AWS adapter tarball, publishes its
+immutable client assets, deploys that tarball to the consumer reference, publishes it through npm
+trusted publishing, confirms registry visibility, and only then creates the Git tag; core and shared
+remain internal workspace packages.
 
 ## Development workflow log
 

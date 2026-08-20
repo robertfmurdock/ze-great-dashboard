@@ -121,13 +121,17 @@ export type DeployLambdaOptions = {
   dryRun?: boolean
 }
 
-/** Performs the AWS-specific half of a release using explicit deployment outputs. */
-export async function deployLambda(options: DeployLambdaOptions): Promise<void> {
-  const artifactDir = resolve(options.artifactDir)
+export type PublishClientAssetsOptions = {
+  assetsDir: string
+  assetsBucket: string
+  assetsBaseUrl: string
+  version: string
+}
+
+/** Publishes the immutable client half of a provider-managed release. */
+export async function publishClientAssets(options: PublishClientAssetsOptions): Promise<string> {
   const assetsDir = resolve(options.assetsDir)
-  await readFile(join(artifactDir, 'lambda.zip'))
   await readFile(join(assetsDir, 'index.html'))
-  if (options.dryRun) return
   const assetPath = `${options.assetsBaseUrl.replace(/\/+$/, '')}/dashboard/${options.version}`
   await run('aws', [
     's3',
@@ -147,6 +151,17 @@ export async function deployLambda(options: DeployLambdaOptions): Promise<void> 
     '--cache-control',
     'public, max-age=60',
   ])
+  return assetPath
+}
+
+/** Performs the AWS-specific half of a release using explicit deployment outputs. */
+export async function deployLambda(options: DeployLambdaOptions): Promise<void> {
+  const artifactDir = resolve(options.artifactDir)
+  const assetsDir = resolve(options.assetsDir)
+  await readFile(join(artifactDir, 'lambda.zip'))
+  await readFile(join(assetsDir, 'index.html'))
+  if (options.dryRun) return
+  const assetPath = await publishClientAssets(options)
   await run('aws', [
     'lambda',
     'update-function-code',

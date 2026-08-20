@@ -1,0 +1,11 @@
+# This board deliberately has no upstream source or credential. The release reference verifies the
+# public package/deployment contract, while panel availability belongs to each consumer's setup.
+sources: {}
+
+boards:
+  reference:
+    refresh: 60s
+    panels:
+      - id: release-reference
+        type: release-reference
+        position: { x: 0, y: 0, w: 12, h: 6 }
