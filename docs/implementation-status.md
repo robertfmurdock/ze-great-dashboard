@@ -13,9 +13,10 @@ and deployment log](./dashboard-package-log.md).
 
 `public-assets.zegreatrob.com` is live and is the stable public package contract. The release
 workflow publishes that tarball's immutable client assets, then deploys the exact pre-publish tarball
-through one persistent consumer reference stack. Its board has no third-party source, so it verifies
-package, artifact, CloudFormation, Lambda, and hosted-client integration without asserting an
-upstream panel's availability.
+through one persistent consumer reference stack. The existing infrastructure provision owns its
+artifact bucket and scoped roles. Its board has no third-party source, so it verifies package,
+artifact, CloudFormation, Lambda, and hosted-client integration without asserting an upstream panel's
+availability.
 
 ## Current checkpoint
 

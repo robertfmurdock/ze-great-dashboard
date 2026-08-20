@@ -95,8 +95,9 @@ Recorded 2026-08-20: the `main` release now treats one exact-version npm tarball
 artifact. It first publishes that tarball's immutable client assets to the public CDN, then
 clean-installs the same tarball as a consumer and runs the documented `parameters`, `package`, S3
 upload, and CloudFormation deployment path against one persistent reference stack. The reference
-checks both `/health` and `/` before npm publishes that unchanged tarball. Publication is followed
-only by a lightweight exact-version registry visibility check before tagging.
+resources are part of the existing infrastructure provision, so there is no second bootstrap stack.
+The reference checks both `/health` and `/` before npm publishes that unchanged tarball. Publication
+is followed only by a lightweight exact-version registry visibility check before tagging.
 
 Publication is safe to rerun. If the calculated version already exists, the release compares the
 registry integrity with the local tarball and skips publication only for an exact match. A differing

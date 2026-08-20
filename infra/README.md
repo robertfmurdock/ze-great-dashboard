@@ -32,6 +32,15 @@ aws cloudformation deploy \
   --region us-east-1 \
   --stack-name ze-great-dashboard-bootstrap \
   --template-file bootstrap.yml \
+  --parameter-overrides \
+    GitHubRepository=robertfmurdock/ze-great-dashboard \
+    GitHubOwnerId=6215634 \
+    GitHubRepositoryId=1338375095 \
+    StackName=ze-great-dashboard \
+    AssetsBucketName=ze-great-dashboard-assets \
+    FunctionName=ze-great-dashboard \
+    ServerRoleName=ze-great-dashboard-server \
+    DeployRoleName=ZeGreatDashboardDeploy \
   --capabilities CAPABILITY_NAMED_IAM \
   --tags Project=ze-great-dashboard ManagedBy=cloudformation
 ```
@@ -47,29 +56,20 @@ This command is safe to rerun. It assumes the account's shared GitHub OIDC provi
 `public-assets.zegreatrob.com` is the live CloudFront custom domain and the stable public package
 contract. Keep its ACM validation CNAME in DNS so the certificate can renew automatically.
 
-## One-time consumer reference bootstrap
+## Consumer reference
 
-The release workflow deploys the exact pre-publish tarball to one persistent consumer reference stack:
-`ze-great-dashboard-reference`. Its checked-in consumer inputs are under `../reference/`; it has no
-runtime secrets or third-party source. An administrator must create its bootstrap stack once:
+The normal infrastructure provision creates the persistent consumer reference resources alongside
+the asset CDN: a private, encrypted, versioned `ze-great-dashboard-reference-artifacts` bucket, a
+main-branch-only GitHub OIDC deployment role, and its scoped CloudFormation execution role. The
+release workflow deploys the exact pre-publish tarball to `ze-great-dashboard-reference` using the
+checked-in consumer inputs under `../reference/`; that board has no runtime secrets or third-party
+source.
 
-```sh
-aws cloudformation deploy \
-  --region us-east-1 \
-  --stack-name ze-great-dashboard-reference-bootstrap \
-  --template-file reference-bootstrap.yml \
-  --parameter-overrides \
-    GitHubRepository=robertfmurdock/ze-great-dashboard \
-    GitHubOwnerId=6215634 \
-    GitHubRepositoryId=1338375095 \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --tags Project=ze-great-dashboard ManagedBy=cloudformation
-```
-
-`reference-bootstrap.yml` retains a private, encrypted, versioned
-`ze-great-dashboard-reference-artifacts` bucket; a main-branch-only GitHub OIDC role can upload only
-there and operate only the reference stack. CloudFormation assumes a separate execution role scoped to
-the reference Lambda, its log group, and `ze-great-dashboard-reference-*` runtime roles.
+The existing bootstrap boundary must be updated once before the first release containing this change:
+an AWS administrator reruns the **existing** `ze-great-dashboard-bootstrap` deployment with the
+updated `bootstrap.yml`. This extends its CloudFormation execution role only to the named reference
+bucket and two named reference roles; it does not add another bootstrap stack or give GitHub broader
+access.
 
 ## Manual inspection
 

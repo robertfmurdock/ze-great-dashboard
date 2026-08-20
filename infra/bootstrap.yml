@@ -75,6 +75,32 @@ Resources:
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ServerRoleName}'
                   - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${DeployRoleName}'
+              - Sid: ReferenceArtifactBucket
+                Effect: Allow
+                Action: s3:*
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:s3:::ze-great-dashboard-reference-artifacts'
+                  - !Sub 'arn:${AWS::Partition}:s3:::ze-great-dashboard-reference-artifacts/*'
+              - Sid: ReferenceRoles
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:GetRole
+                  - iam:DeleteRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:PassRole
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceCloudFormationExecution'
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceDeploy'
 
   GitHubProvisionRole:
     Type: AWS::IAM::Role
@@ -120,7 +146,7 @@ Resources:
                   - cloudformation:DescribeStackEvents
                   - cloudformation:GetTemplate
                   - cloudformation:GetTemplateSummary
-              Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${StackName}/*'
+                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${StackName}/*'
               - Sid: PassCloudFormationExecutionRole
                 Effect: Allow
                 Action: iam:PassRole

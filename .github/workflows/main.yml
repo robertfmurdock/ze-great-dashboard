@@ -134,7 +134,7 @@ jobs:
       - name: AWS reference deployment credentials
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
-          role-to-assume: arn:aws:iam::174159267544:role/ZeGreatDashboardReferenceDeploy
+          role-to-assume: ${{ steps.infrastructure.outputs.reference_deploy_role_arn }}
           aws-region: us-east-1
 
       - name: Deploy the exact tarball as the consumer reference
@@ -142,19 +142,19 @@ jobs:
           cp reference/board.yaml reference/aws-dashboard-parameters.json .reference-consumer/
           reference_cli=.reference-consumer/node_modules/.bin/ze-great-dashboard-aws
           "$reference_cli" parameters \
-            --artifact-bucket ze-great-dashboard-reference-artifacts \
+            --artifact-bucket "${{ steps.infrastructure.outputs.reference_artifact_bucket }}" \
             --output .reference-consumer/aws-dashboard-parameters.json
           "$reference_cli" package \
             --board-config .reference-consumer/board.yaml \
             --output .reference-consumer/aws-dashboard-release
           artifact_key="$(jq -er '.artifactKey' .reference-consumer/aws-dashboard-release/release.json)"
           aws s3 cp .reference-consumer/aws-dashboard-release/lambda.zip \
-            "s3://ze-great-dashboard-reference-artifacts/${artifact_key}" \
+            "s3://${{ steps.infrastructure.outputs.reference_artifact_bucket }}/${artifact_key}" \
             --region us-east-1
           aws cloudformation deploy \
             --stack-name ze-great-dashboard-reference \
             --template-file .reference-consumer/aws-dashboard-release/template.yml \
-            --role-arn arn:aws:iam::174159267544:role/ZeGreatDashboardReferenceCloudFormationExecution \
+            --role-arn "${{ steps.infrastructure.outputs.reference_execution_role_arn }}" \
             --region us-east-1 \
             --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides file://.reference-consumer/aws-dashboard-parameters.json \

@@ -32,3 +32,6 @@ output() {
 echo "assets_bucket=$(output AssetsBucket)" >> "$GITHUB_OUTPUT"
 echo "assets_base_url=$(output AssetsBaseUrl)" >> "$GITHUB_OUTPUT"
 echo "deploy_role_arn=$(output DeployRoleArn)" >> "$GITHUB_OUTPUT"
+echo "reference_artifact_bucket=$(output ReferenceArtifactBucket)" >> "$GITHUB_OUTPUT"
+echo "reference_deploy_role_arn=$(output ReferenceDeployRoleArn)" >> "$GITHUB_OUTPUT"
+echo "reference_execution_role_arn=$(output ReferenceExecutionRoleArn)" >> "$GITHUB_OUTPUT"
