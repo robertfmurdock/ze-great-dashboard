@@ -53,6 +53,7 @@ describe('the GitHub Actions adapter', () => {
       signal: {
         type: 'pipeline-status',
         status: expected,
+        sourceUpdatedAt: expect.any(String),
         ...(durationMs === undefined ? {} : { durationMs }),
       },
     })

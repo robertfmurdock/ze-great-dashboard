@@ -209,8 +209,48 @@ body {
 }
 
 .board__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   color: var(--ink-muted);
   font-size: 0.75em;
+}
+
+.diagnostics {
+  position: relative;
+}
+
+.diagnostics button {
+  border: 1px solid var(--edge);
+  border-radius: 0.25rem;
+  background: var(--surface-raised);
+  color: var(--ink-secondary);
+  font: inherit;
+  padding: 0.3em 0.55em;
+}
+
+.diagnostics__area {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  bottom: calc(100% + 0.5rem);
+  width: min(24rem, 90vw);
+  padding: 0.75rem;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  box-shadow: 0 0.5rem 1.5rem #0008;
+}
+
+.diagnostics__area p {
+  margin: 0 0 0.5rem;
+}
+
+.diagnostics__actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .config-error {

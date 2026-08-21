@@ -3,9 +3,12 @@ import {
   type ClientEnv,
   type Envelope,
   parseDuration,
+  pipelineStatusSchema,
   resolveRefreshMillis,
 } from '@ze-great-dashboard/shared'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Diagnostics } from './Diagnostics.tsx'
+import { cacheMetadata, DiagnosticLog } from './diagnostics.ts'
 import { HttpValuePanel } from './HttpValuePanel.tsx'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PipelinePanel, parseEnvelope } from './PipelinePanel.tsx'
@@ -22,25 +25,60 @@ export function App({ env }: { env: ClientEnv }) {
   const [board, setBoard] = useState<Board>()
   const [loadedBoardName, setLoadedBoardName] = useState<string>()
   const [signals, setSignals] = useState<Record<string, Envelope | undefined>>({})
+  const diagnosticsRef = useRef<DiagnosticLog | null>(null)
+  const signalsRef = useRef<Record<string, Envelope | undefined>>({})
+  if (!diagnosticsRef.current) diagnosticsRef.current = new DiagnosticLog(env)
+  const diagnostics = diagnosticsRef.current
 
   useEffect(() => {
     let cancelled = false
     setBoard(undefined)
     setLoadedBoardName(undefined)
     setSignals({})
-    fetch(`${env.proxyPath}/boards/${encodeURIComponent(env.board)}`)
-      .then((response) =>
-        response.ok
-          ? response.json()
-          : Promise.reject(new Error(`Board configuration returned ${response.status}`)),
-      )
+    signalsRef.current = {}
+    const path = `${env.proxyPath}/boards/${encodeURIComponent(env.board)}`
+    diagnostics.record({ kind: 'board-fetch-start', path })
+    fetch(path)
+      .then(async (response) => {
+        diagnostics.record({
+          kind: 'board-fetch-response',
+          path,
+          status: response.status,
+          cache: cacheMetadata(response.headers),
+        })
+        if (!response.ok) throw new Error(`Board configuration returned ${response.status}`)
+        try {
+          return await response.json()
+        } catch (error) {
+          diagnostics.record({
+            kind: 'board-fetch-parse-failure',
+            path,
+            message: errorMessage(error),
+          })
+          throw new DiagnosticParseFailure(error)
+        }
+      })
       .then((value: unknown) => {
         if (!cancelled) {
           setBoard(value as Board)
           setLoadedBoardName(env.board)
+          const panels = Array.isArray((value as { panels?: unknown }).panels)
+            ? (value as { panels: Array<{ id?: unknown }> }).panels
+            : []
+          diagnostics.record({
+            kind: 'board-fetch-response',
+            path,
+            boardSummary: {
+              panelCount: panels.length,
+              panelIds: panels.flatMap((panel) => (typeof panel.id === 'string' ? [panel.id] : [])),
+            },
+          })
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        if (!(error instanceof DiagnosticParseFailure)) {
+          diagnostics.record({ kind: 'board-fetch-failure', path, message: errorMessage(error) })
+        }
         if (!cancelled) {
           setBoard({ panels: [] })
           setLoadedBoardName(env.board)
@@ -49,7 +87,7 @@ export function App({ env }: { env: ClientEnv }) {
     return () => {
       cancelled = true
     }
-  }, [env.board, env.proxyPath])
+  }, [diagnostics, env.board, env.proxyPath])
 
   useEffect(() => {
     if (!board || loadedBoardName !== env.board) return
@@ -71,16 +109,70 @@ export function App({ env }: { env: ClientEnv }) {
       const refresh = () => {
         if (cancelled || inFlight) return
         inFlight = true
-        fetch(
-          `${env.proxyPath}/panel/${encodeURIComponent(env.board)}/${encodeURIComponent(panel.id)}`,
-        )
-          .then((response) => (response.status === 304 ? undefined : response.json()))
+        const path = `${env.proxyPath}/panel/${encodeURIComponent(env.board)}/${encodeURIComponent(panel.id)}`
+        diagnostics.record({ kind: 'panel-fetch-start', panelId: panel.id, path })
+        fetch(path)
+          .then(async (response) => {
+            diagnostics.record({
+              kind: 'panel-fetch-response',
+              panelId: panel.id,
+              path,
+              status: response.status,
+              cache: cacheMetadata(response.headers),
+            })
+            if (response.status === 304) return undefined
+            try {
+              return await response.json()
+            } catch (error) {
+              diagnostics.record({
+                kind: 'panel-fetch-parse-failure',
+                panelId: panel.id,
+                path,
+                message: errorMessage(error),
+              })
+              throw new DiagnosticParseFailure(error)
+            }
+          })
           .then((value: unknown) => {
             const envelope = parseEnvelope(value)
-            if (!cancelled && envelope)
-              setSignals((current) => ({ ...current, [panel.id]: envelope }))
+            if (value !== undefined && !envelope) {
+              diagnostics.record({
+                kind: 'panel-fetch-parse-failure',
+                panelId: panel.id,
+                path,
+                message: 'Response was not a valid signal envelope.',
+              })
+            }
+            if (!cancelled && envelope) {
+              diagnostics.record({
+                kind: 'panel-fetch-response',
+                panelId: panel.id,
+                path,
+                envelope,
+              })
+              const previous = signalsRef.current[panel.id]
+              if (renderedChanged(previous, envelope)) {
+                diagnostics.record({
+                  kind: 'panel-rendered',
+                  panelId: panel.id,
+                  path,
+                  rendered: renderedState(envelope),
+                })
+              }
+              signalsRef.current = { ...signalsRef.current, [panel.id]: envelope }
+              setSignals(signalsRef.current)
+            }
           })
-          .catch(() => undefined)
+          .catch((error) => {
+            if (!(error instanceof DiagnosticParseFailure)) {
+              diagnostics.record({
+                kind: 'panel-fetch-failure',
+                panelId: panel.id,
+                path,
+                message: errorMessage(error),
+              })
+            }
+          })
           .finally(() => {
             inFlight = false
           })
@@ -93,7 +185,7 @@ export function App({ env }: { env: ClientEnv }) {
       cancelled = true
       for (const timer of timers) window.clearInterval(timer)
     }
-  }, [board, env.board, env.proxyPath, loadedBoardName])
+  }, [board, diagnostics, env.board, env.proxyPath, loadedBoardName])
 
   return (
     <div className="board">
@@ -125,8 +217,38 @@ export function App({ env }: { env: ClientEnv }) {
       </main>
 
       <footer className="board__footer">
-        Signals are read live from their configured authorities.
+        <span>Signals are read live from their configured authorities.</span>
+        <Diagnostics log={diagnostics} />
       </footer>
     </div>
+  )
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+class DiagnosticParseFailure extends Error {
+  constructor(error: unknown) {
+    super(errorMessage(error))
+  }
+}
+
+function renderedState(envelope: Envelope) {
+  if (envelope.state === 'error') return { state: envelope.state, link: envelope.link }
+  const signal = pipelineStatusSchema.safeParse(envelope.signal)
+  return {
+    state: envelope.state,
+    status: signal.success ? signal.data.status : undefined,
+    link: envelope.link,
+  }
+}
+
+function renderedChanged(previous: Envelope | undefined, next: Envelope) {
+  if (!previous) return true
+  const before = renderedState(previous)
+  const after = renderedState(next)
+  return (
+    before.state !== after.state || before.status !== after.status || before.link !== after.link
   )
 }

@@ -71,7 +71,7 @@ configuration change rather than a rebuild.
 
 ## Trust and security principles
 
-- No persistence: the dashboard renders what the authority says now and keeps no ledger.
+- No persistence: the dashboard renders what the authority says now and keeps no server-side ledger. A bounded diagnostic record is the narrow exception: it remains only in each viewer's browser, is never uploaded, and can be exported or cleared by that viewer.
 - Board YAML names credential environment variables; token values belong in runtime secret handling,
   never in YAML or source control.
 - Browser-visible configuration is public-only. Secrets remain server-side.

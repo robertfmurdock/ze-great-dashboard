@@ -118,6 +118,7 @@ export async function fetchGithubActionsPipeline(args: {
       rawStatus: run.conclusion ?? run.status,
       name: run.name,
       branch: parsedSource.branch,
+      ...(run.updated_at ? { sourceUpdatedAt: run.updated_at } : {}),
       ...(run.status === 'completed' ? completedRunDuration(run) : {}),
     }
     const envelope: Envelope = {

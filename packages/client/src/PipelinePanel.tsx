@@ -56,6 +56,9 @@ export function PipelinePanel({ panel, data }: { panel: Panel; data: Envelope | 
       {signal.data.status !== 'running' && signal.data.durationMs !== undefined && (
         <p className="panel__hint">Took {formatDuration(signal.data.durationMs)}</p>
       )}
+      {signal.data.sourceUpdatedAt && (
+        <ObservedAt value={signal.data.sourceUpdatedAt} label="Run updated" />
+      )}
       <ObservedAt value={data.observedAt} />
     </>
   )

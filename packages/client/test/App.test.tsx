@@ -83,6 +83,7 @@ describe('pipeline-status refresh scheduling', () => {
         rawStatus: status,
         name: panelId,
         branch: 'main',
+        sourceUpdatedAt: '2026-08-18T11:00:00.000Z',
         ...(durationMs === undefined ? {} : { durationMs }),
       },
     })
@@ -141,6 +142,7 @@ describe('pipeline-status refresh scheduling', () => {
 
     expect(requests.some((url) => url.endsWith('/build'))).toBe(true)
     expect(rendered.textContent).toContain('Took 2m 14s')
+    expect(rendered.textContent).toContain('Run updated')
   })
 
   it('does not show duration while a run is in progress', async () => {
@@ -209,6 +211,43 @@ describe('pipeline-status refresh scheduling', () => {
     await act(async () => vi.advanceTimersByTime(1_000))
     await settle()
     expect(rendered.textContent).toContain('Failed')
+  })
+
+  it('records responses, 304s, invalid envelopes, failures, and rendered changes locally', async () => {
+    vi.useFakeTimers()
+    const values = new Map<string, string>()
+    const store = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    }
+    vi.stubGlobal('localStorage', store)
+    const rejected = Promise.reject(new Error('offline'))
+    rejected.catch(() => undefined)
+    setup(
+      { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
+      {
+        build: [
+          new Response(okEnvelope('build', 'passed'), { headers: { etag: 'W/"first"' } }),
+          new Response(null, { status: 304 }),
+          new Response(JSON.stringify({ nope: true })),
+          rejected,
+        ],
+      },
+    )
+    render(<App env={env} />)
+    await settle()
+    for (let index = 0; index < 3; index++) {
+      await act(async () => vi.advanceTimersByTime(1_000))
+      await settle()
+    }
+    const saved = JSON.parse(store.getItem('ze-great-dashboard.diagnostics.v1') ?? '{}')
+    const kinds = saved.events.map((event: { kind: string }) => event.kind)
+    expect(kinds).toContain('panel-fetch-response')
+    expect(kinds).toContain('panel-fetch-parse-failure')
+    expect(kinds).toContain('panel-fetch-failure')
+    expect(kinds).toContain('panel-rendered')
+    expect(saved.events.some((event: { status?: number }) => event.status === 304)).toBe(true)
   })
 
   it('makes an empty workflow result clear on the panel', async () => {

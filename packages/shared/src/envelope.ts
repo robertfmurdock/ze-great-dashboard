@@ -70,6 +70,8 @@ export const pipelineStatusSchema = z.object({
   branch: z.string().min(1).optional(),
   /** Elapsed execution time, supplied only after the upstream run has completed. */
   durationMs: z.number().int().nonnegative().optional(),
+  /** When this workflow run was last updated by its source, distinct from our observation time. */
+  sourceUpdatedAt: z.iso.datetime().optional(),
 })
 
 export type PipelineStatus = z.infer<typeof pipelineStatusSchema>
