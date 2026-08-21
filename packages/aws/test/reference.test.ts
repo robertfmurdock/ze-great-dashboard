@@ -71,5 +71,6 @@ describe('persistent consumer reference', () => {
     expect(workflow).toContain('reference_status')
     expect(workflow).toContain('ROLLBACK_COMPLETE')
     expect(infrastructure).toContain('cloudformation:DeleteStack')
+    expect(workflow).toContain('for attempt in {1..12}')
   })
 })
