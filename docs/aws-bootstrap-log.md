@@ -95,3 +95,12 @@ immutable candidate tarball and candidate client assets are produced, but before
 release tagging. The `consumer-bootstrap-validation` Environment remains restricted to `main` and
 continues to scope the two reviewed ARN variables, but it has no required reviewer so the OIDC
 boundary can serve as an automatic gate. The standalone dispatch workflow was removed.
+
+### First observed gated release
+
+The first `main` release through this gate was commit `e4ede5d` on 2026-08-21. Its
+[workflow run 32508530061](https://github.com/robertfmurdock/ze-great-dashboard/actions/runs/32508530061)
+completed `Build and check`, `Validate consumer bootstrap candidate`, and `Release` successfully in
+that order. It published immutable client assets and
+`@continuous-excellence/ze-great-dashboard-aws@0.1.32`, confirmed the npm version was visible, and
+created the verified release tag. The validation job required no reviewer prompt.
