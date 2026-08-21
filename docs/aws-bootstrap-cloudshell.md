@@ -17,16 +17,26 @@ export BOOTSTRAP_CLI=.bootstrap-tools/node_modules/.bin/ze-great-dashboard-aws
 export BOOTSTRAP_CONFIG=dashboard-bootstrap.json
 ```
 
-The manifest names the Region, stacks, bucket, function, OIDC provider, repository, immutable IDs,
-and GitHub Environment. It contains no credentials. At every pause, ask the navigator what is next:
+Create a fresh non-secret manifest (the command refuses to overwrite), then preflight its named
+read-only checks. Explicit flags make this work even when discovery CLIs are unavailable:
 
 ```sh
-"$BOOTSTRAP_CLI" bootstrap handoff --config "$BOOTSTRAP_CONFIG" | jq .
+"$BOOTSTRAP_CLI" bootstrap init --output "$BOOTSTRAP_CONFIG" --slug team-dashboard \
+  --repository example/team-dashboard --environment production \
+  --github-oidc-provider-arn arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com
+"$BOOTSTRAP_CLI" bootstrap preflight --config "$BOOTSTRAP_CONFIG" --format text
 ```
 
-The JSON result includes argument arrays for parameter generation, change-set creation, waiting,
-review, execution, and stack capture. Copy each command into the administrator shell deliberately;
-the package never invokes AWS CLI itself.
+The manifest names the Region, stacks, bucket, function, OIDC provider, repository, immutable IDs,
+and GitHub Environment. It contains no credentials. At every pause, use the rendered guide:
+
+```sh
+"$BOOTSTRAP_CLI" bootstrap guide --config "$BOOTSTRAP_CONFIG"
+```
+
+The JSON `handoff` remains available for automation. Both forms include parameter generation,
+change-set creation, waiting, review, execution, and stack capture. Copy each command into the
+administrator shell deliberately; the package never invokes AWS CLI itself.
 
 ## Core and OIDC phases
 

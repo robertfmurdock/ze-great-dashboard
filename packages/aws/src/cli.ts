@@ -6,7 +6,9 @@ import { runDoctor } from './doctor.ts'
 import {
   type BootstrapConfig,
   bootstrapContractVersion,
+  bootstrapGuide,
   bootstrapHandoff,
+  bootstrapPreflight,
   bootstrapTemplate,
   bootstrapTemplatePath,
   cloudFormationTemplate,
@@ -17,6 +19,7 @@ import {
   packageLambda,
   publishClientAssets,
   requiredBootstrapParameters,
+  scaffoldBootstrapManifest,
   verifyBootstrap,
 } from './index.ts'
 
@@ -267,11 +270,15 @@ try {
     console.log(JSON.stringify({ output }))
   } else if (args[0] === 'bootstrap') {
     const action = args[1]
-    const config = await bootstrapConfig()
-    if (action === 'handoff') {
-      const configPath = requiredOption('--config')
-      const coreStackPath = option('--core-stack-json')
-      const githubStackPath = option('--github-oidc-stack-json')
+    if (action === 'init') {
+      const output = requiredOption('--output')
+      try {
+        await readFile(output, 'utf8')
+        throw new Error(`Refusing to overwrite existing manifest: ${output}`)
+      } catch (error) {
+        if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'))
+          throw error
+      }
       const runner = {
         async execute(command: string, commandArgs: string[]) {
           const { execFile } = await import('node:child_process')
@@ -279,9 +286,59 @@ try {
           return (await promisify(execFile)(command, commandArgs)).stdout.trim()
         },
       }
-      console.log(
-        JSON.stringify(
-          await bootstrapHandoff({
+      const manifest = await scaffoldBootstrapManifest({
+        slug: requiredOption('--slug'),
+        repository: requiredOption('--repository'),
+        environment: requiredOption('--environment'),
+        providerArn: requiredOption('--github-oidc-provider-arn'),
+        region: option('--region'),
+        accountId: option('--account-id'),
+        ownerId: option('--github-owner-id'),
+        repositoryId: option('--github-repository-id'),
+        runner,
+      })
+      await writeFile(output, `${JSON.stringify(manifest, null, 2)}\n`, { flag: 'wx' })
+      console.log(JSON.stringify({ output, manifest }))
+    } else {
+      const config = await bootstrapConfig()
+      if (action === 'preflight') {
+        requiredOption('--config')
+        const runner = {
+          async execute(command: string, commandArgs: string[]) {
+            const { execFile } = await import('node:child_process')
+            const { promisify } = await import('node:util')
+            try {
+              return (await promisify(execFile)(command, commandArgs)).stdout.trim()
+            } catch (error) {
+              // Preflight distinguishes an observed 404 from an unavailable CLI/auth/network.
+              if (error && typeof error === 'object' && 'stderr' in error) {
+                const stderr = error.stderr
+                if (typeof stderr === 'string' && /not found|404|nosuchentity/i.test(stderr))
+                  return stderr
+              }
+              throw error
+            }
+          },
+        }
+        const result = await bootstrapPreflight({ config, runner })
+        if (option('--format') === 'text')
+          for (const check of result.checks)
+            console.log(`${check.status.toUpperCase()} ${check.name}: ${check.detail}`)
+        else console.log(JSON.stringify(result))
+        if (!result.ready) process.exitCode = 1
+      } else if (action === 'guide') {
+        const configPath = requiredOption('--config')
+        const coreStackPath = option('--core-stack-json')
+        const githubStackPath = option('--github-oidc-stack-json')
+        const runner = {
+          async execute(command: string, commandArgs: string[]) {
+            const { execFile } = await import('node:child_process')
+            const { promisify } = await import('node:util')
+            return (await promisify(execFile)(command, commandArgs)).stdout.trim()
+          },
+        }
+        process.stdout.write(
+          await bootstrapGuide({
             config,
             configPath,
             coreStack: coreStackPath
@@ -293,119 +350,146 @@ try {
               : undefined,
             runner,
           }),
-        ),
-      )
-    } else if (action === 'verify') {
-      requiredOption('--config')
-      const coreStackPath = requiredOption('--core-stack-json')
-      const githubStackPath = requiredOption('--github-oidc-stack-json')
-      console.log(
-        JSON.stringify(
-          await verifyBootstrap({
-            config,
-            coreStack: JSON.parse(await readFile(coreStackPath, 'utf8')),
-            githubOidcStack: JSON.parse(await readFile(githubStackPath, 'utf8')),
-          }),
-        ),
-      )
-    } else if (action === 'template') {
-      const kind = bootstrapKind()
-      console.log(
-        JSON.stringify({
-          kind,
-          template: await bootstrapTemplatePath(kind),
-          contractVersion: bootstrapContractVersion(await bootstrapTemplate(kind)),
-        }),
-      )
-    } else if (action === 'parameters') {
-      const kind = bootstrapKind()
-      const output =
-        option('--output', `aws-dashboard-bootstrap-${kind}.json`) ??
-        `aws-dashboard-bootstrap-${kind}.json`
-      let coreOutputs: Record<string, string> = {}
-      const coreStackPath = option('--core-stack-json')
-      if (kind === 'github-oidc' && coreStackPath) {
-        coreOutputs = coreBootstrapOutputs(
-          deployedBootstrapStack(
-            JSON.parse(await readFile(coreStackPath, 'utf8')),
-            bootstrapContractVersion(await bootstrapTemplate('core')),
+        )
+      } else if (action === 'handoff') {
+        const configPath = requiredOption('--config')
+        const coreStackPath = option('--core-stack-json')
+        const githubStackPath = option('--github-oidc-stack-json')
+        const runner = {
+          async execute(command: string, commandArgs: string[]) {
+            const { execFile } = await import('node:child_process')
+            const { promisify } = await import('node:util')
+            return (await promisify(execFile)(command, commandArgs)).stdout.trim()
+          },
+        }
+        console.log(
+          JSON.stringify(
+            await bootstrapHandoff({
+              config,
+              configPath,
+              coreStack: coreStackPath
+                ? JSON.parse(await readFile(coreStackPath, 'utf8'))
+                : undefined,
+              coreStackPath,
+              githubOidcStack: githubStackPath
+                ? JSON.parse(await readFile(githubStackPath, 'utf8'))
+                : undefined,
+              runner,
+            }),
           ),
         )
-      }
-      const supplied = requiredBootstrapParameters(kind, bootstrapValues(config, coreOutputs))
-      let parameters = supplied
-      const deployedStackPath = option('--deployed-stack-json')
-      if (deployedStackPath) {
-        const stack = deployedBootstrapStack(
-          JSON.parse(await readFile(deployedStackPath, 'utf8')),
-          bootstrapContractVersion(await bootstrapTemplate(kind)),
+      } else if (action === 'verify') {
+        requiredOption('--config')
+        const coreStackPath = requiredOption('--core-stack-json')
+        const githubStackPath = requiredOption('--github-oidc-stack-json')
+        console.log(
+          JSON.stringify(
+            await verifyBootstrap({
+              config,
+              coreStack: JSON.parse(await readFile(coreStackPath, 'utf8')),
+              githubOidcStack: JSON.parse(await readFile(githubStackPath, 'utf8')),
+            }),
+          ),
         )
-        parameters = mergeBootstrapParameters(supplied, stack.Parameters ?? [])
+      } else if (action === 'template') {
+        const kind = bootstrapKind()
+        console.log(
+          JSON.stringify({
+            kind,
+            template: await bootstrapTemplatePath(kind),
+            contractVersion: bootstrapContractVersion(await bootstrapTemplate(kind)),
+          }),
+        )
+      } else if (action === 'parameters') {
+        const kind = bootstrapKind()
+        const output =
+          option('--output', `aws-dashboard-bootstrap-${kind}.json`) ??
+          `aws-dashboard-bootstrap-${kind}.json`
+        let coreOutputs: Record<string, string> = {}
+        const coreStackPath = option('--core-stack-json')
+        if (kind === 'github-oidc' && coreStackPath) {
+          coreOutputs = coreBootstrapOutputs(
+            deployedBootstrapStack(
+              JSON.parse(await readFile(coreStackPath, 'utf8')),
+              bootstrapContractVersion(await bootstrapTemplate('core')),
+            ),
+          )
+        }
+        const supplied = requiredBootstrapParameters(kind, bootstrapValues(config, coreOutputs))
+        let parameters = supplied
+        const deployedStackPath = option('--deployed-stack-json')
+        if (deployedStackPath) {
+          const stack = deployedBootstrapStack(
+            JSON.parse(await readFile(deployedStackPath, 'utf8')),
+            bootstrapContractVersion(await bootstrapTemplate(kind)),
+          )
+          parameters = mergeBootstrapParameters(supplied, stack.Parameters ?? [])
+        }
+        await writeFile(output, `${JSON.stringify(parameters, null, 2)}\n`)
+        console.log(
+          JSON.stringify({ output, kind, preservedDeployedValues: Boolean(deployedStackPath) }),
+        )
+      } else if (action === 'status') {
+        const kind = bootstrapKind()
+        const stackName = requiredOption('--stack-name', bootstrapStackName(kind, config))
+        const region = option('--region', config.region)
+        const awsCommand = [
+          'aws',
+          'cloudformation',
+          'describe-stacks',
+          '--stack-name',
+          stackName,
+          ...(region ? ['--region', region] : []),
+          '--no-cli-pager',
+        ]
+        console.log(
+          JSON.stringify({
+            kind,
+            contractVersion: bootstrapContractVersion(await bootstrapTemplate(kind)),
+            awsCommand,
+            shellCommand: args.includes('--format-shell') ? shellCommand(awsCommand) : undefined,
+          }),
+        )
+      } else if (action === 'change-set') {
+        const kind = bootstrapKind()
+        const stackName = requiredOption('--stack-name', bootstrapStackName(kind, config))
+        const changeSetName = requiredOption('--change-set-name')
+        const parametersPath = requiredOption('--parameters')
+        const region = option('--region', config.region)
+        await existingParameters(parametersPath)
+        // Emit command arguments only. Administrators invoke and review AWS operations explicitly.
+        const awsCommand = [
+          'aws',
+          'cloudformation',
+          'create-change-set',
+          '--stack-name',
+          stackName,
+          '--change-set-name',
+          changeSetName,
+          '--change-set-type',
+          option('--change-set-type', 'UPDATE') ?? 'UPDATE',
+          '--template-body',
+          `file://${await bootstrapTemplatePath(kind)}`,
+          '--parameters',
+          `file://${parametersPath}`,
+          '--capabilities',
+          'CAPABILITY_NAMED_IAM',
+          ...(region ? ['--region', region] : []),
+          '--no-cli-pager',
+        ]
+        console.log(
+          JSON.stringify({
+            kind,
+            reviewRequired: true,
+            awsCommand,
+            shellCommand: args.includes('--format-shell') ? shellCommand(awsCommand) : undefined,
+          }),
+        )
+      } else {
+        throw new Error(
+          'Usage: ze-great-dashboard-aws bootstrap init|preflight|guide|handoff|verify --config manifest.json [options], or bootstrap template|parameters|status|change-set --kind core|github-oidc [options]',
+        )
       }
-      await writeFile(output, `${JSON.stringify(parameters, null, 2)}\n`)
-      console.log(
-        JSON.stringify({ output, kind, preservedDeployedValues: Boolean(deployedStackPath) }),
-      )
-    } else if (action === 'status') {
-      const kind = bootstrapKind()
-      const stackName = requiredOption('--stack-name', bootstrapStackName(kind, config))
-      const region = option('--region', config.region)
-      const awsCommand = [
-        'aws',
-        'cloudformation',
-        'describe-stacks',
-        '--stack-name',
-        stackName,
-        ...(region ? ['--region', region] : []),
-        '--no-cli-pager',
-      ]
-      console.log(
-        JSON.stringify({
-          kind,
-          contractVersion: bootstrapContractVersion(await bootstrapTemplate(kind)),
-          awsCommand,
-          shellCommand: args.includes('--format-shell') ? shellCommand(awsCommand) : undefined,
-        }),
-      )
-    } else if (action === 'change-set') {
-      const kind = bootstrapKind()
-      const stackName = requiredOption('--stack-name', bootstrapStackName(kind, config))
-      const changeSetName = requiredOption('--change-set-name')
-      const parametersPath = requiredOption('--parameters')
-      const region = option('--region', config.region)
-      await existingParameters(parametersPath)
-      // Emit command arguments only. Administrators invoke and review AWS operations explicitly.
-      const awsCommand = [
-        'aws',
-        'cloudformation',
-        'create-change-set',
-        '--stack-name',
-        stackName,
-        '--change-set-name',
-        changeSetName,
-        '--change-set-type',
-        option('--change-set-type', 'UPDATE') ?? 'UPDATE',
-        '--template-body',
-        `file://${await bootstrapTemplatePath(kind)}`,
-        '--parameters',
-        `file://${parametersPath}`,
-        '--capabilities',
-        'CAPABILITY_NAMED_IAM',
-        ...(region ? ['--region', region] : []),
-        '--no-cli-pager',
-      ]
-      console.log(
-        JSON.stringify({
-          kind,
-          reviewRequired: true,
-          awsCommand,
-          shellCommand: args.includes('--format-shell') ? shellCommand(awsCommand) : undefined,
-        }),
-      )
-    } else {
-      throw new Error(
-        'Usage: ze-great-dashboard-aws bootstrap handoff|verify --config manifest.json [options], or bootstrap template|parameters|status|change-set --kind core|github-oidc [options]',
-      )
     }
   } else if (args[0] !== 'package')
     throw new Error(

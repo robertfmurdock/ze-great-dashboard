@@ -29,13 +29,16 @@ with `--format-shell`; their default machine-readable `awsCommand` array is the 
 The examples below deliberately create and inspect CloudFormation change sets. Do **not** use
 `cloudformation deploy` for bootstrap work.
 
-## 1. Generate and validate inputs
+## 1. Scaffold and preflight the manifest
 
 ```sh
 npm install --save-exact @continuous-excellence/ze-great-dashboard-aws@1.2.3
-cp node_modules/@continuous-excellence/ze-great-dashboard-aws/bootstrap/dashboard-bootstrap.example.json \
-  dashboard-bootstrap.json
-# Edit dashboard-bootstrap.json, commit it, and keep it free of credentials.
+npm exec -- ze-great-dashboard-aws bootstrap init --output dashboard-bootstrap.json \
+  --slug team-dashboard --repository example/team-dashboard --environment production \
+  --github-oidc-provider-arn arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com
+# init refuses to overwrite. It reads identity, Region, and GitHub numeric IDs when available;
+# pass --account-id, --region, --github-owner-id, and --github-repository-id for offline setup.
+npm exec -- ze-great-dashboard-aws bootstrap preflight --config dashboard-bootstrap.json --format text
 
 npm exec -- ze-great-dashboard-aws bootstrap template --kind core
 npm exec -- ze-great-dashboard-aws bootstrap parameters --kind core \
@@ -45,6 +48,15 @@ aws cloudformation validate-template \
   --template-body "file://$(npm exec -- ze-great-dashboard-aws bootstrap template --kind core | jq -r .template)" \
   --region "$(jq -r .region dashboard-bootstrap.json)"
 ```
+
+`preflight` is read-only. Its JSON is stable by default; unavailable AWS/GitHub CLI, authentication,
+or network is reported as `unverified` so offline planning remains possible. A verified mismatch or
+missing prerequisite stops the journey. GitHub Environment policy is reported only as context: its
+branch, reviewer, and build-service rules remain an administrator decision.
+
+For the normal guided journey, use `bootstrap guide --config dashboard-bootstrap.json`. It renders
+the same structured handoff in execution order, including capture filenames, expected stack outputs,
+and explicit review pauses. It prints AWS commands but never runs them.
 
 Optionally add `--artifact-kms-key-arn` for a customer CMK and `--runtime-secret-arn` for the sole
 runtime secret the application is allowed to read. The core bucket enforces bucket-owner ownership,

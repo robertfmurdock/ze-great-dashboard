@@ -20,6 +20,15 @@ export {
   requiredBootstrapParameters,
 } from './bootstrap.js'
 export {
+  type BootstrapCheckStatus,
+  type BootstrapInitInput,
+  type BootstrapPreflight,
+  type BootstrapPreflightCheck,
+  bootstrapGuide,
+  bootstrapPreflight,
+  scaffoldBootstrapManifest,
+} from './guided.js'
+export {
   type BootstrapHandoff,
   type BootstrapPhase,
   type BootstrapProvider,

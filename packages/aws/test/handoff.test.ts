@@ -84,6 +84,12 @@ describe('manifest-driven bootstrap handoff', () => {
     const handoff = await bootstrapHandoff({ config, configPath: 'dashboard-bootstrap.json' })
     expect(handoff.phase).toBe('core')
     expect(handoff.expectedContracts).toEqual({ core: '1', githubOidc: '2' })
+    expect(handoff.expectedOutputs).toEqual([
+      'BootstrapContractVersion',
+      'ArtifactBucketName',
+      'ApplicationStackName',
+      'CloudFormationExecutionRoleArn',
+    ])
     expect(handoff.commands.map(({ name }) => name)).toEqual([
       'generate-parameters',
       'create-change-set',
@@ -116,6 +122,7 @@ describe('manifest-driven bootstrap handoff', () => {
     expect(handoff.requiredCapturedFiles).toEqual(['captures/approved-core.json'])
     expect(handoff.commands[0]?.args).toContain('captures/approved-core.json')
     expect(handoff.prerequisite?.status).toBe('immutable-subject-required')
+    expect(handoff.expectedOutputs).toEqual(['BootstrapContractVersion', 'GitHubDeployRoleArn'])
     expect(calls).toEqual(['gh api repos/example/dashboard/actions/oidc/customization/sub'])
     expect(handoff.commands.flatMap(({ args }) => args)).not.toContain('execute')
   })

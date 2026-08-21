@@ -26,6 +26,7 @@ export type BootstrapHandoff = {
   expectedContracts: { core: string; githubOidc: string }
   templatePath?: string
   parameterPath?: string
+  expectedOutputs: string[]
   requiredCapturedFiles: string[]
   reviewCheckpoints: string[]
   commands: HandoffCommand[]
@@ -274,6 +275,12 @@ export async function bootstrapHandoff(input: {
       expectedContracts,
       templatePath,
       parameterPath: 'core-bootstrap.json',
+      expectedOutputs: [
+        'BootstrapContractVersion',
+        'ArtifactBucketName',
+        'ApplicationStackName',
+        'CloudFormationExecutionRoleArn',
+      ],
       requiredCapturedFiles: [],
       reviewCheckpoints: [
         'Review every IAM action and CAPABILITY_NAMED_IAM acknowledgement.',
@@ -304,6 +311,7 @@ export async function bootstrapHandoff(input: {
       expectedContracts,
       templatePath,
       parameterPath: 'github-oidc-bootstrap.json',
+      expectedOutputs: ['BootstrapContractVersion', 'GitHubDeployRoleArn'],
       requiredCapturedFiles: [coreCapturePath],
       reviewCheckpoints: [
         'Review the exact immutable GitHub OIDC subject, audience, bucket lambda/* prefix, application stack, and execution role.',
@@ -331,6 +339,7 @@ export async function bootstrapHandoff(input: {
     return {
       phase: 'github-environment',
       expectedContracts,
+      expectedOutputs: [],
       requiredCapturedFiles: [coreCapturePath, 'github-oidc-deployed-stack.json'],
       reviewCheckpoints: [
         'A GitHub administrator must complete and verify the immutable-subject migration before deployments.',
@@ -341,6 +350,7 @@ export async function bootstrapHandoff(input: {
   return {
     phase: 'application-gateway',
     expectedContracts,
+    expectedOutputs: [],
     requiredCapturedFiles: [coreCapturePath, 'github-oidc-deployed-stack.json'],
     reviewCheckpoints: [
       'Consumer owns gateway selection, private Lambda permission, authentication, and smoke tests.',
