@@ -19,7 +19,9 @@ export function PipelinePanel({ panel, data }: { panel: Panel; data: Envelope | 
     return (
       <section className="panel panel--error" style={panelLayout(panel)}>
         <h2 className="panel__label">{panel.id}</h2>
-        <p className="panel__status">⚠ Unable to read</p>
+        <p className="panel__status">
+          ⚠ {data.error.kind === 'no-runs' ? 'No workflow runs' : 'Unable to read'}
+        </p>
         <p className="panel__hint">{data.error.message}</p>
         <ObservedAt value={data.observedAt} />
       </section>
@@ -43,6 +45,13 @@ export function PipelinePanel({ panel, data }: { panel: Panel; data: Envelope | 
       </p>
       <p className="panel__hint">
         {signal.data.name} · {signal.data.rawStatus}
+        {signal.data.branch && (
+          <span className="panel__branch" title={`Branch: ${signal.data.branch}`}>
+            <span aria-hidden="true"> · ⎇ </span>
+            <span className="screen-reader-only">Branch: </span>
+            {signal.data.branch}
+          </span>
+        )}
       </p>
       <ObservedAt value={data.observedAt} />
     </>

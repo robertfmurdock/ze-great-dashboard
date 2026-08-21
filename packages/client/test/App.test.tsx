@@ -73,7 +73,13 @@ describe('pipeline-status refresh scheduling', () => {
       state: 'ok',
       observedAt: '2026-08-18T12:00:00.000Z',
       link: null,
-      signal: { type: 'pipeline-status', status, rawStatus: status, name: panelId },
+      signal: {
+        type: 'pipeline-status',
+        status,
+        rawStatus: status,
+        name: panelId,
+        branch: 'main',
+      },
     })
 
   function setup(
@@ -167,9 +173,38 @@ describe('pipeline-status refresh scheduling', () => {
     const rendered = render(<App env={env} />)
     await settle()
     expect(rendered.textContent).toContain('Passed')
+    expect(rendered.textContent).toContain('main')
     await act(async () => vi.advanceTimersByTime(1_000))
     await settle()
     expect(rendered.textContent).toContain('Failed')
+  })
+
+  it('makes an empty workflow result clear on the panel', async () => {
+    setup(
+      { panels: [{ id: 'build', type: 'pipeline-status' }] },
+      {
+        build: [
+          new Response(
+            JSON.stringify({
+              panelId: 'build',
+              state: 'error',
+              observedAt: '2026-08-18T12:00:00.000Z',
+              link: 'https://github.com/example-org/example-repo/actions/workflows/build.yml',
+              error: {
+                kind: 'no-runs',
+                message:
+                  'No workflow runs found for branch "master". Check the source\'s branch setting.',
+              },
+            }),
+          ),
+        ],
+      },
+    )
+
+    const rendered = render(<App env={env} />)
+    await settle()
+    expect(rendered.textContent).toContain('No workflow runs')
+    expect(rendered.textContent).toContain('branch "master"')
   })
 
   it('cleans up timers and ignores an in-flight response on unmount', async () => {

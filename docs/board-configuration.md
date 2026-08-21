@@ -13,6 +13,8 @@ sources:
   github:
     type: github-actions
     repo: your-org/your-repo
+    # Optional; when present, only workflow runs for this branch are shown.
+    branch: main
     token_env: GITHUB_TOKEN
 
 boards:
@@ -37,8 +39,10 @@ durations use values such as `60s` or `5m`. Panel IDs must be unique within a bo
 a twelve-column grid: `x` and `y` locate the panel, while `w` and `h` define its size.
 
 Sources are reusable named definitions. Current source and panel adapters determine which
-additional fields they accept; for example, `github-actions` uses `repo` and a workflow `pipeline`,
-while `http-value` uses `url` and an optional `json_path` such as `$.version`.
+additional fields they accept; for example, `github-actions` uses `repo`, an optional `branch`,
+and a workflow `pipeline`. When configured, the branch is sent to GitHub when finding the newest
+run, so feature-branch runs do not replace the primary-branch status. When absent, GitHub returns
+runs from all branches. `http-value` uses `url` and an optional `json_path` such as `$.version`.
 
 ## Credentials
 

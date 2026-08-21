@@ -54,10 +54,17 @@ describe('the GitHub Actions adapter', () => {
     })
   })
 
-  it('uses the configured workflow rather than accepting a browser-supplied URL', () => {
+  it('uses the configured workflow without filtering when no branch is configured', () => {
     const [call] = permittedGithubActionsCalls(panel, source)
     expect(call?.url).toBe(
       'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?per_page=1',
+    )
+  })
+
+  it('filters workflow runs to the configured branch', () => {
+    const [call] = permittedGithubActionsCalls(panel, { ...source, branch: 'trunk' })
+    expect(call?.url).toBe(
+      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?branch=trunk&per_page=1',
     )
   })
 
@@ -95,6 +102,29 @@ describe('the GitHub Actions adapter', () => {
       state: 'error',
       link: 'https://github.com/example-org/example-repo/actions/workflows/build.yml',
       error: { kind: 'unreachable' },
+    })
+  })
+
+  it('identifies an empty branch result without exposing a schema error', async () => {
+    const fetcher = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ workflow_runs: [] }), {
+          headers: { date: '2026-08-17T14:32:05Z' },
+        }),
+    ) as unknown as typeof fetch
+    const result = await fetchGithubActionsPipeline({
+      panel,
+      source: { ...source, branch: 'master' },
+      requestHeaders: new Headers(),
+      fetcher,
+    })
+
+    await expect(result.response.json()).resolves.toMatchObject({
+      state: 'error',
+      error: {
+        kind: 'no-runs',
+        message: 'No workflow runs found for branch "master". Check the source\'s branch setting.',
+      },
     })
   })
 })

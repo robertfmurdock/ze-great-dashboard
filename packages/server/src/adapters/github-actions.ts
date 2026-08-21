@@ -4,6 +4,8 @@ import { z } from 'zod'
 const githubSourceSchema = z.object({
   type: z.literal('github-actions'),
   repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/, 'must be an owner/repository pair'),
+  /** The branch whose workflow health the dashboard represents. */
+  branch: z.string().min(1).optional(),
   token_env: z.string().min(1).optional(),
 })
 
@@ -22,7 +24,7 @@ const runSchema = z.object({
   html_url: z.url(),
 })
 
-const runsSchema = z.object({ workflow_runs: z.array(runSchema).min(1) })
+const runsSchema = z.object({ workflow_runs: z.array(runSchema) })
 
 export type PermittedCall = { url: string; headers: Headers }
 
@@ -32,6 +34,7 @@ export function permittedGithubActionsCalls(panel: Panel, source: Source): Permi
   const url = new URL(
     `https://api.github.com/repos/${parsedSource.repo}/actions/workflows/${encodeURIComponent(parsedPanel.pipeline)}/runs`,
   )
+  if (parsedSource.branch) url.searchParams.set('branch', parsedSource.branch)
   url.searchParams.set('per_page', '1')
 
   const headers = new Headers({ accept: 'application/vnd.github+json' })
@@ -46,6 +49,7 @@ export async function fetchGithubActionsPipeline(args: {
   requestHeaders: Headers
   fetcher: typeof fetch
 }): Promise<{ envelope?: Envelope; response: Response }> {
+  const parsedSource = githubSourceSchema.parse(args.source)
   const call = permittedGithubActionsCalls(args.panel, args.source)[0]
   if (!call) throw new Error('GitHub Actions adapter declared no permitted call')
 
@@ -88,12 +92,30 @@ export async function fetchGithubActionsPipeline(args: {
 
   try {
     const run = runsSchema.parse(await upstream.json()).workflow_runs[0]
-    if (!run) throw new Error('GitHub returned no workflow runs')
+    if (!run) {
+      return {
+        response: new Response(
+          JSON.stringify(
+            errorEnvelope(
+              args.panel.id,
+              'no-runs',
+              parsedSource.branch
+                ? `No workflow runs found for branch "${parsedSource.branch}". Check the source's branch setting.`
+                : 'No workflow runs found.',
+              sourceLink(args.panel, args.source),
+              observedAt(upstream.headers.get('date')),
+            ),
+          ),
+          { status: 200 },
+        ),
+      }
+    }
     const signal: PipelineStatus = {
       type: 'pipeline-status',
       status: normalizeStatus(run.status, run.conclusion),
       rawStatus: run.conclusion ?? run.status,
       name: run.name,
+      branch: parsedSource.branch,
     }
     const envelope: Envelope = {
       panelId: args.panel.id,

@@ -20,6 +20,7 @@ export const errorKindSchema = z.enum([
   'unreachable',
   'unauthorized',
   'not-found',
+  'no-runs',
   'upstream-error',
 ])
 
@@ -65,6 +66,8 @@ export const pipelineStatusSchema = z.object({
   /** The source's unmodified status/result vocabulary, for an honest display. */
   rawStatus: z.string(),
   name: z.string().min(1),
+  /** The branch represented by this status, when the upstream supplies or filters by one. */
+  branch: z.string().min(1).optional(),
 })
 
 export type PipelineStatus = z.infer<typeof pipelineStatusSchema>

@@ -5,6 +5,7 @@ sources:
   example-github:
     type: github-actions
     repo: actions/checkout
+    branch: main
     token_env: GITHUB_TOKEN
 
 boards:
