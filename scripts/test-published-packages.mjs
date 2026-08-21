@@ -37,10 +37,20 @@ try {
     await readFile(join(stagingRoot, 'aws', 'bootstrap', 'core-v1.yml'), 'utf8'),
     /BootstrapContractVersion/,
   )
-  assert.equal(
-    await readFile(join(stagingRoot, 'aws', 'README.md'), 'utf8'),
-    await readFile(join(root, 'README.md'), 'utf8'),
+  const stagedReadme = await readFile(join(stagingRoot, 'aws', 'README.md'), 'utf8')
+  const rootReadme = await readFile(join(root, 'README.md'), 'utf8')
+  assert.notEqual(stagedReadme, rootReadme)
+  assert.match(
+    stagedReadme,
+    /npm install --save-exact @continuous-excellence\/ze-great-dashboard-aws@/,
   )
+  assert.match(stagedReadme, /board\.yaml/)
+  assert.match(stagedReadme, /ze-great-dashboard-aws package/)
+  assert.match(stagedReadme, /aws s3 cp aws-dashboard-release\/lambda\.zip/)
+  assert.match(stagedReadme, /aws cloudformation deploy/)
+  assert.match(stagedReadme, /AWS bootstrap guide/)
+  assert.match(stagedReadme, /protected API Gateway, ALB, or/)
+  assert.match(stagedReadme, /never in board YAML, `aws-dashboard-parameters\.json`, or/)
   assert.deepEqual(Object.keys(manifest.dependencies).sort(), ['fflate', 'yaml', 'zod'])
   const publishedFiles = []
   async function collect(directory) {

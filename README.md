@@ -1,133 +1,107 @@
-# ze-great-dashboard
+# Ze Great Dashboard
 
 [![Build](https://github.com/robertfmurdock/ze-great-dashboard/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/robertfmurdock/ze-great-dashboard/actions/workflows/main.yml)
 [![Socket](https://socket.dev/api/badge/npm/package/@continuous-excellence/ze-great-dashboard-aws)](https://socket.dev/npm/package/@continuous-excellence/ze-great-dashboard-aws)
 [![npm version](https://img.shields.io/npm/v/@continuous-excellence/ze-great-dashboard-aws?label=npm)](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A team-visible trust dashboard: **a lens on your engineering state, not a ledger of it.**
+Ze Great Dashboard is a team-visible, stateless trust dashboard that reads current engineering
+signals from their authorities: a lens, not a system of record.
 
-It shows whether the things your team relies on are currently working — builds, deploys, versions,
-whatever a team actually walks over to check. It stores nothing, computes no trends, and holds no
-opinion about your process. Every panel is a live read of a system that already knows the answer.
+It is for teams that want a big, visible answer to “are the things we rely on working now?” It is
+not a metrics warehouse, historical analytics product, hosted SaaS, or a replacement for the systems
+that own the underlying facts.
 
-Design doc: `ze-great-idea-pit/tool-ideas/trust-dashboard.md`. How this repo came to be shaped the
-way it is, including the quirks that look like bugs: `docs/initialization-log.md`.
+## What works today
 
-**Status: MVP in active use.** GitHub Actions `pipeline-status` and source-agnostic `http-value`
-panels work end to end. Azure DevOps remains to be built.
+The current release supports GitHub Actions `pipeline-status` panels and source-agnostic
+`http-value` panels. Azure DevOps and additional adapters are deferred; historical analytics and
+persistence are intentionally outside the product boundary.
 
-## Quickstart
+## Choose a path
+
+### Try it or contribute locally
+
+Clone this repository, install its dependencies, and start the real rendering path:
 
 ```sh
+git clone https://github.com/robertfmurdock/ze-great-dashboard.git
+cd ze-great-dashboard
 npm install
 npm run dev
 ```
 
-Then open <http://localhost:3000>.
-
-That runs the Vite dev server on 5173 and the app server on 3000, with the server rendering the
-entrypoint from Vite. Edit a component and the page updates — through the real server rendering path,
-not a bypass of it. This is the loop for the visual work.
-
-To run a different single-board YAML file, only its path is needed; the server selects its sole
-board automatically:
-
-```sh
-BOARD_CONFIG_URL="$PWD/boards/ze-great-team.yaml" npm run dev
-```
-
-Set `BOARD` as well only when the selected YAML contains multiple boards.
-
-Before you commit anything:
+Open <http://localhost:3000>. Vite runs on port 5173 and the application server on port 3000.
+Before committing or handing work off, run the repository gate:
 
 ```sh
 npm run check
 ```
 
-Lint, typecheck, and tests, in about a second and a half. The pre-commit hook runs it too, so a
-broken change can't be committed by accident — the hooks arrive with `npm install` via
-`core.hooksPath`, no extra setup.
-
-Set `PLAYWRIGHT_DOCKER=1` to run the browser portion through the matching official Playwright
-container. The root test script starts the Compose service, connects the existing test to it, and
-tears it down afterward:
+To use a local board other than the example, point the server at its YAML file:
 
 ```sh
-PLAYWRIGHT_DOCKER=1 npm run check
+BOARD_CONFIG_URL="$PWD/boards/ze-great-team.yaml" npm run dev
 ```
 
-### The other mode: the deployed shape
+### Deploy on AWS
 
-```sh
-cp .env.example .env      # set ASSET_PATH to a published version
-docker compose up
-```
-
-One container, the server only, pointed at a client version already published to the CDN. No client
-build involved. This is how you reproduce production behavior, or confirm that a specific published
-version renders.
-
-If you want to point it at something served from your own machine instead of the CDN, use the host's
-LAN address, not `host.docker.internal` — on Docker Desktop that name can resolve to IPv6, and Node's
-`fetch` will fail against an IPv4-only local server while `wget` in the same container succeeds. The
-symptom is a refused start naming a URL you can reach perfectly well from the host.
+The published [`@continuous-excellence/ze-great-dashboard-aws`](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
+package contains the Lambda runtime, CLI, compatible client, and CloudFormation template. Its
+[AWS deployment guide](https://github.com/robertfmurdock/ze-great-dashboard/blob/main/packages/aws/README.md)
+walks a consumer-managed deployment from bootstrap through a protected gateway.
 
 ## How it works
 
-The client is an [Immutable Web Application](https://immutablewebapps.org): built once, published to
-a versioned CDN path, containing **zero environment values**. The server fetches that version's
-`index.html` at request time, injects a `window.env` block as the first element of `<head>`, and
-serves it uncached.
+The browser receives an immutable client build, while a small stateless server supplies the current
+entrypoint and safely reads named signals through a same-origin proxy. Board YAML describes what to
+show; it is not where credentials live.
 
-The consequence worth caring about: **changing which client version is live is one environment
-variable on the server.** No rebuild, no redeploy of the client, and rollback is the same move in
-reverse.
-
-```
-browser ──► server (Lambda)  ──fetch index.html──►  CDN /dashboard/1.0.7/
-                │                                       (immutable, cached hard)
-                └── injects window.env, cache-control: no-store
+```text
+browser ──► stateless server ──► current signal authorities
+   │             │
+   │             └── reads board YAML and proxies named panel requests
+   └── immutable, versioned client assets from CDN
 ```
 
-Structurally that means:
+The client contains no environment values. At request time, the server fetches the selected client
+version’s `index.html`, injects public configuration, and serves that document without caching; the
+hashed client assets remain immutable. This makes promotion or rollback of a client version a server
+configuration change rather than a rebuild.
 
-- **`packages/client`** — the board renderer. React + Vite. Holds no configuration.
-- **`packages/server`** — renders the entrypoint; from Stage 2, proxies signal data. Holds the
-  credentials, stores nothing.
-- **`packages/shared`** — the board config schema and signal envelope. The one definition both sides
-  agree on, so changing it is a single coordinated change the type checker enforces.
+## Trust and security principles
 
-`packages/server/test/immutable-web-app.test.ts` proves the whole mechanism against two fixture
-client versions with different hashed filenames, over real HTTP, with no AWS and no credentials.
+- No persistence: the dashboard renders what the authority says now and keeps no ledger.
+- Board YAML names credential environment variables; token values belong in runtime secret handling,
+  never in YAML or source control.
+- Browser-visible configuration is public-only. Secrets remain server-side.
+- An unreadable panel reports an error honestly; it never quietly appears healthy or blank.
 
-## Configuration
+## Documentation
 
-Boards are YAML — see `boards/example.yaml` for the small public demo and
-`boards/ze-great-team.yaml` for the realistic radiator. Panels name a signal type and a source; the
-schema is in `packages/shared/src/board-config.ts`.
+- [Board configuration](docs/board-configuration.md) — panel and source YAML schema.
+- [AWS deployment](docs/aws-setup.md) — consumer deployment and operations.
+- [AWS bootstrap](docs/aws-bootstrap.md) — administrator-owned bucket and restricted roles.
+- [Architecture and design rationale](docs/original-pitch.md) — the lens-not-ledger model and immutable application design.
+- [Initialization log](docs/initialization-log.md) — decisions, verified assumptions, and intentional quirks.
+- [Infrastructure notes](infra/README.md) — repository-owned AWS setup.
 
-**Credentials never appear in board config.** A source names an environment variable (`token_env:`)
-and the value lives in the environment. `.env` is gitignored; `.env.example` names every variable and
-holds no values.
+## Development
 
-Server environment variables are documented in `.env.example`. The one that matters is `ASSET_PATH`.
+Requires Node.js 22+ and npm 11+.
 
-## Deploying
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the client and server development loop. |
+| `npm run check` | Lint, typecheck, test, validate the example board, and test the published package. |
+| `npm run test:watch` | Run unit tests in watch mode. |
+| `npm run build` | Build the production client. |
+| `npm run format` | Apply Biome formatting fixes. |
+| `docker compose up` | Run the deployed server shape against a published asset path. |
 
-Push to `main`. CI builds and checks a release candidate, versions it with
-[Tagger](https://github.com/robertfmurdock/tagger), publishes its versioned client assets, and deploys
-the exact npm tarball to the repository-owned consumer reference. Only then does it publish that
-same tarball and tag the release.
-
-Infrastructure is a CloudFormation stack under `infra/`. On `main`, CI deploys the stack before it
-publishes assets and updates the Lambda. The public client origin is
-`https://public-assets.zegreatrob.com`. Other branches receive no AWS credentials. CloudFormation
-keeps the infrastructure state in AWS; `infra/README.md` documents the one-time GitHub OIDC role
-bootstraps, including the consumer reference.
-
-For a consumer-managed deployment with the published AWS package, see [`docs/aws-setup.md`](docs/aws-setup.md).
+Contributions must pass `npm run check`. New dependencies need a clear justification: this project
+deliberately keeps its dependency surface small.
 
 ## License
 
-MIT
+[MIT](LICENSE)
