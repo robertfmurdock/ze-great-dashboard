@@ -37,7 +37,7 @@ jobs:
           npm install --prefix .consumer-bootstrap-validation --ignore-scripts --save-exact \
             "@continuous-excellence/ze-great-dashboard-aws@${AWS_PACKAGE_VERSION}"
           installed_version="$(node -p \
-            \"require('./.consumer-bootstrap-validation/node_modules/@continuous-excellence/ze-great-dashboard-aws/package.json').version\")"
+            "require('./.consumer-bootstrap-validation/node_modules/@continuous-excellence/ze-great-dashboard-aws/package.json').version")"
           test "$installed_version" = "$AWS_PACKAGE_VERSION"
       - name: Require reviewed bootstrap outputs
         run: |

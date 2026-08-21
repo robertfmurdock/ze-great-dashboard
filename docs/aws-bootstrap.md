@@ -126,6 +126,9 @@ capture `describe-stacks` as `core-deployed-stack.json`. Generate the OIDC adapt
 that captured file exactly as in the preceding section, inspect the resulting change set, and only
 then execute it.
 
+For an administrator using AWS CloudShell, the exact core preparation, change-set review, execution,
+and capture commands are in [the CloudShell validation runbook](aws-bootstrap-cloudshell.md).
+
 Set these two Environment variables from the reviewed stack outputs (they are ARNs, not secrets):
 
 - `AWS_DEPLOY_ROLE_ARN`: `GitHubDeployRoleArn` from the GitHub OIDC adapter stack.

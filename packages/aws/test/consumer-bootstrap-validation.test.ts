@@ -40,4 +40,15 @@ describe('consumer bootstrap deployment handoff', () => {
     expect(manifest).toContain('ze-great-dashboard-consumer-validation-artifacts-174159267544')
     expect(manifest).toContain('consumer-bootstrap-validation')
   })
+
+  it('keeps the CloudShell runbook at the explicit administrator review boundary', async () => {
+    const runbook = await readFile(repositoryFile('docs/aws-bootstrap-cloudshell.md'), 'utf8')
+
+    expect(runbook).toContain('aws cloudformation create-change-set')
+    expect(runbook).toContain('aws cloudformation describe-change-set')
+    expect(runbook).toContain('aws cloudformation execute-change-set')
+    expect(runbook).toContain('core-deployed-stack.json')
+    expect(runbook).toContain('CAPABILITY_NAMED_IAM')
+    expect(runbook).toContain('not an automation script')
+  })
 })
