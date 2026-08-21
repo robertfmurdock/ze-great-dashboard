@@ -43,6 +43,7 @@ describe('persistent consumer reference', () => {
     expect(infrastructure).toContain('stack/ze-great-dashboard-reference/*')
     expect(infrastructure).toContain('function:ze-great-dashboard-reference')
     expect(infrastructure).toContain('role/ze-great-dashboard-reference-*')
+    expect(infrastructure).toContain(`'\${ReferenceArtifactBucket.Arn}/lambda/*'`)
     expect(bootstrap).toContain('ze-great-dashboard-reference-artifacts')
     expect(bootstrap).toContain('ZeGreatDashboardReferenceCloudFormationExecution')
     expect(bootstrap).toContain('ZeGreatDashboardReferenceDeploy')

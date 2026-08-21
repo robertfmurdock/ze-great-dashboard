@@ -201,6 +201,10 @@ Resources:
                 Effect: Allow
                 Action: logs:*
                 Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ze-great-dashboard-reference:*'
+              - Sid: ReadReferenceArtifact
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub '${ReferenceArtifactBucket.Arn}/lambda/*'
               - Sid: ReferenceServerRoles
                 Effect: Allow
                 Action:
