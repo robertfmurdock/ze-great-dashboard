@@ -37,7 +37,7 @@ describe('persistent consumer reference', () => {
     const infrastructure = await readFile(join(repositoryRoot, 'infra/stack.yml'), 'utf8')
     const bootstrap = await readFile(join(repositoryRoot, 'infra/bootstrap.yml'), 'utf8')
     expect(infrastructure).toContain('BucketName: ze-great-dashboard-reference-artifacts')
-    expect(infrastructure).toContain('VersioningConfiguration: { Status: Enabled }')
+    expect(infrastructure).toContain('VersioningConfiguration: { Status: Suspended }')
     expect(infrastructure).toContain('SSEAlgorithm: AES256')
     expect(infrastructure).toContain('ref:refs/heads/main')
     expect(infrastructure).toContain('stack/ze-great-dashboard-reference/*')
@@ -50,21 +50,25 @@ describe('persistent consumer reference', () => {
 
     const workflow = await readFile(join(repositoryRoot, '.github/workflows/main.yml'), 'utf8')
     const tarball = workflow.indexOf('Build the exact-version npm tarball')
-    const assets = workflow.indexOf('Publish immutable client assets from the tarball')
-    const reference = workflow.indexOf('consumer reference')
+    const assets = workflow.indexOf('Publish candidate client assets from the tarball')
+    const reference = workflow.indexOf(
+      'Deploy and check the exact tarball as the consumer reference',
+    )
+    const candidate = workflow.indexOf('Save verified release candidate')
     const publish = workflow.indexOf('Publish the same npm tarball')
     const registry = workflow.indexOf('Confirm the published version is visible')
     const tag = workflow.indexOf('Tag verified release')
-    expect([tarball, assets, reference, publish, registry, tag].every((index) => index >= 0)).toBe(
-      true,
-    )
+    expect(
+      [tarball, assets, reference, candidate, publish, registry, tag].every((index) => index >= 0),
+    ).toBe(true)
     expect(tarball).toBeLessThan(assets)
     expect(assets).toBeLessThan(reference)
+    expect(reference).toBeLessThan(candidate)
     expect(reference).toBeLessThan(publish)
     expect(publish).toBeLessThan(registry)
     expect(registry).toBeLessThan(tag)
     expect(workflow).toContain('aws-dashboard-release/template.yml')
-    expect(workflow).toContain('publish-assets')
+    expect(workflow).toContain('verified-release-candidate')
     expect(workflow).not.toContain('Deploy application 🚀')
     expect(workflow).toContain('reference_artifact_bucket')
     expect(workflow).toContain('reference_execution_role_arn')

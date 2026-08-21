@@ -23,7 +23,7 @@ operate only the `ze-great-dashboard` stack and pass only that execution role. I
 requests, tags, or other branches.
 
 This role is the sole bootstrap boundary. The stack creates a narrower `ZeGreatDashboardDeploy`
-role, which the workflow assumes only for publishing immutable client assets.
+role, which the workflow assumes only for publishing candidate client assets.
 
 The two bootstrap roles are declared in `bootstrap.yml`. Upload that file in AWS CloudShell and run:
 

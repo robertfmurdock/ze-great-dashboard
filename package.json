@@ -41,7 +41,7 @@
     "build": "npm run build --workspace @ze-great-dashboard/client",
     "build:packages": "node scripts/build-packages.mjs",
     "publish:packages": "node scripts/publish-packages.mjs",
-    "build:release": "npm run build:packages && node packages/core/dist/cli.js validate --board-config boards/example.yaml && tar -czf release-build.tgz packages/shared/dist packages/core/dist packages/aws/dist packages/aws/client packages/aws/template.yml",
+    "build:release": "npm run build:packages && node packages/core/dist/cli.js validate --board-config boards/example.yaml",
     "release:version": "bash scripts/release-version.sh",
     "release:provision": "bash scripts/provision-aws.sh",
     "release:deploy": "bash scripts/deploy-aws.sh",

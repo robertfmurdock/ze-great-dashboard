@@ -12,7 +12,7 @@ and deployment log](./dashboard-package-log.md).
 ## Deployment status
 
 `public-assets.zegreatrob.com` is live and is the stable public package contract. The release
-workflow publishes that tarball's immutable client assets, then deploys the exact pre-publish tarball
+workflow publishes that tarball's versioned client assets, then deploys the exact pre-publish tarball
 through one persistent consumer reference stack. The existing infrastructure provision owns its
 artifact bucket and scoped roles. Its board has no third-party source, so it verifies package,
 artifact, CloudFormation, Lambda, and hosted-client integration without asserting an upstream panel's
@@ -42,7 +42,7 @@ locally. The current implementation includes:
 Verification covers the client production build, the core board validator, AWS adapter Lambda
 archives, publish staging, the checked-in reference consumer inputs, scoped reference IAM names, and
 the release ordering. The GitHub workflow builds one exact-version AWS adapter tarball, publishes its
-immutable client assets, deploys that tarball to the consumer reference, publishes it through npm
+versioned client assets, deploys that tarball to the consumer reference, publishes it through npm
 trusted publishing, confirms registry visibility, and only then creates the Git tag; core and shared
 remain internal workspace packages.
 

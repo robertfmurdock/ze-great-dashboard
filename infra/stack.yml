@@ -55,8 +55,9 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      # Existing buckets cannot become unversioned; Suspended stops new versions.
       VersioningConfiguration:
-        Status: Enabled
+        Status: Suspended
 
   AssetsOriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
@@ -170,7 +171,8 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
-      VersioningConfiguration: { Status: Enabled }
+      # Existing buckets cannot become unversioned; Suspended stops new versions.
+      VersioningConfiguration: { Status: Suspended }
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true

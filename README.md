@@ -115,9 +115,10 @@ Server environment variables are documented in `.env.example`. The one that matt
 
 ## Deploying
 
-Push to `main`. CI checks, versions with [Tagger](https://github.com/robertfmurdock/tagger), publishes
-the immutable client assets, then deploys the exact npm tarball to the repository-owned consumer
-reference before publishing that same tarball.
+Push to `main`. CI builds and checks a release candidate, versions it with
+[Tagger](https://github.com/robertfmurdock/tagger), publishes its versioned client assets, and deploys
+the exact npm tarball to the repository-owned consumer reference. Only then does it publish that
+same tarball and tag the release.
 
 Infrastructure is a CloudFormation stack under `infra/`. On `main`, CI deploys the stack before it
 publishes assets and updates the Lambda. The public client origin is

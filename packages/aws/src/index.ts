@@ -128,7 +128,7 @@ export type PublishClientAssetsOptions = {
   version: string
 }
 
-/** Publishes the immutable client half of a provider-managed release. */
+/** Publishes the versioned client half of a provider-managed release. */
 export async function publishClientAssets(options: PublishClientAssetsOptions): Promise<string> {
   const assetsDir = resolve(options.assetsDir)
   await readFile(join(assetsDir, 'index.html'))
