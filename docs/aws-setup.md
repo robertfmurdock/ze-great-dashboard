@@ -225,7 +225,8 @@ the protected Environment, can upload to the artifact bucket, can operate one st
 only the core execution role. Replace the Region, stack name, and captured role ARNs below.
 
 This workflow packages, uploads, and deploys the private Lambda. Add a gateway-specific health check
-only where the protected gateway is available to the runner:
+only where the protected gateway is available to the runner. If the GitHub OIDC bootstrap manifest
+sets `consumerGatewayStackName`, add this short step after deployment:
 
 ```yaml
 name: Deploy dashboard
@@ -283,6 +284,17 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides file://aws-dashboard-parameters.json \
             --no-fail-on-empty-changeset
+      - name: Check protected gateway
+        env:
+          GATEWAY_STACK_NAME: my-ze-great-dashboard-gateway
+        run: |
+          gateway_endpoint="$(aws cloudformation describe-stacks \
+            --stack-name "$GATEWAY_STACK_NAME" \
+            --region "$AWS_REGION" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
+            --output text)"
+          test -n "$gateway_endpoint" && test "$gateway_endpoint" != None
+          curl --fail --silent --show-error "$gateway_endpoint/health" >/dev/null
 ```
 
 Use [GitHub OIDC for AWS](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
