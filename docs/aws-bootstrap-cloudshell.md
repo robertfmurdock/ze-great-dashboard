@@ -134,3 +134,83 @@ jq -r '.Stacks[0].Outputs[] | select(
 
 The final output must include contract version `1`. Preserve `core-deployed-stack.json`: it is the
 input to the GitHub OIDC adapter change set. Stop here for review before proceeding to the adapter.
+
+## 5. Correct the GitHub OIDC adapter with v2
+
+The initial validation adapter was created with the legacy GitHub OIDC subject and therefore denies
+the protected workflow before it can reach AWS. After the package release containing
+`github-oidc-v2.yml`, use its exact version below. This is an **UPDATE** of the existing adapter
+stack; it does not recreate the core stack, bucket, execution role, or GitHub Environment.
+
+```sh
+# Replace this with the exact newly published package version, not 0.1.29.
+export AWS_PACKAGE_VERSION=REPLACE_WITH_V2_PUBLISHED_VERSION
+
+npm install --prefix .bootstrap-tools --ignore-scripts --save-exact \
+  "@continuous-excellence/ze-great-dashboard-aws@${AWS_PACKAGE_VERSION}"
+
+export BOOTSTRAP_CLI=.bootstrap-tools/node_modules/.bin/ze-great-dashboard-aws
+export GITHUB_STACK="$(jq -r '.githubOidc.stackName' "$VALIDATION_CONFIG")"
+
+"$BOOTSTRAP_CLI" bootstrap parameters \
+  --kind github-oidc \
+  --config "$VALIDATION_CONFIG" \
+  --core-stack-json core-deployed-stack.json \
+  --output github-bootstrap.json
+
+GITHUB_TEMPLATE="$("$BOOTSTRAP_CLI" bootstrap template --kind github-oidc | jq -r .template)"
+cat github-bootstrap.json
+```
+
+Confirm the parameter file contains `GitHubOwnerId` `6215634` and `GitHubRepositoryId`
+`1338375095`. Create and inspect the migration change set:
+
+```sh
+aws cloudformation create-change-set \
+  --stack-name "$GITHUB_STACK" \
+  --change-set-name github-oidc-v2-review \
+  --change-set-type UPDATE \
+  --template-body "file://${GITHUB_TEMPLATE}" \
+  --parameters file://github-bootstrap.json \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region "$AWS_REGION" \
+  --no-cli-pager
+
+aws cloudformation wait change-set-create-complete \
+  --stack-name "$GITHUB_STACK" \
+  --change-set-name github-oidc-v2-review \
+  --region "$AWS_REGION"
+
+aws cloudformation describe-change-set \
+  --stack-name "$GITHUB_STACK" \
+  --change-set-name github-oidc-v2-review \
+  --region "$AWS_REGION"
+```
+
+Approve only a change to the existing GitHub deploy role's trust policy and
+`BootstrapContractVersion` from `1` to `2`; do not approve role or resource replacement. Then:
+
+```sh
+aws cloudformation execute-change-set \
+  --stack-name "$GITHUB_STACK" \
+  --change-set-name github-oidc-v2-review \
+  --region "$AWS_REGION"
+
+aws cloudformation wait stack-update-complete \
+  --stack-name "$GITHUB_STACK" \
+  --region "$AWS_REGION"
+
+aws cloudformation describe-stacks \
+  --stack-name "$GITHUB_STACK" \
+  --region "$AWS_REGION" \
+  --no-cli-pager > github-oidc-deployed-stack.json
+
+jq -r '.Stacks[0].Outputs[] | select(
+  .OutputKey == "GitHubDeployRoleArn" or
+  .OutputKey == "BootstrapContractVersion"
+) | "\(.OutputKey)=\(.OutputValue)"' github-oidc-deployed-stack.json
+```
+
+The role ARN should remain the value already stored in the GitHub Environment. Dispatch the
+validation workflow again with the exact v2 package version. It should now assume the generated
+role; a successful artifact upload and application stack completion are the acceptance test.

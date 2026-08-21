@@ -10,6 +10,8 @@
     "stackName": "ze-great-dashboard-consumer-validation-github-bootstrap",
     "providerArn": "arn:aws:iam::174159267544:oidc-provider/token.actions.githubusercontent.com",
     "repository": "robertfmurdock/ze-great-dashboard",
+    "ownerId": "6215634",
+    "repositoryId": "1338375095",
     "environment": "consumer-bootstrap-validation"
   }
 }

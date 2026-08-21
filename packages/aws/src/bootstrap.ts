@@ -27,13 +27,15 @@ export type BootstrapConfig = {
     stackName?: string
     providerArn?: string
     repository?: string
+    ownerId?: string
+    repositoryId?: string
     environment?: string
   }
 }
 
 const templates: Record<BootstrapKind, string> = {
   core: '../bootstrap/core-v1.yml',
-  'github-oidc': '../bootstrap/github-oidc-v1.yml',
+  'github-oidc': '../bootstrap/github-oidc-v2.yml',
 }
 
 export async function bootstrapTemplatePath(kind: BootstrapKind): Promise<string> {
@@ -120,6 +122,8 @@ export function requiredBootstrapParameters(
       : [
           'GitHubOidcProviderArn',
           'GitHubRepository',
+          'GitHubOwnerId',
+          'GitHubRepositoryId',
           'GitHubEnvironment',
           'ApplicationStackName',
           'ArtifactBucketName',

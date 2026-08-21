@@ -26,12 +26,14 @@ describe('AWS consumer bootstrap contract', () => {
     expect(template).not.toContain('Action: iam:*')
   })
 
-  it('requires the exact GitHub provider, repository environment, audience, stack and prefix', async () => {
+  it('requires the exact immutable GitHub repository/environment subject, audience, stack and prefix', async () => {
     const template = await bootstrapTemplate('github-oidc')
-    expect(bootstrapContractVersion(template)).toBe('1')
+    expect(bootstrapContractVersion(template)).toBe('2')
     expect(template).toContain('Federated: !Ref GitHubOidcProviderArn')
     expect(template).toContain("'token.actions.githubusercontent.com:aud': sts.amazonaws.com")
-    expect(template).toMatch(/repo:\$\{GitHubRepository}.*environment:\$\{GitHubEnvironment}/)
+    expect(template).toMatch(
+      /repo:\$\{Owner}@\$\{GitHubOwnerId}\/\$\{Repository}@\$\{GitHubRepositoryId}:environment:\$\{GitHubEnvironment}/,
+    )
     expect(template).toContain('/lambda/*')
     expect(template).toMatch(/stack\/\$\{ApplicationStackName}\/\*/)
     expect(template).toContain('PassCoreExecutionRole')
@@ -40,6 +42,7 @@ describe('AWS consumer bootstrap contract', () => {
 
   it('requires inputs and preserves deployed parameters for upgrades', () => {
     expect(() => requiredBootstrapParameters('core', {})).toThrow('ArtifactBucketName')
+    expect(() => requiredBootstrapParameters('github-oidc', {})).toThrow('GitHubOwnerId')
     const values = requiredBootstrapParameters('core', {
       ArtifactBucketName: 'bucket',
       ApplicationStackName: 'stack',

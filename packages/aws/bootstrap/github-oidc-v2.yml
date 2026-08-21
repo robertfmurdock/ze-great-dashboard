@@ -1,9 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Ze Great Dashboard GitHub OIDC adapter v1. Superseded by github-oidc-v2.yml; retained for explicit migration review.
+Description: Ze Great Dashboard GitHub OIDC adapter v2. Administrator-managed; requires a central OIDC provider.
 
 Parameters:
   GitHubOidcProviderArn: { Type: String }
   GitHubRepository: { Type: String, Description: owner/repository }
+  GitHubOwnerId: { Type: String, Description: Immutable numeric GitHub owner id }
+  GitHubRepositoryId: { Type: String, Description: Immutable numeric GitHub repository id }
   GitHubEnvironment: { Type: String, Description: Protected GitHub Environment name }
   ApplicationStackName: { Type: String }
   ArtifactBucketName: { Type: String }
@@ -26,7 +28,10 @@ Resources:
             Condition:
               StringEquals:
                 'token.actions.githubusercontent.com:aud': sts.amazonaws.com
-                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubRepository}:environment:${GitHubEnvironment}'
+                'token.actions.githubusercontent.com:sub': !Sub
+                  - 'repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:environment:${GitHubEnvironment}'
+                  - Owner: !Select [0, !Split ['/', !Ref GitHubRepository]]
+                    Repository: !Select [1, !Split ['/', !Ref GitHubRepository]]
       Policies:
         - PolicyName: DeployOneDashboard
           PolicyDocument:
@@ -51,5 +56,5 @@ Resources:
                 Condition: { StringEquals: { 'iam:PassedToService': cloudformation.amazonaws.com } }
 
 Outputs:
-  BootstrapContractVersion: { Value: '1' }
+  BootstrapContractVersion: { Value: '2' }
   GitHubDeployRoleArn: { Value: !GetAtt GitHubDeployRole.Arn }

@@ -10,6 +10,8 @@
     "stackName": "team-dashboard-github-bootstrap",
     "providerArn": "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com",
     "repository": "example/team-dashboard",
+    "ownerId": "12345678",
+    "repositoryId": "123456789",
     "environment": "production"
   }
 }

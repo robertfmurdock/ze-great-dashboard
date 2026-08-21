@@ -109,6 +109,8 @@ function bootstrapValues(
     ArtifactKmsKeyArn: option('--artifact-kms-key-arn', config.core?.artifactKmsKeyArn),
     GitHubOidcProviderArn: option('--github-oidc-provider-arn', config.githubOidc?.providerArn),
     GitHubRepository: option('--github-repository', config.githubOidc?.repository),
+    GitHubOwnerId: option('--github-owner-id', config.githubOidc?.ownerId),
+    GitHubRepositoryId: option('--github-repository-id', config.githubOidc?.repositoryId),
     GitHubEnvironment: option('--github-environment', config.githubOidc?.environment),
     CloudFormationExecutionRoleArn: option(
       '--execution-role-arn',

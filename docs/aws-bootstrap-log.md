@@ -69,3 +69,13 @@ No validation stack has been applied from this repository session. An AWS admini
 inspect, and execute both change sets, capture the core output, configure the protected Environment
 variables from the reviewed outputs, and dispatch the validation workflow. Record the observed
 CloudFormation/IAM behavior and any required service-policy adjustment here before closing issue #1.
+
+### Observed OIDC migration — 2026-08-21
+
+The first protected validation dispatch installed the published package and reached
+`sts:AssumeRoleWithWebIdentity`, but AWS denied the request before any artifact or application-stack
+operation. The v1 adapter trusted GitHub's legacy mutable-name Environment subject; this repository
+uses GitHub's immutable owner/repository-ID subject. The corrective adapter is `github-oidc-v2.yml`:
+it adds immutable owner and repository IDs to the manifest and trust condition. The existing core
+stack remains valid. An administrator must review an `UPDATE` change set for only the GitHub OIDC
+adapter stack after the v2 package is published.

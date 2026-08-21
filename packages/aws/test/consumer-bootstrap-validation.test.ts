@@ -50,5 +50,7 @@ describe('consumer bootstrap deployment handoff', () => {
     expect(runbook).toContain('core-deployed-stack.json')
     expect(runbook).toContain('CAPABILITY_NAMED_IAM')
     expect(runbook).toContain('not an automation script')
+    expect(runbook).toContain('github-oidc-v2-review')
+    expect(runbook).toContain('--change-set-type UPDATE')
   })
 })

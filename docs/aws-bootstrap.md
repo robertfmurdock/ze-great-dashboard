@@ -5,7 +5,7 @@ private Lambda artifact bucket and the IAM roles that CI uses later. Routine CI 
 artifact and operate one application stack; it cannot create, update, or delete either bootstrap
 stack, its bucket, or its roles.
 
-The package ships two versioned templates: `core-v1.yml` and `github-oidc-v1.yml`. Their logical
+The package ships two current versioned templates: `core-v1.yml` and `github-oidc-v2.yml`. Their logical
 IDs, parameter names, resource names, outputs, and `BootstrapContractVersion` are a compatibility
 contract. Do not rename them in compatible upgrades.
 
@@ -18,7 +18,8 @@ contract. Do not rename them in compatible upgrades.
 - Choose a globally unique artifact bucket name and a stable application stack name. Changing either
   is a migration, not an in-place upgrade.
 - For GitHub, first create the protected Environment, required reviewers, and branch policy. The
-  template trusts that environment rather than a branch ref.
+  template trusts that environment rather than a branch ref, and binds the trust to GitHub's immutable
+  numeric owner and repository IDs as well as their human-readable names.
 
 The package never runs AWS CLI commands for bootstrap work. It validates inputs and emits template
 locations, parameter files, and structured command arguments; administrators invoke AWS explicitly.
@@ -87,9 +88,14 @@ Record the outputs, especially `ArtifactBucketName`, `CloudFormationExecutionRol
 ## GitHub OIDC adapter
 
 Creation or modification of an account-wide GitHub OIDC provider belongs to central cloud
-administration. Add its existing ARN, the repository, and protected Environment to the checked-in
-manifest only after the GitHub Environment protections are active. Capture the reviewed core stack
-output; the CLI derives the bucket, application stack, and execution-role values from it:
+administration. Add its existing ARN, repository, immutable numeric owner/repository IDs, and
+protected Environment to the checked-in manifest only after the GitHub Environment protections are
+active. Capture the reviewed core stack output; the CLI derives the bucket, application stack, and
+execution-role values from it. With GitHub CLI, the immutable IDs can be read without mutation:
+
+```sh
+gh api repos/OWNER/REPOSITORY --jq '[.owner.id, .id] | @tsv'
+```
 
 ```sh
 aws cloudformation describe-stacks \
@@ -105,9 +111,19 @@ aws cloudformation create-change-set --stack-name "$(jq -r .githubOidc.stackName
   --capabilities CAPABILITY_NAMED_IAM --region "$(jq -r .region dashboard-bootstrap.json)" --no-cli-pager
 ```
 
-Wait and inspect as above. Verify the exact provider ARN, `repo:owner/repository:environment:name`
-subject, `sts.amazonaws.com` audience, one bucket’s `lambda/*` prefix, one application stack, and
-only the core execution role before executing the adapter change set.
+Wait and inspect as above. Verify the exact provider ARN,
+`repo:owner@owner-id/repository@repository-id:environment:name` subject, `sts.amazonaws.com`
+audience, one bucket’s `lambda/*` prefix, one application stack, and only the core execution role
+before executing the adapter change set.
+
+### GitHub OIDC v1 to v2 migration
+
+`github-oidc-v2.yml` moves trust from GitHub's legacy mutable-name subject to its immutable
+owner/repository-ID subject. This is an intentional contract migration, not a silent compatible
+upgrade. Keep the same stack name and role, generate a fresh parameter file from the captured core
+output, create an `UPDATE` change set using the v2 template, and confirm that only the role's trust
+policy and `BootstrapContractVersion` change. Do not pass v1 deployed JSON to the parameter-merging
+command; the contract mismatch is the guard that makes this migration explicit.
 
 ## Validation manifest and protected GitHub Environment
 
