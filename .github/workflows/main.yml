@@ -176,7 +176,7 @@ jobs:
           function_url="$(aws cloudformation describe-stacks \
             --stack-name ze-great-dashboard-reference \
             --region us-east-1 \
-            --query \"Stacks[0].Outputs[?OutputKey=='ServerUrl'].OutputValue\" \
+            --query "Stacks[0].Outputs[?OutputKey=='ServerUrl'].OutputValue" \
             --output text)"
           curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
             "${function_url%/}/health" > /dev/null
