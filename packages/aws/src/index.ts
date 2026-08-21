@@ -19,6 +19,16 @@ export {
   mergeBootstrapParameters,
   requiredBootstrapParameters,
 } from './bootstrap.js'
+export {
+  type BootstrapHandoff,
+  type BootstrapPhase,
+  type BootstrapProvider,
+  type BootstrapVerification,
+  bootstrapHandoff,
+  type CommandRunner,
+  githubOidcProvider,
+  verifyBootstrap,
+} from './handoff.js'
 
 const run = promisify(execFile)
 

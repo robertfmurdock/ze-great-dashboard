@@ -6,6 +6,7 @@ import { runDoctor } from './doctor.ts'
 import {
   type BootstrapConfig,
   bootstrapContractVersion,
+  bootstrapHandoff,
   bootstrapTemplate,
   bootstrapTemplatePath,
   cloudFormationTemplate,
@@ -16,6 +17,7 @@ import {
   packageLambda,
   publishClientAssets,
   requiredBootstrapParameters,
+  verifyBootstrap,
 } from './index.ts'
 
 const args = process.argv.slice(2)
@@ -265,9 +267,49 @@ try {
     console.log(JSON.stringify({ output }))
   } else if (args[0] === 'bootstrap') {
     const action = args[1]
-    const kind = bootstrapKind()
     const config = await bootstrapConfig()
-    if (action === 'template') {
+    if (action === 'handoff') {
+      const configPath = requiredOption('--config')
+      const coreStackPath = option('--core-stack-json')
+      const githubStackPath = option('--github-oidc-stack-json')
+      const runner = {
+        async execute(command: string, commandArgs: string[]) {
+          const { execFile } = await import('node:child_process')
+          const { promisify } = await import('node:util')
+          return (await promisify(execFile)(command, commandArgs)).stdout.trim()
+        },
+      }
+      console.log(
+        JSON.stringify(
+          await bootstrapHandoff({
+            config,
+            configPath,
+            coreStack: coreStackPath
+              ? JSON.parse(await readFile(coreStackPath, 'utf8'))
+              : undefined,
+            coreStackPath,
+            githubOidcStack: githubStackPath
+              ? JSON.parse(await readFile(githubStackPath, 'utf8'))
+              : undefined,
+            runner,
+          }),
+        ),
+      )
+    } else if (action === 'verify') {
+      requiredOption('--config')
+      const coreStackPath = requiredOption('--core-stack-json')
+      const githubStackPath = requiredOption('--github-oidc-stack-json')
+      console.log(
+        JSON.stringify(
+          await verifyBootstrap({
+            config,
+            coreStack: JSON.parse(await readFile(coreStackPath, 'utf8')),
+            githubOidcStack: JSON.parse(await readFile(githubStackPath, 'utf8')),
+          }),
+        ),
+      )
+    } else if (action === 'template') {
+      const kind = bootstrapKind()
       console.log(
         JSON.stringify({
           kind,
@@ -276,6 +318,7 @@ try {
         }),
       )
     } else if (action === 'parameters') {
+      const kind = bootstrapKind()
       const output =
         option('--output', `aws-dashboard-bootstrap-${kind}.json`) ??
         `aws-dashboard-bootstrap-${kind}.json`
@@ -304,6 +347,7 @@ try {
         JSON.stringify({ output, kind, preservedDeployedValues: Boolean(deployedStackPath) }),
       )
     } else if (action === 'status') {
+      const kind = bootstrapKind()
       const stackName = requiredOption('--stack-name', bootstrapStackName(kind, config))
       const region = option('--region', config.region)
       const awsCommand = [
@@ -324,6 +368,7 @@ try {
         }),
       )
     } else if (action === 'change-set') {
+      const kind = bootstrapKind()
       const stackName = requiredOption('--stack-name', bootstrapStackName(kind, config))
       const changeSetName = requiredOption('--change-set-name')
       const parametersPath = requiredOption('--parameters')
@@ -359,7 +404,7 @@ try {
       )
     } else {
       throw new Error(
-        'Usage: ze-great-dashboard-aws bootstrap template|parameters|status|change-set --kind core|github-oidc [options]',
+        'Usage: ze-great-dashboard-aws bootstrap handoff|verify --config manifest.json [options], or bootstrap template|parameters|status|change-set --kind core|github-oidc [options]',
       )
     }
   } else if (args[0] !== 'package')
