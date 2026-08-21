@@ -164,6 +164,24 @@ immediately, and local tarball checks do not retry. A subsequent clean consumer 
 `@continuous-excellence/ze-great-dashboard-aws@0.1.16`, including package validation, deploy dry
 run, and hosted-client fetch, passed locally.
 
+## Consumer gateway stack reads and bootstrap upgrade diagnostics
+
+Recorded 2026-08-21 for GitHub issue #3: the GitHub OIDC v2 bootstrap now accepts the optional
+`ConsumerGatewayStackName` setting and conditionally grants the deploy role only
+`cloudformation:DescribeStacks` on that exact consumer-owned CloudFormation stack. Gateway
+provisioning, invocation, authentication, and endpoint ownership remain outside the package.
+
+The bootstrap template publishes a separate `BootstrapTemplateRevision` marker so compatible
+template additions do not require changing the migration-oriented contract version. The read-only
+deployment doctor accepts a retained GitHub OIDC stack capture and warns when it predates the
+installed template revision. Existing consumers that do not need gateway-stack reads remain
+unchanged; consumers that do need them update the reviewed manifest and execute an administrator-
+reviewed OIDC change set. The generated parameter path preserves existing deployed values.
+
+Verified with CloudFormation template validation, 118 unit tests, the production-client browser
+smoke test, board validation, published-package staging, and `git diff --check`. Committed as
+`2bc90c2` with the repository's `[minor]` release convention.
+
 ## Explicitly deferred
 
 AWS infrastructure ownership and credentials remain consumer/deployment concerns; the repository's
