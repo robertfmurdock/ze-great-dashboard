@@ -8,8 +8,15 @@ Parameters:
   GitHubRepositoryId: { Type: String, Description: Immutable numeric GitHub repository id }
   GitHubEnvironment: { Type: String, Description: Protected GitHub Environment name }
   ApplicationStackName: { Type: String }
+  ConsumerGatewayStackName:
+    Type: String
+    Default: ''
+    Description: Optional consumer-owned gateway stack whose outputs the deploy role may read
   ArtifactBucketName: { Type: String }
   CloudFormationExecutionRoleArn: { Type: String }
+
+Conditions:
+  HasConsumerGatewayStack: !Not [!Equals [!Ref ConsumerGatewayStackName, '']]
 
 Resources:
   GitHubDeployRole:
@@ -49,6 +56,13 @@ Resources:
                 Effect: Allow
                 Action: [cloudformation:CreateChangeSet, cloudformation:DescribeChangeSet, cloudformation:ExecuteChangeSet, cloudformation:DeleteChangeSet, cloudformation:DescribeStacks, cloudformation:DescribeStackEvents, cloudformation:GetTemplate, cloudformation:GetTemplateSummary]
                 Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ApplicationStackName}/*'
+              - !If
+                - HasConsumerGatewayStack
+                - Sid: ReadConsumerGatewayStack
+                  Effect: Allow
+                  Action: cloudformation:DescribeStacks
+                  Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ConsumerGatewayStackName}/*'
+                - !Ref AWS::NoValue
               - Sid: PassCoreExecutionRole
                 Effect: Allow
                 Action: iam:PassRole
@@ -57,4 +71,5 @@ Resources:
 
 Outputs:
   BootstrapContractVersion: { Value: '2' }
+  BootstrapTemplateRevision: { Value: '2.1' }
   GitHubDeployRoleArn: { Value: !GetAtt GitHubDeployRole.Arn }

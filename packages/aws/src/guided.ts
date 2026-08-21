@@ -24,6 +24,7 @@ export type BootstrapInitInput = {
   accountId?: string
   ownerId?: string
   repositoryId?: string
+  consumerGatewayStackName?: string
   runner?: CommandRunner
 }
 
@@ -115,6 +116,9 @@ export async function scaffoldBootstrapManifest(
       ownerId,
       repositoryId,
       environment,
+      ...(input.consumerGatewayStackName
+        ? { consumerGatewayStackName: input.consumerGatewayStackName }
+        : {}),
     },
   }
 }

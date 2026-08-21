@@ -122,7 +122,11 @@ describe('manifest-driven bootstrap handoff', () => {
     expect(handoff.requiredCapturedFiles).toEqual(['captures/approved-core.json'])
     expect(handoff.commands[0]?.args).toContain('captures/approved-core.json')
     expect(handoff.prerequisite?.status).toBe('immutable-subject-required')
-    expect(handoff.expectedOutputs).toEqual(['BootstrapContractVersion', 'GitHubDeployRoleArn'])
+    expect(handoff.expectedOutputs).toEqual([
+      'BootstrapContractVersion',
+      'BootstrapTemplateRevision',
+      'GitHubDeployRoleArn',
+    ])
     expect(calls).toEqual(['gh api repos/example/dashboard/actions/oidc/customization/sub'])
     expect(handoff.commands.flatMap(({ args }) => args)).not.toContain('execute')
   })

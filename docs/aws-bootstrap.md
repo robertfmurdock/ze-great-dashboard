@@ -29,6 +29,11 @@ with `--format-shell`; their default machine-readable `awsCommand` array is the 
 The examples below deliberately create and inspect CloudFormation change sets. Do **not** use
 `cloudformation deploy` for bootstrap work.
 
+For routine application deployments, pass a retained `github-oidc-deployed-stack.json` to the
+read-only deployment doctor with `--github-oidc-stack-json`. The doctor compares the captured
+GitHub OIDC bootstrap template revision with the installed package and emits a warning when the
+bootstrap should be reviewed. It never updates the bootstrap stack.
+
 ## 1. Scaffold and preflight the manifest
 
 ```sh
@@ -48,6 +53,11 @@ aws cloudformation validate-template \
   --template-body "file://$(npm exec -- ze-great-dashboard-aws bootstrap template --kind core | jq -r .template)" \
   --region "$(jq -r .region dashboard-bootstrap.json)"
 ```
+
+When the deployment workflow also verifies a consumer-owned gateway stack, add
+`--consumer-gateway-stack gateway-stack-name`. The generated GitHub OIDC v2 role receives only
+`cloudformation:DescribeStacks` for that exact stack. Leave it unset when no gateway-stack read is
+needed.
 
 `preflight` is read-only. Its JSON is stable by default; unavailable AWS/GitHub CLI, authentication,
 or network is reported as `unverified` so offline planning remains possible. A verified mismatch or
@@ -176,6 +186,16 @@ versioned CDN path. Do not add a Function URL, public Lambda invocation, or runt
 gateway access remains consumer-owned.
 
 ## Upgrades and recovery
+
+### Check the bootstrap template on package upgrades
+
+The bootstrap contract version only changes for migrations that require explicit coordination, so a
+compatible package upgrade can still add an optional capability to a bootstrap template. If your
+deployment workflow needs to read a consumer-owned gateway stack, check that
+`dashboard-bootstrap.json` contains `githubOidc.consumerGatewayStackName` after upgrading. If it is
+missing, add it with `--consumer-gateway-stack` when creating a manifest (or edit the reviewed manifest), regenerate the GitHub OIDC
+parameter file from the deployed core capture, and create and review an `UPDATE` change set for the
+GitHub OIDC stack. Consumers that do not need gateway-stack reads do not need to rerun bootstrap.
 
 Install the target exact package version, then capture deployed state and verify its contract version:
 

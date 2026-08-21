@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   bootstrapContractVersion,
   bootstrapTemplate,
+  bootstrapTemplateRevision,
   coreBootstrapOutputs,
   deployedBootstrapStack,
   mergeBootstrapParameters,
@@ -29,6 +30,7 @@ describe('AWS consumer bootstrap contract', () => {
   it('requires the exact immutable GitHub repository/environment subject, audience, stack and prefix', async () => {
     const template = await bootstrapTemplate('github-oidc')
     expect(bootstrapContractVersion(template)).toBe('2')
+    expect(bootstrapTemplateRevision(template)).toBe('2.1')
     expect(template).toContain('Federated: !Ref GitHubOidcProviderArn')
     expect(template).toContain("'token.actions.githubusercontent.com:aud': sts.amazonaws.com")
     expect(template).toMatch(
@@ -37,12 +39,27 @@ describe('AWS consumer bootstrap contract', () => {
     expect(template).toContain('/lambda/*')
     expect(template).toMatch(/stack\/\$\{ApplicationStackName}\/\*/)
     expect(template).toContain('PassCoreExecutionRole')
+    expect(template).toContain('ReadConsumerGatewayStack')
+    expect(template).toContain('ConsumerGatewayStackName')
     expect(template).not.toContain('Action: cloudformation:*')
   })
 
   it('requires inputs and preserves deployed parameters for upgrades', () => {
     expect(() => requiredBootstrapParameters('core', {})).toThrow('ArtifactBucketName')
     expect(() => requiredBootstrapParameters('github-oidc', {})).toThrow('GitHubOwnerId')
+    expect(
+      requiredBootstrapParameters('github-oidc', {
+        GitHubOidcProviderArn: 'arn:aws:iam::123:oidc-provider/example',
+        GitHubRepository: 'owner/repo',
+        GitHubOwnerId: '1',
+        GitHubRepositoryId: '2',
+        GitHubEnvironment: 'production',
+        ApplicationStackName: 'app',
+        ArtifactBucketName: 'bucket',
+        CloudFormationExecutionRoleArn: 'arn:role',
+        ConsumerGatewayStackName: 'gateway',
+      }),
+    ).toContainEqual({ ParameterKey: 'ConsumerGatewayStackName', ParameterValue: 'gateway' })
     const values = requiredBootstrapParameters('core', {
       ArtifactBucketName: 'bucket',
       ApplicationStackName: 'stack',

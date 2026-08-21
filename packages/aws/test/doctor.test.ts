@@ -12,6 +12,13 @@ async function parameterFile(
   return path
 }
 
+async function stackFile(output: { OutputKey: string; OutputValue?: string }[] = []) {
+  const root = await mkdtemp('/tmp/dashboard-doctor-stack-')
+  const path = join(root, 'github-oidc.json')
+  await writeFile(path, JSON.stringify({ Outputs: output }))
+  return path
+}
+
 function dependencies(overrides: Partial<DoctorDependencies> = {}): DoctorDependencies {
   return {
     nodeVersion: '22.14.0',
@@ -53,6 +60,26 @@ describe('deployment doctor', () => {
       's3api',
     ])
     expect(commands.flat().join(' ')).not.toMatch(/\b(cp|sync|deploy|put|update|delete|create)\b/)
+  })
+
+  it('warns when an explicitly captured GitHub OIDC bootstrap predates the package revision', async () => {
+    const checks = await runDoctor(
+      {
+        parametersPath: await parameterFile(),
+        region: 'us-east-1',
+        githubOidcStackPath: await stackFile([
+          { OutputKey: 'BootstrapContractVersion', OutputValue: '2' },
+        ]),
+      },
+      dependencies(),
+    )
+    expect(checks.find(({ name }) => name === 'Bootstrap template')).toMatchObject({
+      ok: true,
+      warning: true,
+    })
+    expect(checks.find(({ name }) => name === 'Bootstrap template')?.detail).toContain(
+      'rerun the GitHub OIDC bootstrap review',
+    )
   })
 
   it('aggregates missing tools, expired credentials, and malformed parameters', async () => {

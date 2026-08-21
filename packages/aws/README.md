@@ -8,6 +8,11 @@ It does not create a public endpoint, choose an authentication policy, create a 
 secret value, or own consumer AWS infrastructure. You provide the protected gateway and complete the
 administrator-owned bootstrap process first.
 
+For a deployment workflow that verifies a consumer-owned gateway stack, configure
+`--consumer-gateway-stack gateway-stack-name` during `bootstrap init`. The GitHub OIDC v2 role then
+gets only `cloudformation:DescribeStacks` for that exact stack; the package still does not create,
+invoke, or authenticate the gateway.
+
 ## Prerequisites
 
 You need Node.js 22+, npm, the AWS CLI, `jq`, and one AWS Region for the artifact bucket, Lambda,
@@ -69,6 +74,11 @@ npm exec -- ze-great-dashboard-aws doctor \
   --region us-east-1
 ```
 
+If you retain a captured GitHub OIDC stack, add `--github-oidc-stack-json
+github-oidc-deployed-stack.json` to have the doctor warn when the installed package contains a
+newer bootstrap template revision. The warning is advisory and does not make the application
+deployment perform bootstrap changes.
+
 Package the release. This validates the board and writes `lambda.zip`, `release.json`, and
 `template.yml` to the output directory:
 
@@ -116,6 +126,12 @@ does not grant public Lambda invoke permission.
 
 To upgrade, install a newer exact package version and repeat package, upload, and deploy. A change to
 `board.yaml` follows the same path; it does not require a package change.
+
+After upgrading, also check the [bootstrap upgrade guidance](https://github.com/robertfmurdock/ze-great-dashboard/blob/main/docs/aws-bootstrap.md#check-the-bootstrap-template-on-package-upgrades).
+Compatible releases may add optional bootstrap capabilities without changing the contract version.
+If your workflow verifies a consumer-owned gateway stack, add `githubOidc.consumerGatewayStackName`
+to the reviewed manifest and update the GitHub OIDC stack; other consumers do not need to rerun
+bootstrap.
 
 Tokens belong in runtime secret handling, never in board YAML, `aws-dashboard-parameters.json`, or
 the generated ZIP. See [runtime secrets](https://github.com/robertfmurdock/ze-great-dashboard/blob/main/docs/aws-setup.md#runtime-secrets)

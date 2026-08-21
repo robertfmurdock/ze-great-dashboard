@@ -117,6 +117,10 @@ function bootstrapValues(
     GitHubOwnerId: option('--github-owner-id', config.githubOidc?.ownerId),
     GitHubRepositoryId: option('--github-repository-id', config.githubOidc?.repositoryId),
     GitHubEnvironment: option('--github-environment', config.githubOidc?.environment),
+    ConsumerGatewayStackName: option(
+      '--consumer-gateway-stack',
+      config.githubOidc?.consumerGatewayStackName,
+    ),
     CloudFormationExecutionRoleArn: option(
       '--execution-role-arn',
       coreOutputs.CloudFormationExecutionRoleArn,
@@ -195,7 +199,11 @@ try {
       option('--region', process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? 'us-east-1') ??
       'us-east-1'
     const checks = await runDoctor(
-      { parametersPath, region },
+      {
+        parametersPath,
+        region,
+        githubOidcStackPath: option('--github-oidc-stack-json'),
+      },
       {
         async execute(command, commandArgs) {
           const { execFile } = await import('node:child_process')
@@ -210,7 +218,9 @@ try {
       },
     )
     for (const check of checks)
-      console.log(`${check.ok ? 'PASS' : 'FAIL'} ${check.name}: ${check.detail}`)
+      console.log(
+        `${check.warning ? 'WARN' : check.ok ? 'PASS' : 'FAIL'} ${check.name}: ${check.detail}`,
+      )
     if (checks.some(({ ok }) => !ok)) process.exitCode = 1
   } else if (args[0] === 'parameters') {
     const output =
@@ -295,6 +305,7 @@ try {
         accountId: option('--account-id'),
         ownerId: option('--github-owner-id'),
         repositoryId: option('--github-repository-id'),
+        consumerGatewayStackName: option('--consumer-gateway-stack'),
         runner,
       })
       await writeFile(output, `${JSON.stringify(manifest, null, 2)}\n`, { flag: 'wx' })
@@ -423,6 +434,17 @@ try {
             JSON.parse(await readFile(deployedStackPath, 'utf8')),
             bootstrapContractVersion(await bootstrapTemplate(kind)),
           )
+          if (
+            kind === 'github-oidc' &&
+            !(stack.Parameters ?? []).some(
+              ({ ParameterKey }) => ParameterKey === 'ConsumerGatewayStackName',
+            )
+          )
+            console.error(
+              option('--consumer-gateway-stack', config.githubOidc?.consumerGatewayStackName)
+                ? 'NOTICE: this GitHub OIDC stack predates optional consumer gateway-stack reads; the generated parameters will add the configured gateway stack. Review and execute the GitHub OIDC UPDATE change set.'
+                : 'NOTICE: this GitHub OIDC stack predates optional consumer gateway-stack reads. If your workflow verifies a consumer-owned gateway stack, configure githubOidc.consumerGatewayStackName before reviewing the UPDATE change set; otherwise no bootstrap change is needed.',
+            )
           parameters = mergeBootstrapParameters(supplied, stack.Parameters ?? [])
         }
         await writeFile(output, `${JSON.stringify(parameters, null, 2)}\n`)

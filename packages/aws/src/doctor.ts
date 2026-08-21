@@ -2,11 +2,11 @@ import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { parse } from 'yaml'
-import { cloudFormationTemplate } from './index.ts'
+import { bootstrapTemplate, bootstrapTemplateRevision, cloudFormationTemplate } from './index.ts'
 
 const run = promisify(execFile)
 
-export type DoctorCheck = { name: string; ok: boolean; detail: string }
+export type DoctorCheck = { name: string; ok: boolean; detail: string; warning?: boolean }
 export type DoctorDependencies = {
   execute(command: string, args: string[]): Promise<string>
   fetch(url: string): Promise<{ ok: boolean; status: number }>
@@ -86,7 +86,7 @@ function failureDetail(error: unknown): string {
 }
 
 export async function runDoctor(
-  options: { parametersPath: string; region: string },
+  options: { parametersPath: string; region: string; githubOidcStackPath?: string },
   dependencies: DoctorDependencies = actualDependencies,
 ): Promise<DoctorCheck[]> {
   const checks: DoctorCheck[] = []
@@ -172,5 +172,33 @@ export async function runDoctor(
     if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`)
     return `${url} returned HTTP ${response.status}`
   })
+  if (options.githubOidcStackPath) {
+    const stackPath = options.githubOidcStackPath
+    const template = await bootstrapTemplate('github-oidc')
+    const expectedRevision = bootstrapTemplateRevision(template)
+    await check('Bootstrap template', async () => {
+      const raw = JSON.parse(await readFile(stackPath, 'utf8')) as unknown
+      const stack =
+        raw && typeof raw === 'object' && 'Stacks' in raw
+          ? (raw as { Stacks?: unknown[] }).Stacks?.[0]
+          : raw
+      if (!stack || typeof stack !== 'object')
+        throw new Error('captured stack JSON contains no stack')
+      const actualRevision = (
+        (stack as { Outputs?: { OutputKey: string; OutputValue?: string }[] }).Outputs ?? []
+      ).find(({ OutputKey }) => OutputKey === 'BootstrapTemplateRevision')?.OutputValue
+      if (actualRevision !== expectedRevision)
+        throw new Error(
+          `captured bootstrap revision is ${actualRevision ?? 'older or missing'}; current package is ${expectedRevision}; rerun the GitHub OIDC bootstrap review before deploying`,
+        )
+      return `GitHub OIDC bootstrap revision ${expectedRevision} is current`
+    })
+    const checkResult = checks.at(-1)
+    if (checkResult && !checkResult.ok) {
+      checkResult.ok = true
+      checkResult.warning = true
+      checkResult.detail = `WARNING: ${checkResult.detail}`
+    }
+  }
   return checks
 }

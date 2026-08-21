@@ -12,6 +12,7 @@ export {
   bootstrapContractVersion,
   bootstrapTemplate,
   bootstrapTemplatePath,
+  bootstrapTemplateRevision,
   type CloudFormationParameterValue,
   coreBootstrapOutputs,
   type DeployedBootstrapStack,

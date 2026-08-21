@@ -70,6 +70,10 @@ npx ze-great-dashboard-aws doctor \
   --region us-east-1
 ```
 
+If the deployment repository retains `github-oidc-deployed-stack.json`, also pass
+`--github-oidc-stack-json github-oidc-deployed-stack.json`. The doctor will warn when the installed
+package contains a newer bootstrap template revision and the GitHub OIDC stack should be reviewed.
+
 `--parameters` defaults to `aws-dashboard-parameters.json`. `--region` defaults to `AWS_REGION`,
 then `AWS_DEFAULT_REGION`, then `us-east-1`. The doctor only makes read requests.
 

@@ -303,6 +303,7 @@ export async function bootstrapHandoff(input: {
       GitHubOwnerId: input.config.githubOidc?.ownerId,
       GitHubRepositoryId: input.config.githubOidc?.repositoryId,
       GitHubEnvironment: input.config.githubOidc?.environment,
+      ConsumerGatewayStackName: input.config.githubOidc?.consumerGatewayStackName,
       ...coreBootstrapOutputs(core),
     })
     const templatePath = await bootstrapTemplatePath('github-oidc')
@@ -311,7 +312,11 @@ export async function bootstrapHandoff(input: {
       expectedContracts,
       templatePath,
       parameterPath: 'github-oidc-bootstrap.json',
-      expectedOutputs: ['BootstrapContractVersion', 'GitHubDeployRoleArn'],
+      expectedOutputs: [
+        'BootstrapContractVersion',
+        'BootstrapTemplateRevision',
+        'GitHubDeployRoleArn',
+      ],
       requiredCapturedFiles: [coreCapturePath],
       reviewCheckpoints: [
         'Review the exact immutable GitHub OIDC subject, audience, bucket lambda/* prefix, application stack, and execution role.',
@@ -427,8 +432,13 @@ export async function verifyBootstrap(input: {
     ApplicationStackName: coreOutputs.ApplicationStackName,
     ArtifactBucketName: coreOutputs.ArtifactBucketName,
     CloudFormationExecutionRoleArn: executionRole,
+    ConsumerGatewayStackName: github?.consumerGatewayStackName ?? '',
   }))
-    assertEqual(oidcParameters[key], value, `OIDC ${key}`)
+    assertEqual(
+      key === 'ConsumerGatewayStackName' ? (oidcParameters[key] ?? '') : oidcParameters[key],
+      value,
+      `OIDC ${key}`,
+    )
   if (!/^\d+$/.test(github?.ownerId ?? '') || !/^\d+$/.test(github?.repositoryId ?? ''))
     throw new Error('GitHub immutable owner and repository IDs must be numeric')
   const [owner, repository, ...extra] = (github?.repository ?? '').split('/')

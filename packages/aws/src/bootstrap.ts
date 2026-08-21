@@ -30,6 +30,7 @@ export type BootstrapConfig = {
     ownerId?: string
     repositoryId?: string
     environment?: string
+    consumerGatewayStackName?: string
   }
 }
 
@@ -51,6 +52,12 @@ export function bootstrapContractVersion(template: string): string {
   const version = template.match(/BootstrapContractVersion:\s*\{\s*Value:\s*'([^']+)'\s*}/)?.[1]
   if (!version) throw new Error('Bootstrap template has no BootstrapContractVersion output')
   return version
+}
+
+export function bootstrapTemplateRevision(template: string): string {
+  const revision = template.match(/BootstrapTemplateRevision:\s*\{\s*Value:\s*'([^']+)'\s*}/)?.[1]
+  if (!revision) throw new Error('Bootstrap template has no BootstrapTemplateRevision output')
+  return revision
 }
 
 /** Merges a new parameter set with deployed values without silently dropping configuration. */
@@ -131,7 +138,8 @@ export function requiredBootstrapParameters(
         ]
   const missing = keys.filter((key) => !values[key])
   if (missing.length) throw new Error(`Missing required bootstrap values: ${missing.join(', ')}`)
-  const optional = kind === 'core' ? ['RuntimeSecretArn', 'ArtifactKmsKeyArn'] : []
+  const optional =
+    kind === 'core' ? ['RuntimeSecretArn', 'ArtifactKmsKeyArn'] : ['ConsumerGatewayStackName']
   return [...keys, ...optional]
     .filter((key) => values[key] !== undefined)
     .map((ParameterKey) => ({ ParameterKey, ParameterValue: values[ParameterKey] ?? '' }))
