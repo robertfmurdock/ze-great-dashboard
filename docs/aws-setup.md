@@ -18,6 +18,26 @@ You need:
 - One AWS Region for the artifact bucket, Lambda function, and CloudFormation stack.
 - `jq` for reading the generated release metadata.
 
+Routine deployment credentials are intentionally not the identity that creates Lambda, IAM, or log
+resources. Capture the deployed core bootstrap stack output first, then extract its restricted
+CloudFormation execution role. Keep this JSON with the deployment configuration and refresh it only
+after an administrator-reviewed core bootstrap change:
+
+```sh
+aws cloudformation describe-stacks \
+  --stack-name "$(jq -r .core.stackName dashboard-bootstrap.json)" \
+  --region "$(jq -r .region dashboard-bootstrap.json)" \
+  --no-cli-pager > core-deployed-stack.json
+
+CLOUDFORMATION_EXECUTION_ROLE_ARN="$(jq -er \
+  '.Stacks[0].Outputs[] | select(.OutputKey == "CloudFormationExecutionRoleArn") | .OutputValue' \
+  core-deployed-stack.json)"
+```
+
+The core output is the contract boundary: do not substitute a caller's ambient role or infer a more
+powerful role name. The GitHub OIDC deploy role may upload the artifact and pass this exact role to
+CloudFormation, but it cannot use the role directly.
+
 Check the local tools and credentials before continuing:
 
 ```sh
@@ -130,8 +150,9 @@ Deploy with the AWS CLI:
 aws cloudformation deploy \
   --stack-name "$STACK_NAME" \
   --template-file aws-dashboard-release/template.yml \
+  --role-arn "$CLOUDFORMATION_EXECUTION_ROLE_ARN" \
   --region "$AWS_REGION" \
-  --capabilities CAPABILITY_IAM \
+  --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides file://aws-dashboard-parameters.json \
   --no-fail-on-empty-changeset
 ```
@@ -181,8 +202,9 @@ aws s3 cp aws-dashboard-release/lambda.zip \
 aws cloudformation deploy \
   --stack-name "$STACK_NAME" \
   --template-file aws-dashboard-release/template.yml \
+  --role-arn "$CLOUDFORMATION_EXECUTION_ROLE_ARN" \
   --region "$AWS_REGION" \
-  --capabilities CAPABILITY_IAM \
+  --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides file://aws-dashboard-parameters.json \
   --no-fail-on-empty-changeset
 ```
@@ -193,9 +215,10 @@ required.
 ## GitHub Actions
 
 Before adding the workflow, check in `package.json`, its lockfile, `board.yaml`, and
-`aws-dashboard-parameters.json`. Create an AWS IAM role that trusts this repository through GitHub
-OIDC and can upload to the artifact bucket and deploy the stack. Replace the Region, stack name,
-and role ARN below.
+`aws-dashboard-parameters.json`. Have an administrator create the GitHub OIDC adapter from the
+captured core output in the [bootstrap guide](aws-bootstrap.md). Its generated deploy role trusts
+the protected Environment, can upload to the artifact bucket, can operate one stack, and can pass
+only the core execution role. Replace the Region, stack name, and captured role ARNs below.
 
 This workflow packages, uploads, and deploys the private Lambda. Add a gateway-specific health check
 only where the protected gateway is available to the runner:
@@ -216,6 +239,7 @@ env:
   AWS_REGION: us-east-1
   STACK_NAME: my-ze-great-dashboard
   AWS_DEPLOY_ROLE_ARN: arn:aws:iam::123456789012:role/my-dashboard-github-actions
+  CLOUDFORMATION_EXECUTION_ROLE_ARN: arn:aws:iam::123456789012:role/my-ze-great-dashboard-execution
 
 jobs:
   deploy:
@@ -250,8 +274,9 @@ jobs:
           aws cloudformation deploy \
             --stack-name "$STACK_NAME" \
             --template-file aws-dashboard-release/template.yml \
+            --role-arn "$CLOUDFORMATION_EXECUTION_ROLE_ARN" \
             --region "$AWS_REGION" \
-            --capabilities CAPABILITY_IAM \
+            --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides file://aws-dashboard-parameters.json \
             --no-fail-on-empty-changeset
 ```

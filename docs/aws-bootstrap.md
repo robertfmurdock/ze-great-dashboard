@@ -109,6 +109,38 @@ Wait and inspect as above. Verify the exact provider ARN, `repo:owner/repository
 subject, `sts.amazonaws.com` audience, one bucket’s `lambda/*` prefix, one application stack, and
 only the core execution role before executing the adapter change set.
 
+## Validation manifest and protected GitHub Environment
+
+The repository includes [`reference/consumer-bootstrap-validation.json`](../reference/consumer-bootstrap-validation.json)
+for the account-`174159267544` validation. It has fixed, separately named bootstrap and application
+stacks, an artifact bucket, and the source-free reference function. It contains no credential.
+
+Before creating either stack, a GitHub administrator must create the
+`consumer-bootstrap-validation` Environment in `robertfmurdock/ze-great-dashboard`, limit it to
+the `main` branch, and require an administrator reviewer. Environment protection is configured in
+GitHub, not in workflow YAML; the workflow only names the Environment so its approval gate applies
+before AWS credentials are requested.
+
+Use that manifest for the core change set. After an administrator has inspected and executed it,
+capture `describe-stacks` as `core-deployed-stack.json`. Generate the OIDC adapter parameters from
+that captured file exactly as in the preceding section, inspect the resulting change set, and only
+then execute it.
+
+Set these two Environment variables from the reviewed stack outputs (they are ARNs, not secrets):
+
+- `AWS_DEPLOY_ROLE_ARN`: `GitHubDeployRoleArn` from the GitHub OIDC adapter stack.
+- `AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN`: `CloudFormationExecutionRoleArn` from the captured core
+  stack output.
+
+The `Consumer bootstrap validation` workflow is intentionally `workflow_dispatch` only and targets
+this Environment. Dispatch it with the exact version that the release job published; it installs
+that version in an isolated directory and verifies the installed package version before doing any
+AWS work. It packages `reference/board.yaml`, which has no source or credential, uploads only its
+`lambda/*` artifact, and deploys only the validation application stack with the captured execution
+role. A successful upload and `CREATE_COMPLETE` application stack are the end-to-end acceptance
+test. Do not add a Function URL, public Lambda invocation, or runtime smoke test here; gateway
+access remains consumer-owned.
+
 ## Upgrades and recovery
 
 Install the target exact package version, then capture deployed state and verify its contract version:

@@ -50,13 +50,22 @@ The full procedure, review criteria, recovery guidance, and upgrade flow are doc
 - `npm pack --dry-run` confirmed that the bootstrap templates and consumer manifest example are
   included in `@continuous-excellence/ze-great-dashboard-aws`.
 
-## Known next steps
+## Validation preparation — 2026-08-21
 
-No bootstrap stack has been applied to a real AWS account yet. The first administrator-reviewed
-change set should validate CloudFormation/IAM service behavior and feed any findings back into the
-runbook and tests.
+The consumer deployment guide and GitHub Actions example now extract
+`CloudFormationExecutionRoleArn` from the administrator-captured core `describe-stacks` JSON and
+pass it as CloudFormation's explicit `--role-arn`. The generated GitHub deploy role remains the
+caller identity; it can upload the artifact and pass only that restricted execution role.
 
-Routine application deployment should consume the captured core execution-role ARN explicitly via
-CloudFormation's `--role-arn`. That completes the handoff from the bootstrap security boundary to
-the normal consumer deployment command and prevents an operator from accidentally deploying with a
-different execution identity.
+Added `reference/consumer-bootstrap-validation.json` and the manually dispatched
+`consumer-bootstrap-validation` workflow for account `174159267544`. The workflow requires the
+protected GitHub Environment and its reviewed stack-output ARNs before it requests AWS credentials.
+It installs and verifies the exact published AWS package version before deploying the existing
+source-free reference board, and deliberately has no public invocation or gateway smoke test.
+
+## Real-account validation remains administrator-owned
+
+No validation stack has been applied from this repository session. An AWS administrator must create,
+inspect, and execute both change sets, capture the core output, configure the protected Environment
+variables from the reviewed outputs, and dispatch the validation workflow. Record the observed
+CloudFormation/IAM behavior and any required service-policy adjustment here before closing issue #1.

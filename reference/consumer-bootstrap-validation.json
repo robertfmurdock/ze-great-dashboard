@@ -1,0 +1,15 @@
+{
+  "region": "us-east-1",
+  "core": {
+    "stackName": "ze-great-dashboard-consumer-validation-bootstrap",
+    "artifactBucketName": "ze-great-dashboard-consumer-validation-artifacts-174159267544",
+    "applicationStackName": "ze-great-dashboard-consumer-validation",
+    "dashboardFunctionName": "ze-great-dashboard-consumer-validation"
+  },
+  "githubOidc": {
+    "stackName": "ze-great-dashboard-consumer-validation-github-bootstrap",
+    "providerArn": "arn:aws:iam::174159267544:oidc-provider/token.actions.githubusercontent.com",
+    "repository": "robertfmurdock/ze-great-dashboard",
+    "environment": "consumer-bootstrap-validation"
+  }
+}

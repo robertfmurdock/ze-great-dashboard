@@ -1,0 +1,75 @@
+name: Consumer bootstrap validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_package_version:
+        description: Exact published @continuous-excellence/ze-great-dashboard-aws version to validate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: consumer-bootstrap-validation
+
+jobs:
+  validate:
+    name: Deploy the isolated consumer reference
+    runs-on: ubuntu-latest
+    environment: consumer-bootstrap-validation
+    env:
+      AWS_REGION: us-east-1
+      STACK_NAME: ze-great-dashboard-consumer-validation
+      AWS_PACKAGE_VERSION: ${{ inputs.aws_package_version }}
+      AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      CLOUDFORMATION_EXECUTION_ROLE_ARN: ${{ vars.AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install the exact published AWS interface
+        run: |
+          npm install --prefix .consumer-bootstrap-validation --ignore-scripts --save-exact \
+            "@continuous-excellence/ze-great-dashboard-aws@${AWS_PACKAGE_VERSION}"
+          installed_version="$(node -p \
+            \"require('./.consumer-bootstrap-validation/node_modules/@continuous-excellence/ze-great-dashboard-aws/package.json').version\")"
+          test "$installed_version" = "$AWS_PACKAGE_VERSION"
+      - name: Require reviewed bootstrap outputs
+        run: |
+          test -n "$AWS_DEPLOY_ROLE_ARN"
+          test -n "$CLOUDFORMATION_EXECUTION_ROLE_ARN"
+      - name: Assume the generated GitHub deploy role
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Package and deploy the source-free reference board
+        run: |
+          validation_cli=.consumer-bootstrap-validation/node_modules/.bin/ze-great-dashboard-aws
+          "$validation_cli" parameters \
+            --bootstrap-config reference/consumer-bootstrap-validation.json \
+            --output aws-dashboard-parameters.json
+          "$validation_cli" package \
+            --board-config reference/board.yaml \
+            --output aws-dashboard-release
+          artifact_bucket="$(jq -er \
+            '.[] | select(.ParameterKey == "LambdaArtifactBucket") | .ParameterValue' \
+            aws-dashboard-parameters.json)"
+          artifact_key="$(jq -er '.artifactKey' aws-dashboard-release/release.json)"
+          aws s3 cp aws-dashboard-release/lambda.zip \
+            "s3://${artifact_bucket}/${artifact_key}" \
+            --region "$AWS_REGION"
+          aws cloudformation deploy \
+            --stack-name "$STACK_NAME" \
+            --template-file aws-dashboard-release/template.yml \
+            --role-arn "$CLOUDFORMATION_EXECUTION_ROLE_ARN" \
+            --region "$AWS_REGION" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides file://aws-dashboard-parameters.json \
+            --no-fail-on-empty-changeset \
+            --no-cli-pager
