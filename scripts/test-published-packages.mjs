@@ -33,6 +33,10 @@ try {
   const manifest = JSON.parse(await readFile(join(stagingRoot, 'aws', 'package.json'), 'utf8'))
   assert.equal(manifest.license, 'MIT')
   assert.match(await readFile(join(stagingRoot, 'aws', 'LICENSE'), 'utf8'), /MIT License/)
+  assert.match(
+    await readFile(join(stagingRoot, 'aws', 'bootstrap', 'core-v1.yml'), 'utf8'),
+    /BootstrapContractVersion/,
+  )
   assert.equal(
     await readFile(join(stagingRoot, 'aws', 'README.md'), 'utf8'),
     await readFile(join(root, 'README.md'), 'utf8'),
@@ -64,6 +68,18 @@ try {
     const parametersPath = join(artifactRoot, 'aws-dashboard-parameters.json')
     const releasePath = join(artifactRoot, 'release')
     const cli = join(stagingRoot, 'aws', 'dist', 'cli.js')
+    const bootstrapTemplate = execFileSync(
+      process.execPath,
+      [cli, 'bootstrap', 'template', '--kind', 'core'],
+      {
+        cwd: root,
+        encoding: 'utf8',
+      },
+    )
+    assert.equal(
+      JSON.parse(bootstrapTemplate).template,
+      join(stagingRoot, 'aws', 'bootstrap', 'core-v1.yml'),
+    )
     execFileSync(
       process.execPath,
       [cli, 'parameters', '--artifact-bucket', 'consumer-artifacts', '--output', parametersPath],

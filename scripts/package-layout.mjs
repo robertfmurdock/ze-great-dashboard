@@ -2,7 +2,7 @@ export const packageLayout = [
   {
     id: 'aws',
     directory: 'packages/aws',
-    publishFiles: ['dist', 'client', 'template.yml'],
+    publishFiles: ['dist', 'client', 'bootstrap', 'template.yml'],
   },
 ]
 

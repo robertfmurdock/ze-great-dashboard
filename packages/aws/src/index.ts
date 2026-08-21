@@ -18,7 +18,7 @@ export {
   deployedBootstrapStack,
   mergeBootstrapParameters,
   requiredBootstrapParameters,
-} from './bootstrap.ts'
+} from './bootstrap.js'
 
 const run = promisify(execFile)
 
