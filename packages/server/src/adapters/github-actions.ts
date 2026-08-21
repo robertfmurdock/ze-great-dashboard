@@ -22,6 +22,8 @@ const runSchema = z.object({
   conclusion: z.string().nullable(),
   name: z.string().min(1),
   html_url: z.url(),
+  run_started_at: z.iso.datetime().nullable().optional(),
+  updated_at: z.iso.datetime().optional(),
 })
 
 const runsSchema = z.object({ workflow_runs: z.array(runSchema) })
@@ -116,6 +118,7 @@ export async function fetchGithubActionsPipeline(args: {
       rawStatus: run.conclusion ?? run.status,
       name: run.name,
       branch: parsedSource.branch,
+      ...(run.status === 'completed' ? completedRunDuration(run) : {}),
     }
     const envelope: Envelope = {
       panelId: args.panel.id,
@@ -141,6 +144,12 @@ export async function fetchGithubActionsPipeline(args: {
       ),
     }
   }
+}
+
+function completedRunDuration(run: z.infer<typeof runSchema>): Pick<PipelineStatus, 'durationMs'> {
+  if (!run.run_started_at || !run.updated_at) return {}
+  const durationMs = new Date(run.updated_at).valueOf() - new Date(run.run_started_at).valueOf()
+  return Number.isFinite(durationMs) && durationMs >= 0 ? { durationMs } : {}
 }
 
 function normalizeStatus(status: string, conclusion: string | null): PipelineStatus['status'] {

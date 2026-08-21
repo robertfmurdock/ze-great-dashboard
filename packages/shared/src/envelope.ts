@@ -68,6 +68,8 @@ export const pipelineStatusSchema = z.object({
   name: z.string().min(1),
   /** The branch represented by this status, when the upstream supplies or filters by one. */
   branch: z.string().min(1).optional(),
+  /** Elapsed execution time, supplied only after the upstream run has completed. */
+  durationMs: z.number().int().nonnegative().optional(),
 })
 
 export type PipelineStatus = z.infer<typeof pipelineStatusSchema>

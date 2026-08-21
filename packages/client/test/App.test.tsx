@@ -67,7 +67,11 @@ describe('when configuration never arrived', () => {
 })
 
 describe('pipeline-status refresh scheduling', () => {
-  const okEnvelope = (panelId: string, status: 'passed' | 'failed') =>
+  const okEnvelope = (
+    panelId: string,
+    status: 'passed' | 'failed' | 'running',
+    durationMs?: number,
+  ) =>
     JSON.stringify({
       panelId,
       state: 'ok',
@@ -79,6 +83,7 @@ describe('pipeline-status refresh scheduling', () => {
         rawStatus: status,
         name: panelId,
         branch: 'main',
+        ...(durationMs === undefined ? {} : { durationMs }),
       },
     })
 
@@ -121,6 +126,33 @@ describe('pipeline-status refresh scheduling', () => {
 
     expect(requests.filter((url) => url.includes('/panel/'))).toHaveLength(2)
     expect(requests.some((url) => url.endsWith('/note'))).toBe(false)
+  })
+
+  it('shows a brief duration for completed runs only', async () => {
+    const { requests } = setup(
+      { panels: [{ id: 'build', type: 'pipeline-status' }] },
+      {
+        build: [new Response(okEnvelope('build', 'passed', 134_000))],
+      },
+    )
+
+    const rendered = render(<App env={env} />)
+    await settle()
+
+    expect(requests.some((url) => url.endsWith('/build'))).toBe(true)
+    expect(rendered.textContent).toContain('Took 2m 14s')
+  })
+
+  it('does not show duration while a run is in progress', async () => {
+    setup(
+      { panels: [{ id: 'build', type: 'pipeline-status' }] },
+      { build: [new Response(okEnvelope('build', 'running', 134_000))] },
+    )
+
+    const rendered = render(<App env={env} />)
+    await settle()
+
+    expect(rendered.textContent).not.toContain('Took')
   })
 
   it('uses panel refresh before the board refresh', async () => {

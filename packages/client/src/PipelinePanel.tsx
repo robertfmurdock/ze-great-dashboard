@@ -53,6 +53,9 @@ export function PipelinePanel({ panel, data }: { panel: Panel; data: Envelope | 
           </span>
         )}
       </p>
+      {signal.data.status !== 'running' && signal.data.durationMs !== undefined && (
+        <p className="panel__hint">Took {formatDuration(signal.data.durationMs)}</p>
+      )}
       <ObservedAt value={data.observedAt} />
     </>
   )
@@ -68,6 +71,17 @@ export function PipelinePanel({ panel, data }: { panel: Panel; data: Envelope | 
       )}
     </section>
   )
+}
+
+function formatDuration(durationMs: number) {
+  const totalSeconds = Math.floor(durationMs / 1_000)
+  const hours = Math.floor(totalSeconds / 3_600)
+  const minutes = Math.floor((totalSeconds % 3_600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0) return `${hours}h ${minutes}m`
+  if (minutes > 0) return `${minutes}m ${seconds}s`
+  return `${seconds}s`
 }
 
 function statusPresentation(status: 'passed' | 'failed' | 'running' | 'cancelled' | 'unknown') {

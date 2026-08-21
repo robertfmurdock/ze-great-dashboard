@@ -34,11 +34,11 @@ function upstream(
 
 describe('the GitHub Actions adapter', () => {
   it.each([
-    ['success', 'passed'],
-    ['failure', 'failed'],
-    ['in-progress', 'running'],
-    ['cancelled', 'cancelled'],
-  ])('normalizes the recorded %s run as %s', async (name, expected) => {
+    ['success', 'passed', 134_000],
+    ['failure', 'failed', 53_000],
+    ['in-progress', 'running', undefined],
+    ['cancelled', 'cancelled', 550_000],
+  ])('normalizes the recorded %s run as %s', async (name, expected, durationMs) => {
     const result = await fetchGithubActionsPipeline({
       panel,
       source,
@@ -50,7 +50,11 @@ describe('the GitHub Actions adapter', () => {
       panelId: 'web-build',
       state: 'ok',
       observedAt: '2026-08-17T14:32:05.000Z',
-      signal: { type: 'pipeline-status', status: expected },
+      signal: {
+        type: 'pipeline-status',
+        status: expected,
+        ...(durationMs === undefined ? {} : { durationMs }),
+      },
     })
   })
 
