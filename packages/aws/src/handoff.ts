@@ -7,7 +7,7 @@ import {
   type DeployedBootstrapStack,
   deployedBootstrapStack,
   requiredBootstrapParameters,
-} from './bootstrap.ts'
+} from './bootstrap.js'
 
 export type BootstrapPhase = 'core' | 'github-oidc' | 'github-environment' | 'application-gateway'
 export type CommandRunner = { execute(command: string, args: string[]): Promise<string> }

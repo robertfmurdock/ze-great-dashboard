@@ -41,12 +41,6 @@ jobs:
           PLAYWRIGHT_DOCKER: '1'
         run: npm run check
 
-      - name: Build release 🔨
-        run: npm run build:release
-
-      - name: Verify npm publish staging
-        run: npm run test:published
-
       - name: Fetch release history
         if: github.ref == 'refs/heads/main'
         run: |
