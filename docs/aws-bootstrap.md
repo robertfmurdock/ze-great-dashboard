@@ -17,9 +17,10 @@ contract. Do not rename them in compatible upgrades.
 - Confirm account, Region, partition, and the pre-existing central GitHub OIDC provider ARN.
 - Choose a globally unique artifact bucket name and a stable application stack name. Changing either
   is a migration, not an in-place upgrade.
-- For GitHub, first create the protected Environment, required reviewers, and branch policy. The
-  template trusts that environment rather than a branch ref, and binds the trust to GitHub's immutable
-  numeric owner and repository IDs as well as their human-readable names.
+- For GitHub, first create the Environment and branch policy. The template trusts that environment
+  rather than a branch ref, and binds the trust to GitHub's immutable numeric owner and repository
+  IDs as well as their human-readable names. Whether reviewers are required is a deployment choice;
+  the validation Environment below is deliberately unreviewed so it can operate as a release gate.
 
 The package never runs AWS CLI commands for bootstrap work. It validates inputs and emits template
 locations, parameter files, and structured command arguments; administrators invoke AWS explicitly.
@@ -125,7 +126,7 @@ output, create an `UPDATE` change set using the v2 template, and confirm that on
 policy and `BootstrapContractVersion` change. Do not pass v1 deployed JSON to the parameter-merging
 command; the contract mismatch is the guard that makes this migration explicit.
 
-## Validation manifest and protected GitHub Environment
+## Validation manifest and GitHub Environment
 
 The repository includes [`reference/consumer-bootstrap-validation.json`](../reference/consumer-bootstrap-validation.json)
 for the account-`174159267544` validation. It has fixed, separately named bootstrap and application
@@ -133,9 +134,10 @@ stacks, an artifact bucket, and the source-free reference function. It contains 
 
 Before creating either stack, a GitHub administrator must create the
 `consumer-bootstrap-validation` Environment in `robertfmurdock/ze-great-dashboard`, limit it to
-the `main` branch, and require an administrator reviewer. Environment protection is configured in
-GitHub, not in workflow YAML; the workflow only names the Environment so its approval gate applies
-before AWS credentials are requested.
+the `main` branch, and leave required reviewers disabled. This unreviewed Environment is still the
+OIDC trust boundary and holds the two deployment-role ARNs. Environment configuration is in GitHub,
+not workflow YAML; the workflow names the Environment so only a `main` release can receive those
+Environment-scoped values before it requests AWS credentials.
 
 Use that manifest for the core change set. After an administrator has inspected and executed it,
 capture `describe-stacks` as `core-deployed-stack.json`. Generate the OIDC adapter parameters from
@@ -151,14 +153,15 @@ Set these two Environment variables from the reviewed stack outputs (they are AR
 - `AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN`: `CloudFormationExecutionRoleArn` from the captured core
   stack output.
 
-The `Consumer bootstrap validation` workflow is intentionally `workflow_dispatch` only and targets
-this Environment. Dispatch it with the exact version that the release job published; it installs
-that version in an isolated directory and verifies the installed package version before doing any
-AWS work. It packages `reference/board.yaml`, which has no source or credential, uploads only its
-`lambda/*` artifact, and deploys only the validation application stack with the captured execution
-role. A successful upload and `CREATE_COMPLETE` application stack are the end-to-end acceptance
-test. Do not add a Function URL, public Lambda invocation, or runtime smoke test here; gateway
-access remains consumer-owned.
+Every `main` release automatically runs `Consumer bootstrap validation` before npm publication and
+release tagging. It downloads the exact local candidate tarball, installs it in an isolated
+directory, and verifies the installed version before doing any AWS work. It packages
+`reference/board.yaml`, which has no source or credential, uploads only its `lambda/*` artifact,
+and deploys only the validation application stack with the captured execution role. A successful
+upload and `CREATE_COMPLETE` application stack are the end-to-end acceptance test; a failure blocks
+npm publication and tagging. Candidate client assets may already be published at their immutable,
+versioned CDN path. Do not add a Function URL, public Lambda invocation, or runtime smoke test here;
+gateway access remains consumer-owned.
 
 ## Upgrades and recovery
 

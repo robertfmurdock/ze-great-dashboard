@@ -10,7 +10,7 @@ The AWS package now ships versioned, consumer-owned bootstrap templates:
   ownership, all S3 public-access blocks, TLS-only access, and SSE-S3 or an optional customer CMK.
   It creates a restricted CloudFormation execution role for one application stack, function, log
   group, runtime role, artifact prefix, and optional runtime secret.
-- `bootstrap/github-oidc-v1.yml` creates the GitHub Actions adapter role. It trusts an
+- `bootstrap/github-oidc-v2.yml` creates the GitHub Actions adapter role. It trusts an
   administrator-managed OIDC provider only for one repository, protected Environment, and
   `sts.amazonaws.com` audience, and is limited to one artifact prefix, stack, and execution role.
 - Both templates expose `BootstrapContractVersion: 1` and stable outputs. Bootstrap bucket and role
@@ -57,25 +57,41 @@ The consumer deployment guide and GitHub Actions example now extract
 pass it as CloudFormation's explicit `--role-arn`. The generated GitHub deploy role remains the
 caller identity; it can upload the artifact and pass only that restricted execution role.
 
-Added `reference/consumer-bootstrap-validation.json` and the manually dispatched
-`consumer-bootstrap-validation` workflow for account `174159267544`. The workflow requires the
-protected GitHub Environment and its reviewed stack-output ARNs before it requests AWS credentials.
-It installs and verifies the exact published AWS package version before deploying the existing
-source-free reference board, and deliberately has no public invocation or gateway smoke test.
+Added `reference/consumer-bootstrap-validation.json` for account `174159267544`. The validation
+Environment supplies the reviewed stack-output ARNs before the release gate requests AWS
+credentials. The gate installs and verifies the exact candidate AWS-package tarball before
+deploying the existing source-free reference board, and deliberately has no public invocation or
+gateway smoke test.
 
-## Real-account validation remains administrator-owned
+## Real-account validation — completed 2026-08-21
 
-No validation stack has been applied from this repository session. An AWS administrator must create,
-inspect, and execute both change sets, capture the core output, configure the protected Environment
-variables from the reviewed outputs, and dispatch the validation workflow. Record the observed
-CloudFormation/IAM behavior and any required service-policy adjustment here before closing issue #1.
+An administrator created the separately named validation core stack, captured its contract outputs,
+and created the GitHub OIDC adapter under the protected
+`consumer-bootstrap-validation` Environment. The validation resources are intentionally retained for
+inspection; no cleanup has been performed.
 
-### Observed OIDC migration — 2026-08-21
+### Observed OIDC migration
 
 The first protected validation dispatch installed the published package and reached
 `sts:AssumeRoleWithWebIdentity`, but AWS denied the request before any artifact or application-stack
 operation. The v1 adapter trusted GitHub's legacy mutable-name Environment subject; this repository
 uses GitHub's immutable owner/repository-ID subject. The corrective adapter is `github-oidc-v2.yml`:
 it adds immutable owner and repository IDs to the manifest and trust condition. The existing core
-stack remains valid. An administrator must review an `UPDATE` change set for only the GitHub OIDC
-adapter stack after the v2 package is published.
+stack remained valid. The administrator reviewed and applied an `UPDATE` change set for only the
+GitHub OIDC adapter stack; the generated deploy-role ARN remained the Environment variable value.
+
+The v2 package `@continuous-excellence/ze-great-dashboard-aws@0.1.31` was then dispatched through
+the protected Environment. The [validation workflow run 32507334638](https://github.com/robertfmurdock/ze-great-dashboard/actions/runs/32507334638)
+installed that exact package, assumed only the generated GitHub deploy role, packaged the source-free
+reference board, uploaded its Lambda artifact, and completed the validation application deployment.
+It performed no public Lambda invocation and created no Function URL. This satisfies the end-to-end
+consumer-bootstrap acceptance criteria; protected gateway/runtime smoke testing remains
+consumer-owned.
+
+## Pre-publication release gate — 2026-08-21
+
+Consumer bootstrap validation now runs automatically in the `main` release pipeline after the
+immutable candidate tarball and candidate client assets are produced, but before npm publication or
+release tagging. The `consumer-bootstrap-validation` Environment remains restricted to `main` and
+continues to scope the two reviewed ARN variables, but it has no required reviewer so the OIDC
+boundary can serve as an automatic gate. The standalone dispatch workflow was removed.

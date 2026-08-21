@@ -4,9 +4,11 @@ Use this runbook for the **core** half of the real-account validation only. It i
 explicit commands for an AWS administrator to run in AWS CloudShell; it is not an automation script.
 Pause after the review command and execute the change set only after you approve its contents.
 
-Before starting, the GitHub Environment `consumer-bootstrap-validation` must already be protected as
-described in [the bootstrap guide](aws-bootstrap.md). This step creates the retained validation bucket
-and the restricted CloudFormation execution role. It does not deploy the application or invoke Lambda.
+Before starting, the GitHub Environment `consumer-bootstrap-validation` must already be configured
+as the unreviewed OIDC boundary described in [the bootstrap guide](aws-bootstrap.md): restricted to
+`main`, with its deployment-role ARNs scoped to the Environment. This step creates the retained
+validation bucket and the restricted CloudFormation execution role. It does not deploy the
+application or invoke Lambda.
 
 ## 1. Prepare CloudShell
 
@@ -187,8 +189,40 @@ aws cloudformation describe-change-set \
   --region "$AWS_REGION"
 ```
 
-Approve only a change to the existing GitHub deploy role's trust policy and
-`BootstrapContractVersion` from `1` to `2`; do not approve role or resource replacement. Then:
+Use this compact review view to make the decision explicit:
+
+```sh
+aws cloudformation describe-change-set \
+  --stack-name "$GITHUB_STACK" \
+  --change-set-name github-oidc-v2-review \
+  --region "$AWS_REGION" \
+  --query 'Changes[].ResourceChange.{Action:Action,LogicalId:LogicalResourceId,Type:ResourceType,Replacement:Replacement}' \
+  --output table
+```
+
+It must show exactly one resource change:
+
+| Action | LogicalId | Type | Replacement |
+|---|---|---|---|
+| `Modify` | `GitHubDeployRole` | `AWS::IAM::Role` | `False` |
+
+If it shows `Add`, `Remove`, a second logical resource, or `Replacement` as `True` or
+`Conditional`, stop and do not execute the change set. The contract-version output does not appear
+as a resource row, so confirm the input template and generated parameters separately:
+
+```sh
+grep -F "BootstrapContractVersion: { Value: '2' }" "$GITHUB_TEMPLATE"
+grep -F 'repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:environment:${GitHubEnvironment}' "$GITHUB_TEMPLATE"
+
+jq -e '
+  (map(select(.ParameterKey == "GitHubOwnerId"))[0].ParameterValue == "6215634") and
+  (map(select(.ParameterKey == "GitHubRepositoryId"))[0].ParameterValue == "1338375095")
+' github-bootstrap.json
+```
+
+All three commands must succeed. This proves that the reviewed input changes the existing role's
+OIDC trust to the immutable subject and advances the contract output from `1` to `2`, without
+granting any additional deployment permission. Only then execute the change set:
 
 ```sh
 aws cloudformation execute-change-set \
@@ -211,6 +245,7 @@ jq -r '.Stacks[0].Outputs[] | select(
 ) | "\(.OutputKey)=\(.OutputValue)"' github-oidc-deployed-stack.json
 ```
 
-The role ARN should remain the value already stored in the GitHub Environment. Dispatch the
-validation workflow again with the exact v2 package version. It should now assume the generated
-role; a successful artifact upload and application stack completion are the acceptance test.
+The role ARN should remain the value already stored in the GitHub Environment. The next `main`
+release automatically validates its candidate with the repaired adapter. It should assume the
+generated role; a successful artifact upload and application stack completion are the acceptance
+test.
