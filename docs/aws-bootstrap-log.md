@@ -104,3 +104,17 @@ completed `Build and check`, `Validate consumer bootstrap candidate`, and `Relea
 that order. It published immutable client assets and
 `@continuous-excellence/ze-great-dashboard-aws@0.1.32`, confirmed the npm version was visible, and
 created the verified release tag. The validation job required no reviewer prompt.
+
+## Guided consumer bootstrap — completed 2026-08-21
+
+Issue #2 is closed by commit `e071442` (`[minor] add guided AWS bootstrap`). The AWS package now
+provides a non-secret `bootstrap init` manifest scaffold, read-only `bootstrap preflight` checks,
+and a human-readable `bootstrap guide`; the existing JSON `handoff` remains the automation
+contract. The guide preserves explicit change-set review and administrator-run AWS commands, while
+`verify` alone emits optional GitHub Environment variable instructions after both stack captures
+validate. Handoff phases now name the expected core and GitHub OIDC outputs.
+
+The release workflow for that commit, [run 32521500732](https://github.com/robertfmurdock/ze-great-dashboard/actions/runs/32521500732),
+passed `Build and check`, `Validate consumer bootstrap candidate`, and `Release`. A separate
+immutable-OIDC migration in the Coupling repository remains consumer-owned administration; it is
+not a remaining dashboard-repository defect or bootstrap action.
