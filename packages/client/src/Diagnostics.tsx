@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react'
-import type { DiagnosticLog } from './diagnostics.ts'
+import { useState, useSyncExternalStore } from 'react'
+import type { BrowserDiagnosticStore } from './diagnostics.ts'
 
-export function Diagnostics({ log }: { log: DiagnosticLog }) {
+export function Diagnostics({ log }: { log: BrowserDiagnosticStore }) {
   const [open, setOpen] = useState(false)
-  const [count, setCount] = useState(log.count())
-  useEffect(() => log.subscribe(() => setCount(log.count())), [log])
+  const count = useSyncExternalStore(log.subscribe, log.count, log.count)
   const download = () => {
     const blob = new Blob([JSON.stringify(log.export(), null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)

@@ -48,6 +48,15 @@ remain internal workspace packages.
 
 ## Development workflow log
 
+Recorded 2026-08-21: browser diagnostics now form a client-only feature boundary: a versioned,
+typed event union is recorded through a narrow sink into browser-local retained evidence, and the
+footer consumes the store through React's external-store API. Polling lives in `usePanelSignals`,
+which preserves fetch, 304, parse-failure, transition, and cleanup behavior without coupling panel
+work to `App`, storage, or the diagnostics UI. No server or shared event contract was added because
+these are browser-local viewer observations, not source facts or server logs. Keep the explicit
+panel branches until the next distinct panel type can introduce a registry that replaces them rather
+than duplicating selection and presentation logic.
+
 Recorded 2026-08-18: the server's TypeScript watcher now includes a local `BOARD_CONFIG_URL` path.
 This keeps board edits in the normal local feedback loop. Remote board URLs are not treated as
 filesystem watch targets, and deployed behavior is unchanged. The realistic team board remains an

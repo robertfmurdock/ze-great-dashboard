@@ -17,38 +17,71 @@ const diagnosticKinds = [
   'panel-rendered',
 ] as const
 
-type CacheMetadata = Record<'cacheControl' | 'etag' | 'lastModified' | 'date' | 'age', string>
+export type CacheMetadata = Partial<
+  Record<'cacheControl' | 'etag' | 'lastModified' | 'date' | 'age', string>
+>
 
-export type DiagnosticEvent = {
+type EventMetadata = {
+  schemaVersion: typeof diagnosticsSchemaVersion
   at: string
   sessionId: string
   board: string
-  kind:
-    | 'session-start'
-    | 'board-fetch-start'
-    | 'board-fetch-response'
-    | 'board-fetch-parse-failure'
-    | 'board-fetch-failure'
-    | 'panel-fetch-start'
-    | 'panel-fetch-response'
-    | 'panel-fetch-parse-failure'
-    | 'panel-fetch-failure'
-    | 'panel-rendered'
-  panelId?: string
-  path?: string
-  status?: number
-  cache?: CacheMetadata
-  envelope?: Envelope
-  rendered?: { state: Envelope['state']; status?: string; link: string | null }
-  message?: string
-  boardSummary?: { panelCount: number; panelIds: string[] }
 }
 
-type StoredDiagnostics = { schemaVersion: number; events: DiagnosticEvent[] }
+export type RenderedPanelDiagnostic = {
+  state: Envelope['state']
+  status?: string
+  link: string | null
+}
+
+export type DiagnosticEventInput =
+  | { kind: 'session-start' }
+  | { kind: 'board-fetch-start'; path: string }
+  | {
+      kind: 'board-fetch-response'
+      path: string
+      status?: number
+      cache?: CacheMetadata
+      boardSummary?: { panelCount: number; panelIds: string[] }
+    }
+  | { kind: 'board-fetch-parse-failure'; path: string; message: string }
+  | { kind: 'board-fetch-failure'; path: string; message: string }
+  | { kind: 'panel-fetch-start'; panelId: string; path: string }
+  | {
+      kind: 'panel-fetch-response'
+      panelId: string
+      path: string
+      status?: number
+      cache?: CacheMetadata
+      envelope?: Envelope
+    }
+  | { kind: 'panel-fetch-parse-failure'; panelId: string; path: string; message: string }
+  | { kind: 'panel-fetch-failure'; panelId: string; path: string; message: string }
+  | {
+      kind: 'panel-rendered'
+      panelId: string
+      path: string
+      rendered: RenderedPanelDiagnostic
+    }
+
+export type DiagnosticEvent = DiagnosticEventInput extends infer Event
+  ? Event extends DiagnosticEventInput
+    ? Event & EventMetadata
+    : never
+  : never
+
+/** The only interface client features need in order to emit browser diagnostics. */
+export interface DiagnosticSink {
+  record(event: DiagnosticEventInput): void
+}
+
+type PersistedDiagnosticEvent = Omit<DiagnosticEvent, 'schemaVersion'> & { schemaVersion?: number }
+type StoredDiagnostics = { schemaVersion: number; events: PersistedDiagnosticEvent[] }
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
-export class DiagnosticLog {
+/** Browser-local diagnostic evidence. It deliberately has no server or shared-contract counterpart. */
+export class BrowserDiagnosticStore implements DiagnosticSink {
   private events: DiagnosticEvent[] = []
   private readonly listeners = new Set<() => void>()
   private readonly sessionId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
@@ -62,12 +95,13 @@ export class DiagnosticLog {
     this.record({ kind: 'session-start' })
   }
 
-  record(event: Omit<DiagnosticEvent, 'at' | 'sessionId' | 'board'>) {
+  record(event: DiagnosticEventInput) {
     this.events = prune(
       [
         ...this.events,
         {
           ...event,
+          schemaVersion: diagnosticsSchemaVersion,
           at: this.now().toISOString(),
           sessionId: this.sessionId,
           board: this.env.board,
@@ -79,7 +113,7 @@ export class DiagnosticLog {
     this.notify()
   }
 
-  count() {
+  count = () => {
     return this.events.length
   }
 
@@ -93,14 +127,14 @@ export class DiagnosticLog {
     this.notify()
   }
 
-  subscribe(listener: () => void) {
+  subscribe = (listener: () => void) => {
     this.listeners.add(listener)
     return () => {
       this.listeners.delete(listener)
     }
   }
 
-  export() {
+  export = () => {
     return {
       schemaVersion: diagnosticsSchemaVersion,
       exportedAt: this.now().toISOString(),
@@ -127,7 +161,14 @@ export class DiagnosticLog {
         this.storage?.removeItem(storageKey)
         return []
       }
-      return prune(parsed.events, this.now())
+      // v1 retained events predate per-event versions. Their containing store was already v1, so
+      // retain them and normalize on the next write rather than discarding viewer evidence.
+      return prune(
+        parsed.events.map(
+          (event) => ({ ...event, schemaVersion: diagnosticsSchemaVersion }) as DiagnosticEvent,
+        ),
+        this.now(),
+      )
     } catch {
       try {
         this.storage?.removeItem(storageKey)
@@ -181,10 +222,11 @@ function prune(events: DiagnosticEvent[], now: Date) {
     .slice(-maximumEvents)
 }
 
-function isDiagnosticEvent(value: unknown): value is DiagnosticEvent {
+function isDiagnosticEvent(value: unknown): value is PersistedDiagnosticEvent {
   if (!value || typeof value !== 'object') return false
   const event = value as Partial<DiagnosticEvent>
   return (
+    (event.schemaVersion === undefined || event.schemaVersion === diagnosticsSchemaVersion) &&
     typeof event.at === 'string' &&
     Number.isFinite(new Date(event.at).valueOf()) &&
     typeof event.sessionId === 'string' &&

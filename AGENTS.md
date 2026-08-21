@@ -95,6 +95,15 @@ path, that test is the one that matters.
 - A panel that cannot be read must **say so** — never render as healthy, never render blank. For a
   trust radiator a blank panel is the worst outcome available.
 
+## Feature-module evolution
+
+New panels keep source credentials and server adapters server-only. Client lifecycle work emits
+public evidence through the client `DiagnosticSink`; it must not reach into browser storage or the
+Diagnostics UI. Define each panel's compact public diagnostic projection alongside its presentation
+boundary, and keep `App` as composition rather than feature-specific lifecycle logic. Continue the
+curated-dependencies rule above. Introduce a panel registry only with the next distinct panel type,
+when it replaces the existing selection and presentation logic instead of duplicating it.
+
 ## Design constraints for the cosmetic work
 
 Most of the work ahead is visual, and `npm run dev` is the loop for it.

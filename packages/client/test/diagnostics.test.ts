@@ -1,6 +1,6 @@
 import type { ClientEnv } from '@ze-great-dashboard/shared'
 import { describe, expect, it } from 'vitest'
-import { DiagnosticLog, diagnosticsSchemaVersion } from '../src/diagnostics.ts'
+import { BrowserDiagnosticStore, diagnosticsSchemaVersion } from '../src/diagnostics.ts'
 
 const env: ClientEnv = {
   assetPath: 'https://assets.example.com/dashboard/1.0.7',
@@ -26,7 +26,7 @@ function memory(initial?: string) {
 describe('browser-local diagnostics', () => {
   it('exports public client metadata and retained events', () => {
     const store = memory()
-    const log = new DiagnosticLog(env, store, () => new Date('2026-08-21T12:00:00Z'))
+    const log = new BrowserDiagnosticStore(env, store, () => new Date('2026-08-21T12:00:00Z'))
     log.record({
       kind: 'panel-fetch-start',
       panelId: 'build',
@@ -51,7 +51,7 @@ describe('browser-local diagnostics', () => {
       panelId: String(index),
     }))
     const store = memory(JSON.stringify({ schemaVersion: diagnosticsSchemaVersion, events }))
-    const log = new DiagnosticLog(env, store, () => now)
+    const log = new BrowserDiagnosticStore(env, store, () => now)
 
     expect(log.count()).toBe(2_000)
     expect(log.export().events.some((event) => event.at === stale)).toBe(false)
@@ -67,7 +67,7 @@ describe('browser-local diagnostics', () => {
       }),
     ]) {
       const store = memory(initial)
-      const log = new DiagnosticLog(env, store, () => new Date('2026-08-21T12:00:00Z'))
+      const log = new BrowserDiagnosticStore(env, store, () => new Date('2026-08-21T12:00:00Z'))
       expect(log.count()).toBe(1)
       expect(store.value()).toContain(String(diagnosticsSchemaVersion))
     }
@@ -85,7 +85,7 @@ describe('browser-local diagnostics', () => {
         throw new Error('blocked')
       },
     }
-    const log = new DiagnosticLog(env, broken, () => new Date('2026-08-21T12:00:00Z'))
+    const log = new BrowserDiagnosticStore(env, broken, () => new Date('2026-08-21T12:00:00Z'))
     log.record({
       kind: 'panel-fetch-failure',
       panelId: 'build',

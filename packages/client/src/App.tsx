@@ -1,17 +1,11 @@
-import {
-  type Board,
-  type ClientEnv,
-  type Envelope,
-  parseDuration,
-  pipelineStatusSchema,
-  resolveRefreshMillis,
-} from '@ze-great-dashboard/shared'
+import type { Board, ClientEnv } from '@ze-great-dashboard/shared'
 import { useEffect, useRef, useState } from 'react'
 import { Diagnostics } from './Diagnostics.tsx'
-import { cacheMetadata, DiagnosticLog } from './diagnostics.ts'
+import { BrowserDiagnosticStore, cacheMetadata } from './diagnostics.ts'
 import { HttpValuePanel } from './HttpValuePanel.tsx'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
-import { PipelinePanel, parseEnvelope } from './PipelinePanel.tsx'
+import { PipelinePanel } from './PipelinePanel.tsx'
+import { usePanelSignals } from './usePanelSignals.ts'
 
 /**
  * The board shell.
@@ -24,18 +18,19 @@ import { PipelinePanel, parseEnvelope } from './PipelinePanel.tsx'
 export function App({ env }: { env: ClientEnv }) {
   const [board, setBoard] = useState<Board>()
   const [loadedBoardName, setLoadedBoardName] = useState<string>()
-  const [signals, setSignals] = useState<Record<string, Envelope | undefined>>({})
-  const diagnosticsRef = useRef<DiagnosticLog | null>(null)
-  const signalsRef = useRef<Record<string, Envelope | undefined>>({})
-  if (!diagnosticsRef.current) diagnosticsRef.current = new DiagnosticLog(env)
+  const diagnosticsRef = useRef<BrowserDiagnosticStore | null>(null)
+  if (!diagnosticsRef.current) diagnosticsRef.current = new BrowserDiagnosticStore(env)
   const diagnostics = diagnosticsRef.current
+  const signals = usePanelSignals({
+    board: loadedBoardName === env.board ? board : undefined,
+    env,
+    diagnostics,
+  })
 
   useEffect(() => {
     let cancelled = false
     setBoard(undefined)
     setLoadedBoardName(undefined)
-    setSignals({})
-    signalsRef.current = {}
     const path = `${env.proxyPath}/boards/${encodeURIComponent(env.board)}`
     diagnostics.record({ kind: 'board-fetch-start', path })
     fetch(path)
@@ -89,104 +84,6 @@ export function App({ env }: { env: ClientEnv }) {
     }
   }, [diagnostics, env.board, env.proxyPath])
 
-  useEffect(() => {
-    if (!board || loadedBoardName !== env.board) return
-    let cancelled = false
-    const timers: number[] = []
-
-    for (const panel of board.panels) {
-      if (panel.type !== 'pipeline-status' && panel.type !== 'http-value') continue
-
-      let inFlight = false
-      const refreshMillis = resolveRefreshMillis({
-        boardDefaultMillis: parseDuration(board.refresh ?? '60s') ?? 60_000,
-        panelOverrideMillis: panel.refresh
-          ? (parseDuration(panel.refresh) ?? undefined)
-          : undefined,
-        adapterFloorMillis: 0,
-      })
-
-      const refresh = () => {
-        if (cancelled || inFlight) return
-        inFlight = true
-        const path = `${env.proxyPath}/panel/${encodeURIComponent(env.board)}/${encodeURIComponent(panel.id)}`
-        diagnostics.record({ kind: 'panel-fetch-start', panelId: panel.id, path })
-        fetch(path)
-          .then(async (response) => {
-            diagnostics.record({
-              kind: 'panel-fetch-response',
-              panelId: panel.id,
-              path,
-              status: response.status,
-              cache: cacheMetadata(response.headers),
-            })
-            if (response.status === 304) return undefined
-            try {
-              return await response.json()
-            } catch (error) {
-              diagnostics.record({
-                kind: 'panel-fetch-parse-failure',
-                panelId: panel.id,
-                path,
-                message: errorMessage(error),
-              })
-              throw new DiagnosticParseFailure(error)
-            }
-          })
-          .then((value: unknown) => {
-            const envelope = parseEnvelope(value)
-            if (value !== undefined && !envelope) {
-              diagnostics.record({
-                kind: 'panel-fetch-parse-failure',
-                panelId: panel.id,
-                path,
-                message: 'Response was not a valid signal envelope.',
-              })
-            }
-            if (!cancelled && envelope) {
-              diagnostics.record({
-                kind: 'panel-fetch-response',
-                panelId: panel.id,
-                path,
-                envelope,
-              })
-              const previous = signalsRef.current[panel.id]
-              if (renderedChanged(previous, envelope)) {
-                diagnostics.record({
-                  kind: 'panel-rendered',
-                  panelId: panel.id,
-                  path,
-                  rendered: renderedState(envelope),
-                })
-              }
-              signalsRef.current = { ...signalsRef.current, [panel.id]: envelope }
-              setSignals(signalsRef.current)
-            }
-          })
-          .catch((error) => {
-            if (!(error instanceof DiagnosticParseFailure)) {
-              diagnostics.record({
-                kind: 'panel-fetch-failure',
-                panelId: panel.id,
-                path,
-                message: errorMessage(error),
-              })
-            }
-          })
-          .finally(() => {
-            inFlight = false
-          })
-      }
-
-      refresh()
-      timers.push(window.setInterval(refresh, refreshMillis))
-    }
-    return () => {
-      cancelled = true
-      for (const timer of timers) window.clearInterval(timer)
-    }
-  }, [board, diagnostics, env.board, env.proxyPath, loadedBoardName])
-
   return (
     <div className="board">
       <header className="board__header">
@@ -232,23 +129,4 @@ class DiagnosticParseFailure extends Error {
   constructor(error: unknown) {
     super(errorMessage(error))
   }
-}
-
-function renderedState(envelope: Envelope) {
-  if (envelope.state === 'error') return { state: envelope.state, link: envelope.link }
-  const signal = pipelineStatusSchema.safeParse(envelope.signal)
-  return {
-    state: envelope.state,
-    status: signal.success ? signal.data.status : undefined,
-    link: envelope.link,
-  }
-}
-
-function renderedChanged(previous: Envelope | undefined, next: Envelope) {
-  if (!previous) return true
-  const before = renderedState(previous)
-  const after = renderedState(next)
-  return (
-    before.state !== after.state || before.status !== after.status || before.link !== after.link
-  )
 }

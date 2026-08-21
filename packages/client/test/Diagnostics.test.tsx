@@ -3,7 +3,7 @@ import type { ClientEnv } from '@ze-great-dashboard/shared'
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Diagnostics } from '../src/Diagnostics.tsx'
-import { DiagnosticLog } from '../src/diagnostics.ts'
+import { BrowserDiagnosticStore } from '../src/diagnostics.ts'
 
 const env: ClientEnv = {
   assetPath: 'https://assets.example.com/dashboard/1.0.7',
@@ -14,7 +14,7 @@ const env: ClientEnv = {
 
 function log() {
   const values = new Map<string, string>()
-  return new DiagnosticLog(
+  return new BrowserDiagnosticStore(
     env,
     {
       getItem: (key) => values.get(key) ?? null,
