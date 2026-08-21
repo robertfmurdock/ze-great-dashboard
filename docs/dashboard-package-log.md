@@ -126,6 +126,27 @@ Verified locally for this slice:
 The release gate is the consumer reference smoke test; it exercises the public package contract
 before publication without rebuilding the archive or updating a second Lambda.
 
+## Candidate verification and release boundary
+
+Recorded 2026-08-21: the workflow now separates release-candidate verification from release
+publication. The `Build and check` job builds and tests the repository, calculates the version,
+creates one exact npm tarball, provisions required infrastructure, publishes that candidate's
+versioned client assets, and deploys and checks it through the persistent consumer reference. It
+then saves that verified tarball as the only handoff to the `Release` job.
+
+`Release` restores that exact artifact, publishes it to npm with provenance, waits for the registry
+to expose it, and creates the Git tag. It does not rebuild or redeploy the candidate. This makes the
+reference deployment an explicit build-and-check gate rather than a release action.
+
+The assets and reference-artifact buckets now suspend S3 versioning. AWS buckets that have already
+had versioning enabled cannot return to an unversioned state; suspension stops creation of new object
+versions, while any historical versions remain until separately cleaned up.
+
+The first run of this split (`32434574146`) proved the candidate phase but failed at publication
+because npm provenance requires `id-token: write` on the job running `npm publish`. The follow-up
+run (`32434854784`) restored that permission and completed both jobs: it released and tagged
+`0.1.26` after the reference `/health` and root checks passed.
+
 ## Registry propagation during acceptance
 
 Recorded 2026-08-19: release run `32264792126` successfully built and installed the `0.1.16`
