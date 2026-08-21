@@ -281,6 +281,10 @@ Resources:
                 Condition:
                   StringEquals:
                     'iam:PassedToService': cloudformation.amazonaws.com
+              - Sid: TestReferencePrivateLambda
+                Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:ze-great-dashboard-reference'
 
 Outputs:
   AssetsBucket:

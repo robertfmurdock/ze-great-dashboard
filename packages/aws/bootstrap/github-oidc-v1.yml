@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Ze Great Dashboard GitHub OIDC adapter v1. Administrator-managed; requires a central OIDC provider.
+
+Parameters:
+  GitHubOidcProviderArn: { Type: String }
+  GitHubRepository: { Type: String, Description: owner/repository }
+  GitHubEnvironment: { Type: String, Description: Protected GitHub Environment name }
+  ApplicationStackName: { Type: String }
+  ArtifactBucketName: { Type: String }
+  CloudFormationExecutionRoleArn: { Type: String }
+
+Resources:
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RoleName: !Sub '${ApplicationStackName}-github-deploy'
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Federated: !Ref GitHubOidcProviderArn }
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubRepository}:environment:${GitHubEnvironment}'
+      Policies:
+        - PolicyName: DeployOneDashboard
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: UploadLambdaArtifacts
+                Effect: Allow
+                Action: [s3:PutObject, s3:GetObject]
+                Resource: !Sub 'arn:${AWS::Partition}:s3:::${ArtifactBucketName}/lambda/*'
+              - Sid: InspectArtifactBucket
+                Effect: Allow
+                Action: [s3:GetBucketLocation, s3:ListBucket]
+                Resource: !Sub 'arn:${AWS::Partition}:s3:::${ArtifactBucketName}'
+              - Sid: OperateOneApplicationStack
+                Effect: Allow
+                Action: [cloudformation:CreateChangeSet, cloudformation:DescribeChangeSet, cloudformation:ExecuteChangeSet, cloudformation:DeleteChangeSet, cloudformation:DescribeStacks, cloudformation:DescribeStackEvents, cloudformation:GetTemplate, cloudformation:GetTemplateSummary]
+                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ApplicationStackName}/*'
+              - Sid: PassCoreExecutionRole
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Ref CloudFormationExecutionRoleArn
+                Condition: { StringEquals: { 'iam:PassedToService': cloudformation.amazonaws.com } }
+
+Outputs:
+  BootstrapContractVersion: { Value: '1' }
+  GitHubDeployRoleArn: { Value: !GetAtt GitHubDeployRole.Arn }

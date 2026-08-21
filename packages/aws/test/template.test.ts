@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { cloudFormationTemplate, deployLambda, packageLambda } from '../src/index.ts'
 
 describe('AWS deployment contract', () => {
-  it('is parameterized and remains public/authless with an auth insertion boundary', async () => {
+  it('is parameterized and leaves public gateway exposure to the consumer', async () => {
     const template = await cloudFormationTemplate()
     expect(template).toContain('LambdaArtifactBucket')
     expect(template).toContain('BoardConfigPath')
@@ -14,7 +14,10 @@ describe('AWS deployment contract', () => {
     expect(template).toContain(
       'AssetBaseUrl: { Type: String, Default: https://public-assets.zegreatrob.com }',
     )
-    expect(template).toContain('AuthType: NONE')
+    expect(template).not.toContain('AWS::Lambda::Url')
+    expect(template).not.toContain("Principal: '*'")
+    expect(template).not.toContain('AuthType: NONE')
+    expect(template).toContain('ServerFunctionArn')
     expect(template).toContain(`RoleName: !Sub '\${Name}-server'`)
     expect(template).toContain('ze-great-dashboard-no-secret-configured')
     expect(template).not.toMatch(/174159267544|robertfmurdock|1338375095|ZeGreatDashboardDeploy/)

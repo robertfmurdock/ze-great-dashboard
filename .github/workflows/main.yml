@@ -146,15 +146,15 @@ jobs:
             --parameter-overrides file://.reference-consumer/aws-dashboard-parameters.json \
             --no-fail-on-empty-changeset \
             --no-cli-pager
-          function_url="$(aws cloudformation describe-stacks \
+          function_arn="$(aws cloudformation describe-stacks \
             --stack-name ze-great-dashboard-reference \
             --region us-east-1 \
-            --query "Stacks[0].Outputs[?OutputKey=='ServerUrl'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='ServerFunctionArn'].OutputValue" \
             --output text)"
-          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
-            "${function_url%/}/health" > /dev/null
-          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
-            "$function_url" > /dev/null
+          aws lambda invoke --function-name "$function_arn" --invocation-type RequestResponse \
+            --payload '{"version":"2.0","rawPath":"/health","requestContext":{"http":{"method":"GET"}}}' \
+            --cli-binary-format raw-in-base64-out --region us-east-1 /tmp/reference-health.json
+          jq -e '.statusCode == 200' /tmp/reference-health.json > /dev/null
 
       - name: Save verified release candidate
         if: github.ref == 'refs/heads/main'

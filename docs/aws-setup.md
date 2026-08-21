@@ -1,7 +1,12 @@
 # Deploy with the published AWS package
 
-Deploy a Ze Great Dashboard backend to AWS Lambda and expose it through a Function URL. The URL is
-public by default; add authentication before using it for non-public operational data.
+Before application deployment, an administrator must create the consumer-owned artifact bucket and
+restricted roles using the [AWS bootstrap guide](aws-bootstrap.md). The application template is
+private: it outputs a Lambda ARN/name for a customer-managed API Gateway, ALB, or other gateway;
+it does not create a public Function URL.
+
+Deploy a Ze Great Dashboard backend to AWS Lambda, then integrate the returned Lambda ARN through
+the customer-managed gateway that meets your network and identity requirements.
 
 ## Prerequisites
 
@@ -59,11 +64,13 @@ Generate the settings for this environment:
 
 ```sh
 npm exec -- ze-great-dashboard-aws parameters \
-  --artifact-bucket my-dashboard-lambda-artifacts \
+  --bootstrap-config dashboard-bootstrap.json \
   --output aws-dashboard-parameters.json
 ```
 
-Commit `aws-dashboard-parameters.json`. See the
+This reuses the checked-in bootstrap manifest from the [bootstrap guide](aws-bootstrap.md), including
+the artifact bucket and dashboard function name, so the application’s `Name` remains compatible with
+the restricted execution role. Commit `aws-dashboard-parameters.json`. See the
 [CloudFormation template](../packages/aws/template.yml) for optional Lambda settings and their
 defaults. Keep secrets out of this file.
 
@@ -129,27 +136,24 @@ aws cloudformation deploy \
   --no-fail-on-empty-changeset
 ```
 
-The stack creates the Lambda function, log group, execution role, and public Function URL. Add any
-other [`aws cloudformation deploy` options](https://docs.aws.amazon.com/cli/latest/reference/cloudformation/deploy.html)
-your environment requires.
+The stack creates the Lambda function, log group, and execution role. It outputs `ServerFunctionArn`
+and `ServerFunctionName` for an explicitly scoped gateway integration, plus `AssetPath`.
 
 ## Test the deployment
 
-Retrieve and test the Function URL:
+Test through the customer-managed gateway:
 
 ```sh
-export FUNCTION_URL="$(aws cloudformation describe-stacks \
+export FUNCTION_ARN="$(aws cloudformation describe-stacks \
   --stack-name "$STACK_NAME" \
   --region "$AWS_REGION" \
-  --query "Stacks[0].Outputs[?OutputKey=='ServerUrl'].OutputValue" \
+  --query "Stacks[0].Outputs[?OutputKey=='ServerFunctionArn'].OutputValue" \
   --output text)"
 
-curl --fail --show-error "${FUNCTION_URL%/}/health"
-curl --fail --show-error "$FUNCTION_URL"
+# Configure a gateway permission scoped to "$FUNCTION_ARN", then use its protected health endpoint.
 ```
 
-`/health` checks the backend. The root URL checks the complete dashboard, including the hosted
-client. The stack also outputs `ServerFunctionName` and `AssetPath`.
+The application template intentionally grants no public invoke permission.
 
 ## Update a dashboard
 
@@ -193,7 +197,8 @@ Before adding the workflow, check in `package.json`, its lockfile, `board.yaml`,
 OIDC and can upload to the artifact bucket and deploy the stack. Replace the Region, stack name,
 and role ARN below.
 
-This workflow packages, uploads, deploys, and checks the Function URL:
+This workflow packages, uploads, and deploys the private Lambda. Add a gateway-specific health check
+only where the protected gateway is available to the runner:
 
 ```yaml
 name: Deploy dashboard
@@ -249,14 +254,6 @@ jobs:
             --capabilities CAPABILITY_IAM \
             --parameter-overrides file://aws-dashboard-parameters.json \
             --no-fail-on-empty-changeset
-      - name: Check deployment
-        run: |
-          function_url="$(aws cloudformation describe-stacks \
-            --stack-name "$STACK_NAME" \
-            --region "$AWS_REGION" \
-            --query "Stacks[0].Outputs[?OutputKey=='ServerUrl'].OutputValue" \
-            --output text)"
-          curl --fail --show-error "${function_url%/}/health"
 ```
 
 Use [GitHub OIDC for AWS](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
@@ -314,6 +311,6 @@ fields to the environment names used by `token_env` before the dashboard handles
 
 ## Security notes
 
-- The initial Function URL uses `AuthType: NONE` and is public.
+- The application template has no Function URL and no wildcard Lambda invoke permission.
 - Do not put secrets in board YAML or `lambda.zip`.
 - `token_env` names a runtime environment variable; the included template does not populate it.

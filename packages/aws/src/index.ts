@@ -6,6 +6,20 @@ import { promisify } from 'node:util'
 import { strToU8, zipSync } from 'fflate'
 import { assembleRelease, sha256 } from './release.ts'
 
+export {
+  type BootstrapConfig,
+  type BootstrapKind,
+  bootstrapContractVersion,
+  bootstrapTemplate,
+  bootstrapTemplatePath,
+  type CloudFormationParameterValue,
+  coreBootstrapOutputs,
+  type DeployedBootstrapStack,
+  deployedBootstrapStack,
+  mergeBootstrapParameters,
+  requiredBootstrapParameters,
+} from './bootstrap.ts'
+
 const run = promisify(execFile)
 
 export type ReleaseMetadata = {

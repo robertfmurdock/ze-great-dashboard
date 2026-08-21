@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Ze Great Dashboard bootstrap core v1. Administrator-managed; do not grant this authority to CI.
+
+Parameters:
+  ArtifactBucketName:
+    Type: String
+    Description: Globally unique bucket for private Lambda artifacts
+  ApplicationStackName:
+    Type: String
+    Description: Stable name of the one dashboard application stack
+  DashboardFunctionName:
+    Type: String
+    Description: Stable Lambda function name used by the application stack
+  RuntimeSecretArn:
+    Type: String
+    Default: ''
+    Description: Optional explicitly configured Secrets Manager secret ARN
+  ArtifactKmsKeyArn:
+    Type: String
+    Default: ''
+    Description: Optional customer-managed KMS key ARN; SSE-S3 is used when blank
+
+Conditions:
+  HasRuntimeSecret: !Not [!Equals [!Ref RuntimeSecretArn, '']]
+  HasArtifactKmsKey: !Not [!Equals [!Ref ArtifactKmsKeyArn, '']]
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref ArtifactBucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: !If [HasArtifactKmsKey, aws:kms, AES256]
+              KMSMasterKeyID: !If [HasArtifactKmsKey, !Ref ArtifactKmsKeyArn, !Ref AWS::NoValue]
+            BucketKeyEnabled: !If [HasArtifactKmsKey, true, !Ref AWS::NoValue]
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: [!GetAtt ArtifactBucket.Arn, !Sub '${ArtifactBucket.Arn}/*']
+            Condition: { Bool: { 'aws:SecureTransport': false } }
+
+  CloudFormationExecutionRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RoleName: !Sub '${ApplicationStackName}-execution'
+      Description: !Sub 'Restricted CloudFormation execution role for ${ApplicationStackName}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Service: cloudformation.amazonaws.com }, Action: sts:AssumeRole }]
+      Policies:
+        - PolicyName: DashboardApplicationResources
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: DashboardLambda
+                Effect: Allow
+                Action: [lambda:CreateFunction, lambda:GetFunction, lambda:UpdateFunctionCode, lambda:UpdateFunctionConfiguration, lambda:DeleteFunction, lambda:TagResource, lambda:UntagResource]
+                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${DashboardFunctionName}'
+              - Sid: DashboardLogs
+                Effect: Allow
+                Action: [logs:CreateLogGroup, logs:DeleteLogGroup, logs:DescribeLogGroups, logs:PutRetentionPolicy, logs:TagResource, logs:UntagResource]
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${DashboardFunctionName}:*'
+              - Sid: ReadLambdaArtifact
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub '${ArtifactBucket.Arn}/lambda/*'
+              - Sid: ManageRuntimeRole
+                Effect: Allow
+                Action: [iam:CreateRole, iam:GetRole, iam:DeleteRole, iam:UpdateAssumeRolePolicy, iam:PutRolePolicy, iam:GetRolePolicy, iam:DeleteRolePolicy, iam:AttachRolePolicy, iam:DetachRolePolicy, iam:ListRolePolicies, iam:ListAttachedRolePolicies, iam:TagRole, iam:UntagRole]
+                Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${DashboardFunctionName}-server'
+              - Sid: PassRuntimeRoleToLambdaOnly
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${DashboardFunctionName}-server'
+                Condition: { StringEquals: { 'iam:PassedToService': lambda.amazonaws.com } }
+              - !If
+                - HasRuntimeSecret
+                - Sid: ReadConfiguredRuntimeSecret
+                  Effect: Allow
+                  Action: [secretsmanager:DescribeSecret, secretsmanager:GetSecretValue]
+                  Resource: !Ref RuntimeSecretArn
+                - !Ref AWS::NoValue
+
+Outputs:
+  BootstrapContractVersion: { Value: '1' }
+  ArtifactBucketName: { Value: !Ref ArtifactBucket }
+  ArtifactBucketArn: { Value: !GetAtt ArtifactBucket.Arn }
+  CloudFormationExecutionRoleArn: { Value: !GetAtt CloudFormationExecutionRole.Arn }
+  ApplicationStackName: { Value: !Ref ApplicationStackName }

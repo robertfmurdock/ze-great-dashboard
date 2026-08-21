@@ -29,6 +29,7 @@
   "files": [
     "dist",
     "client",
+    "bootstrap",
     "template.yml",
     "LICENSE"
   ],

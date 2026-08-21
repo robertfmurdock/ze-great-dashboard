@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Provider adapter for a Ze Great Dashboard Lambda deployment
+Description: Ze Great Dashboard private Lambda application (integrate through a customer-managed gateway)
 
 Metadata:
   PackageManagedParameters: [LambdaArtifactKey, DashboardVersion]
@@ -67,17 +67,7 @@ Resources:
           BOARD_CONFIG_URL: !Ref BoardConfigPath
           HOST: 0.0.0.0
           SECRET_REFERENCE: !If [HasSecretReference, !Ref SecretReference, !Ref AWS::NoValue]
-  ServerUrl:
-    Type: AWS::Lambda::Url
-    Properties: { TargetFunctionArn: !GetAtt ServerFunction.Arn, AuthType: NONE }
-  ServerUrlPermission:
-    Type: AWS::Lambda::Permission
-    Properties: { FunctionName: !Ref ServerFunction, Action: lambda:InvokeFunctionUrl, Principal: '*', FunctionUrlAuthType: NONE }
-  ServerInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties: { FunctionName: !Ref ServerFunction, Action: lambda:InvokeFunction, Principal: '*', InvokedViaFunctionUrl: true }
-
 Outputs:
-  ServerUrl: { Value: !GetAtt ServerUrl.FunctionUrl }
   ServerFunctionName: { Value: !Ref ServerFunction }
+  ServerFunctionArn: { Value: !GetAtt ServerFunction.Arn }
   AssetPath: { Value: !Sub '${AssetBaseUrl}/dashboard/${DashboardVersion}' }

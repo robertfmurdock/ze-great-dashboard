@@ -4,10 +4,18 @@ import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 import { runDoctor } from './doctor.ts'
 import {
+  type BootstrapConfig,
+  bootstrapContractVersion,
+  bootstrapTemplate,
+  bootstrapTemplatePath,
   cloudFormationTemplate,
+  coreBootstrapOutputs,
+  deployedBootstrapStack,
   deployLambda,
+  mergeBootstrapParameters,
   packageLambda,
   publishClientAssets,
+  requiredBootstrapParameters,
 } from './index.ts'
 
 const args = process.argv.slice(2)
@@ -63,6 +71,61 @@ async function existingParameters(path: string): Promise<CloudFormationParameter
     if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return []
     throw error
   }
+}
+
+function bootstrapKind(): 'core' | 'github-oidc' {
+  const kind = option('--kind')
+  if (kind === 'core' || kind === 'github-oidc') return kind
+  throw new Error('--kind must be core or github-oidc')
+}
+
+async function readBootstrapConfig(path: string): Promise<BootstrapConfig> {
+  const parsed = JSON.parse(await readFile(path, 'utf8')) as unknown
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    throw new Error('--config must contain a JSON object')
+  return parsed as BootstrapConfig
+}
+
+async function bootstrapConfig(): Promise<BootstrapConfig> {
+  const path = option('--config')
+  return path ? readBootstrapConfig(path) : {}
+}
+
+function bootstrapValues(
+  config: BootstrapConfig,
+  coreOutputs: Record<string, string> = {},
+): Record<string, string | undefined> {
+  return {
+    ArtifactBucketName: option(
+      '--artifact-bucket',
+      coreOutputs.ArtifactBucketName ?? config.core?.artifactBucketName,
+    ),
+    ApplicationStackName: option(
+      '--application-stack',
+      coreOutputs.ApplicationStackName ?? config.core?.applicationStackName,
+    ),
+    DashboardFunctionName: option('--function-name', config.core?.dashboardFunctionName),
+    RuntimeSecretArn: option('--runtime-secret-arn', config.core?.runtimeSecretArn),
+    ArtifactKmsKeyArn: option('--artifact-kms-key-arn', config.core?.artifactKmsKeyArn),
+    GitHubOidcProviderArn: option('--github-oidc-provider-arn', config.githubOidc?.providerArn),
+    GitHubRepository: option('--github-repository', config.githubOidc?.repository),
+    GitHubEnvironment: option('--github-environment', config.githubOidc?.environment),
+    CloudFormationExecutionRoleArn: option(
+      '--execution-role-arn',
+      coreOutputs.CloudFormationExecutionRoleArn,
+    ),
+  }
+}
+
+function bootstrapStackName(
+  kind: 'core' | 'github-oidc',
+  config: BootstrapConfig,
+): string | undefined {
+  return kind === 'core' ? config.core?.stackName : config.githubOidc?.stackName
+}
+
+function shellCommand(command: string[]): string {
+  return command.map((argument) => `'${argument.replaceAll("'", "'\\\"'\\\"'")}'`).join(' ')
 }
 
 async function templateParameters(): Promise<TemplateParameterData> {
@@ -146,10 +209,17 @@ try {
     const output =
       option('--output', 'aws-dashboard-parameters.json') ?? 'aws-dashboard-parameters.json'
     const existing = await existingParameters(output)
+    const consumerConfigPath = option('--bootstrap-config')
+    const consumerConfig = consumerConfigPath
+      ? await readBootstrapConfig(consumerConfigPath)
+      : undefined
     const existingValues = Object.fromEntries(
       existing.map(({ ParameterKey, ParameterValue }) => [ParameterKey, ParameterValue]),
     )
-    const artifactBucket = option('--artifact-bucket', existingValues.LambdaArtifactBucket)
+    const artifactBucket = option(
+      '--artifact-bucket',
+      existingValues.LambdaArtifactBucket ?? consumerConfig?.core?.artifactBucketName,
+    )
     if (!artifactBucket) throw new Error('--artifact-bucket is required')
     const { definitions, packageManaged } = await templateParameters()
     const templateKeys = Object.keys(definitions)
@@ -168,26 +238,131 @@ try {
       )
     }
     const includeDefaults = args.includes('--include-defaults')
+    const functionName = option('--function-name', consumerConfig?.core?.dashboardFunctionName)
     const parameters = templateKeys
       .filter(
         (key) =>
           !packageManaged.has(key) &&
-          (includeDefaults || !hasDefault(key) || Object.hasOwn(existingValues, key)),
+          (includeDefaults ||
+            !hasDefault(key) ||
+            Object.hasOwn(existingValues, key) ||
+            (key === 'Name' && Boolean(functionName))),
       )
       .map((key) => {
         const definition = definitions[key]
         const value =
           key === 'LambdaArtifactBucket'
             ? artifactBucket
-            : (existingValues[key] ?? definition?.Default)
+            : key === 'Name' && functionName
+              ? functionName
+              : (existingValues[key] ?? definition?.Default)
         if (value === undefined) throw new Error(`No value for CloudFormation parameter ${key}`)
         return parameter(key, String(value))
       })
     await writeFile(output, `${JSON.stringify(parameters, null, 2)}\n`)
     console.log(JSON.stringify({ output }))
+  } else if (args[0] === 'bootstrap') {
+    const action = args[1]
+    const kind = bootstrapKind()
+    const config = await bootstrapConfig()
+    if (action === 'template') {
+      console.log(
+        JSON.stringify({
+          kind,
+          template: await bootstrapTemplatePath(kind),
+          contractVersion: bootstrapContractVersion(await bootstrapTemplate(kind)),
+        }),
+      )
+    } else if (action === 'parameters') {
+      const output =
+        option('--output', `aws-dashboard-bootstrap-${kind}.json`) ??
+        `aws-dashboard-bootstrap-${kind}.json`
+      let coreOutputs: Record<string, string> = {}
+      const coreStackPath = option('--core-stack-json')
+      if (kind === 'github-oidc' && coreStackPath) {
+        coreOutputs = coreBootstrapOutputs(
+          deployedBootstrapStack(
+            JSON.parse(await readFile(coreStackPath, 'utf8')),
+            bootstrapContractVersion(await bootstrapTemplate('core')),
+          ),
+        )
+      }
+      const supplied = requiredBootstrapParameters(kind, bootstrapValues(config, coreOutputs))
+      let parameters = supplied
+      const deployedStackPath = option('--deployed-stack-json')
+      if (deployedStackPath) {
+        const stack = deployedBootstrapStack(
+          JSON.parse(await readFile(deployedStackPath, 'utf8')),
+          bootstrapContractVersion(await bootstrapTemplate(kind)),
+        )
+        parameters = mergeBootstrapParameters(supplied, stack.Parameters ?? [])
+      }
+      await writeFile(output, `${JSON.stringify(parameters, null, 2)}\n`)
+      console.log(
+        JSON.stringify({ output, kind, preservedDeployedValues: Boolean(deployedStackPath) }),
+      )
+    } else if (action === 'status') {
+      const stackName = requiredOption('--stack-name', bootstrapStackName(kind, config))
+      const region = option('--region', config.region)
+      const awsCommand = [
+        'aws',
+        'cloudformation',
+        'describe-stacks',
+        '--stack-name',
+        stackName,
+        ...(region ? ['--region', region] : []),
+        '--no-cli-pager',
+      ]
+      console.log(
+        JSON.stringify({
+          kind,
+          contractVersion: bootstrapContractVersion(await bootstrapTemplate(kind)),
+          awsCommand,
+          shellCommand: args.includes('--format-shell') ? shellCommand(awsCommand) : undefined,
+        }),
+      )
+    } else if (action === 'change-set') {
+      const stackName = requiredOption('--stack-name', bootstrapStackName(kind, config))
+      const changeSetName = requiredOption('--change-set-name')
+      const parametersPath = requiredOption('--parameters')
+      const region = option('--region', config.region)
+      await existingParameters(parametersPath)
+      // Emit command arguments only. Administrators invoke and review AWS operations explicitly.
+      const awsCommand = [
+        'aws',
+        'cloudformation',
+        'create-change-set',
+        '--stack-name',
+        stackName,
+        '--change-set-name',
+        changeSetName,
+        '--change-set-type',
+        option('--change-set-type', 'UPDATE') ?? 'UPDATE',
+        '--template-body',
+        `file://${await bootstrapTemplatePath(kind)}`,
+        '--parameters',
+        `file://${parametersPath}`,
+        '--capabilities',
+        'CAPABILITY_NAMED_IAM',
+        ...(region ? ['--region', region] : []),
+        '--no-cli-pager',
+      ]
+      console.log(
+        JSON.stringify({
+          kind,
+          reviewRequired: true,
+          awsCommand,
+          shellCommand: args.includes('--format-shell') ? shellCommand(awsCommand) : undefined,
+        }),
+      )
+    } else {
+      throw new Error(
+        'Usage: ze-great-dashboard-aws bootstrap template|parameters|status|change-set --kind core|github-oidc [options]',
+      )
+    }
   } else if (args[0] !== 'package')
     throw new Error(
-      'Usage: ze-great-dashboard-aws package|parameters|publish-assets|deploy|doctor [options]',
+      'Usage: ze-great-dashboard-aws package|parameters|bootstrap|publish-assets|deploy|doctor [options]',
     )
   else {
     const boardConfig = option('--board-config')
