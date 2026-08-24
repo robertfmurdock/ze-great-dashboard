@@ -7,7 +7,7 @@
 # Reads a gitignored `.env`; see `.env.example` for the variables.
 services:
   server:
-    build: .
+    image: ${DASHBOARD_IMAGE:-ghcr.io/robertfmurdock/ze-great-dashboard:latest}
     ports:
       - '3000:3000'
     environment:

@@ -1,0 +1,5 @@
+services:
+  server:
+    image: ze-great-dashboard:local
+    build:
+      context: .

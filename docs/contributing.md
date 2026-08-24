@@ -34,7 +34,8 @@ npm run check
 | `npm run test:watch` | Run unit tests in watch mode. |
 | `npm run build` | Build the production client. |
 | `npm run format` | Apply Biome formatting fixes. |
-| `docker compose up` | Run the deployed server shape against a published asset path. |
+| `docker compose up` | Run the published GHCR server image against a published asset path. |
+| `docker compose -f docker-compose.yml -f docker-compose.local.yml up --build` | Build and run the current source locally. |
 
 Contributions must pass `npm run check`. New dependencies need a clear justification: the project
 deliberately keeps its dependency surface small.

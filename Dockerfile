@@ -23,13 +23,15 @@ ENV NODE_ENV=production
 
 # tsx runs the TypeScript sources directly. One less build artifact to keep in sync, and the code
 # running in the container is the code in the repo.
-RUN npm install --global --no-save tsx@4
+RUN npm install --global --no-save tsx@4.23.12
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY package.json ./
-COPY packages/shared ./packages/shared
-COPY packages/server ./packages/server
-COPY boards ./boards
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node package.json ./
+COPY --chown=node:node packages/shared ./packages/shared
+COPY --chown=node:node packages/server ./packages/server
+COPY --chown=node:node boards ./boards
+
+USER node
 
 # Bind to all interfaces: nothing outside the container can reach localhost. The server logs a
 # warning about the missing auth this implies, which is correct and worth seeing.

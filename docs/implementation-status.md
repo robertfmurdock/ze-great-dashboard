@@ -19,6 +19,11 @@ artifact bucket and scoped roles. Its board has no third-party source, so it ver
 artifact, CloudFormation, Lambda, and hosted-client integration without asserting an upstream panel's
 availability.
 
+The same verified `main` release also publishes the server-only Docker image to GHCR with an exact
+semantic-version tag and the `latest` alias. Compose runs the published image by default and has an
+explicit local-build override; the image still receives `ASSET_PATH` at runtime and never contains
+the client build or environment-specific configuration.
+
 ## Current checkpoint
 
 The repository has the immutable web application shell and the first live data slices working

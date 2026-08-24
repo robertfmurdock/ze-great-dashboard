@@ -39,6 +39,23 @@ To use a local board other than the example, point the server at its YAML file:
 BOARD_CONFIG_URL="$PWD/boards/ze-great-team.yaml" npm run dev
 ```
 
+### Run the published Docker image
+
+Copy `.env.example` to `.env`, set `ASSET_PATH`, and start the published server image:
+
+```sh
+cp .env.example .env
+# edit .env and set ASSET_PATH
+docker compose up
+```
+
+Compose uses `ghcr.io/robertfmurdock/ze-great-dashboard:latest` by default. Pin
+`DASHBOARD_IMAGE` to an exact release tag when rolling back. To build the current source locally:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
+```
+
 ### Deploy on AWS
 
 The published [`@continuous-excellence/ze-great-dashboard-aws`](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
