@@ -47,6 +47,20 @@ describe('persistent consumer reference', () => {
     expect(infrastructure).toContain('ZeGreatDashboardReferenceSmoke')
     expect(infrastructure).toContain('ecs:CreateCluster')
     expect(infrastructure).toContain('ecs:StopTask')
+    expect(infrastructure).toContain('Sid: DeleteSmokeCluster')
+    const smokeClusterArn = [
+      'arn:',
+      ['$', '{AWS::Partition}'].join(''),
+      ':ecs:',
+      ['$', '{AWS::Region}'].join(''),
+      ':',
+      ['$', '{AWS::AccountId}'].join(''),
+      ':cluster/ze-great-dashboard-smoke-*',
+    ].join('')
+    expect(infrastructure).toContain(
+      `Action: ecs:DeleteCluster\n                Resource: !Sub '${smokeClusterArn}'`,
+    )
+    expect(infrastructure).toContain(`task-definition/ze-great-dashboard-smoke-*:*'`)
     expect(infrastructure).toContain('ReferenceSmokeRoleArn')
     expect(bootstrap).toContain('iam:GetRolePolicy')
     expect(infrastructure).toContain(`'\${ReferenceArtifactBucket.Arn}/lambda/*'`)

@@ -324,13 +324,16 @@ Resources:
               - Sid: OperateSmokeCluster
                 Effect: Allow
                 Action:
-                  - ecs:DeleteCluster
                   - ecs:DescribeTasks
                   - ecs:StopTask
                 Resource: '*'
                 Condition:
                   ArnLike:
                     'ecs:cluster': !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/ze-great-dashboard-smoke-*'
+              - Sid: DeleteSmokeCluster
+                Effect: Allow
+                Action: ecs:DeleteCluster
+                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/ze-great-dashboard-smoke-*'
               - Sid: RunSmokeTask
                 Effect: Allow
                 Action: ecs:RunTask
@@ -343,7 +346,7 @@ Resources:
                 Action:
                   - ecs:DeregisterTaskDefinition
                   - ecs:RegisterTaskDefinition
-                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/ze-great-dashboard-smoke-*'
+                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/ze-great-dashboard-smoke-*:*'
 
 Outputs:
   AssetsBucket:
