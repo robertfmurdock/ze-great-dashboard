@@ -6,6 +6,9 @@ const maximumEvents = 2_000
 const maximumAgeMillis = 7 * 24 * 60 * 60 * 1_000
 const diagnosticKinds = [
   'session-start',
+  'client-update-check',
+  'client-update-failure',
+  'client-update-detected',
   'board-fetch-start',
   'board-fetch-response',
   'board-fetch-parse-failure',
@@ -36,6 +39,14 @@ export type RenderedPanelDiagnostic = {
 
 export type DiagnosticEventInput =
   | { kind: 'session-start' }
+  | { kind: 'client-update-check'; path: string }
+  | { kind: 'client-update-failure'; path: string; message: string }
+  | {
+      kind: 'client-update-detected'
+      path: string
+      current: { assetPath: string; clientVersion: string }
+      next: { assetPath: string; clientVersion: string }
+    }
   | { kind: 'board-fetch-start'; path: string }
   | {
       kind: 'board-fetch-response'

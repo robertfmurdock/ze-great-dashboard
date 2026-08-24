@@ -36,6 +36,8 @@ locally. The current implementation includes:
   validator forwarding, and explicit upstream error envelopes.
 - Independent client polling with panel/board/default refresh precedence, no overlapping requests,
   304 preservation, and lifecycle cleanup.
+- Server-authoritative client update checks: the browser polls the no-store client identity endpoint
+  every 60 seconds and reloads when the server selects a different immutable client.
 - Source-agnostic `http-value` panels. They fetch configured HTTP(S) endpoints, accept plain scalar
   text or JSON, and support the deliberately small field-and-index JSON-path subset.
 - Radiator layout polish: configured 12-column positions are rendered, narrow screens collapse to a

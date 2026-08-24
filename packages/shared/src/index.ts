@@ -16,7 +16,13 @@ export {
   type Source,
   sourceSchema,
 } from './board-config.ts'
-export { type ClientEnv, clientEnvSchema, readClientEnv } from './client-env.ts'
+export {
+  type ClientEnv,
+  type ClientIdentity,
+  clientEnvSchema,
+  clientIdentitySchema,
+  readClientEnv,
+} from './client-env.ts'
 export { type Duration, durationSchema, parseDuration } from './duration.ts'
 export {
   type Envelope,

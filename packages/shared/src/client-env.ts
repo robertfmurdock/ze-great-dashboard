@@ -28,6 +28,11 @@ export const clientEnvSchema = z.object({
 
 export type ClientEnv = z.infer<typeof clientEnvSchema>
 
+/** The public identity of the client currently selected by the server. */
+export const clientIdentitySchema = clientEnvSchema.pick({ assetPath: true, clientVersion: true })
+
+export type ClientIdentity = z.infer<typeof clientIdentitySchema>
+
 declare global {
   interface Window {
     env?: unknown

@@ -1,4 +1,4 @@
-import type { BoardConfig, ClientEnv } from '@ze-great-dashboard/shared'
+import type { BoardConfig, ClientEnv, ClientIdentity } from '@ze-great-dashboard/shared'
 import { Hono } from 'hono'
 import {
   fetchGithubActionsPipeline,
@@ -38,6 +38,11 @@ export function createApp(deps: AppDependencies): Hono {
   // middleware immediately before dashboard/API routes so an Auth0 or gateway check can be added
   // without changing packaging, route handlers, or the client contract.
   app.use('/api/*', async (_c, next) => next())
+
+  app.get(`${config.proxyPath}/client`, (c) => {
+    const identity: ClientIdentity = { assetPath: config.assetPath, clientVersion }
+    return c.json(identity, 200, { 'cache-control': 'no-store' })
+  })
 
   app.get('/', (c) => renderEntrypoint(c.req.raw, selectedBoard))
   app.get('/boards/:board', (c) => renderEntrypoint(c.req.raw, c.req.param('board')))

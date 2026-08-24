@@ -21,11 +21,51 @@ test('the production client loads and renders with CDN modules', async ({ page }
   await page.route('**/api/boards/ze-great-team', (route) =>
     route.fulfill({ contentType: 'application/json', body: JSON.stringify({ panels: [] }) }),
   )
+  await page.route('**/api/client', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      headers: { 'cache-control': 'no-store' },
+      body: JSON.stringify({
+        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+        clientVersion: 'browser-test',
+      }),
+    }),
+  )
 
   await page.goto('/')
   await expect(page.locator('h1')).toHaveText('ze-great-team')
   await expect(page.locator('.board__footer')).toContainText('Signals are read live')
   expect(browserErrors).toEqual([])
+})
+
+test('reloads when the server starts serving a different client', async ({ page }) => {
+  let identityChecks = 0
+  await page.addInitScript(() => {
+    window.env = {
+      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+      proxyPath: '/api',
+      board: 'ze-great-team',
+      clientVersion: 'browser-test',
+    }
+  })
+  await page.route('**/api/boards/ze-great-team', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify({ panels: [] }) }),
+  )
+  await page.route('**/api/client', (route) => {
+    identityChecks += 1
+    const assetPath =
+      identityChecks === 1
+        ? 'http://127.0.0.1:4173/__ASSET_PATH__/new'
+        : 'http://127.0.0.1:4173/__ASSET_PATH__'
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ assetPath, clientVersion: 'browser-test' }),
+    })
+  })
+
+  await page.goto('/')
+  await expect(page.locator('h1')).toHaveText('ze-great-team')
+  await expect.poll(() => identityChecks).toBe(2)
 })
 
 const positionedBoard = {
@@ -146,6 +186,15 @@ function stubBoard(page: import('@playwright/test').Page) {
     page.route('**/api/boards/ze-great-team', (route) =>
       route.fulfill({ contentType: 'application/json', body: JSON.stringify(positionedBoard) }),
     ),
+    page.route('**/api/client', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+          clientVersion: 'browser-test',
+        }),
+      }),
+    ),
     page.route('**/api/panel/**', (route) =>
       route.fulfill({ contentType: 'application/json', body: JSON.stringify({}) }),
     ),
@@ -218,6 +267,15 @@ test('fits populated single-screen team layout without clipping required content
   })
   await page.route('**/api/boards/ze-great-team', (route) =>
     route.fulfill({ contentType: 'application/json', body: JSON.stringify(singleScreenBoard) }),
+  )
+  await page.route('**/api/client', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+        clientVersion: 'browser-test',
+      }),
+    }),
   )
   await page.route('**/api/panel/**', (route) => {
     const panelId = decodeURIComponent(

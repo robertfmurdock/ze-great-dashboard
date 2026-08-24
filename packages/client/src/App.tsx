@@ -6,6 +6,7 @@ import { HttpValuePanel } from './HttpValuePanel.tsx'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PipelinePanel } from './PipelinePanel.tsx'
 import { PullRequestHealthPanel } from './PullRequestHealthPanel.tsx'
+import { useClientUpdate } from './useClientUpdate.ts'
 import { usePanelSignals } from './usePanelSignals.ts'
 
 /**
@@ -22,6 +23,7 @@ export function App({ env }: { env: ClientEnv }) {
   const diagnosticsRef = useRef<BrowserDiagnosticStore | null>(null)
   if (!diagnosticsRef.current) diagnosticsRef.current = new BrowserDiagnosticStore(env)
   const diagnostics = diagnosticsRef.current
+  useClientUpdate({ env, diagnostics })
   const signals = usePanelSignals({
     board: loadedBoardName === env.board ? board : undefined,
     env,

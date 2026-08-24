@@ -109,4 +109,15 @@ describe('the entrypoint document', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ status: 'ok' })
   })
+
+  it('reports the server-selected client identity without caching it', async () => {
+    const response = await appWith().request('/api/client')
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    await expect(response.json()).resolves.toEqual({
+      assetPath: 'https://assets.example.com/dashboard/1.0.7',
+      clientVersion: '1.0.7',
+    })
+  })
 })
