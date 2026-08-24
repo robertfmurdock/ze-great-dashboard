@@ -1,4 +1,5 @@
 import { useState, useSyncExternalStore } from 'react'
+import styles from './Diagnostics.module.css'
 import type { BrowserDiagnosticStore } from './diagnostics.ts'
 
 export function Diagnostics({ log }: { log: BrowserDiagnosticStore }) {
@@ -19,9 +20,9 @@ export function Diagnostics({ log }: { log: BrowserDiagnosticStore }) {
   }
 
   return (
-    <section className="diagnostics">
+    <section className={styles.diagnostics}>
       <button
-        className="diagnostics__toggle"
+        className={styles.button}
         type="button"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
@@ -29,13 +30,13 @@ export function Diagnostics({ log }: { log: BrowserDiagnosticStore }) {
         Diagnostics ({count})
       </button>
       {open && (
-        <div className="diagnostics__area">
+        <div className={styles.area}>
           <p>{count} retained browser-local events. They are never uploaded.</p>
-          <div className="diagnostics__actions">
-            <button type="button" onClick={download}>
+          <div className={styles.actions}>
+            <button className={styles.button} type="button" onClick={download}>
               Download
             </button>
-            <button type="button" onClick={clear}>
+            <button className={styles.button} type="button" onClick={clear}>
               Clear
             </button>
           </div>

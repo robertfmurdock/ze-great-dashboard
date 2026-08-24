@@ -1,0 +1,34 @@
+.diagnostics {
+  position: relative;
+}
+
+.button {
+  border: 1px solid var(--edge);
+  border-radius: 0.25rem;
+  background: var(--surface-raised);
+  color: var(--ink-secondary);
+  font: inherit;
+  padding: 0.3em 0.55em;
+}
+
+.area {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  bottom: calc(100% + 0.5rem);
+  width: min(24rem, 90vw);
+  padding: 0.75rem;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  box-shadow: 0 0.5rem 1.5rem #0008;
+}
+
+.area p {
+  margin: 0 0 0.5rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}

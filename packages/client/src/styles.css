@@ -54,6 +54,10 @@ body {
 }
 
 body {
+  overflow-x: hidden;
+}
+
+body {
   background: var(--surface);
   color: var(--ink-primary);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -66,8 +70,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
-  min-height: 100%;
+  height: 100dvh;
+  min-height: 0;
   padding: var(--gap);
+  overflow: hidden;
 }
 
 .board__header {
@@ -78,6 +84,7 @@ body {
   gap: var(--gap);
   border-bottom: 1px solid var(--edge);
   padding-bottom: var(--gap);
+  flex: 0 0 auto;
 }
 
 .board__title {
@@ -122,9 +129,11 @@ body {
 .board__grid {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
+  grid-auto-rows: minmax(0, 1fr);
   gap: var(--gap);
   flex: 1;
-  align-content: start;
+  min-height: 0;
+  align-content: stretch;
 }
 
 .panel {
@@ -134,7 +143,8 @@ body {
   flex-direction: column;
   justify-content: center;
   gap: 0.25em;
-  min-height: 6em;
+  min-width: 0;
+  min-height: 0;
   padding: var(--gap);
   border: 1px solid var(--edge);
   border-radius: var(--radius);
@@ -244,41 +254,7 @@ body {
   gap: 0.5rem;
   color: var(--ink-muted);
   font-size: 0.75em;
-}
-
-.diagnostics {
-  position: relative;
-}
-
-.diagnostics button {
-  border: 1px solid var(--edge);
-  border-radius: 0.25rem;
-  background: var(--surface-raised);
-  color: var(--ink-secondary);
-  font: inherit;
-  padding: 0.3em 0.55em;
-}
-
-.diagnostics__area {
-  position: absolute;
-  z-index: 1;
-  right: 0;
-  bottom: calc(100% + 0.5rem);
-  width: min(24rem, 90vw);
-  padding: 0.75rem;
-  border: 1px solid var(--edge);
-  border-radius: var(--radius);
-  background: var(--surface-raised);
-  box-shadow: 0 0.5rem 1.5rem #0008;
-}
-
-.diagnostics__area p {
-  margin: 0 0 0.5rem;
-}
-
-.diagnostics__actions {
-  display: flex;
-  gap: 0.5rem;
+  flex: 0 0 auto;
 }
 
 .config-error {
@@ -300,12 +276,22 @@ body {
 }
 
 @media (max-width: 60rem) {
+  .board {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
   .board__grid {
     grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+    flex: 0 0 auto;
+    min-height: auto;
   }
 
   .panel {
     grid-column: 1 / -1;
     grid-row: auto;
+    min-height: 6em;
   }
 }
