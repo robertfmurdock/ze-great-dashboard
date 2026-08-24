@@ -24,10 +24,22 @@ export const positionSchema = z.object({
 
 export type Position = z.infer<typeof positionSchema>
 
+/**
+ * Supported roles are intentionally documented separately from the wire schema. Display roles are
+ * cosmetic, so a newer board may name a role an older client does not know yet; the client safely
+ * falls back to supporting presentation instead of rejecting the whole board.
+ */
+export const panelDisplayRoles = ['primary', 'supporting', 'compact'] as const
+export const panelDisplaySchema = z.string().min(1)
+
+export type PanelDisplay = z.infer<typeof panelDisplaySchema>
+
 export const panelSchema = z.looseObject({
   id: z.string().min(1),
   type: z.string().min(1),
   source: z.string().min(1).optional(),
+  /** Semantic visual weight; position still controls the panel's explicit grid placement. */
+  display: panelDisplaySchema.optional(),
   /** Advisory in v1 — a panel without a position renders in config order rather than not at all. */
   position: positionSchema.optional(),
   refresh: durationSchema.optional(),

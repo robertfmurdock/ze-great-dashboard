@@ -72,6 +72,18 @@ describe('the board config schema', () => {
     expect(boardConfigSchema.safeParse(validConfig).success).toBe(true)
   })
 
+  it('accepts named display roles and preserves unknown cosmetic roles for compatibility', () => {
+    expect(
+      boardConfigSchema.safeParse({
+        boards: { a: { panels: [{ id: 'primary', type: 'pipeline-status', display: 'primary' }] } },
+      }).success,
+    ).toBe(true)
+    const futureRole = boardConfigSchema.parse({
+      boards: { a: { panels: [{ id: 'custom', type: 'http-value', display: 'hero' }] } },
+    })
+    expect(futureRole.boards.a?.panels[0]?.display).toBe('hero')
+  })
+
   it('rejects a malformed refresh instead of letting it become NaN later', () => {
     const result = boardConfigSchema.safeParse({
       boards: { a: { refresh: 'soon', panels: [{ id: 'x', type: 'y' }] } },

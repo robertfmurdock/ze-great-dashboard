@@ -39,3 +39,16 @@ npm run check
 
 Contributions must pass `npm run check`. New dependencies need a clear justification: the project
 deliberately keeps its dependency surface small.
+
+## Regression and compatibility testing
+
+Treat existing tests as contracts for previous defaults and behavior. When adding a feature, prefer
+adding new tests over editing existing tests, so the old behavior remains visibly defended. New
+board-format fields should have both feature coverage and a legacy-shape test proving that the field's
+absence still behaves as before.
+
+If a behavior must intentionally change, keep an explicit test for the prior default or compatibility
+path and explain the changed expectation in the change. Tests at separate package boundaries—such as
+the shared board validator and the AWS release validator—must agree on the accepted configuration
+shape. Cosmetic fields may use safe fallback behavior for newer values; security- and routing-
+relevant fields remain strictly validated.

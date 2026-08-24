@@ -23,11 +23,13 @@ boards:
     panels:
       - id: build
         type: pipeline-status
+        display: primary
         source: github
         pipeline: main.yml
         position: { x: 0, y: 0, w: 8, h: 6 }
       - id: release
         type: http-value
+        display: compact
         url: https://status.example.com/version.json
         json_path: $.version
         refresh: 5m
@@ -37,6 +39,12 @@ boards:
 The board-level `refresh` is the default for panels that do not provide their own value. Refresh
 durations use values such as `60s` or `5m`. Panel IDs must be unique within a board. Positions use
 a twelve-column grid: `x` and `y` locate the panel, while `w` and `h` define its size.
+
+Use the optional `display` role to express how much attention a panel should receive. `primary`
+is for the most actionable signals, `supporting` is the default, and `compact` is for lower-priority
+context such as version values. The role changes presentation density and typography; `position`
+still controls the panel's grid footprint. Existing panels without a role retain the supporting
+presentation.
 
 Sources are reusable named definitions. Current source and panel adapters determine which
 additional fields they accept; for example, `github-actions` uses `repo`, an optional `branch`,

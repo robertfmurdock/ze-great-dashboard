@@ -212,6 +212,30 @@ body {
   color: var(--ink-primary);
 }
 
+/* Display roles express attention, while position remains responsible for grid placement. */
+.panel--primary .panel__status {
+  font-size: 1.5em;
+}
+
+.panel--compact {
+  min-height: 3.5em;
+  padding: 0.65em;
+  gap: 0.1em;
+}
+
+.panel--compact .panel__label {
+  font-size: 0.8em;
+}
+
+.panel--compact .panel__status {
+  font-size: 1.1em;
+}
+
+.panel--compact .panel__hint,
+.panel--compact .panel__link {
+  font-size: 0.65em;
+}
+
 .board__footer {
   display: flex;
   flex-wrap: wrap;

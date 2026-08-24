@@ -27,6 +27,27 @@ describe('PanelFrame', () => {
     expect(rendered.querySelector('.panel__link')).toBeNull()
   })
 
+  it('uses the panel display role as a semantic presentation class', () => {
+    const rendered = render(
+      <PanelFrame panel={{ ...panel, display: 'compact' }}>
+        <p>Value</p>
+      </PanelFrame>,
+    ).container
+
+    expect(rendered.querySelector('.panel')?.classList.contains('panel--compact')).toBe(true)
+  })
+
+  it('falls back to supporting presentation for an unknown future role', () => {
+    const rendered = render(
+      <PanelFrame panel={{ ...panel, display: 'hero' }}>
+        <p>Value</p>
+      </PanelFrame>,
+    ).container
+
+    expect(rendered.querySelector('.panel')?.classList.contains('panel--supporting')).toBe(true)
+    expect(rendered.querySelector('.panel')?.classList.contains('panel--hero')).toBe(false)
+  })
+
   it('owns error styling and the accessible source action', () => {
     const envelope: Envelope = {
       panelId: 'build',

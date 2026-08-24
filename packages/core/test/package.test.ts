@@ -38,4 +38,22 @@ describe('consumer release contract', () => {
     expect(one.files['board.yaml']).toBe(two.files['board.yaml'])
     expect(await readFile(join(root, 'one', 'release.json'), 'utf8')).not.toMatch(/token|secret/i)
   })
+
+  it('preserves cosmetic display roles through the release boundary', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dashboard-display-'))
+    const boardPath = join(root, 'board.yaml')
+    await writeFile(
+      boardPath,
+      'boards: {demo: {panels: [{id: build, type: pipeline-status, display: primary}, {id: future, type: http-value, display: hero}]}}\nsources: {}\n',
+    )
+
+    const result = await validateBoardConfig(boardPath)
+
+    expect(result.config.boards.demo?.panels).toEqual([
+      { id: 'build', type: 'pipeline-status', display: 'primary' },
+      { id: 'future', type: 'http-value', display: 'hero' },
+    ])
+    expect(result.yaml).toContain('display: primary')
+    expect(result.yaml).toContain('display: hero')
+  })
 })

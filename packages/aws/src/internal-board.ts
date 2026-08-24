@@ -15,6 +15,8 @@ const panelSchema = z.looseObject({
   id: z.string().min(1),
   type: z.string().min(1),
   source: z.string().min(1).optional(),
+  // Cosmetic roles remain open so newer board files can safely fall back on older runtimes.
+  display: z.string().min(1).optional(),
   position: positionSchema.optional(),
   refresh: durationSchema.optional(),
   link: z.url().optional(),

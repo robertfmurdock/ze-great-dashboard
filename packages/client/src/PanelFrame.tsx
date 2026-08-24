@@ -13,9 +13,11 @@ export function PanelFrame({
   error?: boolean
   children: ReactNode
 }) {
+  const display =
+    panel.display === 'primary' || panel.display === 'compact' ? panel.display : 'supporting'
   return (
     <section
-      className={error ? 'panel panel--error' : 'panel'}
+      className={`panel panel--${display}${error ? ' panel--error' : ''}`}
       style={panelLayout(panel)}
       aria-busy={envelope ? undefined : true}
     >
