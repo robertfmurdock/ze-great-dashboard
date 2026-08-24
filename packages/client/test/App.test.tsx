@@ -276,6 +276,37 @@ describe('pipeline-status refresh scheduling', () => {
     await settle()
     expect(rendered.textContent).toContain('No workflow runs')
     expect(rendered.textContent).toContain('branch "master"')
+    const link = rendered.querySelector('.panel__link')
+    expect(link?.textContent).toContain('View source')
+    expect(link?.getAttribute('href')).toBe(
+      'https://github.com/example-org/example-repo/actions/workflows/build.yml',
+    )
+  })
+
+  it('keeps the source link when a pipeline signal is invalid', async () => {
+    setup(
+      { panels: [{ id: 'build', type: 'pipeline-status' }] },
+      {
+        build: [
+          new Response(
+            JSON.stringify({
+              panelId: 'build',
+              state: 'ok',
+              observedAt: '2026-08-18T12:00:00.000Z',
+              link: 'https://github.com/example-org/example-repo/actions/workflows/build.yml',
+              signal: { type: 'pipeline-status', status: 'surprising' },
+            }),
+          ),
+        ],
+      },
+    )
+
+    const rendered = render(<App env={env} />)
+    await settle()
+    expect(rendered.textContent).toContain('Invalid signal')
+    expect(rendered.querySelector('.panel__link')?.getAttribute('href')).toBe(
+      'https://github.com/example-org/example-repo/actions/workflows/build.yml',
+    )
   })
 
   it('cleans up timers and ignores an in-flight response on unmount', async () => {
@@ -349,6 +380,32 @@ describe('http-value panels', () => {
     expect(rendered.textContent).toContain('1.2.3')
     expect(rendered.querySelector('a')?.getAttribute('href')).toBe(
       'https://service.example.com/version',
+    )
+  })
+
+  it('keeps the configured fallback link when the value cannot be read', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) =>
+        String(input).startsWith('/api/boards/')
+          ? new Response(JSON.stringify({ panels: [{ id: 'version', type: 'http-value' }] }))
+          : new Response(
+              JSON.stringify({
+                panelId: 'version',
+                state: 'error',
+                observedAt: '2026-08-18T12:00:00.000Z',
+                link: 'https://service.example.com/status',
+                error: { kind: 'unreachable', message: 'offline' },
+              }),
+            ),
+      ),
+    )
+
+    const rendered = render(<App env={env} />)
+    await act(async () => {})
+    expect(rendered.textContent).toContain('Unable to read')
+    expect(rendered.querySelector('.panel__link')?.getAttribute('href')).toBe(
+      'https://service.example.com/status',
     )
   })
 

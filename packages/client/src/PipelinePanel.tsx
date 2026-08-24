@@ -1,45 +1,43 @@
-import {
-  type Envelope,
-  envelopeSchema,
-  type Panel,
-  pipelineStatusSchema,
-} from '@ze-great-dashboard/shared'
+import { type Envelope, type Panel, pipelineStatusSchema } from '@ze-great-dashboard/shared'
 import { ObservedAt } from './ObservedAt.tsx'
-import { panelLayout } from './panel-layout.ts'
+import { PanelFrame } from './PanelFrame.tsx'
 
-export function PipelinePanel({ panel, data }: { panel: Panel; data: Envelope | undefined }) {
-  if (!data)
+export function PipelinePanel({
+  panel,
+  envelope,
+}: {
+  panel: Panel
+  envelope: Envelope | undefined
+}) {
+  if (!envelope)
     return (
-      <section className="panel" style={panelLayout(panel)} aria-busy="true">
-        <h2 className="panel__label">{panel.id}</h2>
+      <PanelFrame panel={panel}>
         <p className="panel__hint">Loading…</p>
-      </section>
+      </PanelFrame>
     )
-  if (data.state === 'error') {
+  if (envelope.state === 'error') {
     return (
-      <section className="panel panel--error" style={panelLayout(panel)}>
-        <h2 className="panel__label">{panel.id}</h2>
+      <PanelFrame panel={panel} envelope={envelope} error>
         <p className="panel__status">
-          ⚠ {data.error.kind === 'no-runs' ? 'No workflow runs' : 'Unable to read'}
+          ⚠ {envelope.error.kind === 'no-runs' ? 'No workflow runs' : 'Unable to read'}
         </p>
-        <p className="panel__hint">{data.error.message}</p>
-        <ObservedAt value={data.observedAt} />
-      </section>
+        <p className="panel__hint">{envelope.error.message}</p>
+        <ObservedAt value={envelope.observedAt} />
+      </PanelFrame>
     )
   }
 
-  const signal = pipelineStatusSchema.safeParse(data.signal)
+  const signal = pipelineStatusSchema.safeParse(envelope.signal)
   if (!signal.success)
     return (
-      <section className="panel panel--error" style={panelLayout(panel)}>
-        <h2 className="panel__label">{panel.id}</h2>
+      <PanelFrame panel={panel} envelope={envelope} error>
         <p className="panel__status">⚠ Invalid signal</p>
-        <ObservedAt value={data.observedAt} />
-      </section>
+        <ObservedAt value={envelope.observedAt} />
+      </PanelFrame>
     )
   const presentation = statusPresentation(signal.data.status)
-  const content = (
-    <>
+  return (
+    <PanelFrame panel={panel} envelope={envelope}>
       <p className={`panel__status panel__status--${signal.data.status}`}>
         {presentation.glyph} {presentation.label}
       </p>
@@ -59,20 +57,8 @@ export function PipelinePanel({ panel, data }: { panel: Panel; data: Envelope | 
       {signal.data.sourceUpdatedAt && (
         <ObservedAt value={signal.data.sourceUpdatedAt} label="Run updated" />
       )}
-      <ObservedAt value={data.observedAt} />
-    </>
-  )
-  return (
-    <section className="panel" style={panelLayout(panel)}>
-      <h2 className="panel__label">{panel.id}</h2>
-      {data.link ? (
-        <a className="panel__link" href={data.link}>
-          {content}
-        </a>
-      ) : (
-        content
-      )}
-    </section>
+      <ObservedAt value={envelope.observedAt} />
+    </PanelFrame>
   )
 }
 
@@ -100,9 +86,4 @@ function statusPresentation(status: 'passed' | 'failed' | 'running' | 'cancelled
     case 'unknown':
       return { glyph: '?', label: 'Unknown' }
   }
-}
-
-export function parseEnvelope(value: unknown): Envelope | undefined {
-  const result = envelopeSchema.safeParse(value)
-  return result.success ? result.data : undefined
 }

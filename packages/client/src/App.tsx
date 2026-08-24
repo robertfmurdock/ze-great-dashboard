@@ -104,9 +104,9 @@ export function App({ env }: { env: ClientEnv }) {
         {!board && <PanelPlaceholder label="board" hint="Loading configuration…" wide />}
         {board?.panels.map((panel) =>
           panel.type === 'pipeline-status' ? (
-            <PipelinePanel key={panel.id} panel={panel} data={signals[panel.id]} />
+            <PipelinePanel key={panel.id} panel={panel} envelope={signals[panel.id]} />
           ) : panel.type === 'http-value' ? (
-            <HttpValuePanel key={panel.id} panel={panel} data={signals[panel.id]} />
+            <HttpValuePanel key={panel.id} panel={panel} envelope={signals[panel.id]} />
           ) : (
             <PanelPlaceholder key={panel.id} label={panel.type} hint="Not wired yet" wide />
           ),

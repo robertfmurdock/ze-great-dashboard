@@ -55,7 +55,7 @@ describe('the http-value adapter', () => {
     expect((headers as Headers).get('if-none-match')).toBe('W/"client"')
   })
 
-  it('reports missing paths, unreachable sources, and 304 without inventing a value', async () => {
+  it('reports a missing JSON path with the endpoint as its fallback link', async () => {
     const missing = await fetchHttpValue({
       panel,
       requestHeaders: new Headers(),
@@ -63,11 +63,14 @@ describe('the http-value adapter', () => {
     })
     await expect(missing.response.json()).resolves.toMatchObject({
       state: 'error',
+      link: panel.url,
       error: { kind: 'upstream-error' },
     })
+  })
 
+  it('reports an unreachable source with the configured fallback link', async () => {
     const unreachable = await fetchHttpValue({
-      panel,
+      panel: { ...panel, link: 'https://service.example.com/status' },
       requestHeaders: new Headers(),
       fetcher: vi.fn(async () => {
         throw new Error('offline')
@@ -76,9 +79,12 @@ describe('the http-value adapter', () => {
     expect(unreachable.response.status).toBe(200)
     await expect(unreachable.response.json()).resolves.toMatchObject({
       state: 'error',
+      link: 'https://service.example.com/status',
       error: { kind: 'unreachable' },
     })
+  })
 
+  it('passes through a 304 without inventing a value', async () => {
     const notModified = await fetchHttpValue({
       panel,
       requestHeaders: new Headers(),

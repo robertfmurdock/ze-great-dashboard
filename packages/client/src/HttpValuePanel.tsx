@@ -1,50 +1,41 @@
 import type { Panel } from '@ze-great-dashboard/shared'
 import { type Envelope, httpValueSchema } from '@ze-great-dashboard/shared'
 import { ObservedAt } from './ObservedAt.tsx'
-import { panelLayout } from './panel-layout.ts'
+import { PanelFrame } from './PanelFrame.tsx'
 
-export function HttpValuePanel({ panel, data }: { panel: Panel; data: Envelope | undefined }) {
-  if (!data)
+export function HttpValuePanel({
+  panel,
+  envelope,
+}: {
+  panel: Panel
+  envelope: Envelope | undefined
+}) {
+  if (!envelope)
     return (
-      <section className="panel" style={panelLayout(panel)} aria-busy="true">
-        <h2 className="panel__label">{panel.id}</h2>
+      <PanelFrame panel={panel}>
         <p className="panel__hint">Loading…</p>
-      </section>
+      </PanelFrame>
     )
-  if (data.state === 'error')
+  if (envelope.state === 'error')
     return (
-      <section className="panel panel--error" style={panelLayout(panel)}>
-        <h2 className="panel__label">{panel.id}</h2>
+      <PanelFrame panel={panel} envelope={envelope} error>
         <p className="panel__status">⚠ Unable to read</p>
-        <p className="panel__hint">{data.error.message}</p>
-        <ObservedAt value={data.observedAt} />
-      </section>
+        <p className="panel__hint">{envelope.error.message}</p>
+        <ObservedAt value={envelope.observedAt} />
+      </PanelFrame>
     )
-  const signal = httpValueSchema.safeParse(data.signal)
+  const signal = httpValueSchema.safeParse(envelope.signal)
   if (!signal.success)
     return (
-      <section className="panel panel--error" style={panelLayout(panel)}>
-        <h2 className="panel__label">{panel.id}</h2>
+      <PanelFrame panel={panel} envelope={envelope} error>
         <p className="panel__status">⚠ Invalid value</p>
-        <ObservedAt value={data.observedAt} />
-      </section>
+        <ObservedAt value={envelope.observedAt} />
+      </PanelFrame>
     )
-  const content = (
-    <>
-      <p className="panel__status">{String(signal.data.value)}</p>
-      <ObservedAt value={data.observedAt} />
-    </>
-  )
   return (
-    <section className="panel" style={panelLayout(panel)}>
-      <h2 className="panel__label">{panel.id}</h2>
-      {data.link ? (
-        <a className="panel__link" href={data.link}>
-          {content}
-        </a>
-      ) : (
-        content
-      )}
-    </section>
+    <PanelFrame panel={panel} envelope={envelope}>
+      <p className="panel__status">{String(signal.data.value)}</p>
+      <ObservedAt value={envelope.observedAt} />
+    </PanelFrame>
   )
 }

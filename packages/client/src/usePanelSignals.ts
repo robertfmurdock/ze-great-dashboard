@@ -2,12 +2,12 @@ import {
   type Board,
   type ClientEnv,
   type Envelope,
+  envelopeSchema,
   parseDuration,
   resolveRefreshMillis,
 } from '@ze-great-dashboard/shared'
 import { useEffect, useRef, useState } from 'react'
 import { cacheMetadata, type DiagnosticSink } from './diagnostics.ts'
-import { parseEnvelope } from './PipelinePanel.tsx'
 import { panelDiagnosticChanged, projectPanelDiagnostic } from './panel-diagnostics.ts'
 
 export function usePanelSignals({
@@ -130,4 +130,9 @@ class DiagnosticParseFailure extends Error {
   constructor(error: unknown) {
     super(errorMessage(error))
   }
+}
+
+function parseEnvelope(value: unknown): Envelope | undefined {
+  const result = envelopeSchema.safeParse(value)
+  return result.success ? result.data : undefined
 }
