@@ -210,3 +210,33 @@ The first real release exposed the one-time npm bootstrap sequence:
 For future repositories using npm Trusted Publishing, publish one manual public version first,
 configure the package's trusted publisher, ensure the package manifest identifies the matching public
 GitHub repository, and then let the main-branch workflow publish subsequent versions.
+
+## Deployable release handoff
+
+Recorded 2026-08-24 for GitHub issue #4. A consumer package upgrade could previously package and
+upload a new content-addressed Lambda ZIP while CloudFormation retained the existing stack's omitted
+`LambdaArtifactKey` and `DashboardVersion` parameters. It reported an empty change set and left the
+dashboard on its prior release.
+
+`ze-great-dashboard-aws package` now accepts `--parameters`, defaulting to the committed,
+consumer-owned `aws-dashboard-parameters.json`. It validates that input before creating release
+output: entries must be well-formed and unique, known to the template, not package-managed, and
+complete for consumer-required values. It then writes the disposable
+`aws-dashboard-release/parameters.json` in deterministic template order, resolving consumer values,
+template defaults, and the packaged artifact key and dashboard version.
+
+The same release directory now contains `deployment.json`: a machine-readable handoff identifying
+the template, ZIP, artifact bucket/key, complete release metadata, canonical parameters, and
+explicit AWS CLI argument arrays. The CLI prints copyable upload and CloudFormation commands but
+does not execute AWS mutations. The former direct `deploy` command and Lambda-update implementation
+were removed; provider-owned immutable client publishing remains part of the release process.
+
+The manual guide, GitHub Actions example, installed-package smoke test, published-package staging
+test, and both repository reference-consumer workflows use the generated parameters. The reference
+workflows also consume the handoff's upload destination. After deployment, the real reference stack
+asserts both its `AssetPath` and `LambdaArtifactKey`, preventing a healthy-but-old dashboard from
+passing release verification. `aws-dashboard-release/` is ignored as disposable output.
+
+Verification: `npm run check` passed with 144 unit tests, production-client browser tests, board
+validation, and published-package staging. The work was committed as
+`eab3198 feat(aws): package deploy-ready release handoff`.

@@ -72,6 +72,12 @@ describe('persistent consumer reference', () => {
     expect(workflow).toContain('.commands.upload[4]')
     expect(workflow).toContain('deployed_asset_path')
     expect(workflow).toContain('deployed_artifact_key')
+    expect(workflow).toContain(
+      `--query "Stacks[0].Outputs[?OutputKey=='AssetPath'].OutputValue" --output text`,
+    )
+    expect(workflow).toContain(
+      `--query "Stacks[0].Parameters[?ParameterKey=='LambdaArtifactKey'].ParameterValue" --output text`,
+    )
     expect(workflow).toContain('verified-release-candidate')
     expect(workflow).not.toContain('Deploy application 🚀')
     expect(workflow).toContain('reference_artifact_bucket')

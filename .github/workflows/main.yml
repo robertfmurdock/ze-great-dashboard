@@ -144,10 +144,10 @@ jobs:
           expected_asset_path="$(jq -er '.clientAssetUrl' .reference-consumer/aws-dashboard-release/release.json)"
           deployed_asset_path="$(aws cloudformation describe-stacks \
             --stack-name ze-great-dashboard-reference --region us-east-1 \
-            --query \"Stacks[0].Outputs[?OutputKey=='AssetPath'].OutputValue\" --output text)"
+            --query "Stacks[0].Outputs[?OutputKey=='AssetPath'].OutputValue" --output text)"
           deployed_artifact_key="$(aws cloudformation describe-stacks \
             --stack-name ze-great-dashboard-reference --region us-east-1 \
-            --query \"Stacks[0].Parameters[?ParameterKey=='LambdaArtifactKey'].ParameterValue\" --output text)"
+            --query "Stacks[0].Parameters[?ParameterKey=='LambdaArtifactKey'].ParameterValue" --output text)"
           [ "$deployed_asset_path" = "$expected_asset_path" ]
           [ "$deployed_artifact_key" = "$artifact_key" ]
           function_arn="$(aws cloudformation describe-stacks \
