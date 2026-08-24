@@ -331,11 +331,11 @@ jobs:
           IMAGE: ghcr.io/${{ github.repository }}:${{ needs.check.outputs.version }}
           ASSET_PATH: https://public-assets.zegreatrob.com/dashboard/${{ needs.check.outputs.version }}
         run: |
-          docker run --detach --rm --name ze-great-dashboard-smoke \
+          docker run --detach --name ze-great-dashboard-smoke \
             --publish 3000:3000 \
             --env "ASSET_PATH=$ASSET_PATH" \
             "$IMAGE"
-          cleanup() { docker stop ze-great-dashboard-smoke >/dev/null 2>&1 || true; }
+          cleanup() { docker rm --force ze-great-dashboard-smoke >/dev/null 2>&1 || true; }
           trap cleanup EXIT
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:3000/health >/dev/null; then exit 0; fi

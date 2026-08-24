@@ -16,6 +16,23 @@ COPY packages/client/package.json ./packages/client/
 # --ignore-scripts skips the postinstall git hook wiring, which is meaningless in a container.
 RUN npm ci --omit=dev --workspace @ze-great-dashboard/server --include-workspace-root --ignore-scripts
 
+FROM node:24-alpine AS shared-build
+
+WORKDIR /app
+
+# The server runs from TypeScript, but Node still resolves the shared workspace through its
+# package export. Build that one runtime artifact while keeping development dependencies out of
+# the final image.
+COPY package.json package-lock.json ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/server/package.json ./packages/server/
+COPY packages/client/package.json ./packages/client/
+RUN npm ci --workspace @ze-great-dashboard/server --include-workspace-root --ignore-scripts
+COPY packages/shared/src ./packages/shared/src
+RUN ./node_modules/.bin/esbuild packages/shared/src/index.ts \
+  --bundle --format=esm --platform=node --target=node22 --external:zod \
+  --outfile=packages/shared/dist/index.js
+
 FROM node:24-alpine
 
 WORKDIR /app
@@ -30,6 +47,7 @@ COPY --chown=node:node package.json ./
 COPY --chown=node:node packages/shared ./packages/shared
 COPY --chown=node:node packages/server ./packages/server
 COPY --chown=node:node boards ./boards
+COPY --from=shared-build --chown=node:node /app/packages/shared/dist ./packages/shared/dist
 
 USER node
 
