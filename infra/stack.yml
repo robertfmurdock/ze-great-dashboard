@@ -286,6 +286,65 @@ Resources:
                 Action: lambda:InvokeFunction
                 Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:ze-great-dashboard-reference'
 
+  GitHubReferenceSmokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ZeGreatDashboardReferenceSmoke
+      Description: Main-only GitHub role for the ephemeral Docker smoke test
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+                'token.actions.githubusercontent.com:sub': !Sub
+                  - 'repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:ref:refs/heads/main'
+                  - Owner:
+                      Fn::Select: [0, { Fn::Split: ['/', !Ref GitHubRepository] }]
+                    Repository:
+                      Fn::Select: [1, { Fn::Split: ['/', !Ref GitHubRepository] }]
+      Policies:
+        - PolicyName: RunEphemeralDashboardSmoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: DiscoverSmokeSubnets
+                Effect: Allow
+                Action: ec2:DescribeSubnets
+                Resource: '*'
+              - Sid: CreateSmokeCluster
+                Effect: Allow
+                Action: ecs:CreateCluster
+                Resource: '*'
+              - Sid: OperateSmokeCluster
+                Effect: Allow
+                Action:
+                  - ecs:DeleteCluster
+                  - ecs:DescribeTasks
+                  - ecs:StopTask
+                Resource: '*'
+                Condition:
+                  ArnLike:
+                    'ecs:cluster': !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/ze-great-dashboard-smoke-*'
+              - Sid: RunSmokeTask
+                Effect: Allow
+                Action: ecs:RunTask
+                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/ze-great-dashboard-smoke-*'
+                Condition:
+                  ArnLike:
+                    'ecs:cluster': !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/ze-great-dashboard-smoke-*'
+              - Sid: RegisterSmokeTaskDefinition
+                Effect: Allow
+                Action:
+                  - ecs:DeregisterTaskDefinition
+                  - ecs:RegisterTaskDefinition
+                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/ze-great-dashboard-smoke-*'
+
 Outputs:
   AssetsBucket:
     Value: !Ref AssetsBucket
@@ -304,3 +363,5 @@ Outputs:
     Value: !GetAtt GitHubReferenceDeployRole.Arn
   ReferenceExecutionRoleArn:
     Value: !GetAtt ReferenceCloudFormationExecutionRole.Arn
+  ReferenceSmokeRoleArn:
+    Value: !GetAtt GitHubReferenceSmokeRole.Arn

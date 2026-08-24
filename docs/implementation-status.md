@@ -22,7 +22,9 @@ availability.
 The same verified `main` release also publishes the server-only Docker image to GHCR with an exact
 semantic-version tag and the `latest` alias. Compose runs the published image by default and has an
 explicit local-build override; the image still receives `ASSET_PATH` at runtime and never contains
-the client build or environment-specific configuration.
+the client build or environment-specific configuration. The release workflow smoke-tests that exact
+image in a one-shot ECS Fargate task, then stops the task and removes its temporary task definition
+and cluster so the test does not leave a billable long-running service behind.
 
 ## Current checkpoint
 

@@ -19,6 +19,7 @@ jobs:
       id-token: write
     outputs:
       version: ${{ steps.version.outputs.version }}
+      reference_smoke_role_arn: ${{ steps.infrastructure.outputs.reference_smoke_role_arn }}
     steps:
       - uses: actions/checkout@v7
 
@@ -69,6 +70,12 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::174159267544:role/ZeGreatDashboardProvision
           aws-region: us-east-1
+
+      - name: Check provider bootstrap before provisioning
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
+        env:
+          CLOUDFORMATION_ROLE_ARN: arn:aws:iam::174159267544:role/ze-great-dashboard-cloudformation
+        run: bash scripts/check-provider-bootstrap.sh
 
       - name: Provision AWS infrastructure
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
@@ -332,24 +339,19 @@ jobs:
           tags: ${{ steps.docker-meta.outputs.tags }}
           labels: ${{ steps.docker-meta.outputs.labels }}
 
-      - name: Smoke-test published Docker image
+      - name: Assume Docker smoke-test credentials
+        if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ needs.check.outputs.reference_smoke_role_arn }}
+          aws-region: us-east-1
+
+      - name: Run ephemeral ECS Docker smoke test
         if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
         env:
           IMAGE: ghcr.io/${{ github.repository }}:${{ needs.check.outputs.version }}
           ASSET_PATH: https://public-assets.zegreatrob.com/dashboard/${{ needs.check.outputs.version }}
-        run: |
-          docker run --detach --name ze-great-dashboard-smoke \
-            --publish 3000:3000 \
-            --env "ASSET_PATH=$ASSET_PATH" \
-            "$IMAGE"
-          cleanup() { docker rm --force ze-great-dashboard-smoke >/dev/null 2>&1 || true; }
-          trap cleanup EXIT
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
-            sleep 2
-          done
-          docker logs ze-great-dashboard-smoke
-          exit 1
+        run: bash scripts/test-ecs-image.sh
 
       - name: Tag verified release
         if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true

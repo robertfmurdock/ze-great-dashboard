@@ -22,10 +22,10 @@ CloudFormation—not GitHub—assumes to operate the resources in `stack.yml`. T
 operate only the `ze-great-dashboard` stack and pass only that execution role. It must not trust pull
 requests, tags, or other branches.
 
-This role is the sole bootstrap boundary. The stack creates a narrower `ZeGreatDashboardDeploy`
-role, which the workflow assumes only for publishing candidate client assets.
+This role is the sole bootstrap boundary. The stack creates narrower roles for publishing candidate
+client assets and running the ephemeral Docker smoke test.
 
-The two bootstrap roles are declared in `bootstrap.yml`. Upload that file in AWS CloudShell and run:
+The bootstrap roles are declared in `bootstrap.yml`. Upload that file in AWS CloudShell and run:
 
 ```sh
 aws cloudformation deploy \
@@ -68,8 +68,18 @@ source.
 The existing bootstrap boundary must be updated once before the first release containing this change:
 an AWS administrator reruns the **existing** `ze-great-dashboard-bootstrap` deployment with the
 updated `bootstrap.yml`. This extends its CloudFormation execution role only to the named reference
-bucket and two named reference roles; it does not add another bootstrap stack or give GitHub broader
-access.
+bucket and three named reference roles; it does not add another bootstrap stack or give GitHub
+broader access.
+
+The release workflow also assumes `ZeGreatDashboardReferenceSmoke` for an ephemeral ECS Fargate
+task. That task probes `/health` from inside the container and is stopped, deregistered, and removed
+from its temporary cluster by an unconditional cleanup trap. No ECS service or load balancer is
+left running after the smoke test.
+
+Before provisioning, the workflow performs a read-only provider bootstrap check against the
+CloudFormation execution-role policy. If that policy cannot manage the smoke-test role, the
+workflow stops with an explicit bootstrap remediation message instead of attempting the
+infrastructure update.
 
 ## Manual inspection
 

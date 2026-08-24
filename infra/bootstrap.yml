@@ -101,6 +101,7 @@ Resources:
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceCloudFormationExecution'
                   - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceDeploy'
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceSmoke'
 
   GitHubProvisionRole:
     Type: AWS::IAM::Role
@@ -154,6 +155,10 @@ Resources:
                 Condition:
                   StringEquals:
                     'iam:PassedToService': cloudformation.amazonaws.com
+              - Sid: InspectCloudFormationExecutionRole
+                Effect: Allow
+                Action: iam:GetRolePolicy
+                Resource: !GetAtt CloudFormationExecutionRole.Arn
 
 Outputs:
   ProvisionRoleArn:

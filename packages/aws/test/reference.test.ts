@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdtemp, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -43,10 +44,16 @@ describe('persistent consumer reference', () => {
     expect(infrastructure).toContain('stack/ze-great-dashboard-reference/*')
     expect(infrastructure).toContain('function:ze-great-dashboard-reference')
     expect(infrastructure).toContain('role/ze-great-dashboard-reference-*')
+    expect(infrastructure).toContain('ZeGreatDashboardReferenceSmoke')
+    expect(infrastructure).toContain('ecs:CreateCluster')
+    expect(infrastructure).toContain('ecs:StopTask')
+    expect(infrastructure).toContain('ReferenceSmokeRoleArn')
+    expect(bootstrap).toContain('iam:GetRolePolicy')
     expect(infrastructure).toContain(`'\${ReferenceArtifactBucket.Arn}/lambda/*'`)
     expect(bootstrap).toContain('ze-great-dashboard-reference-artifacts')
     expect(bootstrap).toContain('ZeGreatDashboardReferenceCloudFormationExecution')
     expect(bootstrap).toContain('ZeGreatDashboardReferenceDeploy')
+    expect(bootstrap).toContain('ZeGreatDashboardReferenceSmoke')
 
     const workflow = await readFile(join(repositoryRoot, '.github/workflows/main.yml'), 'utf8')
     const tarball = workflow.indexOf('Build the exact-version npm tarball')
@@ -88,5 +95,25 @@ describe('persistent consumer reference', () => {
     expect(workflow).toContain('for attempt in {1..12}')
     expect(workflow).toContain('ServerFunctionArn')
     expect(workflow).toContain('aws lambda invoke')
+    expect(workflow).toContain('Assume Docker smoke-test credentials')
+    expect(workflow).toContain('Run ephemeral ECS Docker smoke test')
+    expect(workflow).toContain('run: bash scripts/test-ecs-image.sh')
+    expect(workflow).toContain('run: bash scripts/check-provider-bootstrap.sh')
+    expect(workflow.indexOf('Check provider bootstrap before provisioning')).toBeLessThan(
+      workflow.indexOf('Provision AWS infrastructure'),
+    )
+    expect(workflow).not.toContain('aws ecs create-service')
+    expect(workflow).not.toContain('AWS::ElasticLoadBalancingV2')
+
+    const smokeScript = join(repositoryRoot, 'scripts/test-ecs-image.sh')
+    execFileSync('bash', ['-n', smokeScript])
+    const smoke = await readFile(smokeScript, 'utf8')
+    expect(smoke).toContain('local test_status=$?')
+    expect(smoke).toContain('cleanup failed')
+    expect(smoke).toContain('trap cleanup EXIT')
+    expect(smoke).toContain('aws ecs create-cluster')
+    expect(smoke).toContain('aws ecs stop-task')
+    expect(smoke).toContain('aws ecs deregister-task-definition')
+    expect(smoke).toContain('aws ecs delete-cluster')
   })
 })

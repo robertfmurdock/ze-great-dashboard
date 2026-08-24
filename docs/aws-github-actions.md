@@ -92,6 +92,11 @@ jobs:
 The GitHub OIDC role can upload only to the configured artifact prefix, operate only the configured
 application stack, and pass only the reviewed core execution role.
 
+The repository release workflow separately assumes its dedicated smoke-test role after publishing
+the Docker image. It creates a temporary ECS Fargate task, probes `/health` inside the task, waits
+for completion, and unconditionally stops any running task, deregisters its task definition, and
+deletes its temporary cluster. It does not create an ECS service or load balancer.
+
 ## Optional gateway check
 
 Add a health check only when the protected gateway is reachable from the runner. If the workflow

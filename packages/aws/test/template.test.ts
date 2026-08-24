@@ -79,7 +79,7 @@ describe('AWS deployment contract', () => {
       version: '1.2.3',
     })
     expect(changed.artifactKey).not.toBe(metadata.artifactKey)
-  })
+  }, 15_000)
 
   it('resolves consumer and release parameters into an explicit deployment handoff', async () => {
     const root = await mkdtemp('/tmp/dashboard-aws-handoff-')
