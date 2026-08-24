@@ -1,6 +1,9 @@
 import type { BoardConfig, ClientEnv } from '@ze-great-dashboard/shared'
 import { Hono } from 'hono'
-import { fetchGithubActionsPipeline } from './adapters/github-actions.ts'
+import {
+  fetchGithubActionsPipeline,
+  fetchGithubActionsPullRequestHealth,
+} from './adapters/github-actions.ts'
 import { fetchHttpValue } from './adapters/http-value.ts'
 import { deriveAllowlist } from './allowlist.ts'
 import type { ServerConfig } from './config.ts'
@@ -64,6 +67,18 @@ export function createApp(deps: AppDependencies): Hono {
       })
       const headers = passthroughHeaders(result.response.headers)
       if (result.response.status === 304) return new Response(null, { status: 304, headers })
+      const envelope = result.envelope ?? JSON.parse(await result.response.text())
+      headers.set('content-type', 'application/json; charset=utf-8')
+      return new Response(JSON.stringify(envelope), { status: 200, headers })
+    }
+    if (panel.type === 'pull-request-health' && source?.type === 'github-actions' && source) {
+      const result = await fetchGithubActionsPullRequestHealth({
+        panel,
+        source,
+        requestHeaders: c.req.raw.headers,
+        fetcher: deps.fetcher ?? globalThis.fetch,
+      })
+      const headers = passthroughHeaders(result.response.headers)
       const envelope = result.envelope ?? JSON.parse(await result.response.text())
       headers.set('content-type', 'application/json; charset=utf-8')
       return new Response(JSON.stringify(envelope), { status: 200, headers })

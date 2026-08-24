@@ -76,6 +76,23 @@ export const pipelineStatusSchema = z.object({
 
 export type PipelineStatus = z.infer<typeof pipelineStatusSchema>
 
+export const pullRequestHealthItemSchema = z.object({
+  label: z.string().min(1),
+  status: pipelineStatusSchema.shape.status,
+  detail: z.string().min(1),
+  link: z.url().nullable(),
+})
+
+export const pullRequestHealthSchema = z.object({
+  type: z.literal('pull-request-health'),
+  status: pipelineStatusSchema.shape.status,
+  summary: z.string().min(1),
+  workflows: z.array(pullRequestHealthItemSchema),
+  pullRequests: z.array(pullRequestHealthItemSchema),
+})
+
+export type PullRequestHealth = z.infer<typeof pullRequestHealthSchema>
+
 export const httpValueSchema = z.object({
   type: z.literal('http-value'),
   value: z.union([z.string(), z.number(), z.boolean()]),

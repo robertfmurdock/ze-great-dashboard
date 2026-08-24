@@ -4,6 +4,7 @@ import type { BoardConfig } from '@ze-great-dashboard/shared'
 import { describe, expect, it, vi } from 'vitest'
 import {
   fetchGithubActionsPipeline,
+  fetchGithubActionsPullRequestHealth,
   permittedGithubActionsCalls,
 } from '../src/adapters/github-actions.ts'
 import { createApp } from '../src/app.ts'
@@ -174,5 +175,128 @@ describe('the panel route', () => {
 
     expect((await app.request('/api/panel/ze-great-team/not-configured')).status).toBe(404)
     expect(fetcher).not.toHaveBeenCalled()
+  })
+})
+
+describe('pull-request-health', () => {
+  const healthPanel = {
+    id: 'updates',
+    type: 'pull-request-health',
+    source: 'github',
+    base_branch: 'master',
+    update_workflows: [
+      { workflow: 'dependency-update.yml', branch_prefixes: ['cpr-gradle-update/'] },
+    ],
+    build_workflow: 'main.yml',
+  } as const
+  const healthSource = { type: 'github-actions', repo: 'example-org/example-repo' } as const
+  const successfulRun = {
+    status: 'completed',
+    conclusion: 'success',
+    name: 'Build',
+    html_url: 'https://github.com/example-org/example-repo/actions/runs/1',
+  }
+
+  it('rolls up update workflow and matching PR build health', async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes('/pulls?'))
+        return new Response(
+          JSON.stringify([
+            {
+              number: 42,
+              html_url: 'https://github.com/example-org/example-repo/pull/42',
+              head: { ref: 'cpr-gradle-update/create-update-branch/42' },
+              base: { ref: 'master' },
+            },
+            {
+              number: 99,
+              html_url: 'https://github.com/example-org/example-repo/pull/99',
+              head: { ref: 'feature/manual' },
+              base: { ref: 'master' },
+            },
+          ]),
+        )
+      return new Response(JSON.stringify({ workflow_runs: [successfulRun] }))
+    }) as unknown as typeof fetch
+
+    const result = await fetchGithubActionsPullRequestHealth({
+      panel: healthPanel,
+      source: healthSource,
+      requestHeaders: new Headers(),
+      fetcher,
+    })
+
+    expect(result.envelope).toMatchObject({
+      state: 'ok',
+      link: 'https://github.com/example-org/example-repo',
+      signal: {
+        type: 'pull-request-health',
+        status: 'passed',
+        pullRequests: [{ label: 'PR #42', status: 'passed' }],
+      },
+    })
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('branch=cpr-gradle-update%2Fcreate-update-branch%2F42'),
+      expect.anything(),
+    )
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('event=pull_request'),
+      expect.anything(),
+    )
+  })
+
+  it('does not treat an absent matching PR as a failure', async () => {
+    const fetcher = vi.fn(async (url: string) =>
+      url.includes('/pulls?')
+        ? new Response(JSON.stringify([]))
+        : new Response(JSON.stringify({ workflow_runs: [successfulRun] })),
+    ) as unknown as typeof fetch
+
+    const result = await fetchGithubActionsPullRequestHealth({
+      panel: healthPanel,
+      source: healthSource,
+      requestHeaders: new Headers(),
+      fetcher,
+    })
+
+    expect(result.envelope).toMatchObject({
+      state: 'ok',
+      signal: { status: 'passed', summary: '1 update workflow · No open update PRs' },
+    })
+  })
+
+  it('rolls up a failing PR build as failed', async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes('/pulls?'))
+        return new Response(
+          JSON.stringify([
+            {
+              number: 42,
+              html_url: 'https://github.com/example-org/example-repo/pull/42',
+              head: { ref: 'cpr-gradle-update/create-update-branch/42' },
+              base: { ref: 'master' },
+            },
+          ]),
+        )
+      const run = url.includes('branch=')
+        ? { ...successfulRun, conclusion: 'failure' }
+        : successfulRun
+      return new Response(JSON.stringify({ workflow_runs: [run] }))
+    }) as unknown as typeof fetch
+
+    const result = await fetchGithubActionsPullRequestHealth({
+      panel: healthPanel,
+      source: healthSource,
+      requestHeaders: new Headers(),
+      fetcher,
+    })
+
+    expect(result.envelope).toMatchObject({
+      state: 'ok',
+      signal: {
+        status: 'failed',
+        summary: 'PR #42: cpr-gradle-update/create-update-branch/42 · failure',
+      },
+    })
   })
 })

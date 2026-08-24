@@ -28,5 +28,7 @@ export {
   httpValueSchema,
   type OkEnvelope,
   type PipelineStatus,
+  type PullRequestHealth,
   pipelineStatusSchema,
+  pullRequestHealthSchema,
 } from './envelope.ts'

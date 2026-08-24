@@ -5,6 +5,7 @@ import { BrowserDiagnosticStore, cacheMetadata } from './diagnostics.ts'
 import { HttpValuePanel } from './HttpValuePanel.tsx'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PipelinePanel } from './PipelinePanel.tsx'
+import { PullRequestHealthPanel } from './PullRequestHealthPanel.tsx'
 import { usePanelSignals } from './usePanelSignals.ts'
 
 /**
@@ -105,6 +106,8 @@ export function App({ env }: { env: ClientEnv }) {
         {board?.panels.map((panel) =>
           panel.type === 'pipeline-status' ? (
             <PipelinePanel key={panel.id} panel={panel} envelope={signals[panel.id]} />
+          ) : panel.type === 'pull-request-health' ? (
+            <PullRequestHealthPanel key={panel.id} panel={panel} envelope={signals[panel.id]} />
           ) : panel.type === 'http-value' ? (
             <HttpValuePanel key={panel.id} panel={panel} envelope={signals[panel.id]} />
           ) : (

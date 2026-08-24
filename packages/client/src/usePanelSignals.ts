@@ -30,7 +30,12 @@ export function usePanelSignals({
     let cancelled = false
     const timers: number[] = []
     for (const panel of board.panels) {
-      if (panel.type !== 'pipeline-status' && panel.type !== 'http-value') continue
+      if (
+        panel.type !== 'pipeline-status' &&
+        panel.type !== 'pull-request-health' &&
+        panel.type !== 'http-value'
+      )
+        continue
       let inFlight = false
       const refreshMillis = resolveRefreshMillis({
         boardDefaultMillis: parseDuration(board.refresh ?? '60s') ?? 60_000,

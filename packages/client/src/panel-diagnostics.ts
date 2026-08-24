@@ -1,4 +1,9 @@
-import { type Envelope, type Panel, pipelineStatusSchema } from '@ze-great-dashboard/shared'
+import {
+  type Envelope,
+  type Panel,
+  pipelineStatusSchema,
+  pullRequestHealthSchema,
+} from '@ze-great-dashboard/shared'
 import type { RenderedPanelDiagnostic } from './diagnostics.ts'
 
 /**
@@ -10,6 +15,15 @@ export function projectPanelDiagnostic(panel: Panel, envelope: Envelope): Render
 
   if (panel.type === 'pipeline-status') {
     const signal = pipelineStatusSchema.safeParse(envelope.signal)
+    return {
+      state: envelope.state,
+      status: signal.success ? signal.data.status : undefined,
+      link: envelope.link,
+    }
+  }
+
+  if (panel.type === 'pull-request-health') {
+    const signal = pullRequestHealthSchema.safeParse(envelope.signal)
     return {
       state: envelope.state,
       status: signal.success ? signal.data.status : undefined,

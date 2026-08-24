@@ -73,7 +73,8 @@ body {
   height: 100dvh;
   min-height: 0;
   padding: var(--gap);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .board__header {
@@ -129,6 +130,8 @@ body {
 .board__grid {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
+  /* The first screen has a deliberate twelve-row budget; later rows can scroll when introduced. */
+  grid-template-rows: repeat(12, minmax(0, 1fr));
   grid-auto-rows: minmax(0, 1fr);
   gap: var(--gap);
   flex: 1;
@@ -149,7 +152,8 @@ body {
   border: 1px solid var(--edge);
   border-radius: var(--radius);
   background: var(--surface-raised);
-  overflow: hidden;
+  overflow: visible;
+  line-height: 1.2;
 }
 
 .panel--wide {
@@ -224,13 +228,25 @@ body {
 
 /* Display roles express attention, while position remains responsible for grid placement. */
 .panel--primary .panel__status {
-  font-size: 1.5em;
+  font-size: 1.35em;
+}
+
+.panel--primary {
+  padding: 0.65em;
+  gap: 0.1em;
+}
+
+.panel--primary .panel__hint,
+.panel--primary .panel__observed,
+.panel--primary .panel__link {
+  font-size: 0.65em;
 }
 
 .panel--compact {
   min-height: 3.5em;
-  padding: 0.65em;
-  gap: 0.1em;
+  padding: 0.2em;
+  gap: 0;
+  line-height: 1.05;
 }
 
 .panel--compact .panel__label {
@@ -242,8 +258,13 @@ body {
 }
 
 .panel--compact .panel__hint,
+.panel--compact .panel__observed,
 .panel--compact .panel__link {
   font-size: 0.65em;
+}
+
+.panel--compact .panel__link {
+  margin-top: 0;
 }
 
 .board__footer {
