@@ -34,6 +34,7 @@ export default defineConfig({
           name: 'client',
           root: './packages/client',
           environment: 'happy-dom',
+          setupFiles: './test/setup.ts',
         },
       },
       {

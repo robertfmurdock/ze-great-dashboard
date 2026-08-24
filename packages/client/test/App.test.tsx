@@ -13,11 +13,11 @@ const env: ClientEnv = {
 }
 
 beforeEach(() => {
-  // The shell tests do not exercise networking; keep their effects local rather than allowing
-  // happy-dom to try a relative request during teardown.
+  // The shell tests do not exercise networking. Keep the request pending so its completion cannot
+  // update React after the test's act scope has ended.
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => new Response(JSON.stringify({ panels: [] }))),
+    vi.fn(() => new Promise<Response>(() => {})),
   )
 })
 
@@ -301,10 +301,7 @@ describe('pipeline-status refresh scheduling', () => {
 
   it('polls panels independently and never overlaps a pending request', async () => {
     vi.useFakeTimers()
-    let resolvePanel: (() => void) | undefined
-    const pending = new Promise<Response>((resolve) => {
-      resolvePanel = () => resolve(new Response(okEnvelope('slow', 'passed')))
-    })
+    const pending = new Promise<Response>(() => {})
     const { requests } = setup(
       {
         panels: [
@@ -320,7 +317,6 @@ describe('pipeline-status refresh scheduling', () => {
     await act(async () => vi.advanceTimersByTime(2_000))
     expect(requests.filter((url) => url.endsWith('/slow'))).toHaveLength(1)
     expect(requests.filter((url) => url.endsWith('/fast'))).toHaveLength(2)
-    resolvePanel?.()
   })
 })
 
