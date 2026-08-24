@@ -52,6 +52,12 @@ versioned client assets, deploys that tarball to the consumer reference, publish
 trusted publishing, confirms registry visibility, and only then creates the Git tag; core and shared
 remain internal workspace packages.
 
+Snapshot versions such as `0.6.0-SNAPSHOT` use the same checks and exact tarball path, then run
+npm connectivity and publish validation in dry-run mode. They do not publish client assets, AWS
+references, npm packages, Docker images, or Git tags. The workflow keeps this as one release
+version source and gates only the externally visible boundary, so stable releases follow the same
+shared path. Other prerelease conventions are not part of the release contract.
+
 ## Development workflow log
 
 Recorded 2026-08-21: browser diagnostics now form a client-only feature boundary: a versioned,

@@ -186,6 +186,34 @@ else throw new Error('publish must not be called when the version exists')
         ),
       (error) => String(error.stderr).includes('Immutable npm version collision'),
     )
+
+    const snapshotLog = join(registryTestRoot, 'snapshot-npm.log')
+    await writeFile(
+      fakeNpm,
+      `#!/usr/bin/env node
+const { writeFileSync } = require('node:fs')
+if (process.argv[2] === 'ping') process.exit(0)
+if (process.argv[2] === 'publish') {
+  writeFileSync(process.env.FAKE_NPM_LOG, process.argv.slice(2).join('\\n'))
+  process.exit(0)
+}
+throw new Error('unexpected npm command: ' + process.argv.slice(2).join(' '))
+`,
+    )
+    await chmod(fakeNpm, 0o755)
+    execFileSync(process.execPath, ['scripts/publish-packages.mjs', '--publish-tarball', tarball], {
+      cwd: root,
+      env: {
+        ...publishEnvironment,
+        RELEASE_VERSION: '9.8.7-SNAPSHOT',
+        FAKE_NPM_LOG: snapshotLog,
+      },
+      stdio: 'pipe',
+    })
+    const snapshotNpmArgs = await readFile(snapshotLog, 'utf8')
+    assert.match(snapshotNpmArgs, /publish/)
+    assert.match(snapshotNpmArgs, /--tag\nsnapshot/)
+    assert.match(snapshotNpmArgs, /--dry-run/)
   } finally {
     await rm(registryTestRoot, { recursive: true, force: true })
   }

@@ -64,14 +64,14 @@ jobs:
         run: node scripts/publish-packages.mjs --pack aws-package.tgz
 
       - name: AWS provisioning credentials
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           role-to-assume: arn:aws:iam::174159267544:role/ZeGreatDashboardProvision
           aws-region: us-east-1
 
       - name: Provision AWS infrastructure
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
         id: infrastructure
         env:
           CLOUDFORMATION_ROLE_ARN: arn:aws:iam::174159267544:role/ze-great-dashboard-cloudformation
@@ -81,14 +81,14 @@ jobs:
 
       # Candidate asset publishing does not retain the more powerful provisioning credentials.
       - name: AWS candidate asset publishing credentials
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           role-to-assume: ${{ steps.infrastructure.outputs.deploy_role_arn }}
           aws-region: us-east-1
 
       - name: Publish candidate client assets from the tarball
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
         run: |
           mkdir .reference-consumer
           npm install --prefix .reference-consumer --ignore-scripts --save-exact "$GITHUB_WORKSPACE/aws-package.tgz"
@@ -97,14 +97,14 @@ jobs:
             --assets-base-url "${{ steps.infrastructure.outputs.assets_base_url }}"
 
       - name: AWS reference deployment credentials
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           role-to-assume: ${{ steps.infrastructure.outputs.reference_deploy_role_arn }}
           aws-region: us-east-1
 
       - name: Deploy and check the exact tarball as the consumer reference
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
         run: |
           cp reference/board.yaml reference/aws-dashboard-parameters.json .reference-consumer/
           reference_cli=.reference-consumer/node_modules/.bin/ze-great-dashboard-aws
@@ -160,7 +160,7 @@ jobs:
 
   consumer-bootstrap-validation:
     name: Validate consumer bootstrap candidate
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
     needs: check
     runs-on: ubuntu-latest
     environment: consumer-bootstrap-validation
@@ -244,7 +244,10 @@ jobs:
 
   release:
     name: Release
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      always() && github.ref == 'refs/heads/main' && needs.check.result == 'success' &&
+      (endsWith(needs.check.outputs.version, '-SNAPSHOT') ||
+      needs.consumer-bootstrap-validation.result == 'success')
     needs: [check, consumer-bootstrap-validation]
     runs-on: ubuntu-latest
     permissions:
@@ -284,6 +287,7 @@ jobs:
         run: node scripts/publish-packages.mjs --publish-tarball aws-package.tgz
 
       - name: Confirm the published version is visible
+        if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
         env:
           RELEASE_VERSION: ${{ needs.check.outputs.version }}
         run: |
@@ -295,6 +299,7 @@ jobs:
           test "$published_version" = "$RELEASE_VERSION"
 
       - name: Log in to GHCR
+        if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -302,6 +307,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract Docker image metadata
+        if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
         id: docker-meta
         uses: docker/metadata-action@v5
         with:
@@ -311,6 +317,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and publish Docker image
+        if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -319,6 +326,7 @@ jobs:
           labels: ${{ steps.docker-meta.outputs.labels }}
 
       - name: Smoke-test published Docker image
+        if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
         env:
           IMAGE: ghcr.io/${{ github.repository }}:${{ needs.check.outputs.version }}
           ASSET_PATH: https://public-assets.zegreatrob.com/dashboard/${{ needs.check.outputs.version }}
@@ -337,6 +345,7 @@ jobs:
           exit 1
 
       - name: Tag verified release
+        if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run --silent release:tag -- "${{ needs.check.outputs.version }}"

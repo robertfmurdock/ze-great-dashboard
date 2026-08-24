@@ -102,6 +102,22 @@ async function publishTarball(tarball) {
         .name
     : undefined
   if (!packageName) throw new Error('No public package is configured')
+  if (releaseVersion.endsWith('-SNAPSHOT')) {
+    execFileSync('npm', ['ping', '--registry', 'https://registry.npmjs.org'], {
+      cwd: root,
+      stdio: 'inherit',
+    })
+    execFileSync(
+      'npm',
+      ['publish', tarball, '--access', 'public', '--provenance', '--tag', 'snapshot', '--dry-run'],
+      {
+        cwd: root,
+        stdio: 'inherit',
+        env: { ...process.env, NPM_CONFIG_IGNORE_SCRIPTS: 'true' },
+      },
+    )
+    return
+  }
   const localIntegrity = `sha512-${createHash('sha512')
     .update(await readFile(tarball))
     .digest('base64')}`
