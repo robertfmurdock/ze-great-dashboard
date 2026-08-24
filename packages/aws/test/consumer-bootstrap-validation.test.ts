@@ -10,7 +10,7 @@ describe('consumer bootstrap deployment handoff', () => {
 
     expect(guide).toContain('core-deployed-stack.json')
     expect(guide).toContain('CloudFormationExecutionRoleArn')
-    expect(guide).toContain('--role-arn "$CLOUDFORMATION_EXECUTION_ROLE_ARN"')
+    expect(guide).toContain('--role-arn "$AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN"')
     expect(guide).toContain('--capabilities CAPABILITY_NAMED_IAM')
     expect(guide).not.toContain('--capabilities CAPABILITY_IAM')
   })
@@ -66,7 +66,7 @@ describe('consumer bootstrap deployment handoff', () => {
   it('keeps the CloudShell runbook at the explicit administrator review boundary', async () => {
     const runbook = await readFile(repositoryFile('docs/aws-bootstrap-cloudshell.md'), 'utf8')
 
-    expect(runbook).toContain('bootstrap handoff')
+    expect(runbook).toContain('bootstrap guide')
     expect(runbook).toContain('bootstrap verify')
     expect(runbook).toContain('core-deployed-stack.json')
     expect(runbook).toContain('CAPABILITY_NAMED_IAM')

@@ -49,6 +49,7 @@ describe('guided bootstrap', () => {
     expect(guide).toContain('Package version: 0.0.0-dev')
     expect(guide).toContain('Template core: contract 1')
     expect(guide).toContain('sha256 ')
+    expect(guide).toContain("'npm' 'exec' '--' 'ze-great-dashboard-aws'")
     expect(guide).toContain("'aws' 'cloudformation' 'describe-stacks'")
     expect(guide).toContain("> '.bootstrap-work/core-deployed-stack.json'")
   })

@@ -1,102 +1,94 @@
-# Deploy with the published AWS package
+# Deploy a dashboard to AWS
 
-Before application deployment, an administrator must create the consumer-owned artifact bucket and
-restricted roles using the [AWS bootstrap guide](aws-bootstrap.md). The application template is
-private: it outputs a Lambda ARN/name for a customer-managed API Gateway, ALB, or other gateway;
-it does not create a public Function URL.
+This guide is for the application owner after an administrator has completed
+[AWS bootstrap](aws-bootstrap.md). It packages a board as a private Lambda and deploys it through
+the restricted roles created during bootstrap.
 
-Deploy a Ze Great Dashboard backend to AWS Lambda, then integrate the returned Lambda ARN through
-the customer-managed gateway that meets your network and identity requirements.
+The application template does not create a public URL. Before starting, know which consumer-owned
+API Gateway, ALB, or other protected gateway will invoke the Lambda.
 
-## Prerequisites
+If you only want to evaluate the dashboard, use the [local setup](../README.md#run-it-locally)
+instead.
+
+## Before you start
 
 You need:
 
-- Node.js 22 or newer and npm.
-- The AWS CLI and credentials that can upload to S3 and deploy CloudFormation resources.
-- A private S3 bucket for Lambda artifacts.
-- One AWS Region for the artifact bucket, Lambda function, and CloudFormation stack.
-- `jq` for reading the generated release metadata.
+- Node.js 22 or newer, npm, the AWS CLI, and `jq`.
+- The checked-in `dashboard-bootstrap.json` from the administrator.
+- AWS credentials that can assume the bootstrap-created deploy role, or an equivalent approved
+  deployment session.
+- The reviewed `CloudFormationExecutionRoleArn` output from the core bootstrap stack.
+- A gateway integration plan for the returned Lambda ARN.
 
-Routine deployment credentials are intentionally not the identity that creates Lambda, IAM, or log
-resources. Capture the deployed core bootstrap stack output first, then extract its restricted
-CloudFormation execution role. Keep this JSON with the deployment configuration and refresh it only
-after an administrator-reviewed core bootstrap change:
+The stock deployment supports public GitHub repositories and HTTP endpoints that require no
+credential. It does **not** load a Secrets Manager value into arbitrary `token_env` variables. See
+[Private sources](#private-sources) before using a private repository or protected endpoint.
 
-```sh
-aws cloudformation describe-stacks \
-  --stack-name "$(jq -r .core.stackName dashboard-bootstrap.json)" \
-  --region "$(jq -r .region dashboard-bootstrap.json)" \
-  --no-cli-pager > core-deployed-stack.json
+## 1. Install the package
 
-CLOUDFORMATION_EXECUTION_ROLE_ARN="$(jq -er \
-  '.Stacks[0].Outputs[] | select(.OutputKey == "CloudFormationExecutionRoleArn") | .OutputValue' \
-  core-deployed-stack.json)"
-```
-
-The core output is the contract boundary: do not substitute a caller's ambient role or infer a more
-powerful role name. The GitHub OIDC deploy role may upload the artifact and pass this exact role to
-CloudFormation, but it cannot use the role directly.
-
-Check the local tools and credentials before continuing:
+Pin an exact version in the repository that owns the deployment:
 
 ```sh
-node --version                 # 22.x or newer
-npm --version
-aws sts get-caller-identity
+npm install --save-exact @continuous-excellence/ze-great-dashboard-aws
 ```
 
-The examples use package version `1.2.3`. Pin an exact version in production.
+The package includes the Lambda runtime, CLI, CloudFormation template, and matching immutable
+browser client. Normal consumers do not publish client assets. Append `@version` when installing a
+previously reviewed release rather than the current one.
 
-## Install the package
+## 2. Create a board
 
-Run this in a deployment project:
+Save a board as `board.yaml`. This example reads a workflow from a public GitHub repository:
 
-```sh
-npm install --save-exact @continuous-excellence/ze-great-dashboard-aws@1.2.3
+```yaml
+sources:
+  github:
+    type: github-actions
+    repo: your-org/your-public-repo
+    branch: main
+
+boards:
+  operations:
+    refresh: 60s
+    panels:
+      - id: build
+        type: pipeline-status
+        source: github
+        pipeline: main.yml
+        position: { x: 0, y: 0, w: 12, h: 6 }
 ```
 
-The package includes the CLI, Lambda runtime, and CloudFormation template. The matching client is
-hosted on the project's public asset CDN at `https://public-assets.zegreatrob.com`; you do
-not need a client asset bucket.
+See [Board configuration](board-configuration.md) for HTTP value panels, refresh settings, multiple
+panels, and credential naming.
 
-Before deploying, run the read-only setup doctor. It checks the local tools, AWS identity, parameter
-compatibility, artifact bucket and Region, and the client hosted for the installed package version,
-reporting every problem it finds in one run:
+## 3. Generate and check deployment inputs
 
-```sh
-npx ze-great-dashboard-aws doctor \
-  --parameters aws-dashboard-parameters.json \
-  --region us-east-1
-```
-
-`--parameters` defaults to `aws-dashboard-parameters.json`. `--region` defaults to `AWS_REGION`,
-then `AWS_DEFAULT_REGION`, then `us-east-1`. The doctor only makes read requests.
-
-## Write a board configuration
-
-Create `board.yaml` using the [board configuration guide](board-configuration.md). This guide
-assumes the file contains one board.
-
-## Create deployment parameters
-
-Generate the settings for this environment:
+Generate the CloudFormation parameters from the bootstrap manifest, then run the read-only doctor:
 
 ```sh
 npm exec -- ze-great-dashboard-aws parameters \
   --bootstrap-config dashboard-bootstrap.json \
   --output aws-dashboard-parameters.json
+
+npm exec -- ze-great-dashboard-aws doctor \
+  --parameters aws-dashboard-parameters.json \
+  --region "$(jq -r .region dashboard-bootstrap.json)"
 ```
 
-This reuses the checked-in bootstrap manifest from the [bootstrap guide](aws-bootstrap.md), including
-the artifact bucket and dashboard function name, so the application’s `Name` remains compatible with
-the restricted execution role. Commit `aws-dashboard-parameters.json`. See the
-[CloudFormation template](../packages/aws/template.yml) for optional Lambda settings and their
-defaults. Keep secrets out of this file.
+Commit `aws-dashboard-parameters.json`; it contains deployment settings, not secrets. The doctor
+checks local tools, AWS identity, parameter compatibility, the artifact bucket and Region, and the
+hosted browser client. It only performs read operations.
 
-## Package the Lambda release
+Before every package or deploy, also check that the live bootstrap stacks still match the manifest
+and installed package:
 
-Package the board:
+```sh
+npm exec -- ze-great-dashboard-aws bootstrap check \
+  --config dashboard-bootstrap.json --format text
+```
+
+## 4. Package the Lambda
 
 ```sh
 npm exec -- ze-great-dashboard-aws package \
@@ -104,92 +96,31 @@ npm exec -- ze-great-dashboard-aws package \
   --output aws-dashboard-release
 ```
 
-The command validates the board and writes `lambda.zip`, `release.json`, and `template.yml` under
-`aws-dashboard-release`. The generated template identifies this Lambda artifact and the matching
-hosted client version.
+This validates the board and writes:
 
-Provider automation can also use `ze-great-dashboard-aws deploy`. Its `--version` defaults to the
-installed package version and `--assets-dir` defaults to that package's bundled client. Explicit
-values for either option continue to override those defaults.
+- `lambda.zip` — the private Lambda application.
+- `template.yml` — the application CloudFormation template.
+- `release.json` — the artifact key and release metadata.
 
-Repository maintainers that host the matching immutable client separately can use the provider-only
-asset step without changing a Lambda:
+## 5. Upload and deploy
+
+Set the reviewed bootstrap values for this shell. The Region and stack name come from the manifest;
+the execution-role ARN comes from the core stack capture created by the bootstrap guide:
 
 ```sh
-npm exec -- ze-great-dashboard-aws publish-assets \
-  --assets-bucket my-dashboard-client-assets \
-  --assets-base-url https://assets.example.com
+export AWS_REGION="$(jq -er .region dashboard-bootstrap.json)"
+export STACK_NAME="$(jq -er .core.applicationStackName dashboard-bootstrap.json)"
+export AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN="$(jq -er \
+  '.Stacks[0].Outputs[] | select(.OutputKey == "CloudFormationExecutionRoleArn") | .OutputValue' \
+  .bootstrap-work/core-deployed-stack.json)"
 ```
 
-The command publishes the installed package version under `dashboard/<version>`. It is not needed
-for normal consumer deployments, which use the project's public asset CDN.
+If bootstrap was performed elsewhere, obtain that reviewed capture from the administrator or use
+the verified ARN they handed off. Do not substitute the current caller's role.
 
-## Upload the Lambda artifact
-
-Read the destination from the checked-in parameters and generated release metadata:
+Upload the generated artifact and deploy the generated template:
 
 ```sh
-export AWS_REGION=us-east-1
-export STACK_NAME=my-ze-great-dashboard
-
-ARTIFACT_BUCKET="$(jq -er \
-  '.[] | select(.ParameterKey == "LambdaArtifactBucket") | .ParameterValue' \
-  aws-dashboard-parameters.json)"
-ARTIFACT_KEY="$(jq -er '.artifactKey' aws-dashboard-release/release.json)"
-
-aws s3 cp aws-dashboard-release/lambda.zip \
-  "s3://${ARTIFACT_BUCKET}/${ARTIFACT_KEY}" \
-  --region "$AWS_REGION"
-```
-
-## Deploy the CloudFormation stack
-
-Deploy with the AWS CLI:
-
-```sh
-aws cloudformation deploy \
-  --stack-name "$STACK_NAME" \
-  --template-file aws-dashboard-release/template.yml \
-  --role-arn "$CLOUDFORMATION_EXECUTION_ROLE_ARN" \
-  --region "$AWS_REGION" \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides file://aws-dashboard-parameters.json \
-  --no-fail-on-empty-changeset
-```
-
-The stack creates the Lambda function, log group, and execution role. It outputs `ServerFunctionArn`
-and `ServerFunctionName` for an explicitly scoped gateway integration, plus `AssetPath`.
-
-## Test the deployment
-
-Test through the customer-managed gateway:
-
-```sh
-export FUNCTION_ARN="$(aws cloudformation describe-stacks \
-  --stack-name "$STACK_NAME" \
-  --region "$AWS_REGION" \
-  --query "Stacks[0].Outputs[?OutputKey=='ServerFunctionArn'].OutputValue" \
-  --output text)"
-
-# Configure a gateway permission scoped to "$FUNCTION_ARN", then use its protected health endpoint.
-```
-
-The application template intentionally grants no public invoke permission.
-
-## Update a dashboard
-
-To upgrade the package, install the new version, then package, upload, and deploy again:
-
-```sh
-npm install --save-exact @continuous-excellence/ze-great-dashboard-aws@1.2.4
-
-export AWS_REGION=us-east-1
-export STACK_NAME=my-ze-great-dashboard
-
-npm exec -- ze-great-dashboard-aws package \
-  --board-config board.yaml \
-  --output aws-dashboard-release
-
 ARTIFACT_BUCKET="$(jq -er \
   '.[] | select(.ParameterKey == "LambdaArtifactBucket") | .ParameterValue' \
   aws-dashboard-parameters.json)"
@@ -202,162 +133,58 @@ aws s3 cp aws-dashboard-release/lambda.zip \
 aws cloudformation deploy \
   --stack-name "$STACK_NAME" \
   --template-file aws-dashboard-release/template.yml \
-  --role-arn "$CLOUDFORMATION_EXECUTION_ROLE_ARN" \
+  --role-arn "$AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN" \
   --region "$AWS_REGION" \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides file://aws-dashboard-parameters.json \
-  --no-fail-on-empty-changeset
+  --no-fail-on-empty-changeset \
+  --no-cli-pager
 ```
 
-Changing only `board.yaml` uses the same process; no package upgrade or parameter-file change is
-required.
+The stack creates the Lambda, its log group, and its runtime role. It outputs
+`ServerFunctionArn`, `ServerFunctionName`, and `AssetPath`.
 
-## GitHub Actions
+## 6. Connect the protected gateway
 
-Before adding the workflow, check in `package.json`, its lockfile, `board.yaml`, and
-`aws-dashboard-parameters.json`. Have an administrator create the GitHub OIDC adapter from the
-captured core output in the [bootstrap guide](aws-bootstrap.md). Its generated deploy role trusts
-the protected Environment, can upload to the artifact bucket, can operate one stack, and can pass
-only the core execution role. Replace the Region, stack name, and captured role ARNs below.
+Grant only the chosen gateway permission to invoke `ServerFunctionArn`, then request `/health`
+through that gateway. The application template intentionally creates no Function URL and no public
+Lambda invocation permission.
 
-This workflow packages, uploads, and deploys the private Lambda. Add a gateway-specific health check
-only where the protected gateway is available to the runner. If the GitHub OIDC bootstrap manifest
-sets `consumerGatewayStackName`, add this short step after deployment:
+Gateway selection, authentication, routing, and the invocation permission remain consumer-owned
+because those controls must fit the surrounding AWS environment.
 
-```yaml
-name: Deploy dashboard
+## Automate deployments
 
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-    inputs:
-      resource_drift:
-        description: Run the slower CloudFormation resource-drift audit
-        type: boolean
-        default: false
+Once the manual deployment works, use the [GitHub Actions example](aws-github-actions.md). The
+workflow consumes the two reviewed GitHub Environment variables emitted by `bootstrap verify` and
+repeats the same check, package, upload, and deploy sequence.
 
-permissions:
-  contents: read
-  id-token: write
+## Update the dashboard
 
-env:
-  AWS_REGION: us-east-1
-  STACK_NAME: my-ze-great-dashboard
-  AWS_DEPLOY_ROLE_ARN: arn:aws:iam::123456789012:role/my-dashboard-github-actions
-  CLOUDFORMATION_EXECUTION_ROLE_ARN: arn:aws:iam::123456789012:role/my-ze-great-dashboard-execution
+For a board change, rerun steps 3 through 5. For a package upgrade, install the new exact version
+first, then use the same path. A bootstrap revision mismatch stops the deployment and requires the
+administrator to review a bootstrap update; routine deployment never updates bootstrap implicitly.
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6.2.3
-        with:
-          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-      - name: Check bootstrap consistency
-        run: npm exec -- ze-great-dashboard-aws bootstrap check --config dashboard-bootstrap.json --format text
-      - name: Check CloudFormation resource drift
-        if: inputs.resource_drift
-        run: npm exec -- ze-great-dashboard-aws bootstrap check --config dashboard-bootstrap.json --resource-drift --format text
-      - name: Package and deploy
-        run: |
-          npm exec -- ze-great-dashboard-aws package \
-            --board-config board.yaml \
-            --output aws-dashboard-release
-          artifact_bucket="$(jq -er \
-            '.[] | select(.ParameterKey == "LambdaArtifactBucket") | .ParameterValue' \
-            aws-dashboard-parameters.json)"
-          artifact_key="$(jq -er '.artifactKey' aws-dashboard-release/release.json)"
-          aws s3 cp aws-dashboard-release/lambda.zip \
-            "s3://${artifact_bucket}/${artifact_key}" \
-            --region "$AWS_REGION"
-          aws cloudformation deploy \
-            --stack-name "$STACK_NAME" \
-            --template-file aws-dashboard-release/template.yml \
-            --role-arn "$CLOUDFORMATION_EXECUTION_ROLE_ARN" \
-            --region "$AWS_REGION" \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides file://aws-dashboard-parameters.json \
-            --no-fail-on-empty-changeset
-      - name: Check protected gateway
-        env:
-          GATEWAY_STACK_NAME: my-ze-great-dashboard-gateway
-        run: |
-          gateway_endpoint="$(aws cloudformation describe-stacks \
-            --stack-name "$GATEWAY_STACK_NAME" \
-            --region "$AWS_REGION" \
-            --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
-            --output text)"
-          test -n "$gateway_endpoint" && test "$gateway_endpoint" != None
-          curl --fail --silent --show-error "$gateway_endpoint/health" >/dev/null
-```
+## Private sources
 
-Use [GitHub OIDC for AWS](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
-with [the AWS credentials action](https://github.com/aws-actions/configure-aws-credentials), not
-long-lived AWS keys in repository secrets.
+`token_env` in board YAML names an environment variable; it never contains a token. The stock
+CloudFormation template does not populate those variables and the bundled runtime does not read the
+optional `SECRET_REFERENCE` into them.
 
-## Runtime secrets
-
-Board sources name credentials through `token_env`; never put credential values in `board.yaml` or
-`aws-dashboard-parameters.json`. The included template does not populate arbitrary `token_env`
-variables.
-
-`SecretReference` is available for a runtime integration that reads a Secrets Manager secret. It
-grants the Lambda role access to the secret and exposes its ARN as `SECRET_REFERENCE`.
-
-Create the secret from a protected, untracked file:
-
-```json
-{ "GITHUB_TOKEN": "provided-by-your-secret-management-system" }
-```
-
-Upload it and delete the local copy when you no longer need it:
-
-```sh
-chmod 600 dashboard-secret.json
-aws secretsmanager create-secret \
-  --name my-ze-great-dashboard/runtime \
-  --description 'Runtime credentials for my Ze Great Dashboard' \
-  --secret-string file://dashboard-secret.json \
-  --region "$AWS_REGION"
-```
-
-Add the ARN, not the value, to `aws-dashboard-parameters.json`:
-
-```json
-{
-  "ParameterKey": "SecretReference",
-  "ParameterValue": "arn:aws:secretsmanager:us-east-1:123456789012:secret:my-ze-great-dashboard/runtime-example"
-}
-```
-
-Use the ARN returned by `create-secret`. Your runtime integration must read the secret and map its
-fields to the environment names used by `token_env` before the dashboard handles requests.
+`SecretReference` only grants the Lambda role permission to read one named Secrets Manager secret
+and exposes that secret's ARN as `SECRET_REFERENCE`. It is an integration boundary for a
+consumer-supplied runtime credential loader, not a complete secret-loading feature. Until such an
+integration is provided, use sources that do not require credentials.
 
 ## Troubleshooting
 
-- **Invalid board:** packaging validates the YAML; check the
-  [board configuration guide](board-configuration.md).
-- **Multiple boards:** use a file containing one board, or customize the template to set `BOARD`.
-- **Missing assets:** confirm
-  `https://public-assets.zegreatrob.com/dashboard/<version>/index.html` returns HTTPS 200.
-- **Wrong `AssetBaseUrl`:** provide only the origin; the template adds `/dashboard/<version>`.
-- **AWS access denied:** check `aws sts get-caller-identity`, region, and IAM permissions.
-- **Node incompatibility:** use Node.js 22+ locally and the included `nodejs22.x` template runtime.
-
-## Security notes
-
-- The application template has no Function URL and no wildcard Lambda invoke permission.
-- Do not put secrets in board YAML or `lambda.zip`.
-- `token_env` names a runtime environment variable; the included template does not populate it.
+- **Doctor fails before packaging:** fix every failed tool, identity, bucket, parameter, or hosted
+  client check before continuing.
+- **Board validation fails:** see [Board configuration](board-configuration.md); packaging stops
+  before writing a deployable release.
+- **Bootstrap check fails:** ask the administrator to reconcile the manifest, installed package,
+  and live bootstrap stacks.
+- **Lambda is deployed but unreachable:** the application has no public endpoint; verify the gateway
+  integration and its scoped Lambda permission.
+- **A GitHub panel is unauthorized:** the repository is private or otherwise requires a token; the
+  stock deployment does not supply one.

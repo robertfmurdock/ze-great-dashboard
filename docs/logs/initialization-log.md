@@ -14,7 +14,7 @@ this file explains *how it turned out* and where reality pushed back.
 ## What state this repo is actually in
 
 **Stage 1, verified locally at repository initialization.** The repository's later AWS bootstrap
-validation is recorded in `docs/aws-bootstrap-log.md`; the original application infrastructure and
+validation is recorded in `docs/logs/aws-bootstrap-log.md`; the original application infrastructure and
 runtime remain separate from that bootstrap validation.
 
 Working and proven by running it: `npm run dev`, `npm run check`, `docker compose up`, the

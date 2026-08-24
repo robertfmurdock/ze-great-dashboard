@@ -7,7 +7,7 @@ decisions, because most of the surprising choices here are explained there.
 Currently at **Stage 1**: the immutable shell renders, with no data behind it. No adapters, no
 `/api/panel`, no auth.
 
-`docs/initialization-log.md` records why this repo is shaped the way it is, and — more usefully —
+`docs/logs/initialization-log.md` records why this repo is shaped the way it is, and — more usefully —
 the handful of things that look like bugs and are not. Read it before "fixing" something odd, and
 before the first deploy: it is explicit about what has never been executed.
 

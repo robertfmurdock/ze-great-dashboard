@@ -119,6 +119,9 @@ function changeSetCommands(input: {
   const stack = stackName(input.config, input.kind)
   const common = ['--stack-name', stack, '--region', region(input.config)]
   const parameters = [
+    'npm',
+    'exec',
+    '--',
     'ze-great-dashboard-aws',
     'bootstrap',
     'parameters',

@@ -5,9 +5,10 @@ records the product idea and architectural reasoning as it existed before implem
 document records what is actually in the repository, what has been verified, and where reality has
 changed the sequence or scope.
 
-Detailed dated slices are recorded in [the Stage 4 HTTP value log](./stage4-http-value-log.md), the
-earlier [Stage 2 GitHub Actions log](./stage2-github-actions-log.md), and the [dashboard package
-and deployment log](./dashboard-package-log.md).
+Detailed dated slices are recorded in [the Stage 4 HTTP value log](logs/stage4-http-value-log.md),
+the earlier [Stage 2 GitHub Actions log](logs/stage2-github-actions-log.md), and the [dashboard
+package and deployment log](logs/dashboard-package-log.md). See the full
+[implementation-log index](logs/README.md) for all records.
 
 ## Deployment status
 

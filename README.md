@@ -20,9 +20,9 @@ persistence are intentionally outside the product boundary.
 
 ## Choose a path
 
-### Try it or contribute locally
+### Run it locally
 
-Clone this repository, install its dependencies, and start the real rendering path:
+Clone this repository, install its dependencies, and start the dashboard:
 
 ```sh
 git clone https://github.com/robertfmurdock/ze-great-dashboard.git
@@ -32,11 +32,6 @@ npm run dev
 ```
 
 Open <http://localhost:3000>. Vite runs on port 5173 and the application server on port 3000.
-Before committing or handing work off, run the repository gate:
-
-```sh
-npm run check
-```
 
 To use a local board other than the example, point the server at its YAML file:
 
@@ -80,27 +75,14 @@ configuration change rather than a rebuild.
 ## Documentation
 
 - [Board configuration](docs/board-configuration.md) — panel and source YAML schema.
-- [AWS deployment](docs/aws-setup.md) — consumer deployment and operations.
-- [AWS bootstrap](docs/aws-bootstrap.md) — administrator-owned bucket and restricted roles.
+- [AWS deployment](docs/aws-setup.md) — deploy a private Lambda after administrator bootstrap.
+- [AWS bootstrap](docs/aws-bootstrap.md) — one-time setup for an AWS and GitHub administrator.
 - [Architecture and design rationale](docs/original-pitch.md) — the lens-not-ledger model and immutable application design.
-- [Initialization log](docs/initialization-log.md) — decisions, verified assumptions, and intentional quirks.
 - [Infrastructure notes](infra/README.md) — repository-owned AWS setup.
 
-## Development
+## Contributing
 
-Requires Node.js 22+ and npm 11+.
-
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Start the client and server development loop. |
-| `npm run check` | Lint, typecheck, test, validate the example board, and test the published package. |
-| `npm run test:watch` | Run unit tests in watch mode. |
-| `npm run build` | Build the production client. |
-| `npm run format` | Apply Biome formatting fixes. |
-| `docker compose up` | Run the deployed server shape against a published asset path. |
-
-Contributions must pass `npm run check`. New dependencies need a clear justification: this project
-deliberately keeps its dependency surface small.
+See the [contributor guide](docs/contributing.md) for local development and repository checks.
 
 ## License
 

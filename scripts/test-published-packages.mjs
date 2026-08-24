@@ -42,15 +42,15 @@ try {
   assert.notEqual(stagedReadme, rootReadme)
   assert.match(
     stagedReadme,
-    /npm install --save-exact @continuous-excellence\/ze-great-dashboard-aws@/,
+    /npm install --save-exact @continuous-excellence\/ze-great-dashboard-aws/,
   )
   assert.match(stagedReadme, /board\.yaml/)
   assert.match(stagedReadme, /ze-great-dashboard-aws package/)
-  assert.match(stagedReadme, /aws s3 cp aws-dashboard-release\/lambda\.zip/)
-  assert.match(stagedReadme, /aws cloudformation deploy/)
   assert.match(stagedReadme, /AWS bootstrap guide/)
-  assert.match(stagedReadme, /protected API Gateway, ALB, or/)
-  assert.match(stagedReadme, /never in board YAML, `aws-dashboard-parameters\.json`, or/)
+  assert.match(stagedReadme, /docs\/aws-setup\.md/)
+  assert.match(stagedReadme, /private AWS Lambda/)
+  assert.match(stagedReadme, /consumer-owned gateway/)
+  assert.match(stagedReadme, /stock template does not turn a Secrets Manager reference/)
   assert.deepEqual(Object.keys(manifest.dependencies).sort(), ['fflate', 'yaml', 'zod'])
   const publishedFiles = []
   async function collect(directory) {

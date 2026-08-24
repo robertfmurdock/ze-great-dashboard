@@ -6,7 +6,8 @@ refresh interval and grid position.
 
 ## Example
 
-Save a configuration such as this one as `board.yaml`:
+Save a configuration such as this one as `board.yaml`. The GitHub repository in this first example
+is public, so it does not name a credential:
 
 ```yaml
 sources:
@@ -15,7 +16,6 @@ sources:
     repo: your-org/your-repo
     # Optional; when present, only workflow runs for this branch are shown.
     branch: main
-    token_env: GITHUB_TOKEN
 
 boards:
   operations:
@@ -59,6 +59,10 @@ sources:
 
 The deployment must provide `GITHUB_TOKEN` through a separate runtime secret/environment strategy.
 Anyone who can read the board file can see its contents.
+
+The published AWS template does not populate arbitrary `token_env` variables. Its default deployment
+therefore supports public sources; private sources need the consumer-owned integration described in
+[Private sources](aws-setup.md#private-sources).
 
 ## Single and multiple boards
 
