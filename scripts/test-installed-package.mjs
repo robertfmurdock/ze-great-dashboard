@@ -112,23 +112,19 @@ try {
   const template = await readFile(join(releaseRoot, 'template.yml'), 'utf8')
   assert.match(template, new RegExp(`DashboardVersion: \\{[^\\n]+Default: "${version}"`))
   assert.ok(template.includes(`Default: "${release.artifactKey}"`))
-
-  execFileSync(
-    cli,
-    [
-      'deploy',
-      '--artifact-dir',
-      'aws-dashboard-release',
-      '--assets-bucket',
-      'unused',
-      '--assets-base-url',
-      'https://unused.example',
-      '--function-name',
-      'unused',
-      '--dry-run',
-    ],
-    { cwd: consumerRoot, stdio: 'pipe' },
-  )
+  const releaseParameters = JSON.parse(await readFile(join(releaseRoot, 'parameters.json'), 'utf8'))
+  assert.equal(releaseParameters.length, 11)
+  assert.deepEqual(releaseParameters[1], {
+    ParameterKey: 'LambdaArtifactBucket',
+    ParameterValue: 'ze-great-dashboard-dogfood-artifacts',
+  })
+  assert.deepEqual(releaseParameters[2], {
+    ParameterKey: 'LambdaArtifactKey',
+    ParameterValue: release.artifactKey,
+  })
+  const deployment = JSON.parse(await readFile(join(releaseRoot, 'deployment.json'), 'utf8'))
+  assert.equal(deployment.parameters, 'parameters.json')
+  assert.ok(deployment.commands.deploy.includes('file://aws-dashboard-release/parameters.json'))
 
   if (!process.argv.includes('--skip-client')) {
     const assetResponse = await fetch(`${release.clientAssetUrl}/index.html`)

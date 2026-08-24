@@ -160,16 +160,6 @@ export async function packageLambda(options: LambdaPackageOptions): Promise<Pack
   return packagedRelease
 }
 
-export type DeployLambdaOptions = {
-  artifactDir: string
-  assetsDir: string
-  assetsBucket: string
-  assetsBaseUrl: string
-  functionName: string
-  version: string
-  dryRun?: boolean
-}
-
 export type PublishClientAssetsOptions = {
   assetsDir: string
   assetsBucket: string
@@ -201,36 +191,6 @@ export async function publishClientAssets(options: PublishClientAssetsOptions): 
     'public, max-age=60',
   ])
   return assetPath
-}
-
-/** Performs the AWS-specific half of a release using explicit deployment outputs. */
-export async function deployLambda(options: DeployLambdaOptions): Promise<void> {
-  const artifactDir = resolve(options.artifactDir)
-  const assetsDir = resolve(options.assetsDir)
-  await readFile(join(artifactDir, 'lambda.zip'))
-  await readFile(join(assetsDir, 'index.html'))
-  if (options.dryRun) return
-  const assetPath = await publishClientAssets(options)
-  await run('aws', [
-    'lambda',
-    'update-function-code',
-    '--function-name',
-    options.functionName,
-    '--zip-file',
-    `fileb://${join(artifactDir, 'lambda.zip')}`,
-    '--no-cli-pager',
-  ])
-  await run('aws', ['lambda', 'wait', 'function-updated', '--function-name', options.functionName])
-  await run('aws', [
-    'lambda',
-    'update-function-configuration',
-    '--function-name',
-    options.functionName,
-    '--environment',
-    `Variables={ASSET_PATH=${assetPath},BOARD_CONFIG_URL=./board.yaml,HOST=0.0.0.0}`,
-    '--no-cli-pager',
-  ])
-  await run('aws', ['lambda', 'wait', 'function-updated', '--function-name', options.functionName])
 }
 
 export async function cloudFormationTemplate(): Promise<string> {

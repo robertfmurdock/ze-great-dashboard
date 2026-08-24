@@ -113,10 +113,11 @@ jobs:
             --output .reference-consumer/aws-dashboard-parameters.json
           "$reference_cli" package \
             --board-config .reference-consumer/board.yaml \
+            --parameters .reference-consumer/aws-dashboard-parameters.json \
             --output .reference-consumer/aws-dashboard-release
           artifact_key="$(jq -er '.artifactKey' .reference-consumer/aws-dashboard-release/release.json)"
           aws s3 cp .reference-consumer/aws-dashboard-release/lambda.zip \
-            "s3://${{ steps.infrastructure.outputs.reference_artifact_bucket }}/${artifact_key}" \
+            "$(jq -er '.commands.upload[4]' .reference-consumer/aws-dashboard-release/deployment.json)" \
             --region us-east-1
           reference_status="$(aws cloudformation describe-stacks \
             --stack-name ze-great-dashboard-reference \
@@ -137,9 +138,18 @@ jobs:
             --role-arn "${{ steps.infrastructure.outputs.reference_execution_role_arn }}" \
             --region us-east-1 \
             --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides file://.reference-consumer/aws-dashboard-parameters.json \
+            --parameter-overrides file://.reference-consumer/aws-dashboard-release/parameters.json \
             --no-fail-on-empty-changeset \
             --no-cli-pager
+          expected_asset_path="$(jq -er '.clientAssetUrl' .reference-consumer/aws-dashboard-release/release.json)"
+          deployed_asset_path="$(aws cloudformation describe-stacks \
+            --stack-name ze-great-dashboard-reference --region us-east-1 \
+            --query \"Stacks[0].Outputs[?OutputKey=='AssetPath'].OutputValue\" --output text)"
+          deployed_artifact_key="$(aws cloudformation describe-stacks \
+            --stack-name ze-great-dashboard-reference --region us-east-1 \
+            --query \"Stacks[0].Parameters[?ParameterKey=='LambdaArtifactKey'].ParameterValue\" --output text)"
+          [ "$deployed_asset_path" = "$expected_asset_path" ]
+          [ "$deployed_artifact_key" = "$artifact_key" ]
           function_arn="$(aws cloudformation describe-stacks \
             --stack-name ze-great-dashboard-reference \
             --region us-east-1 \
@@ -224,13 +234,10 @@ jobs:
             --output aws-dashboard-parameters.json
           "$validation_cli" package \
             --board-config reference/board.yaml \
+            --parameters aws-dashboard-parameters.json \
             --output aws-dashboard-release
-          artifact_bucket="$(jq -er \
-            '.[] | select(.ParameterKey == "LambdaArtifactBucket") | .ParameterValue' \
-            aws-dashboard-parameters.json)"
-          artifact_key="$(jq -er '.artifactKey' aws-dashboard-release/release.json)"
           aws s3 cp aws-dashboard-release/lambda.zip \
-            "s3://${artifact_bucket}/${artifact_key}" \
+            "$(jq -er '.commands.upload[4]' aws-dashboard-release/deployment.json)" \
             --region "$AWS_REGION"
           aws cloudformation deploy \
             --stack-name "$STACK_NAME" \
@@ -238,7 +245,7 @@ jobs:
             --role-arn "$CLOUDFORMATION_EXECUTION_ROLE_ARN" \
             --region "$AWS_REGION" \
             --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides file://aws-dashboard-parameters.json \
+            --parameter-overrides file://aws-dashboard-release/parameters.json \
             --no-fail-on-empty-changeset \
             --no-cli-pager
 

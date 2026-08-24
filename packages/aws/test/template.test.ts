@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { strFromU8, unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
-import { cloudFormationTemplate, deployLambda, packageLambda } from '../src/index.ts'
+import { cloudFormationTemplate, packageLambda } from '../src/index.ts'
 
 describe('AWS deployment contract', () => {
   it('is parameterized and leaves public gateway exposure to the consumer', async () => {
@@ -80,21 +81,127 @@ describe('AWS deployment contract', () => {
     expect(changed.artifactKey).not.toBe(metadata.artifactKey)
   })
 
-  it('validates a deployment without contacting AWS', async () => {
-    const root = await mkdtemp('/tmp/dashboard-aws-dry-run-')
-    await mkdir(join(root, 'assets'), { recursive: true })
-    await writeFile(join(root, 'assets', 'index.html'), '<!doctype html>')
-    await writeFile(join(root, 'lambda.zip'), 'zip placeholder')
+  it('resolves consumer and release parameters into an explicit deployment handoff', async () => {
+    const root = await mkdtemp('/tmp/dashboard-aws-handoff-')
+    const parametersPath = join(root, 'consumer-parameters.json')
+    const outputDir = join(root, 'release')
+    await writeFile(
+      parametersPath,
+      `${JSON.stringify(
+        [
+          { ParameterKey: 'Name', ParameterValue: 'consumer-dashboard' },
+          { ParameterKey: 'LambdaArtifactBucket', ParameterValue: 'consumer-artifacts' },
+        ],
+        null,
+        2,
+      )}\n`,
+    )
+    const cli = fileURLToPath(new URL('../dist/cli.js', import.meta.url))
+    const summary = execFileSync(
+      process.execPath,
+      [
+        cli,
+        'package',
+        '--board-config',
+        fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url)),
+        '--parameters',
+        parametersPath,
+        '--output',
+        outputDir,
+        '--version',
+        '1.2.3',
+      ],
+      { encoding: 'utf8' },
+    )
+    expect(summary).toContain('Complete parameters:')
+    expect(summary).toContain("Upload: 'aws' 's3' 'cp'")
+    expect(summary).toContain('$AWS_REGION')
+    const release = JSON.parse(await readFile(join(outputDir, 'release.json'), 'utf8')) as {
+      artifactKey: string
+    }
+    const resolved = JSON.parse(await readFile(join(outputDir, 'parameters.json'), 'utf8')) as {
+      ParameterKey: string
+      ParameterValue: string
+    }[]
+    expect(resolved).toEqual([
+      { ParameterKey: 'Name', ParameterValue: 'consumer-dashboard' },
+      { ParameterKey: 'LambdaArtifactBucket', ParameterValue: 'consumer-artifacts' },
+      { ParameterKey: 'LambdaArtifactKey', ParameterValue: release.artifactKey },
+      { ParameterKey: 'DashboardVersion', ParameterValue: '1.2.3' },
+      { ParameterKey: 'AssetBaseUrl', ParameterValue: 'https://public-assets.zegreatrob.com' },
+      { ParameterKey: 'BoardConfigPath', ParameterValue: './board.yaml' },
+      { ParameterKey: 'MemorySize', ParameterValue: '256' },
+      { ParameterKey: 'Timeout', ParameterValue: '10' },
+      { ParameterKey: 'LogRetentionInDays', ParameterValue: '14' },
+      { ParameterKey: 'ReservedConcurrentExecutions', ParameterValue: '0' },
+      { ParameterKey: 'SecretReference', ParameterValue: '' },
+    ])
+    const handoff = JSON.parse(await readFile(join(outputDir, 'deployment.json'), 'utf8')) as {
+      template: string
+      lambdaZip: string
+      parameters: string
+      artifact: { bucket: string; key: string }
+      commands: { upload: string[]; deploy: string[] }
+    }
+    expect(handoff).toMatchObject({
+      template: 'template.yml',
+      lambdaZip: 'lambda.zip',
+      parameters: 'parameters.json',
+      artifact: { bucket: 'consumer-artifacts', key: release.artifactKey },
+    })
+    expect(handoff.commands.upload).toContain(`${outputDir}/lambda.zip`)
+    expect(handoff.commands.deploy).toContain(`${outputDir}/template.yml`)
+    expect(handoff.commands.deploy).toContain(`file://${outputDir}/parameters.json`)
+  })
+
+  it('rejects invalid consumer parameter inputs before creating a deployable handoff', async () => {
+    const root = await mkdtemp('/tmp/dashboard-aws-invalid-parameters-')
+    const cli = fileURLToPath(new URL('../dist/cli.js', import.meta.url))
+    const board = fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url))
+    const failure = async (name: string, contents: string) => {
+      const parametersPath = join(root, `${name}.json`)
+      await writeFile(parametersPath, contents)
+      try {
+        execFileSync(
+          process.execPath,
+          [
+            cli,
+            'package',
+            '--board-config',
+            board,
+            '--parameters',
+            parametersPath,
+            '--output',
+            join(root, name),
+          ],
+          { stdio: 'pipe' },
+        )
+      } catch (error) {
+        return String(
+          error && typeof error === 'object' && 'stderr' in error ? error.stderr : error,
+        )
+      }
+      throw new Error('package unexpectedly succeeded')
+    }
+    await expect(failure('malformed', '{}')).resolves.toContain(
+      'must contain a JSON parameter array',
+    )
     await expect(
-      deployLambda({
-        artifactDir: root,
-        assetsDir: join(root, 'assets'),
-        assetsBucket: 'unused',
-        assetsBaseUrl: 'https://unused.example',
-        functionName: 'unused',
-        version: '1.2.3',
-        dryRun: true,
-      }),
-    ).resolves.toBeUndefined()
+      failure(
+        'duplicate',
+        '[{"ParameterKey":"LambdaArtifactBucket","ParameterValue":"a"},{"ParameterKey":"LambdaArtifactBucket","ParameterValue":"b"}]',
+      ),
+    ).resolves.toContain('contains duplicate parameters')
+    await expect(failure('missing', '[]')).resolves.toContain('missing required consumer values')
+    await expect(
+      failure('unknown', '[{"ParameterKey":"Unknown","ParameterValue":"value"}]'),
+    ).resolves.toContain('unknown parameters')
+    await expect(
+      failure(
+        'managed',
+        '[{"ParameterKey":"LambdaArtifactBucket","ParameterValue":"bucket"},{"ParameterKey":"DashboardVersion","ParameterValue":"old"}]',
+      ),
+    ).resolves.toContain('must not set package-managed parameters')
+    await expect(stat(join(root, 'managed'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })

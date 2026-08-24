@@ -93,6 +93,7 @@ npm exec -- ze-great-dashboard-aws bootstrap check \
 ```sh
 npm exec -- ze-great-dashboard-aws package \
   --board-config board.yaml \
+  --parameters aws-dashboard-parameters.json \
   --output aws-dashboard-release
 ```
 
@@ -101,6 +102,8 @@ This validates the board and writes:
 - `lambda.zip` — the private Lambda application.
 - `template.yml` — the application CloudFormation template.
 - `release.json` — the artifact key and release metadata.
+- `parameters.json` — the complete, release-specific CloudFormation parameters.
+- `deployment.json` — machine-readable upload and deployment command arguments.
 
 ## 5. Upload and deploy
 
@@ -121,13 +124,8 @@ the verified ARN they handed off. Do not substitute the current caller's role.
 Upload the generated artifact and deploy the generated template:
 
 ```sh
-ARTIFACT_BUCKET="$(jq -er \
-  '.[] | select(.ParameterKey == "LambdaArtifactBucket") | .ParameterValue' \
-  aws-dashboard-parameters.json)"
-ARTIFACT_KEY="$(jq -er '.artifactKey' aws-dashboard-release/release.json)"
-
 aws s3 cp aws-dashboard-release/lambda.zip \
-  "s3://${ARTIFACT_BUCKET}/${ARTIFACT_KEY}" \
+  "$(jq -er '.commands.upload[4]' aws-dashboard-release/deployment.json)" \
   --region "$AWS_REGION"
 
 aws cloudformation deploy \
@@ -136,7 +134,7 @@ aws cloudformation deploy \
   --role-arn "$AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN" \
   --region "$AWS_REGION" \
   --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides file://aws-dashboard-parameters.json \
+  --parameter-overrides file://aws-dashboard-release/parameters.json \
   --no-fail-on-empty-changeset \
   --no-cli-pager
 ```

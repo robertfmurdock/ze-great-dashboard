@@ -57,10 +57,13 @@ npm exec -- ze-great-dashboard-aws doctor \
 
 npm exec -- ze-great-dashboard-aws package \
   --board-config board.yaml \
+  --parameters aws-dashboard-parameters.json \
   --output aws-dashboard-release
 ```
 
-The deployment guide covers the S3 upload, CloudFormation command, gateway handoff, and CI example.
+`package` writes the complete release-specific `parameters.json` and machine-readable
+`deployment.json` alongside the ZIP and template. The deployment guide covers executing the emitted
+S3 upload and CloudFormation commands, gateway handoff, and CI example.
 Changing `board.yaml` or upgrading the pinned package uses this same path.
 
 ## Package boundaries

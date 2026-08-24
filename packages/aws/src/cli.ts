@@ -16,9 +16,9 @@ import {
   cloudFormationTemplate,
   coreBootstrapOutputs,
   deployedBootstrapStack,
-  deployLambda,
   formatBootstrapCheckText,
   mergeBootstrapParameters,
+  type PackagedRelease,
   packageLambda,
   publishClientAssets,
   requiredBootstrapParameters,
@@ -55,8 +55,21 @@ type TemplateParameterData = {
   definitions: Record<string, CloudFormationParameter>
   packageManaged: Set<string>
 }
+type SuppliedParameterValues = Record<string, string>
+type DeploymentHandoff = {
+  template: 'template.yml'
+  lambdaZip: 'lambda.zip'
+  releaseFile: 'release.json'
+  artifact: { bucket: string; key: string }
+  release: PackagedRelease
+  parameters: 'parameters.json'
+  commands: { upload: string[]; deploy: string[] }
+}
 
-async function existingParameters(path: string): Promise<CloudFormationParameterValue[]> {
+async function existingParameters(
+  path: string,
+  allowMissing = false,
+): Promise<CloudFormationParameterValue[]> {
   try {
     const parsed = JSON.parse(await readFile(path, 'utf8')) as unknown
     if (!Array.isArray(parsed)) throw new Error(`${path} must contain a JSON parameter array`)
@@ -76,7 +89,14 @@ async function existingParameters(path: string): Promise<CloudFormationParameter
     if (new Set(keys).size !== keys.length) throw new Error(`${path} contains duplicate parameters`)
     return values
   } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return []
+    if (
+      allowMissing &&
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 'ENOENT'
+    )
+      return []
     throw error
   }
 }
@@ -171,23 +191,111 @@ async function templateParameters(): Promise<TemplateParameterData> {
   return { definitions: parsed.Parameters, packageManaged }
 }
 
+function validateConsumerParameters(
+  supplied: CloudFormationParameterValue[],
+  template: TemplateParameterData,
+): SuppliedParameterValues {
+  const values = Object.fromEntries(
+    supplied.map(({ ParameterKey, ParameterValue }) => [ParameterKey, ParameterValue]),
+  )
+  const templateKeys = Object.keys(template.definitions)
+  const unknown = Object.keys(values).filter((key) => !templateKeys.includes(key))
+  if (unknown.length)
+    throw new Error(`Parameter file contains unknown parameters: ${unknown.join(', ')}`)
+  const overridden = [...template.packageManaged].filter((key) => Object.hasOwn(values, key))
+  if (overridden.length)
+    throw new Error(
+      `Parameter file must not set package-managed parameters: ${overridden.join(', ')}`,
+    )
+  const missing = templateKeys.filter(
+    (key) =>
+      !template.packageManaged.has(key) &&
+      !Object.hasOwn(values, key) &&
+      !Object.hasOwn(template.definitions[key] ?? {}, 'Default'),
+  )
+  if (missing.length)
+    throw new Error(`Parameter file is missing required consumer values: ${missing.join(', ')}`)
+  return values
+}
+
+function resolvedReleaseParameters(
+  supplied: SuppliedParameterValues,
+  template: TemplateParameterData,
+  managedValues: Record<string, string>,
+): CloudFormationParameterValue[] {
+  const templateKeys = Object.keys(template.definitions)
+  return templateKeys.map((key) => {
+    const value = template.packageManaged.has(key)
+      ? managedValues[key]
+      : (supplied[key] ?? template.definitions[key]?.Default)
+    if (value === undefined) throw new Error(`No value for CloudFormation parameter ${key}`)
+    return parameter(key, String(value))
+  })
+}
+
+function deploymentHandoff(input: {
+  outputDir: string
+  artifactBucket: string
+  artifactKey: string
+  release: PackagedRelease
+}): DeploymentHandoff {
+  const prefix = input.outputDir.replace(/\/+$/, '')
+  const path = (name: string) => `${prefix}/${name}`
+  const parameterFile = path('parameters.json')
+  return {
+    template: 'template.yml',
+    lambdaZip: 'lambda.zip',
+    releaseFile: 'release.json',
+    artifact: { bucket: input.artifactBucket, key: input.artifactKey },
+    release: input.release,
+    parameters: 'parameters.json',
+    commands: {
+      upload: [
+        'aws',
+        's3',
+        'cp',
+        path('lambda.zip'),
+        `s3://${input.artifactBucket}/${input.artifactKey}`,
+        '--region',
+        '$AWS_REGION',
+      ],
+      deploy: [
+        'aws',
+        'cloudformation',
+        'deploy',
+        '--stack-name',
+        '$STACK_NAME',
+        '--template-file',
+        path('template.yml'),
+        '--role-arn',
+        '$AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN',
+        '--region',
+        '$AWS_REGION',
+        '--capabilities',
+        'CAPABILITY_NAMED_IAM',
+        '--parameter-overrides',
+        `file://${parameterFile}`,
+        '--no-fail-on-empty-changeset',
+        '--no-cli-pager',
+      ],
+    },
+  }
+}
+
+function copyableCommand(command: string[]): string {
+  return command
+    .map((argument) =>
+      /^\$[A-Z][A-Z0-9_]*$/.test(argument)
+        ? argument
+        : `'${argument.replaceAll("'", "'\\\"'\\\"'")}'`,
+    )
+    .join(' ')
+}
+
 try {
   const packageVersion = await installedPackageVersion()
   const bundledAssets = fileURLToPath(new URL('../client', import.meta.url))
-  if (args[0] === 'deploy') {
-    const artifactDir = requiredOption('--artifact-dir')
-    const version = requiredOption('--version', packageVersion)
-    await deployLambda({
-      artifactDir,
-      assetsDir: option('--assets-dir', bundledAssets) ?? bundledAssets,
-      assetsBucket: requiredOption('--assets-bucket'),
-      assetsBaseUrl: requiredOption('--assets-base-url'),
-      functionName: requiredOption('--function-name'),
-      version,
-      dryRun: args.includes('--dry-run'),
-    })
-    console.log(JSON.stringify({ deployed: true, version }))
-  } else if (args[0] === 'publish-assets') {
+  if (args[0] === 'publish-assets') {
     const version = requiredOption('--version', packageVersion)
     const assetPath = await publishClientAssets({
       assetsDir: option('--assets-dir', bundledAssets) ?? bundledAssets,
@@ -229,7 +337,7 @@ try {
   } else if (args[0] === 'parameters') {
     const output =
       option('--output', 'aws-dashboard-parameters.json') ?? 'aws-dashboard-parameters.json'
-    const existing = await existingParameters(output)
+    const existing = await existingParameters(output, true)
     const consumerConfigPath = option('--bootstrap-config')
     const consumerConfig = consumerConfigPath
       ? await readBootstrapConfig(consumerConfigPath)
@@ -542,7 +650,7 @@ try {
     }
   } else if (args[0] !== 'package')
     throw new Error(
-      'Usage: ze-great-dashboard-aws package|parameters|bootstrap|publish-assets|deploy|doctor [options]',
+      'Usage: ze-great-dashboard-aws package|parameters|bootstrap|publish-assets|doctor [options]',
     )
   else {
     const boardConfig = option('--board-config')
@@ -552,13 +660,42 @@ try {
     if (!boardConfig) throw new Error('--board-config is required')
     if (!version)
       throw new Error('Unable to determine the package version; pass --version explicitly')
+    const outputDir = option('--output', 'aws-dashboard-release') ?? 'aws-dashboard-release'
+    const parametersPath =
+      option('--parameters', 'aws-dashboard-parameters.json') ?? 'aws-dashboard-parameters.json'
+    const template = await templateParameters()
+    const consumerParameters = validateConsumerParameters(
+      await existingParameters(parametersPath),
+      template,
+    )
     const metadata = await packageLambda({
       boardConfigPath: boardConfig,
-      outputDir: option('--output', 'aws-release') ?? 'aws-release',
+      outputDir,
       version,
       assetDomain: option('--asset-domain'),
     })
-    console.log(JSON.stringify(metadata))
+    const resolvedParameters = resolvedReleaseParameters(consumerParameters, template, {
+      LambdaArtifactKey: metadata.artifactKey,
+      DashboardVersion: metadata.dashboardVersion,
+    })
+    await writeFile(
+      `${outputDir}/parameters.json`,
+      `${JSON.stringify(resolvedParameters, null, 2)}\n`,
+    )
+    const handoff = deploymentHandoff({
+      outputDir,
+      artifactBucket:
+        resolvedParameters.find(({ ParameterKey }) => ParameterKey === 'LambdaArtifactBucket')
+          ?.ParameterValue ?? '',
+      artifactKey: metadata.artifactKey,
+      release: metadata,
+    })
+    await writeFile(`${outputDir}/deployment.json`, `${JSON.stringify(handoff, null, 2)}\n`)
+    console.log(`Packaged ${outputDir}/lambda.zip and ${outputDir}/template.yml`)
+    console.log(`Complete parameters: ${outputDir}/parameters.json`)
+    console.log(`Deployment handoff: ${outputDir}/deployment.json`)
+    console.log(`Upload: ${copyableCommand(handoff.commands.upload)}`)
+    console.log(`Deploy: ${copyableCommand(handoff.commands.deploy)}`)
   }
 } catch (error) {
   console.error(error instanceof Error ? error.message : error)

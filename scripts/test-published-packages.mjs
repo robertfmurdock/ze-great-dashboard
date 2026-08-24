@@ -4,7 +4,6 @@ import { createHash } from 'node:crypto'
 import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { packageLayout } from './package-layout.mjs'
 
 const root = resolve(new URL('..', import.meta.url).pathname)
@@ -72,7 +71,6 @@ try {
     )
     assert.doesNotMatch(contents, /from ['"].*\.ts['"]|import\(['"].*\.ts['"]\)/)
   }
-  const publicApi = await import(pathToFileURL(join(stagingRoot, 'aws', 'dist', 'index.js')).href)
   const artifactRoot = await mkdtemp(join(tmpdir(), 'ze-great-dashboard-published-smoke-'))
   try {
     const parametersPath = join(artifactRoot, 'aws-dashboard-parameters.json')
@@ -112,6 +110,8 @@ try {
         'package',
         '--board-config',
         join(root, 'boards/example.yaml'),
+        '--parameters',
+        parametersPath,
         '--output',
         releasePath,
       ],
@@ -124,15 +124,14 @@ try {
     const metadata = JSON.parse(await readFile(join(releasePath, 'release.json'), 'utf8'))
     assert.equal(metadata.dashboardVersion, '9.8.7')
     assert.match(metadata.artifactKey, /^lambda\/[a-f0-9]{64}\.zip$/)
-    await publicApi.deployLambda({
-      artifactDir: releasePath,
-      assetsDir: join(stagingRoot, 'aws', 'client'),
-      assetsBucket: 'unused',
-      assetsBaseUrl: 'https://unused.example',
-      functionName: 'unused',
-      version: '9.8.7',
-      dryRun: true,
-    })
+    const releaseParameters = JSON.parse(
+      await readFile(join(releasePath, 'parameters.json'), 'utf8'),
+    )
+    assert.equal(releaseParameters.length, 11)
+    assert.equal(releaseParameters[2].ParameterValue, metadata.artifactKey)
+    const deployment = JSON.parse(await readFile(join(releasePath, 'deployment.json'), 'utf8'))
+    assert.equal(deployment.parameters, 'parameters.json')
+    assert.ok(deployment.commands.deploy.includes(`file://${releasePath}/parameters.json`))
     assert.ok((await readdir(releasePath)).includes('lambda.zip'))
     assert.ok((await readdir(releasePath)).includes('template.yml'))
   } finally {

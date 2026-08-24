@@ -71,15 +71,11 @@ jobs:
         run: |
           npm exec -- ze-great-dashboard-aws package \
             --board-config board.yaml \
+            --parameters aws-dashboard-parameters.json \
             --output aws-dashboard-release
 
-          artifact_bucket="$(jq -er \
-            '.[] | select(.ParameterKey == "LambdaArtifactBucket") | .ParameterValue' \
-            aws-dashboard-parameters.json)"
-          artifact_key="$(jq -er '.artifactKey' aws-dashboard-release/release.json)"
-
           aws s3 cp aws-dashboard-release/lambda.zip \
-            "s3://${artifact_bucket}/${artifact_key}" \
+            "$(jq -er '.commands.upload[4]' aws-dashboard-release/deployment.json)" \
             --region "$AWS_REGION"
 
           aws cloudformation deploy \
@@ -88,7 +84,7 @@ jobs:
             --role-arn "$AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN" \
             --region "$AWS_REGION" \
             --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides file://aws-dashboard-parameters.json \
+            --parameter-overrides file://aws-dashboard-release/parameters.json \
             --no-fail-on-empty-changeset \
             --no-cli-pager
 ```
