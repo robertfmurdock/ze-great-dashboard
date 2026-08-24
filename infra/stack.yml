@@ -343,10 +343,12 @@ Resources:
                     'ecs:cluster': !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/ze-great-dashboard-smoke-*'
               - Sid: RegisterSmokeTaskDefinition
                 Effect: Allow
-                Action:
-                  - ecs:DeregisterTaskDefinition
-                  - ecs:RegisterTaskDefinition
+                Action: ecs:RegisterTaskDefinition
                 Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/ze-great-dashboard-smoke-*:*'
+              - Sid: DeregisterSmokeTaskDefinition
+                Effect: Allow
+                Action: ecs:DeregisterTaskDefinition
+                Resource: '*'
 
 Outputs:
   AssetsBucket:

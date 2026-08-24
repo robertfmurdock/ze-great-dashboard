@@ -61,6 +61,9 @@ describe('persistent consumer reference', () => {
       `Action: ecs:DeleteCluster\n                Resource: !Sub '${smokeClusterArn}'`,
     )
     expect(infrastructure).toContain(`task-definition/ze-great-dashboard-smoke-*:*'`)
+    expect(infrastructure).toContain(
+      "Sid: DeregisterSmokeTaskDefinition\n                Effect: Allow\n                Action: ecs:DeregisterTaskDefinition\n                Resource: '*'",
+    )
     expect(infrastructure).toContain('ReferenceSmokeRoleArn')
     expect(bootstrap).toContain('iam:GetRolePolicy')
     expect(infrastructure).toContain(`'\${ReferenceArtifactBucket.Arn}/lambda/*'`)
