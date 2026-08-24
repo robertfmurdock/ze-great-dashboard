@@ -8,8 +8,13 @@ import { assembleRelease, sha256 } from './release.ts'
 
 export {
   type BootstrapConfig,
+  type BootstrapConsistency,
   type BootstrapKind,
+  type BootstrapPlan,
+  type BootstrapTemplateInspection,
+  bootstrapConsistency,
   bootstrapContractVersion,
+  bootstrapPlan,
   bootstrapTemplate,
   bootstrapTemplatePath,
   bootstrapTemplateRevision,
@@ -20,6 +25,16 @@ export {
   mergeBootstrapParameters,
   requiredBootstrapParameters,
 } from './bootstrap.js'
+export {
+  type BootstrapCheck,
+  type BootstrapCheckDependencies,
+  type BootstrapResourceDifference,
+  type BootstrapResourceDrift,
+  type BootstrapResourceDriftResult,
+  type BootstrapStackCheck,
+  checkBootstrap,
+  formatBootstrapCheckText,
+} from './bootstrap-check.js'
 export {
   type BootstrapCheckStatus,
   type BootstrapInitInput,

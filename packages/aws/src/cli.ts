@@ -8,13 +8,16 @@ import {
   bootstrapContractVersion,
   bootstrapGuide,
   bootstrapHandoff,
+  bootstrapPlan,
   bootstrapPreflight,
   bootstrapTemplate,
   bootstrapTemplatePath,
+  checkBootstrap,
   cloudFormationTemplate,
   coreBootstrapOutputs,
   deployedBootstrapStack,
   deployLambda,
+  formatBootstrapCheckText,
   mergeBootstrapParameters,
   packageLambda,
   publishClientAssets,
@@ -110,16 +113,17 @@ function bootstrapValues(
       coreOutputs.ApplicationStackName ?? config.core?.applicationStackName,
     ),
     DashboardFunctionName: option('--function-name', config.core?.dashboardFunctionName),
-    RuntimeSecretArn: option('--runtime-secret-arn', config.core?.runtimeSecretArn),
-    ArtifactKmsKeyArn: option('--artifact-kms-key-arn', config.core?.artifactKmsKeyArn),
+    RuntimeSecretArn: option('--runtime-secret-arn', config.core?.runtimeSecretArn ?? ''),
+    ArtifactKmsKeyArn: option('--artifact-kms-key-arn', config.core?.artifactKmsKeyArn ?? ''),
     GitHubOidcProviderArn: option('--github-oidc-provider-arn', config.githubOidc?.providerArn),
     GitHubRepository: option('--github-repository', config.githubOidc?.repository),
     GitHubOwnerId: option('--github-owner-id', config.githubOidc?.ownerId),
     GitHubRepositoryId: option('--github-repository-id', config.githubOidc?.repositoryId),
     GitHubEnvironment: option('--github-environment', config.githubOidc?.environment),
+    CoreBootstrapStackName: config.core?.stackName,
     ConsumerGatewayStackName: option(
       '--consumer-gateway-stack',
-      config.githubOidc?.consumerGatewayStackName,
+      config.githubOidc?.consumerGatewayStackName ?? '',
     ),
     CloudFormationExecutionRoleArn: option(
       '--execution-role-arn',
@@ -352,6 +356,7 @@ try {
           await bootstrapGuide({
             config,
             configPath,
+            workDir: option('--work-dir'),
             coreStack: coreStackPath
               ? JSON.parse(await readFile(coreStackPath, 'utf8'))
               : undefined,
@@ -359,6 +364,7 @@ try {
             githubOidcStack: githubStackPath
               ? JSON.parse(await readFile(githubStackPath, 'utf8'))
               : undefined,
+            githubOidcStackPath: githubStackPath,
             runner,
           }),
         )
@@ -378,6 +384,7 @@ try {
             await bootstrapHandoff({
               config,
               configPath,
+              workDir: option('--work-dir'),
               coreStack: coreStackPath
                 ? JSON.parse(await readFile(coreStackPath, 'utf8'))
                 : undefined,
@@ -385,6 +392,7 @@ try {
               githubOidcStack: githubStackPath
                 ? JSON.parse(await readFile(githubStackPath, 'utf8'))
                 : undefined,
+              githubOidcStackPath: githubStackPath,
               runner,
             }),
           ),
@@ -411,6 +419,40 @@ try {
             contractVersion: bootstrapContractVersion(await bootstrapTemplate(kind)),
           }),
         )
+      } else if (action === 'plan') {
+        requiredOption('--config')
+        const plan = await bootstrapPlan(config)
+        if (option('--format') === 'text') {
+          console.log('AWS bootstrap plan (read-only)')
+          console.log(`Package version: ${plan.packageVersion}`)
+          for (const template of plan.packageTemplates) {
+            console.log(`\n${template.kind}: ${template.path}`)
+            console.log(`  contract: ${template.contractVersion}`)
+            if (template.templateRevision) console.log(`  revision: ${template.templateRevision}`)
+            console.log(`  sha256: ${template.sha256}`)
+            console.log(
+              `  resources: ${template.resources.map(({ logicalId, type }) => `${logicalId} (${type})`).join(', ')}`,
+            )
+            console.log(`  declared IAM actions: ${template.iamActions.join(', ') || 'none'}`)
+          }
+          console.log(`\n${plan.notes.join('\n')}`)
+        } else console.log(JSON.stringify(plan))
+      } else if (action === 'check') {
+        requiredOption('--config')
+        const { execFile } = await import('node:child_process')
+        const { promisify } = await import('node:util')
+        const result = await checkBootstrap(
+          config,
+          { resourceDrift: args.includes('--resource-drift') },
+          {
+            async execute(command, commandArgs) {
+              return (await promisify(execFile)(command, commandArgs)).stdout.trim()
+            },
+          },
+        )
+        if (option('--format') === 'text') process.stdout.write(formatBootstrapCheckText(result))
+        else console.log(JSON.stringify(result))
+        if (!result.ok) process.exitCode = 1
       } else if (action === 'parameters') {
         const kind = bootstrapKind()
         const output =
@@ -451,33 +493,14 @@ try {
         console.log(
           JSON.stringify({ output, kind, preservedDeployedValues: Boolean(deployedStackPath) }),
         )
-      } else if (action === 'status') {
-        const kind = bootstrapKind()
-        const stackName = requiredOption('--stack-name', bootstrapStackName(kind, config))
-        const region = option('--region', config.region)
-        const awsCommand = [
-          'aws',
-          'cloudformation',
-          'describe-stacks',
-          '--stack-name',
-          stackName,
-          ...(region ? ['--region', region] : []),
-          '--no-cli-pager',
-        ]
-        console.log(
-          JSON.stringify({
-            kind,
-            contractVersion: bootstrapContractVersion(await bootstrapTemplate(kind)),
-            awsCommand,
-            shellCommand: args.includes('--format-shell') ? shellCommand(awsCommand) : undefined,
-          }),
-        )
       } else if (action === 'change-set') {
         const kind = bootstrapKind()
         const stackName = requiredOption('--stack-name', bootstrapStackName(kind, config))
         const changeSetName = requiredOption('--change-set-name')
         const parametersPath = requiredOption('--parameters')
         const region = option('--region', config.region)
+        const plan = await bootstrapPlan(config)
+        const template = plan.packageTemplates.find((candidate) => candidate.kind === kind)
         await existingParameters(parametersPath)
         // Emit command arguments only. Administrators invoke and review AWS operations explicitly.
         const awsCommand = [
@@ -502,6 +525,10 @@ try {
         console.log(
           JSON.stringify({
             kind,
+            packageVersion: plan.packageVersion,
+            contractVersion: template?.contractVersion,
+            templateRevision: template?.templateRevision,
+            templateSha256: template?.sha256,
             reviewRequired: true,
             awsCommand,
             shellCommand: args.includes('--format-shell') ? shellCommand(awsCommand) : undefined,
@@ -509,7 +536,7 @@ try {
         )
       } else {
         throw new Error(
-          'Usage: ze-great-dashboard-aws bootstrap init|preflight|guide|handoff|verify --config manifest.json [options], or bootstrap template|parameters|status|change-set --kind core|github-oidc [options]',
+          'Usage: ze-great-dashboard-aws bootstrap init|preflight|plan|check|guide|handoff|verify --config manifest.json [options], or bootstrap template|parameters|change-set --kind core|github-oidc [options]',
         )
       }
     }

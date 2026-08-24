@@ -70,10 +70,6 @@ npx ze-great-dashboard-aws doctor \
   --region us-east-1
 ```
 
-If the deployment repository retains `github-oidc-deployed-stack.json`, also pass
-`--github-oidc-stack-json github-oidc-deployed-stack.json`. The doctor will warn when the installed
-package contains a newer bootstrap template revision and the GitHub OIDC stack should be reviewed.
-
 `--parameters` defaults to `aws-dashboard-parameters.json`. `--region` defaults to `AWS_REGION`,
 then `AWS_DEFAULT_REGION`, then `us-east-1`. The doctor only makes read requests.
 
@@ -235,6 +231,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      resource_drift:
+        description: Run the slower CloudFormation resource-drift audit
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -264,6 +265,11 @@ jobs:
         with:
           role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Check bootstrap consistency
+        run: npm exec -- ze-great-dashboard-aws bootstrap check --config dashboard-bootstrap.json --format text
+      - name: Check CloudFormation resource drift
+        if: inputs.resource_drift
+        run: npm exec -- ze-great-dashboard-aws bootstrap check --config dashboard-bootstrap.json --resource-drift --format text
       - name: Package and deploy
         run: |
           npm exec -- ze-great-dashboard-aws package \

@@ -86,6 +86,7 @@ describe('manifest-driven bootstrap handoff', () => {
     expect(handoff.expectedContracts).toEqual({ core: '1', githubOidc: '2' })
     expect(handoff.expectedOutputs).toEqual([
       'BootstrapContractVersion',
+      'BootstrapTemplateRevision',
       'ArtifactBucketName',
       'ApplicationStackName',
       'CloudFormationExecutionRoleArn',
@@ -102,6 +103,34 @@ describe('manifest-driven bootstrap handoff', () => {
     expect(handoff.commands.find(({ name }) => name === 'create-change-set')?.args).toContain(
       'CAPABILITY_NAMED_IAM',
     )
+  })
+
+  it('keeps generated parameters and captures in the requested disposable work directory', async () => {
+    const handoff = await bootstrapHandoff({
+      config,
+      configPath: 'dashboard-bootstrap.json',
+      workDir: '.bootstrap-work',
+    })
+    expect(handoff.parameterPath).toBe('.bootstrap-work/core-bootstrap.json')
+    expect(handoff.commands[0]?.args).toContain('.bootstrap-work/core-bootstrap.json')
+    expect(handoff.commands.at(-1)?.captureFile).toBe('.bootstrap-work/core-deployed-stack.json')
+    const complete = await bootstrapHandoff({
+      config,
+      configPath: 'dashboard-bootstrap.json',
+      workDir: '.bootstrap-work',
+      coreStack,
+      githubOidcStack: oidcStack,
+      provider: {
+        name: 'test',
+        async prerequisite() {
+          return { status: 'ready', blocking: false, detail: 'ready' }
+        },
+      },
+    })
+    expect(complete.requiredCapturedFiles).toEqual([
+      '.bootstrap-work/core-deployed-stack.json',
+      '.bootstrap-work/github-oidc-deployed-stack.json',
+    ])
   })
 
   it('moves to the OIDC adapter from a captured core stack without making a GitHub mutation', async () => {

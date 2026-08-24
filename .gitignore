@@ -4,6 +4,7 @@ packages/aws/client/
 coverage/
 test-results/
 playwright-report/
+.bootstrap-work/
 *.tsbuildinfo
 lambda.zip
 release-build.tgz

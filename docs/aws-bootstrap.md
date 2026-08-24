@@ -22,17 +22,47 @@ contract. Do not rename them in compatible upgrades.
   IDs as well as their human-readable names. Whether reviewers are required is a deployment choice;
   the validation Environment below is deliberately unreviewed so it can operate as a release gate.
 
-The package never runs AWS CLI commands for bootstrap work. It validates inputs and emits template
-locations, parameter files, and structured command arguments; administrators invoke AWS explicitly.
-`bootstrap status` and `bootstrap change-set` can also include a safely quoted copy/paste command
-with `--format-shell`; their default machine-readable `awsCommand` array is the automation contract.
+The package never runs mutating AWS CLI commands for bootstrap work. It validates inputs and emits
+template locations, parameter files, and structured command arguments; administrators invoke every
+change explicitly. The one exception is the clearly named `bootstrap check` diagnostic below. It
+reads deployed state and never updates stack resources. `bootstrap change-set` reports the installed
+package version, template contract/revision, and SHA-256 alongside a safely quoted copy/paste command
+when requested with `--format-shell`; its machine-readable `awsCommand` array is the automation
+contract.
 The examples below deliberately create and inspect CloudFormation change sets. Do **not** use
 `cloudformation deploy` for bootstrap work.
 
-For routine application deployments, pass a retained `github-oidc-deployed-stack.json` to the
-read-only deployment doctor with `--github-oidc-stack-json`. The doctor compares the captured
-GitHub OIDC bootstrap template revision with the installed package and emits a warning when the
-bootstrap should be reviewed. It never updates the bootstrap stack.
+The consumer repository should check in the exact package version (`package.json` and its lockfile)
+and its non-secret `dashboard-bootstrap.json` manifest. The CloudFormation templates remain owned by
+the installed package; do not copy or symlink them into a second source tree. Generated parameter
+files are disposable inputs for an administrator's reviewed change set, and `describe-stacks` JSON
+files are observed state, not desired configuration. Use the read-only plan to make the installed
+templates and their security scope visible in a pull request or CI summary:
+
+```sh
+npm exec -- ze-great-dashboard-aws bootstrap plan \
+  --config dashboard-bootstrap.json --format text
+```
+
+The plan reports each template's package path, contract and revision, SHA-256, resources, and
+declared IAM actions. The action list includes intentional deny statements as well as allows; the
+CloudFormation change set remains the authority for the effective change. A package upgrade
+therefore changes the inspected plan directly; it does not silently update AWS and does not require
+synchronizing a checked-in generated template.
+
+The canonical routine deployment gate compares both live bootstrap stacks with the manifest and
+installed package. Run it after assuming the generated GitHub deploy role and before packaging:
+
+```sh
+npm exec -- ze-great-dashboard-aws bootstrap check \
+  --config dashboard-bootstrap.json --format text
+```
+
+It exits nonzero on an inaccessible or unhealthy stack, or any identity, Region, parameter, output,
+contract, or template-revision mismatch. For a slower scheduled or manually dispatched audit, add
+`--resource-drift`; that runs CloudFormation drift detection and reports the logical resources and
+property differences. “Consistency” is the fast manifest/package comparison; “resource drift” is
+AWS’s separate out-of-band resource comparison.
 
 ## 1. Scaffold and preflight the manifest
 
@@ -64,9 +94,20 @@ or network is reported as `unverified` so offline planning remains possible. A v
 missing prerequisite stops the journey. GitHub Environment policy is reported only as context: its
 branch, reviewer, and build-service rules remain an administrator decision.
 
-For the normal guided journey, use `bootstrap guide --config dashboard-bootstrap.json`. It renders
-the same structured handoff in execution order, including capture filenames, expected stack outputs,
-and explicit review pauses. It prints AWS commands but never runs them.
+For the normal guided journey, use a disposable working directory for generated parameters and AWS
+captures. It is not source configuration and should be ignored by the consumer repository (add
+`.bootstrap-work/` to its `.gitignore`):
+
+```sh
+mkdir -p .bootstrap-work
+npm exec -- ze-great-dashboard-aws bootstrap guide \
+  --config dashboard-bootstrap.json --work-dir .bootstrap-work
+```
+
+The guide renders the structured handoff in execution order, including capture filenames, expected
+stack outputs, and explicit review pauses. It prints AWS commands but never runs them. After the
+initial bootstrap, retain the captures only when useful for audit or upgrade verification; normal
+application deployments need the checked-in manifest and package pin, not these files.
 
 Optionally add `--artifact-kms-key-arn` for a customer CMK and `--runtime-secret-arn` for the sole
 runtime secret the application is allowed to read. The core bucket enforces bucket-owner ownership,
@@ -105,8 +146,8 @@ aws cloudformation wait stack-create-complete --stack-name "$(jq -r .core.stackN
 aws cloudformation describe-stacks --stack-name "$(jq -r .core.stackName dashboard-bootstrap.json)" --region "$(jq -r .region dashboard-bootstrap.json)" --no-cli-pager
 ```
 
-Record the outputs, especially `ArtifactBucketName`, `CloudFormationExecutionRoleArn`, and
-`BootstrapContractVersion`, in the consumer deployment repository.
+Record the outputs, especially `ArtifactBucketName`, `CloudFormationExecutionRoleArn`,
+`BootstrapContractVersion`, and `BootstrapTemplateRevision`, for the next reviewed bootstrap phase.
 
 ## GitHub OIDC adapter
 
@@ -187,15 +228,15 @@ gateway access remains consumer-owned.
 
 ## Upgrades and recovery
 
-### Check the bootstrap template on package upgrades
+### Check bootstrap consistency on every deployment
 
-The bootstrap contract version only changes for migrations that require explicit coordination, so a
-compatible package upgrade can still add an optional capability to a bootstrap template. If your
-deployment workflow needs to read a consumer-owned gateway stack, check that
-`dashboard-bootstrap.json` contains `githubOidc.consumerGatewayStackName` after upgrading. If it is
-missing, add it with `--consumer-gateway-stack` when creating a manifest (or edit the reviewed manifest), regenerate the GitHub OIDC
-parameter file from the deployed core capture, and create and review an `UPDATE` change set for the
-GitHub OIDC stack. Consumers that do not need gateway-stack reads do not need to rerun bootstrap.
+Contract versions change only for coordinated migrations; template revisions identify compatible
+bootstrap updates. The normal pipeline command above checks both markers and all manifest-backed
+parameters. A revision mismatch blocks application deployment and tells an administrator to review
+the package-owned template and apply an explicit `UPDATE` change set. It never updates bootstrap.
+Omitting an optional secret, KMS key, or gateway stack from the manifest means the CloudFormation
+default empty value; freshly generated parameters clear an older deployed value during that reviewed
+update rather than silently preserving configuration the manifest no longer declares.
 
 Install the target exact package version, then capture deployed state and verify its contract version:
 
@@ -207,10 +248,11 @@ npm exec -- ze-great-dashboard-aws bootstrap parameters --kind core \
   --output core-bootstrap.json
 ```
 
-The CLI preserves deployed parameter values that the new parameter file does not replace and fails
-on a contract mismatch; it never invokes AWS. Create an `UPDATE` change set with the explicit AWS
+The parameters command preserves deployed values that the new parameter file does not replace and
+fails on a contract mismatch; it never invokes AWS. Create an `UPDATE` change set with the explicit AWS
 command above, inspect it, execute it, and capture deployed state again.
 
-Stop on account, Region, or contract mismatch. Required-name, OIDC-trust, encryption, ownership,
+After the administrator update, rerun `bootstrap check` before application deployment. Stop on
+account, Region, contract, revision, or parameter mismatch. Required-name, OIDC-trust, encryption, ownership,
 bucket, or role changes are documented migrations: create reviewed replacement infrastructure and
 move consumers deliberately. Never delete artifact buckets or bootstrap roles during an upgrade.

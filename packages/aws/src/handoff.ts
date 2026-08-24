@@ -102,6 +102,10 @@ function stackName(config: BootstrapConfig, kind: 'core' | 'github-oidc'): strin
   )
 }
 
+function workFile(workDir: string | undefined, name: string): string {
+  return workDir ? `${workDir.replace(/\/+$/, '')}/${name}` : name
+}
+
 function changeSetCommands(input: {
   kind: 'core' | 'github-oidc'
   configPath: string
@@ -109,6 +113,7 @@ function changeSetCommands(input: {
   templatePath: string
   parameterPath: string
   coreCapturePath?: string
+  workDir?: string
 }): HandoffCommand[] {
   const name = `${input.kind}-initial-review`
   const stack = stackName(input.config, input.kind)
@@ -182,7 +187,7 @@ function changeSetCommands(input: {
     },
     {
       name: 'capture-stack',
-      captureFile: `${input.kind}-deployed-stack.json`,
+      captureFile: workFile(input.workDir, `${input.kind}-deployed-stack.json`),
       args: ['aws', 'cloudformation', 'describe-stacks', ...common, '--no-cli-pager'],
     },
   ]
@@ -247,14 +252,16 @@ async function contracts() {
 export async function bootstrapHandoff(input: {
   config: BootstrapConfig
   configPath: string
+  workDir?: string
   coreStack?: unknown
   coreStackPath?: string
   githubOidcStack?: unknown
+  githubOidcStackPath?: string
   provider?: BootstrapProvider
   runner?: CommandRunner
 }): Promise<BootstrapHandoff> {
   const expectedContracts = await contracts()
-  const coreCapturePath = input.coreStackPath ?? 'core-deployed-stack.json'
+  const coreCapturePath = input.coreStackPath ?? workFile(input.workDir, 'core-deployed-stack.json')
   const core =
     input.coreStack === undefined
       ? undefined
@@ -274,9 +281,10 @@ export async function bootstrapHandoff(input: {
       phase: 'core',
       expectedContracts,
       templatePath,
-      parameterPath: 'core-bootstrap.json',
+      parameterPath: workFile(input.workDir, 'core-bootstrap.json'),
       expectedOutputs: [
         'BootstrapContractVersion',
+        'BootstrapTemplateRevision',
         'ArtifactBucketName',
         'ApplicationStackName',
         'CloudFormationExecutionRoleArn',
@@ -291,7 +299,8 @@ export async function bootstrapHandoff(input: {
         config: input.config,
         configPath: input.configPath,
         templatePath,
-        parameterPath: 'core-bootstrap.json',
+        parameterPath: workFile(input.workDir, 'core-bootstrap.json'),
+        workDir: input.workDir,
       }),
     }
   }
@@ -303,6 +312,7 @@ export async function bootstrapHandoff(input: {
       GitHubOwnerId: input.config.githubOidc?.ownerId,
       GitHubRepositoryId: input.config.githubOidc?.repositoryId,
       GitHubEnvironment: input.config.githubOidc?.environment,
+      CoreBootstrapStackName: input.config.core?.stackName,
       ConsumerGatewayStackName: input.config.githubOidc?.consumerGatewayStackName,
       ...coreBootstrapOutputs(core),
     })
@@ -311,7 +321,7 @@ export async function bootstrapHandoff(input: {
       phase: 'github-oidc',
       expectedContracts,
       templatePath,
-      parameterPath: 'github-oidc-bootstrap.json',
+      parameterPath: workFile(input.workDir, 'github-oidc-bootstrap.json'),
       expectedOutputs: [
         'BootstrapContractVersion',
         'BootstrapTemplateRevision',
@@ -327,8 +337,9 @@ export async function bootstrapHandoff(input: {
         config: input.config,
         configPath: input.configPath,
         templatePath,
-        parameterPath: 'github-oidc-bootstrap.json',
+        parameterPath: workFile(input.workDir, 'github-oidc-bootstrap.json'),
         coreCapturePath,
+        workDir: input.workDir,
       }),
       prerequisite: await (input.provider ?? githubOidcProvider).prerequisite(
         input.config,
@@ -340,12 +351,14 @@ export async function bootstrapHandoff(input: {
     input.config,
     input.runner,
   )
+  const githubOidcCapturePath =
+    input.githubOidcStackPath ?? workFile(input.workDir, 'github-oidc-deployed-stack.json')
   if (prerequisite.status !== 'ready')
     return {
       phase: 'github-environment',
       expectedContracts,
       expectedOutputs: [],
-      requiredCapturedFiles: [coreCapturePath, 'github-oidc-deployed-stack.json'],
+      requiredCapturedFiles: [coreCapturePath, githubOidcCapturePath],
       reviewCheckpoints: [
         'A GitHub administrator must complete and verify the immutable-subject migration before deployments.',
       ],
@@ -356,7 +369,7 @@ export async function bootstrapHandoff(input: {
     phase: 'application-gateway',
     expectedContracts,
     expectedOutputs: [],
-    requiredCapturedFiles: [coreCapturePath, 'github-oidc-deployed-stack.json'],
+    requiredCapturedFiles: [coreCapturePath, githubOidcCapturePath],
     reviewCheckpoints: [
       'Consumer owns gateway selection, private Lambda permission, authentication, and smoke tests.',
     ],

@@ -74,10 +74,16 @@ npm exec -- ze-great-dashboard-aws doctor \
   --region us-east-1
 ```
 
-If you retain a captured GitHub OIDC stack, add `--github-oidc-stack-json
-github-oidc-deployed-stack.json` to have the doctor warn when the installed package contains a
-newer bootstrap template revision. The warning is advisory and does not make the application
-deployment perform bootstrap changes.
+After assuming the generated GitHub deploy role, run the canonical blocking consistency check before
+packaging or deployment:
+
+```sh
+npm exec -- ze-great-dashboard-aws bootstrap check \
+  --config dashboard-bootstrap.json --format text
+```
+
+Add `--resource-drift` only for a slower scheduled or manually dispatched CloudFormation drift
+audit. Neither form updates stack resources.
 
 Package the release. This validates the board and writes `lambda.zip`, `release.json`, and
 `template.yml` to the output directory:
@@ -127,7 +133,7 @@ does not grant public Lambda invoke permission.
 To upgrade, install a newer exact package version and repeat package, upload, and deploy. A change to
 `board.yaml` follows the same path; it does not require a package change.
 
-After upgrading, also check the [bootstrap upgrade guidance](https://github.com/robertfmurdock/ze-great-dashboard/blob/main/docs/aws-bootstrap.md#check-the-bootstrap-template-on-package-upgrades).
+After upgrading, also check the [bootstrap consistency guidance](https://github.com/robertfmurdock/ze-great-dashboard/blob/main/docs/aws-bootstrap.md#check-bootstrap-consistency-on-every-deployment).
 Compatible releases may add optional bootstrap capabilities without changing the contract version.
 If your workflow verifies a consumer-owned gateway stack, add `githubOidc.consumerGatewayStackName`
 to the reviewed manifest and update the GitHub OIDC stack; other consumers do not need to rerun
@@ -144,7 +150,7 @@ for the supported secret reference and integration boundary.
 | `doctor` | Read-only preflight for an existing parameter file. |
 | `parameters` | Generate or update application CloudFormation parameters. |
 | `package` | Validate board YAML and build a deployable Lambda release. |
-| `bootstrap` | Produce bootstrap templates, parameters, preflight, and guidance; administrators run AWS commands explicitly. |
+| `bootstrap` | Plan and guide administrator bootstrap work; `bootstrap check` is the explicit live diagnostic used by CI. |
 | `publish-assets` | Provider-only: publish immutable client assets. Normal consumers use the hosted client. |
 | `deploy` | Provider-only: automation helper for a provider-managed asset and Lambda deployment. |
 

@@ -13,8 +13,9 @@ The AWS package now ships versioned, consumer-owned bootstrap templates:
 - `bootstrap/github-oidc-v2.yml` creates the GitHub Actions adapter role. It trusts an
   administrator-managed OIDC provider only for one repository, protected Environment, and
   `sts.amazonaws.com` audience, and is limited to one artifact prefix, stack, and execution role.
-- Both templates expose `BootstrapContractVersion: 1` and stable outputs. Bootstrap bucket and role
-  resources are retained so an upgrade cannot silently replace or delete them.
+- The core template exposes `BootstrapContractVersion: 1`; the GitHub OIDC v2 template exposes
+  `BootstrapContractVersion: 2` and its template revision. Both have stable outputs. Bootstrap
+  bucket and role resources are retained so an upgrade cannot silently replace or delete them.
 
 The application template is now private. It has no Lambda Function URL, `AuthType: NONE`, or
 wildcard Lambda permission, and instead outputs `ServerFunctionArn` and `ServerFunctionName` for a
@@ -118,3 +119,81 @@ The release workflow for that commit, [run 32521500732](https://github.com/rober
 passed `Build and check`, `Validate consumer bootstrap candidate`, and `Release`. A separate
 immutable-OIDC migration in the Coupling repository remains consumer-owned administration; it is
 not a remaining dashboard-repository defect or bootstrap action.
+
+## Package-owned template visibility — completed 2026-08-24
+
+The bootstrap source-of-truth decision was clarified. Consumer repositories check in the exact AWS
+package version and their non-secret `dashboard-bootstrap.json` manifest. They do not copy or
+symlink the package's CloudFormation templates, and they do not treat `describe-stacks` JSON as
+desired configuration. This avoids requiring a package upgrade and a second synchronization step.
+
+The AWS package now exposes `bootstrap plan --config <path>` in JSON or text form. The read-only
+plan reports the installed package version, each template's package path, contract version,
+template revision, SHA-256, CloudFormation resources, and IAM actions. It explicitly states that
+the plan performs no AWS or GitHub mutations, making a package upgrade visible in a consumer pull
+request or CI summary without duplicating the security-sensitive templates.
+
+The guided handoff now includes the same package version and template provenance, while the text
+plan labels its action list as declared actions because it includes intentional deny statements as
+well as allows. `npm run check` passed after the change: 120 unit tests, the browser test, and the
+published-package smoke test. The remaining follow-up is to simplify the handoff's temporary-file
+lifecycle and make the plan a standard step in consumer CI where appropriate.
+
+## Disposable bootstrap work directory — completed 2026-08-24
+
+The guided handoff now accepts `--work-dir`. When supplied, generated core/OIDC parameter files and
+captured stack JSON are placed under that directory, keeping the checked-in manifest separate from
+temporary deployment artifacts. The bootstrap and CloudShell guides use `.bootstrap-work` and
+state that it should not be treated as source configuration.
+
+The handoff retains its existing defaults for compatibility, and explicit capture paths still take
+precedence. Added regression coverage for work-directory paths. `npm run check` passed with 121 unit
+tests, the browser test, and the published-package smoke test.
+
+## Checked-in validation configuration — completed 2026-08-24
+
+The consumer-bootstrap validation workflow now reads its AWS Region and application stack name from
+the checked-in `reference/consumer-bootstrap-validation.json` manifest instead of duplicating those
+values in workflow YAML. The GitHub Environment and reviewed role ARNs remain explicit deployment
+boundary inputs. The workflow test protects this single-source behavior, and `npm run check` passed
+with 121 unit tests, the browser test, and the published-package smoke test.
+
+## Progress checkpoint — 2026-08-24
+
+The current implementation now has a single-source configuration model: consumer repositories check
+in the package pin and non-secret bootstrap manifest, while templates remain package-owned. The
+read-only `bootstrap plan` exposes package version, template revisions, hashes, resources, and
+declared actions. The guided handoff exposes the same provenance and supports `--work-dir` so
+generated parameters and stack captures stay disposable. The validation workflow reads its Region
+and application stack name from the checked-in validation manifest. All changes are covered by the
+repository gate, currently passing 121 unit tests, the browser test, and the published-package smoke
+test.
+
+## Canonical pipeline consistency check — implementation completed 2026-08-24
+
+The overlapping `bootstrap status` experiment was removed. `bootstrap plan` is now strictly the
+offline package/template review, while `bootstrap check --config <path>` is the one live, blocking
+pipeline gate. It checks both bootstrap stacks against the manifest and installed package, including
+identity, Region, stable status, required outputs, every parameter, contracts, and template
+revisions. Optional manifest values compare with their CloudFormation empty defaults, so removing a
+secret, KMS key, or gateway reference cannot be reported as consistent while the old value remains
+deployed.
+
+Both templates now expose compatible revision markers: core revision `1.1` and GitHub OIDC revision
+`2.2`. The GitHub deploy role can run drift diagnostics only for its exact core and OIDC bootstrap
+stacks and can inspect only the exact bootstrap bucket and roles whose properties CloudFormation
+evaluates. The token-based detection-status read is the one AWS-required wildcard.
+`bootstrap check --resource-drift` adds the slower CloudFormation resource-drift diagnostic and
+reports drifted logical resources and property differences. The normal release gate runs the fast
+consistency check before packaging, while full resource drift is intended for a scheduled or
+manually dispatched audit.
+
+The disposable-work-directory journey was completed at the same time: capture commands now render
+real shell redirection, every follow-up path remains under `.bootstrap-work`, and that directory is
+ignored locally. The repository gate passes with 127 unit tests, the browser test, and the
+published-package smoke test.
+
+AWS rollout remains deliberately pending. An administrator must review and apply the core `1.1` and
+GitHub OIDC `2.2` template updates in the validation account before the new live release gate can
+pass. No successful live `bootstrap check` workflow run is recorded yet, and the package never
+performs the bootstrap update itself.

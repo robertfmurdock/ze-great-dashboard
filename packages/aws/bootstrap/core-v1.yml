@@ -105,6 +105,7 @@ Resources:
 
 Outputs:
   BootstrapContractVersion: { Value: '1' }
+  BootstrapTemplateRevision: { Value: '1.1' }
   ArtifactBucketName: { Value: !Ref ArtifactBucket }
   ArtifactBucketArn: { Value: !GetAtt ArtifactBucket.Arn }
   CloudFormationExecutionRoleArn: { Value: !GetAtt CloudFormationExecutionRole.Arn }

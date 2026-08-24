@@ -31,31 +31,35 @@ The manifest names the Region, stacks, bucket, function, OIDC provider, reposito
 and GitHub Environment. It contains no credentials. At every pause, use the rendered guide:
 
 ```sh
-"$BOOTSTRAP_CLI" bootstrap guide --config "$BOOTSTRAP_CONFIG"
+mkdir -p .bootstrap-work
+"$BOOTSTRAP_CLI" bootstrap guide --config "$BOOTSTRAP_CONFIG" --work-dir .bootstrap-work
 ```
 
 The JSON `handoff` remains available for automation. Both forms include parameter generation,
 change-set creation, waiting, review, execution, and stack capture. Copy each command into the
-administrator shell deliberately; the package never invokes AWS CLI itself.
+administrator shell deliberately; the navigator never invokes AWS CLI itself. The working directory
+contains disposable parameters and stack captures, not source configuration.
 
 ## Core and OIDC phases
 
-For the `core` phase, use the handoff commands to generate `core-bootstrap.json`, create a `CREATE`
+For the `core` phase, use the handoff commands to generate `.bootstrap-work/core-bootstrap.json`, create a `CREATE`
 change set, wait, and inspect it. Review every expanded IAM action, `CAPABILITY_NAMED_IAM`, resource
 replacement, retained bucket/role, and the bucket’s TLS-only policy. Execute only the reviewed
-change set, then redirect the listed capture command to `core-deployed-stack.json`.
+change set, then run the listed command, which redirects the capture to
+`.bootstrap-work/core-deployed-stack.json`.
 
 Pass that capture back to the navigator for the `github-oidc` phase:
 
 ```sh
-"$BOOTSTRAP_CLI" bootstrap handoff --config "$BOOTSTRAP_CONFIG" \
-  --core-stack-json core-deployed-stack.json | jq .
+"$BOOTSTRAP_CLI" bootstrap handoff --config "$BOOTSTRAP_CONFIG" --work-dir .bootstrap-work \
+  --core-stack-json .bootstrap-work/core-deployed-stack.json | jq .
 ```
 
 Generate the adapter parameters from the captured core output, then repeat the explicit create,
 wait, review, execute, and capture sequence. Confirm the exact immutable OIDC subject, audience,
 one `lambda/*` prefix, application stack, and execution role. Do not execute a replacement of a
-retained role or bucket. Capture the completed adapter as `github-oidc-deployed-stack.json`.
+retained role or bucket. The rendered command captures the completed adapter as
+`.bootstrap-work/github-oidc-deployed-stack.json`.
 
 The navigator’s optional `gh api` lookup is read-only. If it reports
 `immutable-subject-required`, coordinate the migration: inventory and temporarily make existing
@@ -69,8 +73,8 @@ Validate both captures before configuring the GitHub Environment:
 
 ```sh
 "$BOOTSTRAP_CLI" bootstrap verify --config "$BOOTSTRAP_CONFIG" \
-  --core-stack-json core-deployed-stack.json \
-  --github-oidc-stack-json github-oidc-deployed-stack.json | jq .
+  --core-stack-json .bootstrap-work/core-deployed-stack.json \
+  --github-oidc-stack-json .bootstrap-work/github-oidc-deployed-stack.json | jq .
 ```
 
 The output has the exact GitHub Environment variable names and reviewed ARN values, plus an optional

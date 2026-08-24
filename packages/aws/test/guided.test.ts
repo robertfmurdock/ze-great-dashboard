@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   type BootstrapConfig,
+  bootstrapGuide,
   bootstrapPreflight,
   scaffoldBootstrapManifest,
 } from '../src/index.ts'
@@ -37,6 +38,19 @@ describe('guided bootstrap', () => {
         repositoryId: '2',
       }),
     ).resolves.toEqual(config)
+  })
+
+  it('makes the installed package templates visible in the guided handoff', async () => {
+    const guide = await bootstrapGuide({
+      config,
+      configPath: 'dashboard-bootstrap.json',
+      workDir: '.bootstrap-work',
+    })
+    expect(guide).toContain('Package version: 0.0.0-dev')
+    expect(guide).toContain('Template core: contract 1')
+    expect(guide).toContain('sha256 ')
+    expect(guide).toContain("'aws' 'cloudformation' 'describe-stacks'")
+    expect(guide).toContain("> '.bootstrap-work/core-deployed-stack.json'")
   })
 
   it('uses only read-only discovery commands and leaves unavailable tools unverified', async () => {

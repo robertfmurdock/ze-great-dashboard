@@ -90,6 +90,16 @@ try {
       JSON.parse(bootstrapTemplate).template,
       join(stagingRoot, 'aws', 'bootstrap', 'core-v1.yml'),
     )
+    assert.throws(
+      () =>
+        execFileSync(process.execPath, [cli, 'bootstrap', 'status', '--kind', 'core'], {
+          cwd: root,
+          stdio: 'pipe',
+        }),
+      (error) =>
+        String(error.stderr).includes('bootstrap init|preflight|plan|check|guide|handoff|verify') &&
+        !String(error.stderr).includes('parameters|status|change-set'),
+    )
     execFileSync(
       process.execPath,
       [cli, 'parameters', '--artifact-bucket', 'consumer-artifacts', '--output', parametersPath],

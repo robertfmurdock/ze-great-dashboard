@@ -31,6 +31,13 @@ describe('consumer bootstrap deployment handoff', () => {
 
     expect(validationJob).toContain('needs: check')
     expect(validationJob).toContain('environment: consumer-bootstrap-validation')
+    expect(validationJob).toContain('Load checked-in validation configuration')
+    expect(validationJob).toContain("jq -er '.region' reference/consumer-bootstrap-validation.json")
+    expect(validationJob).toContain(
+      "jq -er '.core.applicationStackName' reference/consumer-bootstrap-validation.json",
+    )
+    expect(validationJob).not.toContain('AWS_REGION: us-east-1')
+    expect(validationJob).not.toContain('STACK_NAME: ze-great-dashboard-consumer-validation')
     expect(validationJob).toContain('actions: read')
     expect(validationJob).toContain('contents: read')
     expect(validationJob).toContain('id-token: write')
@@ -40,6 +47,11 @@ describe('consumer bootstrap deployment handoff', () => {
     expect(validationJob).toContain('role-to-assume: $' + '{{ env.AWS_DEPLOY_ROLE_ARN }}')
     expect(validationJob).toContain(
       '.consumer-bootstrap-validation/node_modules/.bin/ze-great-dashboard-aws',
+    )
+    expect(validationJob).toContain('Check live bootstrap consistency')
+    expect(validationJob).toContain('bootstrap check')
+    expect(validationJob.indexOf('bootstrap check')).toBeLessThan(
+      validationJob.indexOf('--board-config reference/board.yaml'),
     )
     expect(validationJob).toContain('--role-arn "$CLOUDFORMATION_EXECUTION_ROLE_ARN"')
     expect(validationJob).toContain('--board-config reference/board.yaml')

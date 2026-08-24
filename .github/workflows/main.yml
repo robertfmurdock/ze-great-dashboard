@@ -169,8 +169,6 @@ jobs:
       contents: read
       id-token: write
     env:
-      AWS_REGION: us-east-1
-      STACK_NAME: ze-great-dashboard-consumer-validation
       CANDIDATE_VERSION: ${{ needs.check.outputs.version }}
       AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
       CLOUDFORMATION_EXECUTION_ROLE_ARN: ${{ vars.AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN }}
@@ -181,6 +179,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
+
+      - name: Load checked-in validation configuration
+        run: |
+          echo "AWS_REGION=$(jq -er '.region' reference/consumer-bootstrap-validation.json)" >> "$GITHUB_ENV"
+          echo "STACK_NAME=$(jq -er '.core.applicationStackName' reference/consumer-bootstrap-validation.json)" >> "$GITHUB_ENV"
 
       - name: Restore verified release candidate
         uses: actions/download-artifact@v8
@@ -205,6 +208,13 @@ jobs:
         with:
           role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check live bootstrap consistency
+        run: |
+          validation_cli=.consumer-bootstrap-validation/node_modules/.bin/ze-great-dashboard-aws
+          "$validation_cli" bootstrap check \
+            --config reference/consumer-bootstrap-validation.json \
+            --format text
 
       - name: Package and deploy the source-free reference board
         run: |

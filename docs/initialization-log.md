@@ -13,12 +13,14 @@ this file explains *how it turned out* and where reality pushed back.
 
 ## What state this repo is actually in
 
-**Stage 1, verified locally. Nothing has ever deployed.**
+**Stage 1, verified locally at repository initialization.** The repository's later AWS bootstrap
+validation is recorded in `docs/aws-bootstrap-log.md`; the original application infrastructure and
+runtime remain separate from that bootstrap validation.
 
 Working and proven by running it: `npm run dev`, `npm run check`, `docker compose up`, the
 Immutable Web Application rendering path, the commit and push hooks.
 
-Never executed, and therefore unproven regardless of how confident the code looks:
+Never executed during the initialization session, and therefore unproven by that session:
 
 - **The CI workflow has never run.** Not once, on any branch. There is no remote.
 - **`terraform apply` has never run.** Only `init -backend=false`, `validate`, and `fmt -check`.

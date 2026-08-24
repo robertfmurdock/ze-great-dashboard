@@ -1,4 +1,4 @@
-import type { BootstrapConfig } from './bootstrap.js'
+import { type BootstrapConfig, bootstrapPlan } from './bootstrap.js'
 import {
   type BootstrapProvider,
   bootstrapHandoff,
@@ -302,8 +302,14 @@ export async function bootstrapGuide(
   input: Parameters<typeof bootstrapHandoff>[0],
 ): Promise<string> {
   const handoff = await bootstrapHandoff(input)
+  const plan = await bootstrapPlan(input.config)
   const lines = [
     `Phase: ${handoff.phase}`,
+    `Package version: ${plan.packageVersion}`,
+    ...plan.packageTemplates.map(
+      (template) =>
+        `Template ${template.kind}: contract ${template.contractVersion}${template.templateRevision ? `, revision ${template.templateRevision}` : ''}, sha256 ${template.sha256}`,
+    ),
     `Required captures: ${handoff.requiredCapturedFiles.join(', ') || 'none'}`,
   ]
   if (handoff.expectedOutputs.length)
@@ -316,7 +322,11 @@ export async function bootstrapGuide(
       lines.push('PAUSE: review the change set before approval.')
     if (command.name === 'execute-reviewed-change-set')
       lines.push('PAUSE: execute only after explicit approval.')
-    lines.push(`${command.captureFile ? `${command.captureFile}: ` : ''}${quote(command.args)}`)
+    lines.push(
+      command.captureFile
+        ? `${quote(command.args)} > ${quote([command.captureFile])}`
+        : quote(command.args),
+    )
   }
   if (handoff.reviewCheckpoints.length)
     lines.push('', 'Review pauses:', ...handoff.reviewCheckpoints.map((item) => `- ${item}`))

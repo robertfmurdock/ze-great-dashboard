@@ -7,6 +7,7 @@ Parameters:
   GitHubOwnerId: { Type: String, Description: Immutable numeric GitHub owner id }
   GitHubRepositoryId: { Type: String, Description: Immutable numeric GitHub repository id }
   GitHubEnvironment: { Type: String, Description: Protected GitHub Environment name }
+  CoreBootstrapStackName: { Type: String }
   ApplicationStackName: { Type: String }
   ConsumerGatewayStackName:
     Type: String
@@ -56,6 +57,31 @@ Resources:
                 Effect: Allow
                 Action: [cloudformation:CreateChangeSet, cloudformation:DescribeChangeSet, cloudformation:ExecuteChangeSet, cloudformation:DeleteChangeSet, cloudformation:DescribeStacks, cloudformation:DescribeStackEvents, cloudformation:GetTemplate, cloudformation:GetTemplateSummary]
                 Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ApplicationStackName}/*'
+              - Sid: InspectBootstrapStacks
+                Effect: Allow
+                Action: [cloudformation:DescribeStacks, cloudformation:DetectStackDrift, cloudformation:DescribeStackResourceDrifts]
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${CoreBootstrapStackName}/*'
+                  - !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*'
+              # Detection-status requests are keyed by an opaque detection id, so AWS does not
+              # support scoping this one read action to a stack ARN.
+              - Sid: ReadBootstrapDriftDetectionStatus
+                Effect: Allow
+                Action: cloudformation:DescribeStackDriftDetectionStatus
+                Resource: '*'
+              # CloudFormation uses the caller's read permissions when these administrator-created
+              # stacks have no service role. Keep resource inspection on the exact bootstrap bucket
+              # and roles whose properties drift detection evaluates.
+              - Sid: InspectBootstrapBucketConfiguration
+                Effect: Allow
+                Action: [s3:GetBucketAcl, s3:GetBucketPolicy, s3:GetBucketPublicAccessBlock, s3:GetEncryptionConfiguration, s3:GetBucketOwnershipControls, s3:GetBucketTagging]
+                Resource: !Sub 'arn:${AWS::Partition}:s3:::${ArtifactBucketName}'
+              - Sid: InspectBootstrapRoleConfiguration
+                Effect: Allow
+                Action: [iam:GetRole, iam:GetRolePolicy, iam:ListRolePolicies, iam:ListAttachedRolePolicies, iam:ListRoleTags]
+                Resource:
+                  - !Ref CloudFormationExecutionRoleArn
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ApplicationStackName}-github-deploy'
               - !If
                 - HasConsumerGatewayStack
                 - Sid: ReadConsumerGatewayStack
@@ -71,5 +97,5 @@ Resources:
 
 Outputs:
   BootstrapContractVersion: { Value: '2' }
-  BootstrapTemplateRevision: { Value: '2.1' }
+  BootstrapTemplateRevision: { Value: '2.2' }
   GitHubDeployRoleArn: { Value: !GetAtt GitHubDeployRole.Arn }
