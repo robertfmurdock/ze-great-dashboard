@@ -74,7 +74,14 @@ jobs:
       - name: Check provider bootstrap before provisioning
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
         env:
+          AWS_REGION: us-east-1
           CLOUDFORMATION_ROLE_ARN: arn:aws:iam::174159267544:role/ze-great-dashboard-cloudformation
+          BOOTSTRAP_STACK_NAME: ze-great-dashboard-bootstrap
+          BOOTSTRAP_ASSETS_BUCKET_NAME: ze-great-dashboard-assets
+          BOOTSTRAP_FUNCTION_NAME: ze-great-dashboard
+          BOOTSTRAP_SERVER_ROLE_NAME: ze-great-dashboard-server
+          BOOTSTRAP_DEPLOY_ROLE_NAME: ZeGreatDashboardDeploy
+          GITHUB_SERVER_URL: ${{ github.server_url }}
         run: bash scripts/check-provider-bootstrap.sh
 
       - name: Provision AWS infrastructure

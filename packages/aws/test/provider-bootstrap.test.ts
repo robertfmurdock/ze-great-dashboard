@@ -18,8 +18,18 @@ async function runCheck(policy: unknown): Promise<{ status: number; output: stri
         env: {
           ...process.env,
           PATH: `${directory}:${process.env.PATH ?? ''}`,
+          AWS_REGION: 'us-east-1',
           CLOUDFORMATION_ROLE_ARN:
             'arn:aws:iam::123456789012:role/ze-great-dashboard-cloudformation',
+          BOOTSTRAP_STACK_NAME: 'ze-great-dashboard-bootstrap',
+          BOOTSTRAP_ASSETS_BUCKET_NAME: 'ze-great-dashboard-assets',
+          BOOTSTRAP_FUNCTION_NAME: 'ze-great-dashboard',
+          BOOTSTRAP_SERVER_ROLE_NAME: 'ze-great-dashboard-server',
+          BOOTSTRAP_DEPLOY_ROLE_NAME: 'ZeGreatDashboardDeploy',
+          GITHUB_REPOSITORY: 'robertfmurdock/ze-great-dashboard',
+          GITHUB_OWNER_ID: '6215634',
+          GITHUB_REPOSITORY_ID: '1338375095',
+          GITHUB_SHA: 'abc123',
         },
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -62,6 +72,11 @@ describe('provider bootstrap preflight', () => {
     expect(result.status).not.toBe(0)
     expect(result.output).toContain('Provider bootstrap is out of date')
     expect(result.output).toContain('redeploy infra/bootstrap.yml')
+    expect(result.output).toContain(
+      'https://github.com/robertfmurdock/ze-great-dashboard/blob/abc123/infra/README.md#one-time-bootstrap',
+    )
+    expect(result.output).toContain('--stack-name ze-great-dashboard-bootstrap')
+    expect(result.output).toContain('GitHubRepository=robertfmurdock/ze-great-dashboard')
   })
 
   it('reports an inaccessible provider bootstrap policy', async () => {
@@ -74,8 +89,18 @@ describe('provider bootstrap preflight', () => {
         env: {
           ...process.env,
           PATH: `${directory}:${process.env.PATH ?? ''}`,
+          AWS_REGION: 'us-east-1',
           CLOUDFORMATION_ROLE_ARN:
             'arn:aws:iam::123456789012:role/ze-great-dashboard-cloudformation',
+          BOOTSTRAP_STACK_NAME: 'ze-great-dashboard-bootstrap',
+          BOOTSTRAP_ASSETS_BUCKET_NAME: 'ze-great-dashboard-assets',
+          BOOTSTRAP_FUNCTION_NAME: 'ze-great-dashboard',
+          BOOTSTRAP_SERVER_ROLE_NAME: 'ze-great-dashboard-server',
+          BOOTSTRAP_DEPLOY_ROLE_NAME: 'ZeGreatDashboardDeploy',
+          GITHUB_REPOSITORY: 'robertfmurdock/ze-great-dashboard',
+          GITHUB_OWNER_ID: '6215634',
+          GITHUB_REPOSITORY_ID: '1338375095',
+          GITHUB_SHA: 'abc123',
         },
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -85,6 +110,7 @@ describe('provider bootstrap preflight', () => {
       const failure = error as { stderr?: Buffer }
       expect(failure.stderr?.toString()).toContain('could not inspect')
       expect(failure.stderr?.toString()).toContain('redeploy infra/bootstrap.yml')
+      expect(failure.stderr?.toString()).toContain('--template-file infra/bootstrap.yml')
     }
   })
 })
