@@ -77,6 +77,23 @@ const positionedBoard = {
   ],
 }
 
+const signalFieldBoard = {
+  panels: [
+    {
+      id: 'live-build',
+      type: 'pipeline-status',
+      running_animation: 'signal-field',
+      position: { x: 0, y: 0, w: 6, h: 12 },
+    },
+    {
+      id: 'fast-build',
+      type: 'pipeline-status',
+      running_animation: 'runway',
+      position: { x: 6, y: 0, w: 6, h: 12 },
+    },
+  ],
+}
+
 const singleScreenBoard = {
   panels: [
     { id: 'coupling-build', type: 'pipeline-status', position: { x: 0, y: 0, w: 6, h: 4 } },
@@ -251,6 +268,102 @@ test('stacks panels readably on a narrow viewport', async ({ page }) => {
   expect(new Set(layout.panels.map((panel) => panel.left)).size).toBe(1)
   expect(layout.panels.every((panel) => panel.right <= layout.viewport)).toBe(true)
   expect(layout.panels[0].top).toBeLessThan(layout.panels[1].top)
+})
+
+test('adapts the signal field to large and narrow panels without overflow', async ({ page }) => {
+  const runningSignal = {
+    panelId: 'live-build',
+    state: 'ok',
+    observedAt: '2026-08-24T14:00:00.000Z',
+    link: null,
+    signal: {
+      type: 'pipeline-status',
+      status: 'running',
+      rawStatus: 'in_progress',
+      name: 'Build',
+      runStartedAt: '2026-08-24T13:58:00.000Z',
+      estimatedDurationMs: 300_000,
+    },
+  }
+  await page.addInitScript(() => {
+    window.env = {
+      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+      proxyPath: '/api',
+      board: 'ze-great-team',
+      clientVersion: 'browser-test',
+    }
+  })
+  await page.route('**/api/boards/ze-great-team', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify(signalFieldBoard) }),
+  )
+  await page.route('**/api/client', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+        clientVersion: 'browser-test',
+      }),
+    }),
+  )
+  await page.route('**/api/panel/**', (route) => {
+    const panelId = decodeURIComponent(
+      new URL(route.request().url()).pathname.split('/').at(-1) ?? '',
+    )
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ ...runningSignal, panelId }),
+    })
+  })
+
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/')
+  const field = page.locator('.running-progress--signal-field')
+  await expect(field).toBeVisible()
+  await expect(field.locator('.running-progress__signal-track')).toHaveCount(5)
+  const large = await field.evaluate((element) => {
+    const panel = element.closest<HTMLElement>('.panel')?.getBoundingClientRect()
+    const visual = element
+      .querySelector<HTMLElement>('.running-progress__visual')
+      ?.getBoundingClientRect()
+    const packet = element.querySelector<HTMLElement>('.running-progress__signal-marker')
+    const captured = element.querySelector<HTMLElement>('.running-progress__visual')
+    return {
+      panel,
+      visual,
+      packetAnimation: packet && getComputedStyle(packet).animationName,
+      packetTransition: packet && getComputedStyle(packet).transition,
+      capturedTransition: captured && getComputedStyle(captured, '::before').transition,
+    }
+  })
+  expect(large.panel).toBeTruthy()
+  expect(large.visual).toBeTruthy()
+  expect(large.visual?.left).toBeGreaterThanOrEqual(large.panel?.left ?? 0)
+  expect(large.visual?.right).toBeLessThanOrEqual(large.panel?.right ?? 0)
+  expect(large.visual?.bottom).toBeLessThanOrEqual(large.panel?.bottom ?? 0)
+  expect(large.packetAnimation).toBe('signal-arrival')
+  expect(large.packetTransition).toContain('left 1s linear')
+  expect(large.capturedTransition).toContain('width 1s linear')
+
+  const runway = page.locator('.running-progress--runway')
+  const runwayVisual = runway.locator('.running-progress__visual')
+  await expect(runway).toBeVisible()
+  expect(await runwayVisual.evaluate((element) => getComputedStyle(element).height)).not.toBe('')
+  expect(
+    await runway
+      .locator('.running-progress__runway-spark')
+      .evaluate((element) => getComputedStyle(element).animationName),
+  ).toBe('runway-spark-wide')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  const narrow = await field.evaluate((element) => ({
+    visualWidth: element
+      .querySelector<HTMLElement>('.running-progress__visual')
+      ?.getBoundingClientRect().width,
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }))
+  expect(narrow.visualWidth).toBeLessThan(100)
+  expect(narrow.documentWidth).toBeLessThanOrEqual(narrow.viewportWidth)
 })
 
 test('fits populated single-screen team layout without clipping required content', async ({

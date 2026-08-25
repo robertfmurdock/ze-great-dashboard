@@ -24,7 +24,7 @@ describe('PipelineAnimationDemoPanel', () => {
     expect(panelRenderers['pipeline-animation-demo']).toBe(PipelineAnimationDemoPanel)
   })
 
-  it('rotates radial, runway, and orbit in fixed twenty-second runs', async () => {
+  it('rotates radial, runway, orbit, and signal field in fixed twenty-second runs', async () => {
     const rendered = render(<PipelineAnimationDemoPanel panel={panel} />)
 
     expect(rendered.container.querySelector('.running-progress--radial')).not.toBeNull()
@@ -34,10 +34,13 @@ describe('PipelineAnimationDemoPanel', () => {
 
     await act(async () => vi.advanceTimersByTime(20_000))
     expect(rendered.container.querySelector('.running-progress--runway')).not.toBeNull()
-    expect(rendered.container.textContent).toContain('Elapsed 0s')
+    expect(rendered.container.textContent).toContain('0:00/~0:15')
 
     await act(async () => vi.advanceTimersByTime(20_000))
     expect(rendered.container.querySelector('.running-progress--orbit')).not.toBeNull()
+
+    await act(async () => vi.advanceTimersByTime(20_000))
+    expect(rendered.container.querySelector('.running-progress--signal-field')).not.toBeNull()
 
     await act(async () => vi.advanceTimersByTime(20_000))
     expect(rendered.container.querySelector('.running-progress--radial')).not.toBeNull()

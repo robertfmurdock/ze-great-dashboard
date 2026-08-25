@@ -192,7 +192,7 @@ describe('pipeline-status refresh scheduling', () => {
     )
   }
 
-  it.each(['radial', 'runway', 'orbit'] as const)(
+  it.each(['radial', 'runway', 'orbit', 'signal-field'] as const)(
     'renders the %s active-run treatment with local elapsed progress',
     async (animation) => {
       vi.useFakeTimers()
@@ -212,10 +212,22 @@ describe('pipeline-status refresh scheduling', () => {
       await settle()
 
       expect(rendered.querySelector(`.running-progress--${animation}`)).not.toBeNull()
-      expect(rendered.textContent).toContain('Elapsed 2m 0s')
-      expect(rendered.textContent).toContain('Expected ≈ 5m 0s')
+      if (animation === 'signal-field') {
+        expect(rendered.querySelectorAll('.running-progress__signal-track')).toHaveLength(5)
+        expect(
+          rendered.querySelector('.running-progress__visual')?.getAttribute('aria-hidden'),
+        ).toBe('true')
+      }
+      if (animation === 'runway' || animation === 'signal-field') {
+        expect(rendered.textContent).toContain('2:00/~5:00')
+      } else {
+        expect(rendered.textContent).toContain('Elapsed 2m 0s')
+        expect(rendered.textContent).toContain('Expected ≈ 5m 0s')
+      }
       await act(async () => vi.advanceTimersByTime(1_000))
-      expect(rendered.textContent).toContain('Elapsed 2m 1s')
+      expect(rendered.textContent).toContain(
+        animation === 'runway' || animation === 'signal-field' ? '2:01/~5:00' : 'Elapsed 2m 1s',
+      )
     },
   )
 
@@ -243,7 +255,7 @@ describe('pipeline-status refresh scheduling', () => {
     await settle()
 
     expect(rendered.querySelector('.running-progress--overdue')).not.toBeNull()
-    expect(rendered.textContent).toContain('Over estimate')
+    expect(rendered.textContent).toContain('⚠5:00/~1:00')
     expect(rendered.textContent).toContain('Running')
     expect(rendered.querySelectorAll('.running-progress')).toHaveLength(1)
   })

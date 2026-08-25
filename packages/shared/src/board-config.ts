@@ -35,7 +35,7 @@ export const panelDisplaySchema = z.string().min(1)
 export type PanelDisplay = z.infer<typeof panelDisplaySchema>
 
 /** A deliberately small, comparable set of active GitHub Actions run treatments. */
-export const runningAnimationSchema = z.enum(['radial', 'runway', 'orbit', 'off'])
+export const runningAnimationSchema = z.enum(['radial', 'runway', 'orbit', 'signal-field', 'off'])
 export type RunningAnimation = z.infer<typeof runningAnimationSchema>
 
 export const panelSchema = z.looseObject({

@@ -5,7 +5,7 @@ import { RunningProgress } from './RunningProgress.tsx'
 
 const RUN_DURATION_MS = 20_000
 const ESTIMATED_DURATION_MS = 15_000
-const variants = ['radial', 'runway', 'orbit'] as const
+const variants = ['radial', 'runway', 'orbit', 'signal-field'] as const
 
 /**
  * A local comparison aid for the active-run treatments. It deliberately creates no signal or

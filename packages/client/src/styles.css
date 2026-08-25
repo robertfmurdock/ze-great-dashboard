@@ -229,6 +229,16 @@ body {
   font-size: 0.72em;
 }
 
+.running-progress__timing--readout {
+  width: 12ch;
+  flex: 0 0 12ch;
+  color: var(--ink-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+
 .running-progress--radial .running-progress__visual {
   width: 2.35em;
   height: 2.35em;
@@ -289,6 +299,33 @@ body {
   animation: runway-spark 1.5s linear infinite;
 }
 
+/* A wide runway spends the available horizontal space on an unmistakable progress lane. */
+.running-progress--runway {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-self: stretch;
+  container-type: inline-size;
+}
+
+@container (min-width: 26rem) {
+  .running-progress--runway .running-progress__visual {
+    flex: 1 1 auto;
+    width: auto;
+    height: clamp(1.1em, 7cqw, 2.7em);
+    box-shadow: inset 0 0 1em color-mix(in srgb, var(--status-warning) 16%, transparent);
+  }
+
+  .running-progress--runway .running-progress__visual::after {
+    left: calc(var(--running-progress) - 0.08em);
+    width: 0.16em;
+    transition: left 1s linear;
+  }
+
+  .running-progress--runway .running-progress__runway-spark {
+    animation-name: runway-spark-wide;
+  }
+}
+
 .running-progress--orbit .running-progress__visual {
   width: 2.4em;
   height: 2.4em;
@@ -347,6 +384,236 @@ body {
   color: var(--status-serious);
 }
 
+/* Signal field adapts to the room its panel gives it: a badge, rail, or sparse operations field. */
+.running-progress--signal-field {
+  container-type: size;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-height: 2.8em;
+}
+
+.running-progress--signal-field .running-progress__visual {
+  width: auto;
+  height: 1em;
+  overflow: hidden;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.running-progress__signal-rail {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--status-warning) var(--running-progress), var(--edge) 0);
+  opacity: 0.75;
+}
+
+.running-progress__signal-lead {
+  position: absolute;
+  top: -0.2em;
+  bottom: -0.2em;
+  left: calc(var(--running-progress) - 0.08em);
+  width: 0.16em;
+  border-radius: 999px;
+  background: var(--ink-primary);
+  box-shadow: 0 0 0.5em var(--status-warning);
+}
+
+.running-progress__signal-pulse {
+  position: absolute;
+  top: 50%;
+  left: -0.5em;
+  width: 0.3em;
+  height: 0.3em;
+  border-radius: 50%;
+  background: var(--ink-primary);
+  box-shadow: 0 0 0.4em var(--status-warning);
+  animation: signal-pulse 2.4s linear infinite;
+}
+
+.running-progress__signal-pulse--two {
+  animation-delay: -1.2s;
+}
+
+.running-progress__signal-tracks {
+  display: none;
+}
+
+@container (max-width: 18rem) {
+  .running-progress--signal-field {
+    flex: 0 1 auto;
+    min-height: 0;
+  }
+
+  .running-progress--signal-field .running-progress__visual {
+    width: 2.65em;
+    height: 1.15em;
+  }
+
+  .running-progress--signal-field .running-progress__signal-rail {
+    background: var(--edge);
+  }
+
+  .running-progress--signal-field .running-progress__signal-lead {
+    top: 0.2em;
+    bottom: 0.2em;
+    width: 0.38em;
+    border-radius: 50%;
+  }
+
+  .running-progress--signal-field .running-progress__signal-pulse {
+    display: none;
+  }
+}
+
+@container (max-height: 5rem) {
+  .running-progress--signal-field {
+    flex: 0 1 auto;
+    min-height: 0;
+  }
+
+  .running-progress--signal-field .running-progress__visual {
+    width: 2.65em;
+    height: 1.15em;
+  }
+
+  .running-progress--signal-field .running-progress__signal-rail {
+    background: var(--edge);
+  }
+
+  .running-progress--signal-field .running-progress__signal-lead {
+    top: 0.2em;
+    bottom: 0.2em;
+    width: 0.38em;
+    border-radius: 50%;
+  }
+
+  .running-progress--signal-field .running-progress__signal-pulse {
+    display: none;
+  }
+}
+
+@container (min-width: 26rem) and (min-height: 10rem) {
+  .running-progress--signal-field .running-progress__visual {
+    height: 100%;
+    min-height: 8em;
+    border-radius: 0.25em;
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--edge) 60%, transparent),
+      transparent
+    );
+  }
+
+  /* The captured field makes elapsed progress legible at a distance without competing with now. */
+  .running-progress--signal-field .running-progress__visual::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--running-progress);
+    background:
+      repeating-linear-gradient(
+        0deg,
+        transparent 0 0.55em,
+        color-mix(in srgb, var(--status-warning) 16%, transparent) 0.55em 0.6em
+      ),
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--status-warning) 19%, transparent),
+        color-mix(in srgb, var(--status-warning) 7%, transparent)
+      );
+    box-shadow: inset -0.8em 0 1em color-mix(in srgb, var(--status-warning) 22%, transparent);
+    transition: width 1s linear;
+  }
+
+  .running-progress--signal-field .running-progress__signal-rail {
+    top: 50%;
+    bottom: auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      var(--status-warning) var(--running-progress),
+      var(--edge) 0
+    );
+  }
+
+  .running-progress--signal-field .running-progress__signal-lead {
+    top: calc(50% - 0.45em);
+    bottom: auto;
+    height: 0.9em;
+    transition: left 1s linear;
+  }
+
+  .running-progress--signal-field .running-progress__signal-pulse {
+    display: none;
+  }
+
+  .running-progress--signal-field .running-progress__signal-tracks {
+    position: absolute;
+    inset: 0.8em 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .running-progress--signal-field .running-progress__signal-track {
+    position: relative;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--edge) 85%, transparent),
+      transparent
+    );
+  }
+
+  .running-progress--signal-field .running-progress__signal-marker {
+    position: absolute;
+    top: 50%;
+    left: var(--running-progress);
+    width: 0.38em;
+    height: 0.22em;
+    border-radius: 0.06em;
+    background: var(--status-warning);
+    box-shadow: 0 0 0.4em var(--status-warning);
+    animation: signal-arrival 2.8s linear infinite;
+    transition: left 1s linear;
+  }
+
+  .running-progress--signal-field
+    .running-progress__signal-track:nth-child(2)
+    .running-progress__signal-marker {
+    animation-delay: -0.55s;
+    opacity: 0.7;
+  }
+
+  .running-progress--signal-field
+    .running-progress__signal-track:nth-child(3)
+    .running-progress__signal-marker {
+    animation-duration: 3.4s;
+    animation-delay: -1.8s;
+    opacity: 0.45;
+  }
+
+  .running-progress--signal-field
+    .running-progress__signal-track:nth-child(4)
+    .running-progress__signal-marker {
+    animation-duration: 2.3s;
+    animation-delay: -1.1s;
+    opacity: 0.7;
+  }
+
+  .running-progress--signal-field
+    .running-progress__signal-track:nth-child(5)
+    .running-progress__signal-marker {
+    animation-duration: 3.1s;
+    animation-delay: -2.5s;
+    opacity: 0.55;
+  }
+}
+
 .pipeline-animation-demo__variant {
   margin: 0;
   color: var(--ink-muted);
@@ -365,6 +632,11 @@ body {
     transform: translateX(13em);
   }
 }
+@keyframes runway-spark-wide {
+  to {
+    transform: translateX(100cqw);
+  }
+}
 @keyframes orbit-particle {
   to {
     transform: rotate(360deg);
@@ -375,11 +647,32 @@ body {
     background-position: 1em 0;
   }
 }
+@keyframes signal-pulse {
+  from {
+    transform: translate(-0.5em, -50%);
+  }
+  to {
+    transform: translate(calc(var(--running-progress) + 0.5em), -50%);
+  }
+}
+@keyframes signal-arrival {
+  from {
+    transform: translate(-12em, -50%);
+  }
+  to {
+    transform: translate(-50%, -50%);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .running-progress--radial .running-progress__visual::after,
   .running-progress--runway .running-progress__runway-spark,
+  .running-progress--runway .running-progress__visual::after,
   .running-progress--orbit .running-progress__orbit-particle,
+  .running-progress--signal-field .running-progress__signal-pulse,
+  .running-progress--signal-field .running-progress__signal-lead,
+  .running-progress--signal-field .running-progress__signal-marker,
+  .running-progress--signal-field .running-progress__visual::before,
   .running-progress--indeterminate .running-progress__visual,
   .pipeline-animation-demo__variant {
     animation: none;

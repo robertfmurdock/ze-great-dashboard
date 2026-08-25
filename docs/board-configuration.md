@@ -57,7 +57,7 @@ runs from all branches. `http-value` uses `url` and an optional `json_path` such
 `pipeline-animation-demo` is a local visualization aid for comparing active pipeline treatments.
 It accepts only the usual panel metadata (`id`, optional `display`, and optional `position`) and
 does not name a source, refresh interval, credential, or API endpoint. It rotates through radial,
-runway, and orbit treatments on a fixed 20-second loop, including the overdue treatment after its
+runway, orbit, and signal-field treatments on a fixed 20-second loop, including the overdue treatment after its
 15-second advisory estimate. Add it to a local board while choosing a treatment; omit it from a
 production board when it is no longer useful.
 
