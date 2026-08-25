@@ -15,8 +15,9 @@ Parameters:
   Timeout: { Type: Number, Default: 10, MinValue: 1, MaxValue: 900 }
   LogRetentionInDays: { Type: Number, Default: 14, MinValue: 1 }
   ReservedConcurrentExecutions: { Type: Number, Default: 0, MinValue: 0 }
-  # ARN of a Secrets Manager JSON object such as {"GITHUB_TOKEN":"github_pat_..."}.
-  # The value stays in Secrets Manager; this ARN is the only credential-related Lambda setting.
+  # ARN of a Secrets Manager JSON object or Parameter Store SecureString such as
+  # {"GITHUB_TOKEN":"github_pat_..."}. The value stays server-side; this ARN is the only
+  # credential-related Lambda setting.
   SecretReference: { Type: String, Default: '' }
 
 Conditions:
@@ -35,7 +36,7 @@ Resources:
         Statement: [{ Effect: Allow, Principal: { Service: lambda.amazonaws.com }, Action: sts:AssumeRole }]
       ManagedPolicyArns: [arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole]
       Policies:
-        - PolicyName: read-consumer-secret
+        - PolicyName: read-consumer-credentials
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -47,6 +48,23 @@ Resources:
                   - HasSecretReference
                   - !Ref SecretReference
                   - !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ze-great-dashboard-no-secret-configured'
+              - Effect: Allow
+                Action: ssm:GetParameter
+                # The same reference may instead be an SSM parameter ARN. The opposite service's
+                # statement cannot authorize a resource of the other service.
+                Resource: !If
+                  - HasSecretReference
+                  - !Ref SecretReference
+                  - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ze-great-dashboard-no-credential-configured'
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: '*'
+                # Parameter Store supplies this encryption context itself. This permits decryption
+                # only while SSM reads this exact configured parameter, including custom KMS keys.
+                Condition:
+                  StringEquals:
+                    'kms:ViaService': !Sub 'ssm.${AWS::Region}.amazonaws.com'
+                    'kms:EncryptionContext:PARAMETER_ARN': !Ref SecretReference
   ServerLogGroup:
     Type: AWS::Logs::LogGroup
     Properties: { RetentionInDays: !Ref LogRetentionInDays, LogGroupName: !Sub '/aws/lambda/${Name}' }

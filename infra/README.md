@@ -61,16 +61,20 @@ contract. Keep its ACM validation CNAME in DNS so the certificate can renew auto
 The normal infrastructure provision creates the persistent consumer reference resources alongside
 the asset CDN: a private, encrypted, versioned `ze-great-dashboard-reference-artifacts` bucket, a
 main-branch-only GitHub OIDC deployment role, and its scoped CloudFormation execution role. It also
-creates one fixed-name Secrets Manager value containing only a fake credential map. The release
-workflow deploys the exact pre-publish tarball to `ze-great-dashboard-reference` with that ARN and
-a credentialed smoke board, then invokes `/health` to prove Lambda cold-start credential loading.
+creates one fixed-name Secrets Manager value containing only a fake credential map. Because
+CloudFormation cannot create a Parameter Store `SecureString`, the narrowly scoped reference
+deployment role maintains one fixed-name fake SecureString too. The release workflow deploys the
+exact pre-publish tarball to `ze-great-dashboard-reference` first with each ARN and the credentialed
+smoke board, then invokes `/health` after each deployment to prove both cold-start credential paths.
 This is test infrastructure only; consumer credentials remain consumer-owned.
 
-The existing bootstrap boundary must be updated once before the first release containing this change:
-an AWS administrator reruns the **existing** `ze-great-dashboard-bootstrap` deployment with the
-updated `bootstrap.yml`. This extends its CloudFormation execution role only to the named reference
-bucket, three named reference roles, and the fixed fake credential smoke secret; it does not add
-another bootstrap stack or give GitHub broader access.
+The existing provider bootstrap boundary must be updated once before the first release containing
+this change: an AWS administrator reruns the **existing** `ze-great-dashboard-bootstrap` deployment
+with the updated `bootstrap.yml`. This extends its CloudFormation execution role only to the named
+reference bucket, three named reference roles, and the fixed fake credential smoke secret; it does
+not add another bootstrap stack or give GitHub broader access. The consumer core bootstrap is now
+revision `1.2`; its normal revision-check upgrade installs the matching Parameter Store and
+KMS-context permissions alongside the existing Secrets Manager contract.
 
 The release workflow also assumes `ZeGreatDashboardReferenceSmoke` for an ephemeral ECS Fargate
 task. That task probes `/health` from inside the container and is stopped, deregistered, and removed

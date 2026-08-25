@@ -21,12 +21,12 @@ AWS to try it.
 
 The included deployment works out of the box with public GitHub repositories and HTTP endpoints
 that do not require credentials. For private GitHub sources, `SecretReference` is the ARN of one
-consumer-owned Secrets Manager JSON map (for example, `{"GITHUB_TOKEN":"github_pat_…"}`). The
-runtime resolves configured `token_env` names only at Lambda cold start and never exposes token
-values to the browser, API responses, logs, CloudFormation parameters, or Lambda environment.
-This is the one added runtime dependency: AWS's Secrets Manager client supplies IAM-authenticated
-`GetSecretValue` support in the bundled Lambda, at the cost of its bundled SDK code and a single
-cold-start request when private sources are configured.
+consumer-owned Secrets Manager JSON map or Parameter Store `SecureString` (for example,
+`{"GITHUB_TOKEN":"github_pat_…"}`). The runtime resolves configured `token_env` names only at
+Lambda cold start and never exposes token values to the browser, API responses, logs,
+CloudFormation parameters, or Lambda environment. The two added AWS SDK clients provide
+IAM-authenticated `GetSecretValue` and decrypted `GetParameter` support in the bundled Lambda, at
+the cost of their bundled code and one cold-start request when private sources are configured.
 
 ## Deployment map
 

@@ -299,6 +299,12 @@ Resources:
                 Effect: Allow
                 Action: lambda:InvokeFunction
                 Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:ze-great-dashboard-reference'
+              # CloudFormation cannot create SecureString parameters. The release workflow writes
+              # this fixed fake map directly so the reference smoke test covers Parameter Store too.
+              - Sid: MaintainReferenceCredentialSmokeParameter
+                Effect: Allow
+                Action: ssm:PutParameter
+                Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ze-great-dashboard-reference-credentials-smoke'
 
   GitHubReferenceSmokeRole:
     Type: AWS::IAM::Role
@@ -386,3 +392,5 @@ Outputs:
     Value: !GetAtt GitHubReferenceSmokeRole.Arn
   ReferenceCredentialSmokeSecretArn:
     Value: !Ref ReferenceCredentialSmokeSecret
+  ReferenceCredentialSmokeParameterArn:
+    Value: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ze-great-dashboard-reference-credentials-smoke'

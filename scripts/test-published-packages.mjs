@@ -49,7 +49,7 @@ try {
   assert.match(stagedReadme, /docs\/aws-setup\.md/)
   assert.match(stagedReadme, /private AWS Lambda/)
   assert.match(stagedReadme, /consumer-owned gateway/)
-  assert.match(stagedReadme, /resolves configured `token_env` names only at Lambda cold start/)
+  assert.match(stagedReadme, /resolves configured `token_env` names only at\s+Lambda cold start/)
   assert.deepEqual(Object.keys(manifest.dependencies).sort(), ['fflate', 'yaml', 'zod'])
   const publishedFiles = []
   async function collect(directory) {

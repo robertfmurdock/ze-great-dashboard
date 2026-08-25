@@ -37,3 +37,4 @@ echo "reference_deploy_role_arn=$(output ReferenceDeployRoleArn)" >> "$GITHUB_OU
 echo "reference_execution_role_arn=$(output ReferenceExecutionRoleArn)" >> "$GITHUB_OUTPUT"
 echo "reference_smoke_role_arn=$(output ReferenceSmokeRoleArn)" >> "$GITHUB_OUTPUT"
 echo "reference_credential_smoke_secret_arn=$(output ReferenceCredentialSmokeSecretArn)" >> "$GITHUB_OUTPUT"
+echo "reference_credential_smoke_parameter_arn=$(output ReferenceCredentialSmokeParameterArn)" >> "$GITHUB_OUTPUT"

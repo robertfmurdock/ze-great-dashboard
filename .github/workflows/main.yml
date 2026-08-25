@@ -153,6 +153,13 @@ jobs:
           cp reference/credential-smoke-board.yaml .reference-consumer/board.yaml
           cp reference/aws-dashboard-parameters.json .reference-consumer/
           reference_cli=.reference-consumer/node_modules/.bin/ze-great-dashboard-aws
+          aws ssm put-parameter \
+            --name /ze-great-dashboard-reference-credentials-smoke \
+            --type SecureString \
+            --value '{"GITHUB_TOKEN":"smoke-placeholder"}' \
+            --tier Standard \
+            --overwrite \
+            --region us-east-1
           "$reference_cli" parameters \
             --artifact-bucket "${{ steps.infrastructure.outputs.reference_artifact_bucket }}" \
             --output .reference-consumer/aws-dashboard-parameters.json
@@ -209,6 +216,24 @@ jobs:
             --payload '{"version":"2.0","rawPath":"/health","requestContext":{"http":{"method":"GET"}}}' \
             --cli-binary-format raw-in-base64-out --region us-east-1 /tmp/reference-health.json
           jq -e '.statusCode == 200' /tmp/reference-health.json > /dev/null
+          jq --arg parameter_arn "${{ steps.infrastructure.outputs.reference_credential_smoke_parameter_arn }}" \
+            'map(if .ParameterKey == "SecretReference" then .ParameterValue = $parameter_arn else . end)' \
+            .reference-consumer/aws-dashboard-release/parameters.json \
+            > .reference-consumer/aws-dashboard-release/parameters.next.json
+          mv .reference-consumer/aws-dashboard-release/parameters.next.json .reference-consumer/aws-dashboard-release/parameters.json
+          aws cloudformation deploy \
+            --stack-name ze-great-dashboard-reference \
+            --template-file .reference-consumer/aws-dashboard-release/template.yml \
+            --role-arn "${{ steps.infrastructure.outputs.reference_execution_role_arn }}" \
+            --region us-east-1 \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides file://.reference-consumer/aws-dashboard-release/parameters.json \
+            --no-fail-on-empty-changeset \
+            --no-cli-pager
+          aws lambda invoke --function-name "$function_arn" --invocation-type RequestResponse \
+            --payload '{"version":"2.0","rawPath":"/health","requestContext":{"http":{"method":"GET"}}}' \
+            --cli-binary-format raw-in-base64-out --region us-east-1 /tmp/reference-parameter-health.json
+          jq -e '.statusCode == 200' /tmp/reference-parameter-health.json > /dev/null
 
       - name: Assume Docker smoke-test credentials
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true

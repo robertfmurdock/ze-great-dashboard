@@ -53,14 +53,14 @@ describe('AWS consumer bootstrap contract', () => {
         ],
         Outputs: [
           { OutputKey: 'BootstrapContractVersion', OutputValue: '1' },
-          { OutputKey: 'BootstrapTemplateRevision', OutputValue: '1.1' },
+          { OutputKey: 'BootstrapTemplateRevision', OutputValue: '1.2' },
           { OutputKey: 'ArtifactBucketName', OutputValue: 'wrong' },
           { OutputKey: 'ApplicationStackName', OutputValue: 'team' },
           { OutputKey: 'CloudFormationExecutionRoleArn', OutputValue: 'arn:role' },
         ],
       },
       '1',
-      '1.1',
+      '1.2',
     )
     expect(result.ok).toBe(false)
     expect(result.mismatches).toContain('ArtifactBucketName is wrong; expected expected')
@@ -70,7 +70,7 @@ describe('AWS consumer bootstrap contract', () => {
   it('locks down the core artifact bucket and execution role', async () => {
     const template = await bootstrapTemplate('core')
     expect(bootstrapContractVersion(template)).toBe('1')
-    expect(bootstrapTemplateRevision(template)).toBe('1.1')
+    expect(bootstrapTemplateRevision(template)).toBe('1.2')
     expect(template).toContain('BucketOwnerEnforced')
     expect(template).toContain('BlockPublicAcls: true')
     expect(template).toContain('BlockPublicPolicy: true')
@@ -83,6 +83,8 @@ describe('AWS consumer bootstrap contract', () => {
     expect(template).not.toContain('RuntimeRoleName')
     expect(template).not.toMatch(/Effect: Allow[\s\S]*?Action: s3:\*/)
     expect(template).not.toContain('Action: iam:*')
+    expect(template).toContain('ssm:GetParameter')
+    expect(template).toContain('kms:EncryptionContext:PARAMETER_ARN')
   })
 
   it('requires the exact immutable GitHub repository/environment subject, audience, stack and prefix', async () => {

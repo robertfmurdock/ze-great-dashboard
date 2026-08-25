@@ -51,7 +51,7 @@ export async function assembleRelease(input: {
   const board = await validateBoardConfig(input.boardConfigPath)
   if (board.usesCredentials && !input.secretReference)
     throw new Error(
-      'Board config uses token_env; SecretReference must name the Secrets Manager credential-map ARN',
+      'Board config uses token_env; SecretReference must name a Secrets Manager credential-map or Parameter Store SecureString ARN',
     )
   const outputDir = resolve(input.outputDir)
   await mkdir(outputDir, { recursive: true })

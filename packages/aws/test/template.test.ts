@@ -23,6 +23,8 @@ describe('AWS deployment contract', () => {
     expect(template).toContain('ServerFunctionArn')
     expect(template).toContain(`RoleName: !Sub '\${Name}-server'`)
     expect(template).toContain('ze-great-dashboard-no-secret-configured')
+    expect(template).toContain('ssm:GetParameter')
+    expect(template).toContain('kms:EncryptionContext:PARAMETER_ARN')
     expect(template).not.toMatch(/174159267544|robertfmurdock|1338375095|ZeGreatDashboardDeploy/)
     expect(template).not.toContain('boards/example.yaml')
   })

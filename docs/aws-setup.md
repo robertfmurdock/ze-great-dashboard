@@ -22,7 +22,7 @@ You need:
 - A gateway integration plan for the returned Lambda ARN.
 
 The stock deployment supports public GitHub repositories and HTTP endpoints that require no
-credential. It does **not** load a Secrets Manager value into arbitrary `token_env` variables. See
+credential. It does **not** load a credential-map value into arbitrary `token_env` variables. See
 [Private sources](#private-sources) before using a private repository or protected endpoint.
 
 ## 1. Install the package
@@ -168,8 +168,8 @@ administrator to review a bootstrap update; routine deployment never updates boo
 Public GitHub sources need neither `token_env` nor `SecretReference`. For a private repository,
 create a repository-scoped fine-grained GitHub PAT with **Actions: read**. Add **Pull requests:
 read** only when the board uses `pull-request-health`; GitHub's workflow-runs API requires Actions
-read. Store the token locally in an ignored file, then create a consumer-owned Secrets Manager
-secret whose value is a JSON credential map:
+read. Store the token locally in an ignored file, then create either a consumer-owned Secrets
+Manager secret or a Parameter Store `SecureString` whose value is a JSON credential map:
 
 ```json
 {"GITHUB_TOKEN":"github_pat_…"}
@@ -186,9 +186,11 @@ sources:
     token_env: GITHUB_TOKEN
 ```
 
-Set the secret's ARN as `SecretReference` in `aws-dashboard-parameters.json`. Packaging rejects a
-board with `token_env` when this parameter is absent. The Lambda role can read only that exact ARN;
-at cold start it loads and validates the map, and fails closed if a configured key is missing.
+Set that resource's ARN as `SecretReference` in `aws-dashboard-parameters.json`. Packaging rejects
+a board with `token_env` when this parameter is absent. The Lambda role can read only that exact
+Secrets Manager secret or Parameter Store parameter; for Parameter Store, decrypt is constrained to
+SSM and that exact parameter's encryption context. At cold start it loads and validates the map,
+and fails closed if a configured key is missing.
 
 ```json
 {
@@ -197,9 +199,18 @@ at cold start it loads and validates the map, and fails closed if a configured k
 }
 ```
 
-Credential maps are cached for the Lambda execution environment. A rotation is used on the next
-cold start; for immediate uptake, deploy a configuration-only stack update or otherwise restart the
-Lambda execution environments after rotating the secret.
+For the lower-cost Parameter Store option, use its parameter ARN instead:
+
+```json
+{
+  "ParameterKey": "SecretReference",
+  "ParameterValue": "arn:aws:ssm:us-east-1:123456789012:parameter/dashboard/credentials"
+}
+```
+
+Credential maps are cached for the Lambda execution environment. A rotation or parameter update is
+used on the next cold start; for immediate uptake, deploy a configuration-only stack update or
+otherwise restart the Lambda execution environments after updating the value.
 
 See GitHub's [workflow-runs documentation](https://docs.github.com/en/rest/actions/workflow-runs)
 for the endpoint permission requirement.

@@ -6,7 +6,7 @@ describe('credential maps', () => {
     expect(parseCredentialMap('{"GITHUB_TOKEN":"token"}')).toEqual({ GITHUB_TOKEN: 'token' })
     for (const value of [undefined, 'not json', '[]', '{"GITHUB_TOKEN":""}', '{"GITHUB_TOKEN":1}'])
       expect(() => parseCredentialMap(value)).toThrow(
-        'Credential secret must be a JSON object of non-empty string values',
+        'Credential reference must be a JSON object of non-empty string values',
       )
   })
 
@@ -23,23 +23,42 @@ describe('credential maps', () => {
     expect(send).toHaveBeenCalledTimes(1)
   })
 
+  it('loads a SecureString parameter map with decryption', async () => {
+    const send = vi.fn(async () => ({ Parameter: { Value: '{"GITHUB_TOKEN":"private"}' } }))
+    const credentials = await createCredentialResolver({
+      secretReference: 'arn:aws:ssm:region:account:parameter/dashboard/credentials',
+      credentialNames: ['GITHUB_TOKEN'],
+      parameterStore: { send },
+    })
+
+    expect(credentials.get('GITHUB_TOKEN')).toBe('private')
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: {
+          Name: 'arn:aws:ssm:region:account:parameter/dashboard/credentials',
+          WithDecryption: true,
+        },
+      }),
+    )
+  })
+
   it('fails closed without exposing secret content', async () => {
     await expect(
       createCredentialResolver({
-        secretReference: 'arn:example',
+        secretReference: 'arn:aws:secretsmanager:region:account:secret:credentials',
         credentialNames: ['GITHUB_TOKEN'],
         secretsManager: { send: async () => ({ SecretString: '{"OTHER":"private-value"}' }) },
       }),
-    ).rejects.toThrow('Credential secret is missing configured keys: GITHUB_TOKEN')
+    ).rejects.toThrow('Credential reference is missing configured keys: GITHUB_TOKEN')
     await expect(
       createCredentialResolver({
-        secretReference: 'arn:example',
+        secretReference: 'arn:aws:secretsmanager:region:account:secret:credentials',
         credentialNames: ['GITHUB_TOKEN'],
         secretsManager: {
           send: async () => Promise.reject(new Error('access denied: private-value')),
         },
       }),
-    ).rejects.toThrow('Unable to read credential secret for configured keys: GITHUB_TOKEN')
+    ).rejects.toThrow('Unable to read credential reference for configured keys: GITHUB_TOKEN')
   })
 
   it('preserves environment credentials when no secret ARN is configured', async () => {

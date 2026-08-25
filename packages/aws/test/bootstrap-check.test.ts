@@ -44,7 +44,7 @@ function stack(kind: 'core' | 'github-oidc') {
       ],
       Outputs: [
         { OutputKey: 'BootstrapContractVersion', OutputValue: '1' },
-        { OutputKey: 'BootstrapTemplateRevision', OutputValue: '1.1' },
+        { OutputKey: 'BootstrapTemplateRevision', OutputValue: '1.2' },
         { OutputKey: 'ArtifactBucketName', OutputValue: config.core?.artifactBucketName },
         { OutputKey: 'ApplicationStackName', OutputValue: config.core?.applicationStackName },
         { OutputKey: 'CloudFormationExecutionRoleArn', OutputValue: executionRole },
