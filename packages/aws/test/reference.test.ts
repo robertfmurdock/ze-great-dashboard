@@ -114,6 +114,7 @@ describe('persistent consumer reference', () => {
     expect(workflow).toContain('reference_execution_role_arn')
     expect(workflow).toContain('reference_credential_smoke_secret_arn')
     expect(workflow).toContain('credential-smoke-board.yaml')
+    expect(workflow).toContain('cp reference/aws-dashboard-parameters.json .reference-consumer/')
     expect(workflow).toContain('ParameterKey":"SecretReference')
     expect(workflow).toContain('reference_status')
     expect(workflow).toContain('ROLLBACK_COMPLETE')

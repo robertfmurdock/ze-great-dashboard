@@ -151,6 +151,7 @@ jobs:
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
         run: |
           cp reference/credential-smoke-board.yaml .reference-consumer/board.yaml
+          cp reference/aws-dashboard-parameters.json .reference-consumer/
           reference_cli=.reference-consumer/node_modules/.bin/ze-great-dashboard-aws
           "$reference_cli" parameters \
             --artifact-bucket "${{ steps.infrastructure.outputs.reference_artifact_bucket }}" \
