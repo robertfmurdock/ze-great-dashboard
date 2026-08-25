@@ -1,4 +1,5 @@
 import type { ClientEnv, Envelope } from '@ze-great-dashboard/shared'
+import { type DiagnosticsSummary, summarizeDiagnostics } from './diagnostics-summary.ts'
 
 const storageKey = 'ze-great-dashboard.diagnostics.v1'
 export const diagnosticsSchemaVersion = 1
@@ -87,13 +88,24 @@ export interface DiagnosticSink {
 }
 
 type PersistedDiagnosticEvent = Omit<DiagnosticEvent, 'schemaVersion'> & { schemaVersion?: number }
-type StoredDiagnostics = { schemaVersion: number; events: PersistedDiagnosticEvent[] }
+export type DiagnosticRetention = {
+  eventsPrunedByAge: number
+  eventsPrunedByCount: number
+}
+
+type StoredDiagnostics = {
+  schemaVersion: number
+  events: PersistedDiagnosticEvent[]
+  retention?: Partial<DiagnosticRetention>
+}
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
 /** Browser-local diagnostic evidence. It deliberately has no server or shared-contract counterpart. */
 export class BrowserDiagnosticStore implements DiagnosticSink {
   private events: DiagnosticEvent[] = []
+  private retention: DiagnosticRetention = emptyRetention()
+  private revision = 0
   private readonly listeners = new Set<() => void>()
   private readonly sessionId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
 
@@ -107,7 +119,7 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
   }
 
   record(event: DiagnosticEventInput) {
-    this.events = prune(
+    const pruned = prune(
       [
         ...this.events,
         {
@@ -119,8 +131,12 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
         },
       ],
       this.now(),
+      this.retention,
     )
+    this.events = pruned.events
+    this.retention = pruned.retention
     this.persist()
+    this.revision++
     this.notify()
   }
 
@@ -128,13 +144,19 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
     return this.events.length
   }
 
+  snapshot = () => this.revision
+
+  summary = (): DiagnosticsSummary => summarizeDiagnostics(this.events, this.retention)
+
   clear() {
     this.events = []
+    this.retention = emptyRetention()
     try {
       this.storage?.removeItem(storageKey)
     } catch {
       // Diagnostics must not interrupt the radiator when browser storage is unavailable.
     }
+    this.revision++
     this.notify()
   }
 
@@ -156,6 +178,7 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
         sessionId: this.sessionId,
       },
       events: this.events,
+      summary: this.summary(),
     }
   }
 
@@ -174,12 +197,15 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
       }
       // v1 retained events predate per-event versions. Their containing store was already v1, so
       // retain them and normalize on the next write rather than discarding viewer evidence.
-      return prune(
+      const pruned = prune(
         parsed.events.map(
           (event) => ({ ...event, schemaVersion: diagnosticsSchemaVersion }) as DiagnosticEvent,
         ),
         this.now(),
+        validRetention(parsed.retention),
       )
+      this.retention = pruned.retention
+      return pruned.events
     } catch {
       try {
         this.storage?.removeItem(storageKey)
@@ -194,7 +220,11 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
     try {
       this.storage?.setItem(
         storageKey,
-        JSON.stringify({ schemaVersion: diagnosticsSchemaVersion, events: this.events }),
+        JSON.stringify({
+          schemaVersion: diagnosticsSchemaVersion,
+          events: this.events,
+          retention: this.retention,
+        }),
       )
     } catch {
       // Keep the in-memory record for this page, but never make diagnostics a rendering failure.
@@ -223,14 +253,40 @@ export function cacheMetadata(headers: Headers): CacheMetadata | undefined {
   return Object.keys(metadata).length ? metadata : undefined
 }
 
-function prune(events: DiagnosticEvent[], now: Date) {
+function emptyRetention(): DiagnosticRetention {
+  return { eventsPrunedByAge: 0, eventsPrunedByCount: 0 }
+}
+
+function validRetention(value: unknown): DiagnosticRetention {
+  if (!value || typeof value !== 'object') return emptyRetention()
+  const retention = value as Partial<DiagnosticRetention>
+  return {
+    eventsPrunedByAge:
+      typeof retention.eventsPrunedByAge === 'number' && retention.eventsPrunedByAge >= 0
+        ? retention.eventsPrunedByAge
+        : 0,
+    eventsPrunedByCount:
+      typeof retention.eventsPrunedByCount === 'number' && retention.eventsPrunedByCount >= 0
+        ? retention.eventsPrunedByCount
+        : 0,
+  }
+}
+
+function prune(events: DiagnosticEvent[], now: Date, priorRetention: DiagnosticRetention) {
   const cutoff = now.valueOf() - maximumAgeMillis
-  return events
-    .filter(
-      (event) =>
-        Number.isFinite(new Date(event.at).valueOf()) && new Date(event.at).valueOf() >= cutoff,
-    )
-    .slice(-maximumEvents)
+  const current = events.filter(
+    (event) =>
+      Number.isFinite(new Date(event.at).valueOf()) && new Date(event.at).valueOf() >= cutoff,
+  )
+  const discardedByAge = events.length - current.length
+  const discardedByCount = Math.max(0, current.length - maximumEvents)
+  return {
+    events: current.slice(-maximumEvents),
+    retention: {
+      eventsPrunedByAge: priorRetention.eventsPrunedByAge + discardedByAge,
+      eventsPrunedByCount: priorRetention.eventsPrunedByCount + discardedByCount,
+    },
+  }
 }
 
 function isDiagnosticEvent(value: unknown): value is PersistedDiagnosticEvent {

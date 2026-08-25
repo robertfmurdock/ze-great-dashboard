@@ -40,6 +40,7 @@ describe('Diagnostics control', () => {
     expect(screen.queryByRole('button', { name: 'Download' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Diagnostics/ }))
     expect(screen.getByRole('button', { name: 'Download' })).not.toBeNull()
+    expect(screen.getByText(/Update failures: 0; board fetch failures: 0/)).not.toBeNull()
     act(() => {
       diagnosticLog.record({
         kind: 'panel-fetch-start',
@@ -74,5 +75,49 @@ describe('Diagnostics control', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
     expect(diagnosticLog.count()).toBe(0)
     click.mockRestore()
+  })
+
+  it('warns when retention has pruned older evidence', () => {
+    const values = new Map<string, string>()
+    values.set(
+      'ze-great-dashboard.diagnostics.v1',
+      JSON.stringify({
+        schemaVersion: 1,
+        retention: { eventsPrunedByAge: 2, eventsPrunedByCount: 5 },
+        events: [],
+      }),
+    )
+    const diagnosticLog = new BrowserDiagnosticStore(
+      env,
+      {
+        getItem: (key) => values.get(key) ?? null,
+        setItem: (key, value) => values.set(key, value),
+        removeItem: (key) => values.delete(key),
+      },
+      () => new Date('2026-08-21T12:00:00Z'),
+    )
+    render(<Diagnostics log={diagnosticLog} />)
+    fireEvent.click(screen.getByRole('button', { name: /Diagnostics/ }))
+    expect(screen.getByRole('alert').textContent).toContain('Earlier evidence was pruned: 5')
+  })
+
+  it('shows per-panel failures in its summary', () => {
+    const diagnosticLog = log()
+    diagnosticLog.record({
+      kind: 'panel-fetch-failure',
+      panelId: 'build',
+      path: '/api/panel/build',
+      message: 'offline',
+    })
+    render(<Diagnostics log={diagnosticLog} />)
+    fireEvent.click(screen.getByRole('button', { name: /Diagnostics/ }))
+    expect(
+      screen.getByText(
+        (_content, element) =>
+          element?.tagName === 'P' &&
+          element.textContent?.includes('build') === true &&
+          element.textContent.includes('parse/network failures 0/1'),
+      ),
+    ).not.toBeNull()
   })
 })

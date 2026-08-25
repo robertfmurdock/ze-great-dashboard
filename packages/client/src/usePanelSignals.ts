@@ -51,17 +51,34 @@ export function usePanelSignals({
         diagnostics.record({ kind: 'panel-fetch-start', panelId: panel.id, path })
         fetch(path)
           .then(async (response) => {
-            diagnostics.record({
-              kind: 'panel-fetch-response',
+            const transport = {
+              kind: 'panel-fetch-response' as const,
               panelId: panel.id,
               path,
               status: response.status,
               cache: cacheMetadata(response.headers),
-            })
-            if (response.status === 304) return undefined
+            }
+            if (response.status === 304) {
+              diagnostics.record(transport)
+              return undefined
+            }
             try {
-              return await response.json()
+              const value: unknown = await response.json()
+              const envelope = parseEnvelope(value)
+              if (!envelope) {
+                diagnostics.record(transport)
+                diagnostics.record({
+                  kind: 'panel-fetch-parse-failure',
+                  panelId: panel.id,
+                  path,
+                  message: 'Response was not a valid signal envelope.',
+                })
+                return undefined
+              }
+              diagnostics.record({ ...transport, envelope })
+              return envelope
             } catch (error) {
+              diagnostics.record(transport)
               diagnostics.record({
                 kind: 'panel-fetch-parse-failure',
                 panelId: panel.id,
@@ -71,23 +88,8 @@ export function usePanelSignals({
               throw new DiagnosticParseFailure(error)
             }
           })
-          .then((value: unknown) => {
-            const envelope = parseEnvelope(value)
-            if (value !== undefined && !envelope) {
-              diagnostics.record({
-                kind: 'panel-fetch-parse-failure',
-                panelId: panel.id,
-                path,
-                message: 'Response was not a valid signal envelope.',
-              })
-            }
+          .then((envelope) => {
             if (!cancelled && envelope) {
-              diagnostics.record({
-                kind: 'panel-fetch-response',
-                panelId: panel.id,
-                path,
-                envelope,
-              })
               const previous = signalsRef.current[panel.id]
               if (panelDiagnosticChanged(previous, panel, envelope)) {
                 diagnostics.record({

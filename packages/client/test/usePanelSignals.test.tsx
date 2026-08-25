@@ -63,7 +63,7 @@ describe('usePanelSignals', () => {
     const diagnostics = recordingSink()
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(envelope())),
+      vi.fn(async () => new Response(envelope(), { headers: { etag: 'W/"build"' } })),
     )
 
     render(<Probe diagnostics={diagnostics} />)
@@ -79,6 +79,13 @@ describe('usePanelSignals', () => {
         }),
       ]),
     )
+    const responses = diagnostics.events.filter((event) => event.kind === 'panel-fetch-response')
+    expect(responses).toHaveLength(1)
+    expect(responses[0]).toMatchObject({
+      status: 200,
+      cache: { etag: 'W/"build"' },
+      envelope: { state: 'ok' },
+    })
   })
 
   it('records malformed JSON as a parse failure, not a fetch failure', async () => {

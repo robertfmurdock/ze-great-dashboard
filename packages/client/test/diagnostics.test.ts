@@ -1,6 +1,11 @@
 import type { ClientEnv } from '@ze-great-dashboard/shared'
 import { describe, expect, it } from 'vitest'
-import { BrowserDiagnosticStore, diagnosticsSchemaVersion } from '../src/diagnostics.ts'
+import {
+  BrowserDiagnosticStore,
+  type DiagnosticEvent,
+  diagnosticsSchemaVersion,
+} from '../src/diagnostics.ts'
+import { summarizeDiagnostics } from '../src/diagnostics-summary.ts'
 
 const env: ClientEnv = {
   assetPath: 'https://assets.example.com/dashboard/1.0.7',
@@ -36,6 +41,7 @@ describe('browser-local diagnostics', () => {
     expect(log.export()).toMatchObject({
       schemaVersion: diagnosticsSchemaVersion,
       client: { version: '1.0.7', board: 'ze-great-team' },
+      summary: { retained: { eventCount: 2, evidenceMayBeIncomplete: false } },
       events: expect.arrayContaining([expect.objectContaining({ panelId: 'build' })]),
     })
   })
@@ -55,6 +61,10 @@ describe('browser-local diagnostics', () => {
 
     expect(log.count()).toBe(2_000)
     expect(log.export().events.some((event) => event.at === stale)).toBe(false)
+    expect(log.export().summary.retained.retention).toEqual({
+      eventsPrunedByAge: 1,
+      eventsPrunedByCount: 100,
+    })
   })
 
   it('discards malformed or mismatched persisted data without affecting diagnostics', () => {
@@ -94,4 +104,60 @@ describe('browser-local diagnostics', () => {
     })
     expect(log.count()).toBe(2)
   })
+
+  it('summarizes retained healthy, failed, malformed, and multi-session panel evidence', () => {
+    const events = [
+      event({ kind: 'session-start', sessionId: 'first' }),
+      event({ kind: 'panel-fetch-start', panelId: 'build' }),
+      event({ kind: 'panel-fetch-response', panelId: 'build', status: 200, envelope: {} }),
+      event({
+        kind: 'panel-rendered',
+        panelId: 'build',
+        rendered: { state: 'ok', status: 'passed', link: null },
+      }),
+      event({ kind: 'session-start', sessionId: 'second', at: '2026-08-21T12:05:00.000Z' }),
+      event({ kind: 'panel-fetch-start', panelId: 'build' }),
+      event({ kind: 'panel-fetch-response', panelId: 'build', status: 503 }),
+      event({ kind: 'panel-fetch-parse-failure', panelId: 'build', message: 'invalid JSON' }),
+      event({ kind: 'panel-fetch-start', panelId: 'deploy' }),
+      event({ kind: 'panel-fetch-failure', panelId: 'deploy', message: 'offline' }),
+      event({ kind: 'client-update-failure', message: 'offline' }),
+      event({ kind: 'board-fetch-parse-failure', message: 'invalid board' }),
+    ]
+
+    expect(
+      summarizeDiagnostics(events, { eventsPrunedByAge: 3, eventsPrunedByCount: 4 }),
+    ).toMatchObject({
+      retained: {
+        eventCount: 12,
+        sessionCount: 2,
+        evidenceMayBeIncomplete: true,
+        retention: { eventsPrunedByAge: 3, eventsPrunedByCount: 4 },
+      },
+      failures: { clientUpdate: 1, boardFetch: 1 },
+      panels: [
+        {
+          panelId: 'build',
+          requests: 2,
+          httpStatuses: { 200: 1, 503: 1 },
+          parseFailures: 1,
+          networkFailures: 0,
+          visibleStateChanges: 1,
+          latestRendered: { state: 'ok', status: 'passed' },
+        },
+        { panelId: 'deploy', requests: 1, parseFailures: 0, networkFailures: 1 },
+      ],
+    })
+  })
 })
+
+function event(input: Record<string, unknown>): DiagnosticEvent {
+  return {
+    schemaVersion: diagnosticsSchemaVersion,
+    at: '2026-08-21T12:00:00.000Z',
+    sessionId: 'first',
+    board: 'ze-great-team',
+    path: '/api/test',
+    ...input,
+  } as DiagnosticEvent
+}
