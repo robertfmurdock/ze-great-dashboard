@@ -52,12 +52,20 @@ and a workflow `pipeline`. When configured, the branch is sent to GitHub when fi
 run, so feature-branch runs do not replace the primary-branch status. When absent, GitHub returns
 runs from all branches. `http-value` uses `url` and an optional `json_path` such as `$.version`.
 
+## Active pipeline treatments
+
+`pipeline-status` panels may set `running_animation` to `off`, or to one of `radial`, `runway`,
+`orbit`, `signal-field`, `telemetry-bloom`, `release-transit`, or `status-weather`. Omission uses
+`telemetry-bloom`. The first four are retained inline treatments; the latter three are panel-scale
+decorative fields. This setting changes only the active-running presentation and never replaces the
+status label or timing text.
+
 ## Local animation demo
 
 `pipeline-animation-demo` is a local visualization aid for comparing active pipeline treatments.
 It accepts only the usual panel metadata (`id`, optional `display`, and optional `position`) and
-does not name a source, refresh interval, credential, or API endpoint. It rotates through radial,
-runway, orbit, and signal-field treatments on a fixed 20-second loop, including the overdue treatment after its
+does not name a source, refresh interval, credential, or API endpoint. It rotates through all seven
+supported visible treatments on a fixed 20-second loop, including the overdue treatment after its
 15-second advisory estimate. Add it to a local board while choosing a treatment; omit it from a
 production board when it is no longer useful.
 

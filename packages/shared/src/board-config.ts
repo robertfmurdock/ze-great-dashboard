@@ -35,7 +35,16 @@ export const panelDisplaySchema = z.string().min(1)
 export type PanelDisplay = z.infer<typeof panelDisplaySchema>
 
 /** A deliberately small, comparable set of active GitHub Actions run treatments. */
-export const runningAnimationSchema = z.enum(['radial', 'runway', 'orbit', 'signal-field', 'off'])
+export const runningAnimationSchema = z.enum([
+  'radial',
+  'runway',
+  'orbit',
+  'signal-field',
+  'telemetry-bloom',
+  'release-transit',
+  'status-weather',
+  'off',
+])
 export type RunningAnimation = z.infer<typeof runningAnimationSchema>
 
 export const panelSchema = z.looseObject({
@@ -47,7 +56,7 @@ export const panelSchema = z.looseObject({
   /** Advisory in v1 — a panel without a position renders in config order rather than not at all. */
   position: positionSchema.optional(),
   refresh: durationSchema.optional(),
-  /** Optional progress treatment for an active pipeline run. Omitted currently means orbit. */
+  /** Optional active-run treatment. Omitted selects telemetry-bloom. */
   running_animation: runningAnimationSchema.optional(),
   /** A deliberate override only. Adapters derive links; hand-written ones drift. */
   link: z.url().optional(),

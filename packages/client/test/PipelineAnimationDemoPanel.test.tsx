@@ -24,7 +24,7 @@ describe('PipelineAnimationDemoPanel', () => {
     expect(panelRenderers['pipeline-animation-demo']).toBe(PipelineAnimationDemoPanel)
   })
 
-  it('rotates radial, runway, orbit, and signal field in fixed twenty-second runs', async () => {
+  it('rotates all retained and panel-scale treatments in fixed twenty-second runs', async () => {
     const rendered = render(<PipelineAnimationDemoPanel panel={panel} />)
 
     expect(rendered.container.querySelector('.running-progress--radial')).not.toBeNull()
@@ -41,6 +41,15 @@ describe('PipelineAnimationDemoPanel', () => {
 
     await act(async () => vi.advanceTimersByTime(20_000))
     expect(rendered.container.querySelector('.running-progress--signal-field')).not.toBeNull()
+
+    await act(async () => vi.advanceTimersByTime(20_000))
+    expect(rendered.container.querySelector('[data-animation="telemetry-bloom"]')).not.toBeNull()
+
+    await act(async () => vi.advanceTimersByTime(20_000))
+    expect(rendered.container.querySelector('[data-animation="release-transit"]')).not.toBeNull()
+
+    await act(async () => vi.advanceTimersByTime(20_000))
+    expect(rendered.container.querySelector('[data-animation="status-weather"]')).not.toBeNull()
 
     await act(async () => vi.advanceTimersByTime(20_000))
     expect(rendered.container.querySelector('.running-progress--radial')).not.toBeNull()

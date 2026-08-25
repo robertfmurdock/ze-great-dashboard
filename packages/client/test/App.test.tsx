@@ -138,7 +138,7 @@ describe('pipeline-status refresh scheduling', () => {
     await settle()
 
     expect(rendered.textContent).toContain('Demo treatment ·')
-    expect(rendered.querySelector('.running-progress')).not.toBeNull()
+    expect(rendered.querySelector('.running-field, .running-progress')).not.toBeNull()
     expect(requests.filter((url) => url.includes('/panel/'))).toEqual([])
   })
 
@@ -192,7 +192,15 @@ describe('pipeline-status refresh scheduling', () => {
     )
   }
 
-  it.each(['radial', 'runway', 'orbit', 'signal-field'] as const)(
+  it.each([
+    'radial',
+    'runway',
+    'orbit',
+    'signal-field',
+    'telemetry-bloom',
+    'release-transit',
+    'status-weather',
+  ] as const)(
     'renders the %s active-run treatment with local elapsed progress',
     async (animation) => {
       vi.useFakeTimers()
@@ -211,14 +219,27 @@ describe('pipeline-status refresh scheduling', () => {
       const rendered = render(<App env={env} />)
       await settle()
 
-      expect(rendered.querySelector(`.running-progress--${animation}`)).not.toBeNull()
+      const isField = ['telemetry-bloom', 'release-transit', 'status-weather'].includes(animation)
+      expect(
+        rendered.querySelector(
+          isField
+            ? `.running-field[data-animation="${animation}"]`
+            : `.running-progress--${animation}`,
+        ),
+      ).not.toBeNull()
       if (animation === 'signal-field') {
         expect(rendered.querySelectorAll('.running-progress__signal-track')).toHaveLength(5)
         expect(
           rendered.querySelector('.running-progress__visual')?.getAttribute('aria-hidden'),
         ).toBe('true')
       }
-      if (animation === 'runway' || animation === 'signal-field') {
+      if (
+        animation === 'runway' ||
+        animation === 'signal-field' ||
+        animation === 'telemetry-bloom' ||
+        animation === 'release-transit' ||
+        animation === 'status-weather'
+      ) {
         expect(rendered.textContent).toContain('2:00/~5:00')
       } else {
         expect(rendered.textContent).toContain('Elapsed 2m 0s')
@@ -226,7 +247,13 @@ describe('pipeline-status refresh scheduling', () => {
       }
       await act(async () => vi.advanceTimersByTime(1_000))
       expect(rendered.textContent).toContain(
-        animation === 'runway' || animation === 'signal-field' ? '2:01/~5:00' : 'Elapsed 2m 1s',
+        animation === 'runway' ||
+          animation === 'signal-field' ||
+          animation === 'telemetry-bloom' ||
+          animation === 'release-transit' ||
+          animation === 'status-weather'
+          ? '2:01/~5:00'
+          : 'Elapsed 2m 1s',
       )
     },
   )
@@ -269,7 +296,7 @@ describe('pipeline-status refresh scheduling', () => {
     await settle()
 
     expect(
-      rendered.querySelector('.running-progress--orbit.running-progress--indeterminate'),
+      rendered.querySelector('.running-field--telemetry-bloom.running-field--indeterminate'),
     ).not.toBeNull()
     expect(rendered.textContent).toContain('Expected duration unavailable')
   })

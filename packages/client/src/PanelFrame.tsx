@@ -6,11 +6,14 @@ export function PanelFrame({
   panel,
   envelope,
   error = false,
+  field,
   children,
 }: {
   panel: Panel
   envelope?: Envelope
   error?: boolean
+  /** Decorative active-run layer. It is intentionally a sibling of readable panel content. */
+  field?: ReactNode
   children: ReactNode
 }) {
   const display =
@@ -21,9 +24,12 @@ export function PanelFrame({
       style={panelLayout(panel)}
       aria-busy={envelope ? undefined : true}
     >
-      <h2 className="panel__label">{panel.id}</h2>
-      {children}
-      <PanelSourceLink panelId={panel.id} link={envelope?.link} />
+      {field}
+      <div className="panel__content">
+        <h2 className="panel__label">{panel.id}</h2>
+        {children}
+        <PanelSourceLink panelId={panel.id} link={envelope?.link} />
+      </div>
     </section>
   )
 }

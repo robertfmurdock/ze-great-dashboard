@@ -1,7 +1,15 @@
-import { type Envelope, type Panel, pipelineStatusSchema } from '@ze-great-dashboard/shared'
+import {
+  type Envelope,
+  type Panel,
+  type PipelineStatus,
+  pipelineStatusSchema,
+} from '@ze-great-dashboard/shared'
 import { ObservedAt } from './ObservedAt.tsx'
 import { PanelFrame } from './PanelFrame.tsx'
-import { RunningProgress } from './RunningProgress.tsx'
+import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
+import { RunningFieldTiming } from './RunningFieldTiming.tsx'
+import { isLegacyRunningAnimation, RunningProgress } from './RunningProgress.tsx'
+import { useRunningTiming } from './running-timing.ts'
 
 export function PipelinePanel({
   panel,
@@ -36,35 +44,70 @@ export function PipelinePanel({
         <ObservedAt value={envelope.observedAt} />
       </PanelFrame>
     )
-  const presentation = statusPresentation(signal.data.status)
+  return <PipelineSignalPanel panel={panel} envelope={envelope} signal={signal.data} />
+}
+
+function PipelineSignalPanel({
+  panel,
+  envelope,
+  signal,
+}: {
+  panel: Panel
+  envelope: Envelope
+  signal: PipelineStatus
+}) {
+  const presentation = statusPresentation(signal.status)
+  const animation = panel.running_animation ?? 'telemetry-bloom'
+  const activeRun = signal.status === 'running' && animation !== 'off'
+  const timing = useRunningTiming(signal.runStartedAt, signal.estimatedDurationMs)
+  const usesField = activeRun && isRunningFieldAnimation(animation)
+  const usesLegacyProgress = activeRun && isLegacyRunningAnimation(animation)
   return (
-    <PanelFrame panel={panel} envelope={envelope}>
-      <p className={`panel__status panel__status--${signal.data.status}`}>
+    <PanelFrame
+      panel={panel}
+      envelope={envelope}
+      field={
+        usesField ? (
+          <RunningField
+            animation={animation}
+            progress={timing.progress}
+            overdue={timing.overdue}
+            indeterminate={!timing.hasEstimate}
+          />
+        ) : undefined
+      }
+    >
+      <p className={`panel__status panel__status--${signal.status}`}>
         {presentation.glyph} {presentation.label}
       </p>
       <p className="panel__hint">
-        {signal.data.name} · {signal.data.rawStatus}
-        {signal.data.branch && (
-          <span className="panel__branch" title={`Branch: ${signal.data.branch}`}>
+        {signal.name} · {signal.rawStatus}
+        {signal.branch && (
+          <span className="panel__branch" title={`Branch: ${signal.branch}`}>
             <span aria-hidden="true"> · ⎇ </span>
             <span className="screen-reader-only">Branch: </span>
-            {signal.data.branch}
+            {signal.branch}
           </span>
         )}
       </p>
-      {signal.data.status === 'running' && panel.running_animation !== 'off' && (
-        <RunningProgress
-          animation={panel.running_animation ?? 'orbit'}
-          runStartedAt={signal.data.runStartedAt}
-          estimatedDurationMs={signal.data.estimatedDurationMs}
+      {usesField && (
+        <RunningFieldTiming
+          elapsedMs={timing.elapsedMs}
+          estimatedDurationMs={signal.estimatedDurationMs}
+          overdue={timing.overdue}
         />
       )}
-      {signal.data.status !== 'running' && signal.data.durationMs !== undefined && (
-        <p className="panel__hint">Took {formatDuration(signal.data.durationMs)}</p>
+      {usesLegacyProgress && (
+        <RunningProgress
+          animation={animation}
+          runStartedAt={signal.runStartedAt}
+          estimatedDurationMs={signal.estimatedDurationMs}
+        />
       )}
-      {signal.data.sourceUpdatedAt && (
-        <ObservedAt value={signal.data.sourceUpdatedAt} label="Run updated" />
+      {signal.status !== 'running' && signal.durationMs !== undefined && (
+        <p className="panel__hint">Took {formatDuration(signal.durationMs)}</p>
       )}
+      {signal.sourceUpdatedAt && <ObservedAt value={signal.sourceUpdatedAt} label="Run updated" />}
       <ObservedAt value={envelope.observedAt} />
     </PanelFrame>
   )

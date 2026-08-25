@@ -82,14 +82,20 @@ const signalFieldBoard = {
     {
       id: 'live-build',
       type: 'pipeline-status',
-      running_animation: 'signal-field',
+      running_animation: 'telemetry-bloom',
       position: { x: 0, y: 0, w: 6, h: 12 },
     },
     {
       id: 'fast-build',
       type: 'pipeline-status',
-      running_animation: 'runway',
+      running_animation: 'release-transit',
       position: { x: 6, y: 0, w: 6, h: 12 },
+    },
+    {
+      id: 'legacy-signal-build',
+      type: 'pipeline-status',
+      running_animation: 'signal-field',
+      position: { x: 0, y: 12, w: 12, h: 12 },
     },
   ],
 }
@@ -270,7 +276,9 @@ test('stacks panels readably on a narrow viewport', async ({ page }) => {
   expect(layout.panels[0].top).toBeLessThan(layout.panels[1].top)
 })
 
-test('adapts the signal field to large and narrow panels without overflow', async ({ page }) => {
+test('keeps panel-scale fields behind readable content and adapts them without overflow', async ({
+  page,
+}) => {
   const runningSignal = {
     panelId: 'live-build',
     state: 'ok',
@@ -317,52 +325,63 @@ test('adapts the signal field to large and narrow panels without overflow', asyn
 
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/')
-  const field = page.locator('.running-progress--signal-field')
+  const field = page.locator('.running-field--telemetry-bloom')
   await expect(field).toBeVisible()
-  await expect(field.locator('.running-progress__signal-track')).toHaveCount(5)
+  await expect(field.locator('.running-field__bloom-lane')).toHaveCount(4)
   const large = await field.evaluate((element) => {
     const panel = element.closest<HTMLElement>('.panel')?.getBoundingClientRect()
-    const visual = element
-      .querySelector<HTMLElement>('.running-progress__visual')
-      ?.getBoundingClientRect()
-    const packet = element.querySelector<HTMLElement>('.running-progress__signal-marker')
-    const captured = element.querySelector<HTMLElement>('.running-progress__visual')
+    const content = element
+      .closest<HTMLElement>('.panel')
+      ?.querySelector<HTMLElement>('.panel__content')
+    const packet = element.querySelector<HTMLElement>('.running-field__bloom-marker')
     return {
       panel,
-      visual,
+      field: element.getBoundingClientRect(),
+      content: content?.getBoundingClientRect(),
       packetAnimation: packet && getComputedStyle(packet).animationName,
-      packetTransition: packet && getComputedStyle(packet).transition,
-      capturedTransition: captured && getComputedStyle(captured, '::before').transition,
     }
   })
   expect(large.panel).toBeTruthy()
-  expect(large.visual).toBeTruthy()
-  expect(large.visual?.left).toBeGreaterThanOrEqual(large.panel?.left ?? 0)
-  expect(large.visual?.right).toBeLessThanOrEqual(large.panel?.right ?? 0)
-  expect(large.visual?.bottom).toBeLessThanOrEqual(large.panel?.bottom ?? 0)
-  expect(large.packetAnimation).toBe('signal-arrival')
-  expect(large.packetTransition).toContain('left 1s linear')
-  expect(large.capturedTransition).toContain('width 1s linear')
+  expect(large.field?.left).toBeGreaterThanOrEqual(large.panel?.left ?? 0)
+  expect(large.field?.bottom).toBeLessThanOrEqual(large.panel?.bottom ?? Number.POSITIVE_INFINITY)
+  expect(large.content?.zIndex).not.toBe('auto')
+  expect(large.packetAnimation).toBe('bloom-marker')
 
-  const runway = page.locator('.running-progress--runway')
-  const runwayVisual = runway.locator('.running-progress__visual')
-  await expect(runway).toBeVisible()
-  expect(await runwayVisual.evaluate((element) => getComputedStyle(element).height)).not.toBe('')
+  const transit = page.locator('.running-field--release-transit')
+  await expect(transit).toBeVisible()
+  await expect(transit.locator('.running-field__transit-packet')).toHaveCount(1)
+  await expect(transit.locator('.running-field__transit-trail')).toHaveCount(1)
+  await expect(transit.locator('.running-field__transit-now')).toHaveCount(1)
   expect(
-    await runway
-      .locator('.running-progress__runway-spark')
+    await transit
+      .locator('.running-field__transit-packet')
       .evaluate((element) => getComputedStyle(element).animationName),
-  ).toBe('runway-spark-wide')
+  ).toBe('transit-packet')
+
+  const legacySignal = page.locator('.running-progress--signal-field')
+  await expect(legacySignal).toBeVisible()
+  await expect(legacySignal.locator('.running-progress__signal-track')).toHaveCount(5)
+  const legacySignalLayout = await legacySignal.evaluate((element) => {
+    const visual = element.querySelector<HTMLElement>('.running-progress__visual')
+    const tracks = element.querySelector<HTMLElement>('.running-progress__signal-tracks')
+    return {
+      visualHeight: visual?.getBoundingClientRect().height ?? 0,
+      tracksDisplay: tracks ? getComputedStyle(tracks).display : 'none',
+    }
+  })
+  expect(legacySignalLayout.visualHeight).toBeGreaterThan(100)
+  expect(legacySignalLayout.tracksDisplay).toBe('flex')
 
   await page.setViewportSize({ width: 390, height: 844 })
-  const narrow = await field.evaluate((element) => ({
-    visualWidth: element
-      .querySelector<HTMLElement>('.running-progress__visual')
-      ?.getBoundingClientRect().width,
-    documentWidth: document.documentElement.scrollWidth,
-    viewportWidth: window.innerWidth,
-  }))
-  expect(narrow.visualWidth).toBeLessThan(100)
+  const narrow = await field.evaluate((element) => {
+    const lanes = element.querySelector<HTMLElement>('.running-field__bloom-lanes')
+    return {
+      lanesVisible: lanes ? getComputedStyle(lanes).display !== 'none' : false,
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    }
+  })
+  expect(narrow.lanesVisible).toBe(false)
   expect(narrow.documentWidth).toBeLessThanOrEqual(narrow.viewportWidth)
 })
 

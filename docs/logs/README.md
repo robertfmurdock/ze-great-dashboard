@@ -12,3 +12,5 @@ evidence behind the current documentation without interrupting the task-oriented
 - [Stage 4 HTTP value log](stage4-http-value-log.md) — source-agnostic HTTP value panels.
 - [AWS consumer bootstrap log](aws-bootstrap-log.md) — consumer-owned bootstrap infrastructure and
   its validation history.
+- [Panel-scale animation log](panel-scale-animation-log.md) — active-run field redesign, visual
+  review findings, and the remaining signal-field follow-up.

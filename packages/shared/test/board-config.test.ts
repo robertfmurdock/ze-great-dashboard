@@ -130,17 +130,23 @@ describe('the board config schema', () => {
     })
   })
 
-  it.each(['radial', 'runway', 'orbit', 'signal-field', 'off'])(
-    'accepts the %s running animation',
-    (animation) => {
-      const result = boardConfigSchema.parse({
-        boards: {
-          a: { panels: [{ id: 'build', type: 'pipeline-status', running_animation: animation }] },
-        },
-      })
-      expect(result.boards.a?.panels[0]?.running_animation).toBe(animation)
-    },
-  )
+  it.each([
+    'radial',
+    'runway',
+    'orbit',
+    'signal-field',
+    'telemetry-bloom',
+    'release-transit',
+    'status-weather',
+    'off',
+  ])('accepts the %s running animation', (animation) => {
+    const result = boardConfigSchema.parse({
+      boards: {
+        a: { panels: [{ id: 'build', type: 'pipeline-status', running_animation: animation }] },
+      },
+    })
+    expect(result.boards.a?.panels[0]?.running_animation).toBe(animation)
+  })
 
   it('rejects an unknown running animation instead of silently changing the comparison', () => {
     expect(
