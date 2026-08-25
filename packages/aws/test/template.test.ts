@@ -6,6 +6,8 @@ import { strFromU8, unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 import { cloudFormationTemplate, packageLambda } from '../src/index.ts'
 
+const secretReference = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dashboard'
+
 describe('AWS deployment contract', () => {
   it('is parameterized and leaves public gateway exposure to the consumer', async () => {
     const template = await cloudFormationTemplate()
@@ -31,6 +33,7 @@ describe('AWS deployment contract', () => {
       boardConfigPath: fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url)),
       outputDir,
       version: '1.2.3',
+      secretReference,
     })
     expect(metadata.clientAssetUrl).toBe('https://public-assets.zegreatrob.com/dashboard/1.2.3')
     expect(metadata.artifactKey).toMatch(/^lambda\/[a-f0-9]{64}\.zip$/)
@@ -47,6 +50,7 @@ describe('AWS deployment contract', () => {
       boardConfigPath: fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url)),
       outputDir: secondOutput,
       version: '1.2.3',
+      secretReference,
     })
     const firstZip = await readFile(join(outputDir, 'lambda.zip'))
     const secondZip = await readFile(join(secondOutput, 'lambda.zip'))
@@ -77,9 +81,33 @@ describe('AWS deployment contract', () => {
       boardConfigPath: changedBoard,
       outputDir: await mkdtemp('/tmp/dashboard-aws-changed-board-'),
       version: '1.2.3',
+      secretReference,
     })
     expect(changed.artifactKey).not.toBe(metadata.artifactKey)
   }, 15_000)
+
+  it('rejects a credentialed board until a SecretReference ARN is supplied', async () => {
+    const board = join(await mkdtemp('/tmp/dashboard-aws-private-board-'), 'board.yaml')
+    await writeFile(
+      board,
+      `sources:\n  github:\n    type: github-actions\n    token_env: GITHUB_TOKEN\nboards:\n  team:\n    panels:\n      - id: build\n        type: pipeline-status\n        source: github\n`,
+    )
+    await expect(
+      packageLambda({
+        boardConfigPath: board,
+        outputDir: await mkdtemp('/tmp/dashboard-aws-private-'),
+        version: '1.2.3',
+      }),
+    ).rejects.toThrow(/token_env; SecretReference/)
+    await expect(
+      packageLambda({
+        boardConfigPath: board,
+        outputDir: await mkdtemp('/tmp/dashboard-aws-private-'),
+        version: '1.2.3',
+        secretReference,
+      }),
+    ).resolves.toMatchObject({ dashboardVersion: '1.2.3' })
+  })
 
   it('resolves consumer and release parameters into an explicit deployment handoff', async () => {
     const root = await mkdtemp('/tmp/dashboard-aws-handoff-')
@@ -91,6 +119,7 @@ describe('AWS deployment contract', () => {
         [
           { ParameterKey: 'Name', ParameterValue: 'consumer-dashboard' },
           { ParameterKey: 'LambdaArtifactBucket', ParameterValue: 'consumer-artifacts' },
+          { ParameterKey: 'SecretReference', ParameterValue: secretReference },
         ],
         null,
         2,
@@ -134,7 +163,7 @@ describe('AWS deployment contract', () => {
       { ParameterKey: 'Timeout', ParameterValue: '10' },
       { ParameterKey: 'LogRetentionInDays', ParameterValue: '14' },
       { ParameterKey: 'ReservedConcurrentExecutions', ParameterValue: '0' },
-      { ParameterKey: 'SecretReference', ParameterValue: '' },
+      { ParameterKey: 'SecretReference', ParameterValue: secretReference },
     ])
     const handoff = JSON.parse(await readFile(join(outputDir, 'deployment.json'), 'utf8')) as {
       template: string

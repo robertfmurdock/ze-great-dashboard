@@ -15,6 +15,8 @@ Parameters:
   Timeout: { Type: Number, Default: 10, MinValue: 1, MaxValue: 900 }
   LogRetentionInDays: { Type: Number, Default: 14, MinValue: 1 }
   ReservedConcurrentExecutions: { Type: Number, Default: 0, MinValue: 0 }
+  # ARN of a Secrets Manager JSON object such as {"GITHUB_TOKEN":"github_pat_..."}.
+  # The value stays in Secrets Manager; this ARN is the only credential-related Lambda setting.
   SecretReference: { Type: String, Default: '' }
 
 Conditions:

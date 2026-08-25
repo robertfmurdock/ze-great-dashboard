@@ -36,3 +36,4 @@ echo "reference_artifact_bucket=$(output ReferenceArtifactBucket)" >> "$GITHUB_O
 echo "reference_deploy_role_arn=$(output ReferenceDeployRoleArn)" >> "$GITHUB_OUTPUT"
 echo "reference_execution_role_arn=$(output ReferenceExecutionRoleArn)" >> "$GITHUB_OUTPUT"
 echo "reference_smoke_role_arn=$(output ReferenceSmokeRoleArn)" >> "$GITHUB_OUTPUT"
+echo "reference_credential_smoke_secret_arn=$(output ReferenceCredentialSmokeSecretArn)" >> "$GITHUB_OUTPUT"

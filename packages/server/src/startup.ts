@@ -3,6 +3,7 @@ import type { Hono } from 'hono'
 import { createApp } from './app.ts'
 import { loadBoardConfig } from './board-config.ts'
 import { isLocalHost, loadConfig, type ServerConfig } from './config.ts'
+import { createCredentialResolver } from './credentials.ts'
 import { type Fetcher, fetchTemplate } from './template.ts'
 
 export type StartupResult = {
@@ -25,11 +26,18 @@ export async function startup(options: { fetcher?: Fetcher } = {}): Promise<Star
   const boardConfig = await loadBoardConfig(config.boardConfigUrl, fetcher)
   const board = selectBoard(config.board, boardConfig)
   const resolvedConfig = { ...config, board }
+  const credentialNames = Object.values(boardConfig.sources)
+    .map((source) => source.token_env)
+    .filter((name): name is string => Boolean(name))
+  const credentials = await createCredentialResolver({
+    secretReference: config.secretReference,
+    credentialNames,
+  })
 
   warnAboutMissingAuth(resolvedConfig)
 
   return {
-    app: createApp({ config: resolvedConfig, fetcher, boardConfig }),
+    app: createApp({ config: resolvedConfig, fetcher, boardConfig, credentials }),
     config: resolvedConfig,
   }
 }

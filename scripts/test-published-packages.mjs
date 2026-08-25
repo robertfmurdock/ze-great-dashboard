@@ -49,7 +49,7 @@ try {
   assert.match(stagedReadme, /docs\/aws-setup\.md/)
   assert.match(stagedReadme, /private AWS Lambda/)
   assert.match(stagedReadme, /consumer-owned gateway/)
-  assert.match(stagedReadme, /stock template does not turn a Secrets Manager reference/)
+  assert.match(stagedReadme, /resolves configured `token_env` names only at Lambda cold start/)
   assert.deepEqual(Object.keys(manifest.dependencies).sort(), ['fflate', 'yaml', 'zod'])
   const publishedFiles = []
   async function collect(directory) {
@@ -103,6 +103,12 @@ try {
       [cli, 'parameters', '--artifact-bucket', 'consumer-artifacts', '--output', parametersPath],
       { cwd: root, stdio: 'pipe' },
     )
+    const parameters = JSON.parse(await readFile(parametersPath, 'utf8'))
+    parameters.push({
+      ParameterKey: 'SecretReference',
+      ParameterValue: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dashboard',
+    })
+    await writeFile(parametersPath, `${JSON.stringify(parameters, null, 2)}\n`)
     execFileSync(
       process.execPath,
       [
@@ -117,9 +123,12 @@ try {
       ],
       { cwd: root, stdio: 'pipe' },
     )
-    const parameters = JSON.parse(await readFile(parametersPath, 'utf8'))
     assert.deepEqual(parameters, [
       { ParameterKey: 'LambdaArtifactBucket', ParameterValue: 'consumer-artifacts' },
+      {
+        ParameterKey: 'SecretReference',
+        ParameterValue: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dashboard',
+      },
     ])
     const metadata = JSON.parse(await readFile(join(releasePath, 'release.json'), 'utf8'))
     assert.equal(metadata.dashboardVersion, '9.8.7')

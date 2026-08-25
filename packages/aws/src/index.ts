@@ -73,6 +73,8 @@ export type LambdaPackageOptions = {
   outputDir: string
   version: string
   assetDomain?: string
+  /** ARN of the consumer-owned JSON credential-map secret, never a secret value. */
+  secretReference?: string
 }
 
 function deploymentTemplate(template: string, values: Record<string, string>): string {
@@ -114,6 +116,7 @@ export async function packageLambda(options: LambdaPackageOptions): Promise<Pack
     version: options.version,
     providers: ['aws-lambda'],
     assetDomain: options.assetDomain,
+    secretReference: options.secretReference,
   })
   const runtimeMetadata = {
     ...release.metadata,

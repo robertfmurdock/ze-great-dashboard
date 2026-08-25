@@ -48,13 +48,19 @@ async function runCheck(policy: unknown): Promise<{ status: number; output: stri
 }
 
 describe('provider bootstrap preflight', () => {
-  it('passes when the execution role can create the Docker smoke-test role', async () => {
+  it('passes when the execution role can create both reference smoke resources', async () => {
     const result = await runCheck({
       PolicyDocument: {
         Statement: [
           {
             Action: ['iam:CreateRole', 'iam:PutRolePolicy'],
             Resource: ['arn:aws:iam::123456789012:role/ZeGreatDashboardReferenceSmoke'],
+          },
+          {
+            Action: ['secretsmanager:CreateSecret', 'secretsmanager:UpdateSecret'],
+            Resource: [
+              'arn:aws:secretsmanager:us-east-1:123456789012:secret:ze-great-dashboard-reference-credentials-smoke-*',
+            ],
           },
         ],
       },
@@ -77,6 +83,22 @@ describe('provider bootstrap preflight', () => {
     )
     expect(result.output).toContain('--stack-name ze-great-dashboard-bootstrap')
     expect(result.output).toContain('GitHubRepository=robertfmurdock/ze-great-dashboard')
+  })
+
+  it('fails closed when the credential smoke secret permission is absent', async () => {
+    const result = await runCheck({
+      PolicyDocument: {
+        Statement: [
+          {
+            Action: 'iam:CreateRole',
+            Resource: 'arn:aws:iam::123:role/ZeGreatDashboardReferenceSmoke',
+          },
+        ],
+      },
+    })
+    expect(result.status).not.toBe(0)
+    expect(result.output).toContain('reference credential smoke secret')
+    expect(result.output).toContain('redeploy infra/bootstrap.yml')
   })
 
   it('reports an inaccessible provider bootstrap policy', async () => {

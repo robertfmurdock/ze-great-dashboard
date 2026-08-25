@@ -165,14 +165,44 @@ administrator to review a bootstrap update; routine deployment never updates boo
 
 ## Private sources
 
-`token_env` in board YAML names an environment variable; it never contains a token. The stock
-CloudFormation template does not populate those variables and the bundled runtime does not read the
-optional `SECRET_REFERENCE` into them.
+Public GitHub sources need neither `token_env` nor `SecretReference`. For a private repository,
+create a repository-scoped fine-grained GitHub PAT with **Actions: read**. Add **Pull requests:
+read** only when the board uses `pull-request-health`; GitHub's workflow-runs API requires Actions
+read. Store the token locally in an ignored file, then create a consumer-owned Secrets Manager
+secret whose value is a JSON credential map:
 
-`SecretReference` only grants the Lambda role permission to read one named Secrets Manager secret
-and exposes that secret's ARN as `SECRET_REFERENCE`. It is an integration boundary for a
-consumer-supplied runtime credential loader, not a complete secret-loading feature. Until such an
-integration is provided, use sources that do not require credentials.
+```json
+{"GITHUB_TOKEN":"github_pat_…"}
+```
+
+Reference that key from the board without placing the token in Git, parameters, or Lambda
+environment variables:
+
+```yaml
+sources:
+  github:
+    type: github-actions
+    repo: your-org/private-repository
+    token_env: GITHUB_TOKEN
+```
+
+Set the secret's ARN as `SecretReference` in `aws-dashboard-parameters.json`. Packaging rejects a
+board with `token_env` when this parameter is absent. The Lambda role can read only that exact ARN;
+at cold start it loads and validates the map, and fails closed if a configured key is missing.
+
+```json
+{
+  "ParameterKey": "SecretReference",
+  "ParameterValue": "arn:aws:secretsmanager:us-east-1:123456789012:secret:dashboard"
+}
+```
+
+Credential maps are cached for the Lambda execution environment. A rotation is used on the next
+cold start; for immediate uptake, deploy a configuration-only stack update or otherwise restart the
+Lambda execution environments after rotating the secret.
+
+See GitHub's [workflow-runs documentation](https://docs.github.com/en/rest/actions/workflow-runs)
+for the endpoint permission requirement.
 
 ## Troubleshooting
 
@@ -184,5 +214,5 @@ integration is provided, use sources that do not require credentials.
   and live bootstrap stacks.
 - **Lambda is deployed but unreachable:** the application has no public endpoint; verify the gateway
   integration and its scoped Lambda permission.
-- **A GitHub panel is unauthorized:** the repository is private or otherwise requires a token; the
-  stock deployment does not supply one.
+- **A GitHub panel is unauthorized:** verify the fine-grained PAT's repository access and Actions
+  permission, then confirm its map key matches `token_env`.

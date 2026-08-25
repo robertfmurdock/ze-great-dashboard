@@ -7,6 +7,7 @@ import {
 import { fetchHttpValue } from './adapters/http-value.ts'
 import { deriveAllowlist } from './allowlist.ts'
 import type { ServerConfig } from './config.ts'
+import { type CredentialResolver, environmentCredentials } from './credentials.ts'
 import { renderIndexHtml } from './render.ts'
 import { ASSET_PATH_SENTINEL, type Fetcher, TemplateCache } from './template.ts'
 
@@ -20,6 +21,8 @@ export type AppDependencies = {
   /** Surfaced in `window.env` so two published versions are visibly distinguishable. */
   clientVersion?: string
   boardConfig?: BoardConfig
+  /** Resolved at boot, never serialized into HTML or API payloads. */
+  credentials?: CredentialResolver
 }
 
 export function createApp(deps: AppDependencies): Hono {
@@ -29,6 +32,7 @@ export function createApp(deps: AppDependencies): Hono {
   const selectedBoard =
     config.board ?? Object.keys(deps.boardConfig?.boards ?? {})[0] ?? 'ze-great-team'
   const allowlist = deps.boardConfig ? deriveAllowlist(deps.boardConfig) : new Map()
+  const credentials = deps.credentials ?? environmentCredentials()
 
   const app = new Hono()
 
@@ -69,6 +73,7 @@ export function createApp(deps: AppDependencies): Hono {
         source,
         requestHeaders: c.req.raw.headers,
         fetcher: deps.fetcher ?? globalThis.fetch,
+        credentials,
       })
       const headers = passthroughHeaders(result.response.headers)
       if (result.response.status === 304) return new Response(null, { status: 304, headers })
@@ -82,6 +87,7 @@ export function createApp(deps: AppDependencies): Hono {
         source,
         requestHeaders: c.req.raw.headers,
         fetcher: deps.fetcher ?? globalThis.fetch,
+        credentials,
       })
       const headers = passthroughHeaders(result.response.headers)
       const envelope = result.envelope ?? JSON.parse(await result.response.text())

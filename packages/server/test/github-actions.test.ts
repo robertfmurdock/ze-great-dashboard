@@ -9,6 +9,7 @@ import {
 } from '../src/adapters/github-actions.ts'
 import { createApp } from '../src/app.ts'
 import { loadConfig } from '../src/config.ts'
+import type { CredentialResolver } from '../src/credentials.ts'
 
 const fixtureDirectory = new URL('../../../fixtures/github-actions/', import.meta.url)
 const panel = {
@@ -18,6 +19,9 @@ const panel = {
   pipeline: 'build.yml',
 } as const
 const source = { type: 'github-actions', repo: 'example-org/example-repo' } as const
+const githubCredentials: CredentialResolver = {
+  get: (name) => (name === 'GITHUB_TOKEN' ? 'secret-token' : undefined),
+}
 
 function fixture(name: string): unknown {
   const file = new URL(`workflow-run-${name}.json`, fixtureDirectory)
@@ -72,6 +76,15 @@ describe('the GitHub Actions adapter', () => {
     expect(call?.url).toBe(
       'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?branch=trunk&per_page=1',
     )
+  })
+
+  it('adds the configured token as an exact GitHub bearer header', () => {
+    const [call] = permittedGithubActionsCalls(
+      panel,
+      { ...source, token_env: 'GITHUB_TOKEN' },
+      githubCredentials,
+    )
+    expect(call?.headers.get('authorization')).toBe('Bearer secret-token')
   })
 
   it('forwards validators upstream', async () => {
@@ -165,6 +178,24 @@ describe('the panel route', () => {
     })
   })
 
+  it('keeps a resolved token server-only', async () => {
+    const app = createApp({
+      config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
+      boardConfig: {
+        sources: { github: { ...source, token_env: 'GITHUB_TOKEN' } },
+        boards: { 'ze-great-team': { panels: [panel] } },
+      },
+      credentials: githubCredentials,
+      fetcher: upstream('success'),
+    })
+    const panelResponse = await app.request('/api/panel/ze-great-team/web-build')
+    const html = await (await app.request('/')).text()
+
+    expect(panelResponse.status).toBe(200)
+    expect(await panelResponse.text()).not.toContain('secret-token')
+    expect(html).not.toContain('secret-token')
+  })
+
   it('does not turn unknown panel names into arbitrary upstream calls', async () => {
     const fetcher = upstream('success')
     const app = createApp({
@@ -243,6 +274,26 @@ describe('pull-request-health', () => {
       expect.stringContaining('event=pull_request'),
       expect.anything(),
     )
+  })
+
+  it('uses the bearer header on every private GitHub request', async () => {
+    const fetcher = vi.fn(async (url: string) =>
+      url.includes('/pulls?')
+        ? new Response(JSON.stringify([]))
+        : new Response(JSON.stringify({ workflow_runs: [successfulRun] })),
+    ) as unknown as typeof fetch
+    await fetchGithubActionsPullRequestHealth({
+      panel: healthPanel,
+      source: { ...healthSource, token_env: 'GITHUB_TOKEN' },
+      requestHeaders: new Headers(),
+      fetcher,
+      credentials: githubCredentials,
+    })
+    for (const [, options] of vi.mocked(fetcher).mock.calls) {
+      const headers = options?.headers
+      if (!(headers instanceof Headers)) throw new Error('GitHub call had no Headers')
+      expect(headers.get('authorization')).toBe('Bearer secret-token')
+    }
   })
 
   it('does not treat an absent matching PR as a failure', async () => {

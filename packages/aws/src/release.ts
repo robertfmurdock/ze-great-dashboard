@@ -23,13 +23,21 @@ function clientAssetUrl(version: string, domain = CANONICAL_ASSET_DOMAIN): strin
   return `${domain.replace(/\/+$/, '')}/dashboard/${version}`
 }
 
-async function validateBoardConfig(path: string): Promise<{ yaml: string; sha256: string }> {
+async function validateBoardConfig(path: string): Promise<{
+  yaml: string
+  sha256: string
+  usesCredentials: boolean
+}> {
   const source = await readFile(resolve(path), 'utf8')
   const result = boardConfigSchema.safeParse(parse(source))
   if (!result.success)
     throw new Error(`Invalid board configuration:\n${z.prettifyError(result.error)}`)
   const yaml = stringify(result.data, { sortMapEntries: true })
-  return { yaml, sha256: sha256(yaml) }
+  return {
+    yaml,
+    sha256: sha256(yaml),
+    usesCredentials: Object.values(result.data.sources).some((source) => Boolean(source.token_env)),
+  }
 }
 
 export async function assembleRelease(input: {
@@ -38,8 +46,13 @@ export async function assembleRelease(input: {
   version: string
   providers?: string[]
   assetDomain?: string
+  secretReference?: string
 }): Promise<{ metadata: ReleaseMetadata; files: Record<string, string> }> {
   const board = await validateBoardConfig(input.boardConfigPath)
+  if (board.usesCredentials && !input.secretReference)
+    throw new Error(
+      'Board config uses token_env; SecretReference must name the Secrets Manager credential-map ARN',
+    )
   const outputDir = resolve(input.outputDir)
   await mkdir(outputDir, { recursive: true })
   await writeFile(join(outputDir, 'board.yaml'), board.yaml)

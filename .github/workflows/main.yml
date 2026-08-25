@@ -150,11 +150,16 @@ jobs:
       - name: Deploy and check the exact tarball as the consumer reference
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
         run: |
-          cp reference/board.yaml reference/aws-dashboard-parameters.json .reference-consumer/
+          cp reference/credential-smoke-board.yaml .reference-consumer/board.yaml
           reference_cli=.reference-consumer/node_modules/.bin/ze-great-dashboard-aws
           "$reference_cli" parameters \
             --artifact-bucket "${{ steps.infrastructure.outputs.reference_artifact_bucket }}" \
             --output .reference-consumer/aws-dashboard-parameters.json
+          jq --arg secret_arn "${{ steps.infrastructure.outputs.reference_credential_smoke_secret_arn }}" \
+            '. + [{"ParameterKey":"SecretReference","ParameterValue":$secret_arn}]' \
+            .reference-consumer/aws-dashboard-parameters.json \
+            > .reference-consumer/aws-dashboard-parameters.next.json
+          mv .reference-consumer/aws-dashboard-parameters.next.json .reference-consumer/aws-dashboard-parameters.json
           "$reference_cli" package \
             --board-config .reference-consumer/board.yaml \
             --parameters .reference-consumer/aws-dashboard-parameters.json \

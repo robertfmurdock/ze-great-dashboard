@@ -66,4 +66,17 @@ if ! printf '%s' "$policy_response" | jq -e '
   exit 1
 fi
 
-echo 'Provider bootstrap check passed: the CloudFormation execution role can manage the Docker smoke-test role.'
+if ! printf '%s' "$policy_response" | jq -e '
+  .PolicyDocument |
+  any(.Statement[]?;
+    ((.Resource | if type == "array" then . else [.] end) | any(.[]; contains("secret:ze-great-dashboard-reference-credentials-smoke-*"))) and
+    ((.Action | if type == "array" then . else [.] end) | any(.[]; . == "secretsmanager:CreateSecret"))
+  )
+' >/dev/null; then
+  echo 'Provider bootstrap is out of date: the CloudFormation execution role cannot manage the reference credential smoke secret.' >&2
+  echo 'An administrator must redeploy infra/bootstrap.yml before provisioning.' >&2
+  print_remediation
+  exit 1
+fi
+
+echo 'Provider bootstrap check passed: the CloudFormation execution role can manage both reference smoke resources.'

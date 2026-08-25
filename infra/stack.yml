@@ -179,6 +179,20 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
+  # This exists only to exercise the Lambda's Secrets Manager path during the main-release smoke
+  # test. It is deliberately a fake value, never a deployable consumer credential.
+  ReferenceCredentialSmokeSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: ze-great-dashboard-reference-credentials-smoke
+      Description: Fake credential map for the Ze Great Dashboard reference Lambda smoke test
+      SecretString: '{"GITHUB_TOKEN":"smoke-placeholder"}'
+      Tags:
+        - Key: Project
+          Value: ze-great-dashboard
+        - Key: ManagedBy
+          Value: cloudformation
+
   ReferenceCloudFormationExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -370,3 +384,5 @@ Outputs:
     Value: !GetAtt ReferenceCloudFormationExecutionRole.Arn
   ReferenceSmokeRoleArn:
     Value: !GetAtt GitHubReferenceSmokeRole.Arn
+  ReferenceCredentialSmokeSecretArn:
+    Value: !Ref ReferenceCredentialSmokeSecret

@@ -26,6 +26,7 @@ describe('persistent consumer reference', () => {
       boardConfigPath: join(referenceDirectory, 'board.yaml'),
       outputDir,
       version: '1.2.3',
+      secretReference: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dashboard',
     })
     const template = await readFile(join(outputDir, 'template.yml'), 'utf8')
     expect(template).toContain('Name: { Type: String, Default: dashboard }')
@@ -45,6 +46,8 @@ describe('persistent consumer reference', () => {
     expect(infrastructure).toContain('function:ze-great-dashboard-reference')
     expect(infrastructure).toContain('role/ze-great-dashboard-reference-*')
     expect(infrastructure).toContain('ZeGreatDashboardReferenceSmoke')
+    expect(infrastructure).toContain('ReferenceCredentialSmokeSecret')
+    expect(infrastructure).toContain('"GITHUB_TOKEN":"smoke-placeholder"')
     expect(infrastructure).toContain('ecs:CreateCluster')
     expect(infrastructure).toContain('ecs:StopTask')
     expect(infrastructure).toContain('Sid: DeleteSmokeCluster')
@@ -65,12 +68,15 @@ describe('persistent consumer reference', () => {
       "Sid: DeregisterSmokeTaskDefinition\n                Effect: Allow\n                Action: ecs:DeregisterTaskDefinition\n                Resource: '*'",
     )
     expect(infrastructure).toContain('ReferenceSmokeRoleArn')
+    expect(infrastructure).toContain('ReferenceCredentialSmokeSecretArn')
     expect(bootstrap).toContain('iam:GetRolePolicy')
     expect(infrastructure).toContain(`'\${ReferenceArtifactBucket.Arn}/lambda/*'`)
     expect(bootstrap).toContain('ze-great-dashboard-reference-artifacts')
     expect(bootstrap).toContain('ZeGreatDashboardReferenceCloudFormationExecution')
     expect(bootstrap).toContain('ZeGreatDashboardReferenceDeploy')
     expect(bootstrap).toContain('ZeGreatDashboardReferenceSmoke')
+    expect(bootstrap).toContain('ReferenceCredentialSmokeSecret')
+    expect(bootstrap).toContain('secretsmanager:CreateSecret')
 
     const workflow = await readFile(join(repositoryRoot, '.github/workflows/main.yml'), 'utf8')
     const tarball = workflow.indexOf('Build the exact-version npm tarball')
@@ -106,6 +112,9 @@ describe('persistent consumer reference', () => {
     expect(workflow).not.toContain('Deploy application 🚀')
     expect(workflow).toContain('reference_artifact_bucket')
     expect(workflow).toContain('reference_execution_role_arn')
+    expect(workflow).toContain('reference_credential_smoke_secret_arn')
+    expect(workflow).toContain('credential-smoke-board.yaml')
+    expect(workflow).toContain('ParameterKey":"SecretReference')
     expect(workflow).toContain('reference_status')
     expect(workflow).toContain('ROLLBACK_COMPLETE')
     expect(infrastructure).toContain('cloudformation:DeleteStack')

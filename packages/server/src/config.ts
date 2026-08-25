@@ -28,6 +28,8 @@ const configSchema = z.object({
   boardConfigUrl: z.string().min(1).default(DEFAULT_BOARD_CONFIG_URL),
   /** Optional for single-board files; startup selects the only board automatically. */
   board: z.string().min(1).optional(),
+  /** Optional ARN of the one Secrets Manager JSON credential map for this Lambda. */
+  secretReference: z.string().min(1).optional(),
   port: z.coerce.number().int().min(1).max(65535).default(3000),
   host: z.string().min(1).default('localhost'),
   /**
@@ -49,6 +51,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     proxyPath: env.PROXY_PATH,
     boardConfigUrl: env.BOARD_CONFIG_URL,
     board: env.BOARD,
+    secretReference: env.SECRET_REFERENCE,
     port: env.PORT,
     host: env.HOST,
     templateWaitMillis: env.TEMPLATE_WAIT_MS,

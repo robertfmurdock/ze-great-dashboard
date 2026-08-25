@@ -668,11 +668,15 @@ try {
       await existingParameters(parametersPath),
       template,
     )
+    const secretReference =
+      consumerParameters.SecretReference ??
+      String(template.definitions.SecretReference?.Default ?? '')
     const metadata = await packageLambda({
       boardConfigPath: boardConfig,
       outputDir,
       version,
       assetDomain: option('--asset-domain'),
+      secretReference,
     })
     const resolvedParameters = resolvedReleaseParameters(consumerParameters, template, {
       LambdaArtifactKey: metadata.artifactKey,
