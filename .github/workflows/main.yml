@@ -67,7 +67,7 @@ jobs:
 
       - name: Log in to GHCR for candidate image
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -76,14 +76,14 @@ jobs:
       - name: Extract candidate Docker image metadata
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
         id: candidate-docker-meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: type=raw,value=${{ steps.version.outputs.version }}
 
       - name: Build and publish candidate Docker image
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
@@ -363,7 +363,7 @@ jobs:
 
       - name: Log in to GHCR
         if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
