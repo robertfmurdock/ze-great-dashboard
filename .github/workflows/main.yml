@@ -310,9 +310,14 @@ jobs:
       - name: Check live bootstrap consistency
         run: |
           validation_cli=.consumer-bootstrap-validation/node_modules/.bin/ze-great-dashboard-aws
-          "$validation_cli" bootstrap check \
+          if ! "$validation_cli" bootstrap check \
             --config reference/consumer-bootstrap-validation.json \
-            --format text
+            --format text; then
+            guide="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA/docs/aws-bootstrap.md#upgrading-bootstrap"
+            echo "::error title=Consumer bootstrap requires administrator update::The candidate requires a newer bootstrap template revision. Review and apply the documented upgrade: $guide"
+            echo "Bootstrap upgrade instructions: $guide"
+            exit 1
+          fi
 
       - name: Package and deploy the source-free reference board
         run: |

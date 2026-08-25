@@ -50,6 +50,8 @@ describe('consumer bootstrap deployment handoff', () => {
     )
     expect(validationJob).toContain('Check live bootstrap consistency')
     expect(validationJob).toContain('bootstrap check')
+    expect(validationJob).toContain('Consumer bootstrap requires administrator update')
+    expect(validationJob).toContain('docs/aws-bootstrap.md#upgrading-bootstrap')
     expect(validationJob.indexOf('bootstrap check')).toBeLessThan(
       validationJob.indexOf('--board-config reference/board.yaml'),
     )
