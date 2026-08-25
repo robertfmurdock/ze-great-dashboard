@@ -313,7 +313,7 @@ jobs:
           if ! "$validation_cli" bootstrap check \
             --config reference/consumer-bootstrap-validation.json \
             --format text; then
-            guide="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA/docs/aws-bootstrap.md#upgrading-bootstrap"
+            guide="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA/infra/README.md#repair-the-consumer-bootstrap-validation-stack"
             echo "::error title=Consumer bootstrap requires administrator update::The candidate requires a newer bootstrap template revision. Review and apply the documented upgrade: $guide"
             echo "Bootstrap upgrade instructions: $guide"
             exit 1

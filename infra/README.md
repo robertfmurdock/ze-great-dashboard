@@ -86,6 +86,19 @@ CloudFormation execution-role policy. If that policy cannot manage the smoke-tes
 workflow stops with an explicit bootstrap remediation message instead of attempting the
 infrastructure update.
 
+### Repair the consumer-bootstrap validation stack
+
+This repository-owned release gate uses a fixed consumer bootstrap stack. If its workflow failure
+reports a core-template revision mismatch, an approved administrator can update that one stack from
+CloudShell with this exact command:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/robertfmurdock/ze-great-dashboard/d2a700f/packages/aws/bootstrap/core-v1.yml -o /tmp/ze-great-dashboard-core-v1.yml && aws cloudformation deploy --region us-east-1 --stack-name ze-great-dashboard-consumer-validation-bootstrap --template-file /tmp/ze-great-dashboard-core-v1.yml --parameter-overrides ArtifactBucketName=ze-great-dashboard-consumer-validation-artifacts-174159267544 ApplicationStackName=ze-great-dashboard-consumer-validation DashboardFunctionName=ze-great-dashboard-consumer-validation RuntimeSecretArn='' ArtifactKmsKeyArn='' --capabilities CAPABILITY_NAMED_IAM --tags Project=ze-great-dashboard ManagedBy=cloudformation
+```
+
+It applies immediately and is only safe for this fixed reference stack. Do not adapt it for a
+consumer bootstrap: use the package's capture-and-reviewed-change-set upgrade path instead.
+
 ## Manual inspection
 
 To preview an infrastructure change without applying it, create a CloudFormation change set in AWS
