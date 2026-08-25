@@ -105,6 +105,49 @@ describe('the board config schema', () => {
     // being stripped, or the adapters would receive a config missing the fields they need.
     expect(result.boards.a?.panels[0]).toMatchObject({ json_path: '$.v' })
   })
+
+  it('preserves the local pipeline animation demo with ordinary panel metadata', () => {
+    const result = boardConfigSchema.parse({
+      boards: {
+        a: {
+          panels: [
+            {
+              id: 'active-run-treatments',
+              type: 'pipeline-animation-demo',
+              display: 'supporting',
+              position: { x: 0, y: 6, w: 12, h: 6 },
+            },
+          ],
+        },
+      },
+    })
+
+    expect(result.boards.a?.panels[0]).toMatchObject({
+      id: 'active-run-treatments',
+      type: 'pipeline-animation-demo',
+      display: 'supporting',
+      position: { x: 0, y: 6, w: 12, h: 6 },
+    })
+  })
+
+  it.each(['radial', 'runway', 'orbit', 'off'])('accepts the %s running animation', (animation) => {
+    const result = boardConfigSchema.parse({
+      boards: {
+        a: { panels: [{ id: 'build', type: 'pipeline-status', running_animation: animation }] },
+      },
+    })
+    expect(result.boards.a?.panels[0]?.running_animation).toBe(animation)
+  })
+
+  it('rejects an unknown running animation instead of silently changing the comparison', () => {
+    expect(
+      boardConfigSchema.safeParse({
+        boards: {
+          a: { panels: [{ id: 'build', type: 'pipeline-status', running_animation: 'laser' }] },
+        },
+      }).success,
+    ).toBe(false)
+  })
 })
 
 describe('duration parsing', () => {

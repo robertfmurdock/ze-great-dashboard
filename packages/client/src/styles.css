@@ -209,6 +209,184 @@ body {
   color: var(--ink-secondary);
 }
 
+/* Active-run treatments share one honest timing readout; animation only changes the visual cue. */
+.running-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  min-width: 0;
+  color: var(--status-warning);
+}
+
+.running-progress__visual {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.running-progress__timing {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: 0.72em;
+}
+
+.running-progress--radial .running-progress__visual {
+  width: 2.35em;
+  height: 2.35em;
+  border: 0.14em solid var(--edge);
+  border-radius: 50%;
+  background: conic-gradient(var(--status-warning) var(--running-progress), var(--edge) 0);
+  box-shadow:
+    inset 0 0 0 0.22em var(--surface-raised),
+    0 0 0.55em color-mix(in srgb, var(--status-warning) 45%, transparent);
+}
+
+.running-progress--radial .running-progress__visual::after {
+  content: "";
+  position: absolute;
+  inset: -0.14em;
+  border-radius: 50%;
+  border-top: 0.14em solid var(--status-warning);
+  animation: running-sweep 1.7s linear infinite;
+}
+
+.running-progress--radial .running-progress__radial-core {
+  position: absolute;
+  inset: 0.68em;
+  border-radius: 50%;
+  background: var(--status-warning);
+  box-shadow: 0 0 0.45em var(--status-warning);
+}
+
+.running-progress--runway .running-progress__visual {
+  width: min(12em, 36vw);
+  height: 0.8em;
+  overflow: hidden;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--status-warning) var(--running-progress), var(--edge) 0);
+}
+
+.running-progress--runway .running-progress__visual::after {
+  content: "";
+  position: absolute;
+  top: -0.25em;
+  bottom: -0.25em;
+  left: calc(var(--running-progress) - 0.06em);
+  width: 0.12em;
+  background: var(--ink-primary);
+  box-shadow: 0 0 0.45em var(--ink-primary);
+}
+
+.running-progress--runway .running-progress__runway-spark {
+  position: absolute;
+  top: 50%;
+  left: -0.5em;
+  width: 0.35em;
+  height: 0.35em;
+  border-radius: 50%;
+  background: var(--ink-primary);
+  box-shadow: 0 0 0.4em var(--status-warning);
+  animation: runway-spark 1.5s linear infinite;
+}
+
+.running-progress--orbit .running-progress__visual {
+  width: 2.4em;
+  height: 2.4em;
+  border: 1px solid var(--edge);
+  border-radius: 50%;
+}
+
+.running-progress--orbit .running-progress__visual::before {
+  content: "";
+  position: absolute;
+  inset: 0.18em;
+  border: 0.12em solid transparent;
+  border-top-color: var(--status-warning);
+  border-radius: 50%;
+  transform: rotate(var(--running-degrees));
+}
+
+.running-progress__orbit-core {
+  position: absolute;
+  inset: 0.75em;
+  border-radius: 50%;
+  background: var(--status-warning);
+  box-shadow: 0 0 0.45em var(--status-warning);
+}
+
+.running-progress__orbit-particle {
+  position: absolute;
+  top: 0.25em;
+  left: calc(50% - 0.16em);
+  width: 0.32em;
+  height: 0.32em;
+  border-radius: 50%;
+  background: var(--ink-primary);
+  transform-origin: 0.16em 0.95em;
+  animation: orbit-particle 1.8s linear infinite;
+}
+
+.running-progress__orbit-particle--two {
+  animation-delay: -0.9s;
+  background: var(--status-warning);
+}
+
+.running-progress--indeterminate .running-progress__visual {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--status-warning) 70%, transparent) 0 0.25em,
+    var(--edge) 0.25em 0.5em
+  );
+  animation: indeterminate-shift 1s linear infinite;
+}
+
+.running-progress--overdue {
+  color: var(--status-serious);
+}
+.running-progress--overdue .running-progress__timing {
+  color: var(--status-serious);
+}
+
+.pipeline-animation-demo__variant {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.72em;
+  text-transform: capitalize;
+  transition: color 180ms ease;
+}
+
+@keyframes running-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes runway-spark {
+  to {
+    transform: translateX(13em);
+  }
+}
+@keyframes orbit-particle {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes indeterminate-shift {
+  to {
+    background-position: 1em 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .running-progress--radial .running-progress__visual::after,
+  .running-progress--runway .running-progress__runway-spark,
+  .running-progress--orbit .running-progress__orbit-particle,
+  .running-progress--indeterminate .running-progress__visual,
+  .pipeline-animation-demo__variant {
+    animation: none;
+    transition: none;
+  }
+}
+
 .panel--error {
   border-color: var(--status-serious);
 }

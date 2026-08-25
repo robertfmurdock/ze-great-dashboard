@@ -129,6 +129,19 @@ describe('pipeline-status refresh scheduling', () => {
     expect(requests.some((url) => url.endsWith('/note'))).toBe(false)
   })
 
+  it('renders the local animation demo without creating a panel request', async () => {
+    const { requests } = setup({
+      panels: [{ id: 'active-run-treatments', type: 'pipeline-animation-demo' }],
+    })
+
+    const rendered = render(<App env={env} />)
+    await settle()
+
+    expect(rendered.textContent).toContain('Demo treatment ·')
+    expect(rendered.querySelector('.running-progress')).not.toBeNull()
+    expect(requests.filter((url) => url.includes('/panel/'))).toEqual([])
+  })
+
   it('shows a brief duration for completed runs only', async () => {
     const { requests } = setup(
       { panels: [{ id: 'build', type: 'pipeline-status' }] },
@@ -155,6 +168,98 @@ describe('pipeline-status refresh scheduling', () => {
     await settle()
 
     expect(rendered.textContent).not.toContain('Took')
+  })
+
+  function runningEnvelope(
+    panelId: string,
+    options: { startedAt?: string; estimateMs?: number } = {},
+  ) {
+    return new Response(
+      JSON.stringify({
+        panelId,
+        state: 'ok',
+        observedAt: '2026-08-18T12:00:00.000Z',
+        link: null,
+        signal: {
+          type: 'pipeline-status',
+          status: 'running',
+          rawStatus: 'in_progress',
+          name: panelId,
+          ...(options.startedAt ? { runStartedAt: options.startedAt } : {}),
+          ...(options.estimateMs ? { estimatedDurationMs: options.estimateMs } : {}),
+        },
+      }),
+    )
+  }
+
+  it.each(['radial', 'runway', 'orbit'] as const)(
+    'renders the %s active-run treatment with local elapsed progress',
+    async (animation) => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-08-18T12:02:00.000Z'))
+      setup(
+        { panels: [{ id: 'build', type: 'pipeline-status', running_animation: animation }] },
+        {
+          build: [
+            runningEnvelope('build', {
+              startedAt: '2026-08-18T12:00:00.000Z',
+              estimateMs: 300_000,
+            }),
+          ],
+        },
+      )
+      const rendered = render(<App env={env} />)
+      await settle()
+
+      expect(rendered.querySelector(`.running-progress--${animation}`)).not.toBeNull()
+      expect(rendered.textContent).toContain('Elapsed 2m 0s')
+      expect(rendered.textContent).toContain('Expected ≈ 5m 0s')
+      await act(async () => vi.advanceTimersByTime(1_000))
+      expect(rendered.textContent).toContain('Elapsed 2m 1s')
+    },
+  )
+
+  it('keeps an overdue run visibly active and can disable the treatment per panel', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-18T12:05:00.000Z'))
+    setup(
+      {
+        panels: [
+          { id: 'late', type: 'pipeline-status', running_animation: 'runway' },
+          { id: 'plain', type: 'pipeline-status', running_animation: 'off' },
+        ],
+      },
+      {
+        late: [
+          runningEnvelope('late', {
+            startedAt: '2026-08-18T12:00:00.000Z',
+            estimateMs: 60_000,
+          }),
+        ],
+        plain: [runningEnvelope('plain')],
+      },
+    )
+    const rendered = render(<App env={env} />)
+    await settle()
+
+    expect(rendered.querySelector('.running-progress--overdue')).not.toBeNull()
+    expect(rendered.textContent).toContain('Over estimate')
+    expect(rendered.textContent).toContain('Running')
+    expect(rendered.querySelectorAll('.running-progress')).toHaveLength(1)
+  })
+
+  it('renders an indeterminate active treatment when timing history is unavailable', async () => {
+    setup(
+      { panels: [{ id: 'build', type: 'pipeline-status' }] },
+      { build: [runningEnvelope('build')] },
+    )
+    const rendered = render(<App env={env} />)
+    await settle()
+
+    expect(
+      rendered.querySelector('.running-progress--orbit.running-progress--indeterminate'),
+    ).not.toBeNull()
+    expect(rendered.textContent).toContain('Expected duration unavailable')
   })
 
   it('uses panel refresh before the board refresh', async () => {

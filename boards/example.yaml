@@ -23,3 +23,10 @@ boards:
         url: https://example.com/version.json
         json_path: $.version
         position: { x: 8, y: 0, w: 4, h: 6 }
+
+      # Local-only comparison aid: it derives its active state from the browser clock and never
+      # calls a source or the panel proxy.
+      - id: active-run-treatments
+        type: pipeline-animation-demo
+        display: supporting
+        position: { x: 0, y: 6, w: 12, h: 6 }

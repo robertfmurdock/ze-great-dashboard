@@ -46,8 +46,9 @@ const runSchema = z.object({
   conclusion: z.string().nullable(),
   name: z.string().min(1),
   html_url: z.url(),
-  run_started_at: z.iso.datetime().nullable().optional(),
-  updated_at: z.iso.datetime().optional(),
+  // Timestamp quality should only remove timing advice, never make an otherwise useful run unreadable.
+  run_started_at: z.string().nullable().optional(),
+  updated_at: z.string().optional(),
 })
 
 const runsSchema = z.object({ workflow_runs: z.array(runSchema) })
@@ -74,7 +75,8 @@ export function permittedGithubActionsCalls(
     `https://api.github.com/repos/${parsedSource.repo}/actions/workflows/${encodeURIComponent(parsedPanel.pipeline)}/runs`,
   )
   if (parsedSource.branch) url.searchParams.set('branch', parsedSource.branch)
-  url.searchParams.set('per_page', '1')
+  // One bounded request supplies the current run and a small timing sample for active-run UI.
+  url.searchParams.set('per_page', '5')
 
   const headers = new Headers({ accept: 'application/vnd.github+json' })
   const token = parsedSource.token_env ? credentials.get(parsedSource.token_env) : undefined
@@ -359,7 +361,8 @@ export async function fetchGithubActionsPipeline(args: {
   }
 
   try {
-    const run = runsSchema.parse(await upstream.json()).workflow_runs[0]
+    const runs = runsSchema.parse(await upstream.json()).workflow_runs
+    const run = runs[0]
     if (!run) {
       return {
         response: new Response(
@@ -384,8 +387,10 @@ export async function fetchGithubActionsPipeline(args: {
       rawStatus: run.conclusion ?? run.status,
       name: run.name,
       branch: parsedSource.branch,
-      ...(run.updated_at ? { sourceUpdatedAt: run.updated_at } : {}),
+      ...(timestamp(run.updated_at) ? { sourceUpdatedAt: timestamp(run.updated_at) } : {}),
+      ...(timestamp(run.run_started_at) ? { runStartedAt: timestamp(run.run_started_at) } : {}),
       ...(run.status === 'completed' ? completedRunDuration(run) : {}),
+      ...(run.status !== 'completed' ? estimatedRunDuration(runs) : {}),
     }
     const envelope: Envelope = {
       panelId: args.panel.id,
@@ -414,9 +419,37 @@ export async function fetchGithubActionsPipeline(args: {
 }
 
 function completedRunDuration(run: z.infer<typeof runSchema>): Pick<PipelineStatus, 'durationMs'> {
-  if (!run.run_started_at || !run.updated_at) return {}
-  const durationMs = new Date(run.updated_at).valueOf() - new Date(run.run_started_at).valueOf()
+  const startedAt = timestamp(run.run_started_at)
+  const updatedAt = timestamp(run.updated_at)
+  if (!startedAt || !updatedAt) return {}
+  const durationMs = new Date(updatedAt).valueOf() - new Date(startedAt).valueOf()
   return Number.isFinite(durationMs) && durationMs >= 0 ? { durationMs } : {}
+}
+
+function timestamp(value: string | null | undefined): string | undefined {
+  if (!value || !z.iso.datetime().safeParse(value).success) return undefined
+  return Number.isFinite(new Date(value).valueOf()) ? value : undefined
+}
+
+function estimatedRunDuration(
+  runs: z.infer<typeof runSchema>[],
+): Pick<PipelineStatus, 'estimatedDurationMs'> {
+  const durations = runs
+    .filter((run) => run.status === 'completed')
+    .map((run) => completedRunDuration(run).durationMs)
+    .filter((duration): duration is number => duration !== undefined)
+    .sort((left, right) => left - right)
+  if (durations.length === 0) return {}
+  const middle = Math.floor(durations.length / 2)
+  // Average the two central values for an even sample, retaining whole milliseconds.
+  const estimatedDurationMs = durations[middle]
+  if (estimatedDurationMs === undefined) return {}
+  if (durations.length % 2 === 0) {
+    const lowerDuration = durations[middle - 1]
+    if (lowerDuration === undefined) return {}
+    return { estimatedDurationMs: Math.floor((lowerDuration + estimatedDurationMs) / 2) }
+  }
+  return { estimatedDurationMs }
 }
 
 function normalizeStatus(status: string, conclusion: string | null): PipelineStatus['status'] {

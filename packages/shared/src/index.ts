@@ -12,7 +12,9 @@ export {
   panelDisplaySchema,
   panelSchema,
   positionSchema,
+  type RunningAnimation,
   resolveRefreshMillis,
+  runningAnimationSchema,
   type Source,
   sourceSchema,
 } from './board-config.ts'

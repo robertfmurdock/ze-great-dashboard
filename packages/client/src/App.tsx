@@ -2,10 +2,8 @@ import type { Board, ClientEnv } from '@ze-great-dashboard/shared'
 import { useEffect, useRef, useState } from 'react'
 import { Diagnostics } from './Diagnostics.tsx'
 import { BrowserDiagnosticStore, cacheMetadata } from './diagnostics.ts'
-import { HttpValuePanel } from './HttpValuePanel.tsx'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
-import { PipelinePanel } from './PipelinePanel.tsx'
-import { PullRequestHealthPanel } from './PullRequestHealthPanel.tsx'
+import { PanelRenderer } from './panel-registry.tsx'
 import { useClientUpdate } from './useClientUpdate.ts'
 import { usePanelSignals } from './usePanelSignals.ts'
 
@@ -105,17 +103,9 @@ export function App({ env }: { env: ClientEnv }) {
 
       <main className="board__grid">
         {!board && <PanelPlaceholder label="board" hint="Loading configuration…" wide />}
-        {board?.panels.map((panel) =>
-          panel.type === 'pipeline-status' ? (
-            <PipelinePanel key={panel.id} panel={panel} envelope={signals[panel.id]} />
-          ) : panel.type === 'pull-request-health' ? (
-            <PullRequestHealthPanel key={panel.id} panel={panel} envelope={signals[panel.id]} />
-          ) : panel.type === 'http-value' ? (
-            <HttpValuePanel key={panel.id} panel={panel} envelope={signals[panel.id]} />
-          ) : (
-            <PanelPlaceholder key={panel.id} label={panel.type} hint="Not wired yet" wide />
-          ),
-        )}
+        {board?.panels.map((panel) => (
+          <PanelRenderer key={panel.id} panel={panel} envelope={signals[panel.id]} />
+        ))}
       </main>
 
       <footer className="board__footer">

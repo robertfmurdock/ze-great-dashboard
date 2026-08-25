@@ -1,6 +1,7 @@
 import { type Envelope, type Panel, pipelineStatusSchema } from '@ze-great-dashboard/shared'
 import { ObservedAt } from './ObservedAt.tsx'
 import { PanelFrame } from './PanelFrame.tsx'
+import { RunningProgress } from './RunningProgress.tsx'
 
 export function PipelinePanel({
   panel,
@@ -51,6 +52,13 @@ export function PipelinePanel({
           </span>
         )}
       </p>
+      {signal.data.status === 'running' && panel.running_animation !== 'off' && (
+        <RunningProgress
+          animation={panel.running_animation ?? 'orbit'}
+          runStartedAt={signal.data.runStartedAt}
+          estimatedDurationMs={signal.data.estimatedDurationMs}
+        />
+      )}
       {signal.data.status !== 'running' && signal.data.durationMs !== undefined && (
         <p className="panel__hint">Took {formatDuration(signal.data.durationMs)}</p>
       )}

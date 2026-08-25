@@ -37,6 +37,15 @@ function upstream(
   ) as unknown as typeof fetch
 }
 
+function upstreamRuns(runs: unknown[]): typeof fetch {
+  return vi.fn(
+    async () =>
+      new Response(JSON.stringify({ workflow_runs: runs }), {
+        headers: { date: '2026-08-17T14:32:05Z' },
+      }),
+  ) as unknown as typeof fetch
+}
+
 describe('the GitHub Actions adapter', () => {
   it.each([
     ['success', 'passed', 134_000],
@@ -67,14 +76,14 @@ describe('the GitHub Actions adapter', () => {
   it('uses the configured workflow without filtering when no branch is configured', () => {
     const [call] = permittedGithubActionsCalls(panel, source)
     expect(call?.url).toBe(
-      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?per_page=1',
+      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?per_page=5',
     )
   })
 
   it('filters workflow runs to the configured branch', () => {
     const [call] = permittedGithubActionsCalls(panel, { ...source, branch: 'trunk' })
     expect(call?.url).toBe(
-      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?branch=trunk&per_page=1',
+      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?branch=trunk&per_page=5',
     )
   })
 
@@ -103,6 +112,66 @@ describe('the GitHub Actions adapter', () => {
     const options = vi.mocked(fetcher).mock.calls[0]?.[1]
     expect(options?.headers).toBeInstanceOf(Headers)
     expect((options?.headers as Headers | undefined)?.get('if-none-match')).toBe('W/"fixture"')
+  })
+
+  it('uses the newest run while deriving a median estimate from valid completed history', async () => {
+    const run = (status: string, started: string | null, updated: string | undefined) => ({
+      status,
+      conclusion: status === 'completed' ? 'success' : null,
+      name: 'Build',
+      html_url: 'https://github.com/example-org/example-repo/actions/runs/1',
+      run_started_at: started,
+      ...(updated ? { updated_at: updated } : {}),
+    })
+    const result = await fetchGithubActionsPipeline({
+      panel,
+      source,
+      requestHeaders: new Headers(),
+      fetcher: upstreamRuns([
+        run('in_progress', '2026-08-17T14:00:00Z', '2026-08-17T14:32:00Z'),
+        run('completed', '2026-08-17T12:00:00Z', '2026-08-17T12:01:40Z'),
+        run('completed', '2026-08-17T12:00:00Z', '2026-08-17T12:03:20Z'),
+        run('completed', '2026-08-17T12:00:00Z', '2026-08-17T12:05:00Z'),
+        run('completed', 'not-a-date', '2026-08-17T12:05:00Z'),
+      ]),
+    })
+
+    expect(result.envelope).toMatchObject({
+      signal: {
+        status: 'running',
+        runStartedAt: '2026-08-17T14:00:00Z',
+        estimatedDurationMs: 200_000,
+      },
+    })
+  })
+
+  it('omits timing advice when completed history has missing or invalid timestamps', async () => {
+    const result = await fetchGithubActionsPipeline({
+      panel,
+      source,
+      requestHeaders: new Headers(),
+      fetcher: upstreamRuns([
+        {
+          status: 'in_progress',
+          conclusion: null,
+          name: 'Build',
+          html_url: 'https://github.com/example-org/example-repo/actions/runs/1',
+          run_started_at: 'not-a-date',
+        },
+        {
+          status: 'completed',
+          conclusion: 'success',
+          name: 'Build',
+          html_url: 'https://github.com/example-org/example-repo/actions/runs/2',
+          run_started_at: null,
+          updated_at: '2026-08-17T12:05:00Z',
+        },
+      ]),
+    })
+    expect(result.envelope).toMatchObject({ signal: { status: 'running' } })
+    expect(result.envelope?.state === 'ok' && result.envelope.signal).not.toHaveProperty(
+      'estimatedDurationMs',
+    )
   })
 
   it('reports an unreachable upstream as data, not a proxy 5xx', async () => {

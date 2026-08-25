@@ -70,6 +70,10 @@ export const pipelineStatusSchema = z.object({
   branch: z.string().min(1).optional(),
   /** Elapsed execution time, supplied only after the upstream run has completed. */
   durationMs: z.number().int().nonnegative().optional(),
+  /** When an active run began, so the client can advance its elapsed display between polls. */
+  runStartedAt: z.iso.datetime().optional(),
+  /** Advisory median duration from recent completed runs from the same source response. */
+  estimatedDurationMs: z.number().int().positive().optional(),
   /** When this workflow run was last updated by its source, distinct from our observation time. */
   sourceUpdatedAt: z.iso.datetime().optional(),
 })
