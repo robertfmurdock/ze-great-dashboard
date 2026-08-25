@@ -17,6 +17,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write
     outputs:
       version: ${{ steps.version.outputs.version }}
       reference_smoke_role_arn: ${{ steps.infrastructure.outputs.reference_smoke_role_arn }}
@@ -63,6 +64,31 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: node scripts/publish-packages.mjs --pack aws-package.tgz
+
+      - name: Log in to GHCR for candidate image
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract candidate Docker image metadata
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
+        id: candidate-docker-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: type=raw,value=${{ steps.version.outputs.version }}
+
+      - name: Build and publish candidate Docker image
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.candidate-docker-meta.outputs.tags }}
+          labels: ${{ steps.candidate-docker-meta.outputs.labels }}
 
       - name: AWS provisioning credentials
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
@@ -175,6 +201,20 @@ jobs:
             --payload '{"version":"2.0","rawPath":"/health","requestContext":{"http":{"method":"GET"}}}' \
             --cli-binary-format raw-in-base64-out --region us-east-1 /tmp/reference-health.json
           jq -e '.statusCode == 200' /tmp/reference-health.json > /dev/null
+
+      - name: Assume Docker smoke-test credentials
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ steps.infrastructure.outputs.reference_smoke_role_arn }}
+          aws-region: us-east-1
+
+      - name: Run ephemeral ECS Docker smoke test
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+          ASSET_PATH: https://public-assets.zegreatrob.com/dashboard/${{ steps.version.outputs.version }}
+        run: bash scripts/test-ecs-image.sh
 
       - name: Save verified release candidate
         if: github.ref == 'refs/heads/main'
@@ -329,38 +369,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Docker image metadata
+      - name: Promote verified Docker image to latest
         if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
-        id: docker-meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=raw,value=${{ needs.check.outputs.version }}
-            type=raw,value=latest
-
-      - name: Build and publish Docker image
-        if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.docker-meta.outputs.tags }}
-          labels: ${{ steps.docker-meta.outputs.labels }}
-
-      - name: Assume Docker smoke-test credentials
-        if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
-        uses: aws-actions/configure-aws-credentials@v6.2.3
-        with:
-          role-to-assume: ${{ needs.check.outputs.reference_smoke_role_arn }}
-          aws-region: us-east-1
-
-      - name: Run ephemeral ECS Docker smoke test
-        if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
-        env:
-          IMAGE: ghcr.io/${{ github.repository }}:${{ needs.check.outputs.version }}
-          ASSET_PATH: https://public-assets.zegreatrob.com/dashboard/${{ needs.check.outputs.version }}
-        run: bash scripts/test-ecs-image.sh
+        run: |
+          docker buildx imagetools create \
+            --tag "ghcr.io/${{ github.repository }}:latest" \
+            "ghcr.io/${{ github.repository }}:${{ needs.check.outputs.version }}"
 
       - name: Tag verified release
         if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
