@@ -3,7 +3,9 @@ import {
   type Panel,
   type PipelineStatus,
   pipelineStatusSchema,
+  visibleRunningAnimations,
 } from '@ze-great-dashboard/shared'
+import { useState } from 'react'
 import { ObservedAt } from './ObservedAt.tsx'
 import { PanelFrame } from './PanelFrame.tsx'
 import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
@@ -57,7 +59,9 @@ function PipelineSignalPanel({
   signal: PipelineStatus
 }) {
   const presentation = statusPresentation(signal.status)
-  const animation = panel.running_animation ?? 'telemetry-bloom'
+  // Keep an omitted treatment stable for this panel's lifetime; timing updates must not reshuffle it.
+  const [defaultAnimation] = useState(selectDefaultRunningAnimation)
+  const animation = panel.running_animation ?? defaultAnimation
   const activeRun = signal.status === 'running' && animation !== 'off'
   const timing = useRunningTiming(signal.runStartedAt, signal.estimatedDurationMs)
   const usesField = activeRun && isRunningFieldAnimation(animation)
@@ -110,6 +114,13 @@ function PipelineSignalPanel({
       {signal.sourceUpdatedAt && <ObservedAt value={signal.sourceUpdatedAt} label="Run updated" />}
       <ObservedAt value={envelope.observedAt} />
     </PanelFrame>
+  )
+}
+
+function selectDefaultRunningAnimation() {
+  return (
+    visibleRunningAnimations[Math.floor(Math.random() * visibleRunningAnimations.length)] ??
+    'telemetry-bloom'
   )
 }
 

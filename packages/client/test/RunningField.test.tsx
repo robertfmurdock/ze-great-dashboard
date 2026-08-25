@@ -1,6 +1,6 @@
 import { cleanup, render } from '@testing-library/react'
 import type { Panel } from '@ze-great-dashboard/shared'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PipelinePanel } from '../src/PipelinePanel.tsx'
 
 const panel: Panel = { id: 'build', type: 'pipeline-status' }
@@ -19,7 +19,10 @@ const envelope = () => ({
   },
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
 describe('RunningField', () => {
   it.each([
@@ -42,9 +45,10 @@ describe('RunningField', () => {
     },
   )
 
-  it('uses telemetry bloom by default and excludes inactive, off, error, and loading panels', () => {
+  it('chooses a visible treatment at random by default and excludes inactive, off, error, and loading panels', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99)
     const running = render(<PipelinePanel panel={panel} envelope={envelope()} />).container
-    expect(running.querySelector('[data-animation="telemetry-bloom"]')).not.toBeNull()
+    expect(running.querySelector('[data-animation="status-weather"]')).not.toBeNull()
     cleanup()
     const off = render(
       <PipelinePanel panel={{ ...panel, running_animation: 'off' }} envelope={envelope()} />,
@@ -53,6 +57,16 @@ describe('RunningField', () => {
     cleanup()
     const loading = render(<PipelinePanel panel={panel} envelope={undefined} />).container
     expect(loading.querySelector('.running-field')).toBeNull()
+  })
+
+  it('keeps its randomly selected default treatment through re-renders', () => {
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValue(0.99)
+    const rendered = render(<PipelinePanel panel={panel} envelope={envelope()} />)
+    expect(rendered.container.querySelector('.running-progress--radial')).not.toBeNull()
+
+    rendered.rerender(<PipelinePanel panel={panel} envelope={envelope()} />)
+    expect(rendered.container.querySelector('.running-progress--radial')).not.toBeNull()
+    expect(rendered.container.querySelector('[data-animation="status-weather"]')).toBeNull()
   })
 
   it.each(['radial', 'runway', 'orbit', 'signal-field'] as const)(

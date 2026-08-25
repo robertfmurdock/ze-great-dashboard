@@ -289,7 +289,7 @@ describe('pipeline-status refresh scheduling', () => {
 
   it('renders an indeterminate active treatment when timing history is unavailable', async () => {
     setup(
-      { panels: [{ id: 'build', type: 'pipeline-status' }] },
+      { panels: [{ id: 'build', type: 'pipeline-status', running_animation: 'telemetry-bloom' }] },
       { build: [runningEnvelope('build')] },
     )
     const rendered = render(<App env={env} />)

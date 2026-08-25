@@ -17,6 +17,7 @@ export {
   runningAnimationSchema,
   type Source,
   sourceSchema,
+  visibleRunningAnimations,
 } from './board-config.ts'
 export {
   type ClientEnv,

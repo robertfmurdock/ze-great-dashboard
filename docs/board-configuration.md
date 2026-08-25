@@ -55,8 +55,8 @@ runs from all branches. `http-value` uses `url` and an optional `json_path` such
 ## Active pipeline treatments
 
 `pipeline-status` panels may set `running_animation` to `off`, or to one of `radial`, `runway`,
-`orbit`, `signal-field`, `telemetry-bloom`, `release-transit`, or `status-weather`. Omission uses
-`telemetry-bloom`. The first four are retained inline treatments; the latter three are panel-scale
+`orbit`, `signal-field`, `telemetry-bloom`, `release-transit`, or `status-weather`. Omission chooses
+one of those visible treatments at random when the panel mounts. The first four are retained inline treatments; the latter three are panel-scale
 decorative fields. This setting changes only the active-running presentation and never replaces the
 status label or timing text.
 
