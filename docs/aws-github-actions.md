@@ -94,9 +94,11 @@ application stack, and pass only the reviewed core execution role.
 
 The repository release workflow publishes the exact-version Docker candidate during its check job,
 then assumes its dedicated smoke-test role and validates that image in a temporary ECS Fargate task.
-The task probes `/health` inside the task, waits for completion, and unconditionally stops any
-running task, deregisters its task definition, and deletes its temporary cluster. After the Lambda
-and Docker smoke tests pass, the release job promotes that exact tested image to the `latest` tag.
+The task starts it without an `ASSET_PATH` override, proving the image default reaches its matching
+published client template, then probes `/health` inside the task, waits for completion, and
+unconditionally stops any running task, deregisters its task definition, and deletes its temporary
+cluster. After the Lambda and Docker smoke tests pass, the release job promotes that exact tested
+image to the `latest` tag.
 It does not create an ECS service or load balancer.
 
 ## Optional gateway check

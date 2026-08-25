@@ -41,16 +41,26 @@ BOARD_CONFIG_URL="$PWD/boards/ze-great-team.yaml" npm run dev
 
 ### Run the published Docker image
 
-Copy `.env.example` to `.env`, set `ASSET_PATH`, and start the published server image:
+With a `board.yaml` in the current directory, run the published image directly:
 
 ```sh
-cp .env.example .env
-# edit .env and set ASSET_PATH
-docker compose up
+docker run --rm -p 3000:3000 --mount type=bind,src="$PWD/board.yaml",dst=/app/boards/board.yaml,readonly -e BOARD_CONFIG_URL=/app/boards/board.yaml ghcr.io/robertfmurdock/ze-great-dashboard:latest
+```
+
+It serves the mounted board at <http://localhost:3000>. If the board names a source credential
+such as `GITHUB_TOKEN` through `token_env`, pass it to Docker too (for example, `-e GITHUB_TOKEN`).
+
+For the included example board, Compose needs no `.env` file:
+
+```sh
+docker compose pull && docker compose up
 ```
 
 Compose uses `ghcr.io/robertfmurdock/ze-great-dashboard:latest` by default. Pin
-`DASHBOARD_IMAGE` to an exact release tag when rolling back. To build the current source locally:
+`DASHBOARD_IMAGE` to an exact release tag when rolling back. Set `ASSET_PATH` only to intentionally
+select another published client version or to test local assets; put that override in `.env`.
+Otherwise the image uses the matching client version embedded at release time. To build the current
+source locally, set `ASSET_PATH` explicitly in `.env` and run:
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.local.yml up --build

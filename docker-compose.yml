@@ -4,20 +4,22 @@
 # reproducing what production does, and for confirming a published client version renders without
 # building the client at all.
 #
-# Reads a gitignored `.env`; see `.env.example` for the variables.
+# Reads a gitignored `.env` when present; see `.env.example` for optional overrides.
 services:
   server:
     image: ${DASHBOARD_IMAGE:-ghcr.io/robertfmurdock/ze-great-dashboard:latest}
+    # Forward explicit runtime overrides from `.env` without declaring ASSET_PATH here: an absent
+    # variable must not replace the released image's baked matching-client default with an empty one.
+    env_file:
+      - path: .env
+        required: false
     ports:
       - '3000:3000'
     environment:
-      # No default. Compose warns and the server refuses to start without it, which beats silently
-      # serving the wrong client.
-      ASSET_PATH: ${ASSET_PATH:?set ASSET_PATH in .env — see .env.example}
-      PROXY_PATH: ${PROXY_PATH:-/api}
-      BOARD_CONFIG_URL: ${BOARD_CONFIG_URL:-./boards/example.yaml}
-      HOST: 0.0.0.0
-      PORT: '3000'
+      - PROXY_PATH=${PROXY_PATH:-/api}
+      - BOARD_CONFIG_URL=${BOARD_CONFIG_URL:-./boards/example.yaml}
+      - HOST=0.0.0.0
+      - PORT=3000
     # A refused start is a configuration error to read and fix, not something to retry into a
     # crash loop that buries the message.
     restart: 'no'

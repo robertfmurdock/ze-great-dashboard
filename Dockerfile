@@ -38,6 +38,12 @@ FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Stable release builds pass this value from the release workflow. The client remains outside the
+# image; this is only the default location of the immutable client published for this same release.
+# Operators may still override ASSET_PATH to deliberately select another client version.
+ARG RELEASE_VERSION
+ENV ASSET_PATH=https://public-assets.zegreatrob.com/dashboard/${RELEASE_VERSION}
+
 # tsx runs the TypeScript sources directly. One less build artifact to keep in sync, and the code
 # running in the container is the code in the repo.
 RUN npm install --global --no-save tsx@4.23.12

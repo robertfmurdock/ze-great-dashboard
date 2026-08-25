@@ -115,6 +115,8 @@ describe('persistent consumer reference', () => {
     expect(workflow).toContain('Assume Docker smoke-test credentials')
     expect(workflow).toContain('Run ephemeral ECS Docker smoke test')
     expect(workflow).toContain('run: bash scripts/test-ecs-image.sh')
+    expect(workflow).toContain('build-args:')
+    expect(workflow).toContain('RELEASE_VERSION=')
     expect(workflow).toContain('run: bash scripts/check-provider-bootstrap.sh')
     expect(workflow.indexOf('Check provider bootstrap before provisioning')).toBeLessThan(
       workflow.indexOf('Provision AWS infrastructure'),
@@ -125,6 +127,8 @@ describe('persistent consumer reference', () => {
     const smokeScript = join(repositoryRoot, 'scripts/test-ecs-image.sh')
     execFileSync('bash', ['-n', smokeScript])
     const smoke = await readFile(smokeScript, 'utf8')
+    expect(smoke).not.toContain('ASSET_PATH is required')
+    expect(smoke).not.toContain('name:"ASSET_PATH"')
     expect(smoke).toContain('local test_status=$?')
     expect(smoke).toContain('cleanup failed')
     expect(smoke).toContain('trap cleanup EXIT')

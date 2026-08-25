@@ -2,7 +2,6 @@
 set -euo pipefail
 
 : "${IMAGE:?IMAGE is required}"
-: "${ASSET_PATH:?ASSET_PATH is required}"
 
 smoke_id="${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
 cluster_name="ze-great-dashboard-smoke-${smoke_id}"
@@ -76,8 +75,7 @@ task_definition_arn="$(aws ecs register-task-definition \
   --container-definitions "$(jq -nc \
     --arg image "$IMAGE" \
     --arg command "$smoke_script" \
-    --arg asset_path "$ASSET_PATH" \
-    '[{name:"dashboard",image:$image,essential:true,command:["sh","-ec",$command],environment:[{name:"ASSET_PATH",value:$asset_path},{name:"BOARD_CONFIG_URL",value:"./boards/example.yaml"},{name:"TEMPLATE_WAIT_MS",value:"0"}]}]')" \
+    '[{name:"dashboard",image:$image,essential:true,command:["sh","-ec",$command],environment:[{name:"BOARD_CONFIG_URL",value:"./boards/example.yaml"},{name:"TEMPLATE_WAIT_MS",value:"0"}]}]')" \
   --query 'taskDefinition.taskDefinitionArn' --output text)"
 
 task_arn="$(aws ecs run-task \

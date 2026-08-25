@@ -3,3 +3,6 @@ services:
     image: ze-great-dashboard:local
     build:
       context: .
+      # Local source builds are not releases. Set ASSET_PATH explicitly when using this overlay.
+      args:
+        RELEASE_VERSION: local

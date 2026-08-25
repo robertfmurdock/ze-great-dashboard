@@ -23,8 +23,9 @@ The verified `main` release publishes the server-only Docker image to GHCR with 
 semantic-version candidate tag during the check job. The same job smoke-tests that exact image in a
 one-shot ECS Fargate task, alongside the reference Lambda smoke test. Only after all release gates
 pass does the release job promote that tested image to the `latest` alias. Compose runs the
-published image by default and has an explicit local-build override; the image still receives
-`ASSET_PATH` at runtime and never contains the client build or environment-specific configuration.
+published image by default and has an explicit local-build override; each stable image defaults
+`ASSET_PATH` to its matching published client version while retaining an explicit runtime override.
+It never contains the client build or environment-specific configuration.
 The ECS task is stopped and its temporary task definition and cluster are removed so the test does
 not leave a billable long-running service behind.
 
