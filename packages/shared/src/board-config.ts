@@ -15,12 +15,15 @@ import { durationSchema } from './duration.ts'
  * now and building the allowlist on the guess is not.
  */
 
-export const positionSchema = z.object({
-  x: z.number().int().min(0),
-  y: z.number().int().min(0),
-  w: z.number().int().min(1).max(12),
-  h: z.number().int().min(1),
-})
+export const positionSchema = z.union([
+  z.object({
+    x: z.number().int().min(0),
+    y: z.number().int().min(0),
+    w: z.number().int().min(1).max(12),
+    h: z.number().int().min(1),
+  }),
+  z.object({ x: z.literal(0), y: z.literal(0), w: z.literal(0), h: z.literal(0) }),
+])
 
 export type Position = z.infer<typeof positionSchema>
 

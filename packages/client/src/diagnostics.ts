@@ -14,6 +14,7 @@ const diagnosticKinds = [
   'board-fetch-response',
   'board-fetch-parse-failure',
   'board-fetch-failure',
+  'layout-analyzed',
   'panel-fetch-start',
   'panel-fetch-response',
   'panel-fetch-parse-failure',
@@ -58,6 +59,7 @@ export type DiagnosticEventInput =
     }
   | { kind: 'board-fetch-parse-failure'; path: string; message: string }
   | { kind: 'board-fetch-failure'; path: string; message: string }
+  | { kind: 'layout-analyzed'; issueCount: number; affectedPanelIds: string[] }
   | { kind: 'panel-fetch-start'; panelId: string; path: string }
   | {
       kind: 'panel-fetch-response'

@@ -3,6 +3,7 @@ import {
   type ClientEnv,
   type Envelope,
   envelopeSchema,
+  isZeroPosition,
   parseDuration,
   resolveRefreshMillis,
 } from '@ze-great-dashboard/shared'
@@ -30,6 +31,7 @@ export function usePanelSignals({
     let cancelled = false
     const timers: number[] = []
     for (const panel of board.panels) {
+      if (isZeroPosition(panel.position)) continue
       if (
         panel.type !== 'pipeline-status' &&
         panel.type !== 'pull-request-health' &&

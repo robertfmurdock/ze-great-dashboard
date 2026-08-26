@@ -1,5 +1,6 @@
-import { clientEnvSchema } from '@ze-great-dashboard/shared'
+import { type BoardConfig, clientEnvSchema } from '@ze-great-dashboard/shared'
 import { describe, expect, it } from 'vitest'
+import { parse as parseYaml } from 'yaml'
 import { createApp } from '../src/app.ts'
 import { loadConfig } from '../src/config.ts'
 
@@ -119,5 +120,107 @@ describe('the entrypoint document', () => {
       assetPath: 'https://assets.example.com/dashboard/1.0.7',
       clientVersion: '1.0.7',
     })
+  })
+})
+
+describe('legal board layout download', () => {
+  it('normalizes the selected board into a reusable twelve-by-twelve YAML', async () => {
+    const boardConfig: BoardConfig = {
+      sources: {
+        github: {
+          type: 'github-actions',
+          repo: 'team/repo',
+          token_env: 'GITHUB_TOKEN',
+        },
+      },
+      boards: {
+        operations: {
+          panels: [
+            {
+              id: 'first',
+              type: 'pipeline-status',
+              source: 'github',
+              pipeline: 'main.yml',
+              position: { x: 0, y: 0, w: 8, h: 3 },
+            },
+            {
+              id: 'second',
+              type: 'pipeline-status',
+              source: 'github',
+              pipeline: 'main.yml',
+              position: { x: 4, y: 12, w: 8, h: 2 },
+            },
+          ],
+        },
+      },
+    }
+    const config = loadConfig({ ASSET_PATH: 'https://assets.example.com/dashboard/1.0.7' })
+    const app = createApp({
+      config,
+      boardConfig,
+      fetcher: (async () => new Response(TEMPLATE)) as typeof fetch,
+    })
+
+    const response = await app.request('/api/boards/operations/rendered')
+    const corrected = parseYaml(await response.text())
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toContain('text/yaml')
+    expect(corrected.boards.operations.panels[1].position).toEqual({ x: 4, y: 10, w: 8, h: 2 })
+    expect(corrected.sources.github).toMatchObject({ repo: 'team/repo', token_env: 'GITHUB_TOKEN' })
+    expect(JSON.stringify(corrected)).not.toContain('secret-value')
+  })
+
+  it('returns an authored layout with the original coordinates unchanged', async () => {
+    const boardConfig: BoardConfig = {
+      sources: {},
+      boards: {
+        operations: {
+          panels: [
+            { id: 'first', type: 'test', position: { x: 0, y: 0, w: 8, h: 3 } },
+            { id: 'second', type: 'test', position: { x: 4, y: 12, w: 8, h: 2 } },
+          ],
+        },
+      },
+    }
+    const config = loadConfig({ ASSET_PATH: 'https://assets.example.com/dashboard/1.0.7' })
+    const app = createApp({ config, boardConfig })
+
+    const response = await app.request('/api/boards/operations/authored')
+    const authored = parseYaml(await response.text())
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-disposition')).toContain('operations-layout-authored.yaml')
+    expect(authored.boards.operations.panels[1].position).toEqual({ x: 4, y: 12, w: 8, h: 2 })
+  })
+
+  it('does not expose an unknown board', async () => {
+    const config = loadConfig({ ASSET_PATH: 'https://assets.example.com/dashboard/1.0.7' })
+    const app = createApp({
+      config,
+      boardConfig: {
+        sources: {},
+        boards: { operations: { panels: [{ id: 'x', type: 'test' }] } },
+      },
+    })
+
+    expect((await app.request('/api/boards/missing/rendered')).status).toBe(404)
+    expect((await app.request('/api/boards/missing/authored')).status).toBe(404)
+  })
+
+  it('sanitizes board names in download filenames', async () => {
+    const config = loadConfig({ ASSET_PATH: 'https://assets.example.com/dashboard/1.0.7' })
+    const app = createApp({
+      config,
+      boardConfig: {
+        sources: {},
+        boards: { 'ops%/west': { panels: [{ id: 'x', type: 'test' }] } },
+      },
+    })
+
+    const response = await app.request('/api/boards/ops%25%2Fwest/authored')
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-disposition')).toContain('ops__west-layout-authored.yaml')
   })
 })

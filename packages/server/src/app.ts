@@ -1,5 +1,12 @@
-import type { BoardConfig, ClientEnv, ClientIdentity } from '@ze-great-dashboard/shared'
+import {
+  type BoardConfig,
+  type ClientEnv,
+  type ClientIdentity,
+  normalizeBoardLayout,
+} from '@ze-great-dashboard/shared'
+import type { Context } from 'hono'
 import { Hono } from 'hono'
+import { stringify as stringifyYaml } from 'yaml'
 import {
   fetchGithubActionsPipeline,
   fetchGithubActionsPullRequestHealth,
@@ -54,6 +61,43 @@ export function createApp(deps: AppDependencies): Hono {
     const board = deps.boardConfig?.boards[c.req.param('board')]
     return board ? c.json(board) : c.notFound()
   })
+  const layoutDownload = (
+    c: Context<Record<string, never>, '/api/boards/:board/rendered'>,
+    mode: 'rendered' | 'authored',
+  ) => {
+    const boardName = c.req.param('board')
+    const board = deps.boardConfig?.boards[boardName]
+    if (!board || !deps.boardConfig) return c.notFound()
+
+    const sourceNames = new Set(
+      board.panels.flatMap((panel) => (panel.source ? [panel.source] : [])),
+    )
+    const sources = Object.fromEntries(
+      [...sourceNames].flatMap((sourceName) => {
+        const source = deps.boardConfig?.sources[sourceName]
+        return source ? [[sourceName, source]] : []
+      }),
+    )
+    const outputBoard = {
+      ...board,
+      panels: mode === 'authored' ? board.panels : normalizeBoardLayout(board.panels),
+    }
+    const outputConfig = {
+      sources,
+      boards: { [boardName]: outputBoard },
+      ...(deps.boardConfig.auth ? { auth: deps.boardConfig.auth } : {}),
+    }
+
+    const filenameBoard = safeDownloadFilename(boardName)
+    return new Response(stringifyYaml(outputConfig, { sortMapEntries: true }), {
+      headers: {
+        'content-type': 'text/yaml; charset=utf-8',
+        'content-disposition': `attachment; filename="${filenameBoard}-layout-${mode}.yaml"`,
+      },
+    })
+  }
+  app.get('/api/boards/:board/rendered', (c) => layoutDownload(c, 'rendered'))
+  app.get('/api/boards/:board/authored', (c) => layoutDownload(c, 'authored'))
   app.get('/api/panel/:board/:panelId', async (c) => {
     const boardName = c.req.param('board')
     const panelId = c.req.param('panelId')
@@ -129,6 +173,11 @@ export function createApp(deps: AppDependencies): Hono {
   }
 
   return app
+}
+
+function safeDownloadFilename(value: string): string {
+  const sanitized = value.replace(/[\\/\r\n"%*:|<>?]/g, '_').trim()
+  return sanitized || 'board'
 }
 
 function passthroughHeaders(upstream: Headers): Headers {

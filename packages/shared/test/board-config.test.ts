@@ -72,6 +72,31 @@ describe('the board config schema', () => {
     expect(boardConfigSchema.safeParse(validConfig).success).toBe(true)
   })
 
+  it('accepts the zero-size preserved-but-hidden position sentinel', () => {
+    expect(
+      boardConfigSchema.safeParse({
+        boards: {
+          a: {
+            panels: [
+              { id: 'hidden', type: 'pipeline-status', position: { x: 0, y: 0, w: 0, h: 0 } },
+            ],
+          },
+        },
+      }).success,
+    ).toBe(true)
+    expect(
+      boardConfigSchema.safeParse({
+        boards: {
+          a: {
+            panels: [
+              { id: 'partial', type: 'pipeline-status', position: { x: 0, y: 0, w: 0, h: 1 } },
+            ],
+          },
+        },
+      }).success,
+    ).toBe(false)
+  })
+
   it('accepts an optional presentation label while retaining the stable id', () => {
     const panel = boardConfigSchema.parse({
       boards: { a: { panels: [{ id: 'build-main', label: 'Build', type: 'pipeline-status' }] } },

@@ -1,5 +1,10 @@
-import type { Board, ClientEnv } from '@ze-great-dashboard/shared'
-import { useEffect, useRef, useState } from 'react'
+import {
+  analyzeBoardLayout,
+  type Board,
+  type ClientEnv,
+  isZeroPosition,
+} from '@ze-great-dashboard/shared'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
 import { Diagnostics } from './Diagnostics.tsx'
 import { BrowserDiagnosticStore, cacheMetadata } from './diagnostics.ts'
@@ -28,6 +33,16 @@ export function App({ env }: { env: ClientEnv }) {
     env,
     diagnostics,
   })
+  const layout = useMemo(() => (board ? analyzeBoardLayout(board.panels) : undefined), [board])
+
+  useEffect(() => {
+    if (!layout || layout.issues.length === 0) return
+    diagnostics.record({
+      kind: 'layout-analyzed',
+      issueCount: layout.issues.length,
+      affectedPanelIds: layout.issues.map((issue) => issue.panelId),
+    })
+  }, [diagnostics, layout])
 
   useEffect(() => {
     let cancelled = false
@@ -91,18 +106,111 @@ export function App({ env }: { env: ClientEnv }) {
       <header className={styles.header}>
         <h1 className={styles.title}>{env.board}</h1>
       </header>
-
       <main className={styles.grid}>
         {!board && <PanelPlaceholder label="board" hint="Loading configuration…" wide />}
-        {board?.panels.map((panel) => (
-          <PanelRenderer key={panel.id} panel={panel} envelope={signals[panel.id]} />
-        ))}
+        {board?.panels
+          .filter((panel) => !isZeroPosition(panel.position))
+          .map((panel) => (
+            <PanelRenderer key={panel.id} panel={panel} envelope={signals[panel.id]} />
+          ))}
       </main>
 
       <footer className={styles.footer} data-board-footer>
         <span>Signals are read live from their configured authorities.</span>
-        <Diagnostics log={diagnostics} />
+        <div className={styles.footerTools}>
+          {layout && layout.issues.length > 0 && (
+            <LayoutWarning board={env.board} layout={layout} proxyPath={env.proxyPath} />
+          )}
+          <Diagnostics log={diagnostics} />
+        </div>
       </footer>
+    </div>
+  )
+}
+
+function LayoutWarning({
+  board,
+  layout,
+  proxyPath,
+}: {
+  board: string
+  layout: ReturnType<typeof analyzeBoardLayout>
+  proxyPath: string
+}) {
+  const [open, setOpen] = useState(false)
+  const dialogId = `layout-warning-${board}`
+
+  useEffect(() => {
+    if (!open) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [open])
+
+  const boardPath = `${proxyPath}/boards/${encodeURIComponent(board)}`
+  return (
+    <div className={styles.layoutWarning} data-layout-warning>
+      <button
+        className={styles.layoutWarningButton}
+        type="button"
+        aria-label={`Layout warnings (${layout.issues.length})`}
+        aria-expanded={open}
+        aria-controls={dialogId}
+        onClick={() => setOpen(!open)}
+      >
+        <span aria-hidden="true">⚠</span>
+        <span>{layout.issues.length}</span>
+      </button>
+      {open && (
+        <aside
+          className={styles.layoutWarningDialog}
+          id={dialogId}
+          role="dialog"
+          aria-labelledby={`${dialogId}-title`}
+          aria-modal="false"
+        >
+          <div className={styles.layoutWarningHeading}>
+            <strong id={`${dialogId}-title`}>Layout warnings</strong>
+            <button
+              className={styles.layoutWarningClose}
+              type="button"
+              aria-label="Close layout warnings"
+              onClick={() => setOpen(false)}
+            >
+              ×
+            </button>
+          </div>
+          <p>
+            {layout.issues.length} layout issue{layout.issues.length === 1 ? '' : 's'} detected
+            against the intended 12×12 space. The live board is unchanged: explicit overlaps remain
+            overlapped and overflow continues in implicit rows.
+          </p>
+          <ul>
+            {layout.issues.map((issue) => (
+              <li key={`${issue.panelId}-${issue.kind}`}>
+                <strong>{issue.panelId}</strong>: {issue.kind} at ({issue.position.x},{' '}
+                {issue.position.y}), {issue.position.w}×{issue.position.h}
+                {issue.conflictsWith.length ? `; overlaps ${issue.conflictsWith.join(', ')}` : ''}
+              </li>
+            ))}
+          </ul>
+          <div className={styles.layoutWarningDownloads}>
+            <a href={`${boardPath}/rendered`} download={`${board}-layout-rendered.yaml`}>
+              Download legal rendered layout
+            </a>
+            <a href={`${boardPath}/authored`} download={`${board}-layout-authored.yaml`}>
+              Download authored layout
+            </a>
+          </div>
+          <p className={styles.layoutWarningNote}>
+            The legal rendered layout normalizes the currently visible explicit area into 12×12 and
+            makes the smallest deterministic adjustments needed to avoid collisions. The authored
+            layout preserves the original coordinates exactly.
+          </p>
+        </aside>
+      )}
     </div>
   )
 }

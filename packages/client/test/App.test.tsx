@@ -590,4 +590,41 @@ describe('http-value panels', () => {
     expect(panel?.getAttribute('style')).toContain('--panel-column: 7 / span 6')
     expect(panel?.getAttribute('style')).toContain('--panel-row: 5 / span 3')
   })
+
+  it('warns when panel positions exceed the intended canvas', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) =>
+        String(input).startsWith('/api/boards/')
+          ? new Response(
+              JSON.stringify({
+                panels: [
+                  { id: 'first', type: 'pipeline-status', position: { x: 0, y: 0, w: 8, h: 3 } },
+                  { id: 'second', type: 'pipeline-status', position: { x: 4, y: 12, w: 8, h: 2 } },
+                ],
+              }),
+            )
+          : new Response('{}'),
+      ),
+    )
+
+    const rendered = render(<App env={env} />)
+    await act(async () => {})
+
+    expect(rendered.querySelector('[data-layout-warning]')).not.toBeNull()
+    expect(rendered.textContent).not.toContain('second: out-of-bounds')
+    const warningButton = rendered.querySelector(
+      '[data-layout-warning] button[aria-label="Layout warnings (1)"]',
+    ) as HTMLButtonElement
+    expect(warningButton).not.toBeNull()
+    fireEvent.click(warningButton)
+    expect(rendered.textContent).toContain(
+      '1 layout issue detected against the intended 12×12 space',
+    )
+    expect(rendered.textContent).toContain('second: out-of-bounds at (4, 12), 8×2')
+    expect(rendered.querySelector('a[href="/api/boards/ze-great-team/rendered"]')).not.toBeNull()
+    expect(rendered.querySelector('a[href="/api/boards/ze-great-team/authored"]')).not.toBeNull()
+    expect(rendered.textContent).toContain('Download legal rendered layout')
+    expect(rendered.textContent).toContain('Download authored layout')
+  })
 })

@@ -5,12 +5,15 @@ const durationSchema = z
   .regex(/^\d+(?:ms|s|m|h)$/)
   .refine((value) => Number.parseInt(value, 10) > 0)
   .brand<'Duration'>()
-const positionSchema = z.object({
-  x: z.number().int().min(0),
-  y: z.number().int().min(0),
-  w: z.number().int().min(1).max(12),
-  h: z.number().int().min(1),
-})
+const positionSchema = z.union([
+  z.object({
+    x: z.number().int().min(0),
+    y: z.number().int().min(0),
+    w: z.number().int().min(1).max(12),
+    h: z.number().int().min(1),
+  }),
+  z.object({ x: z.literal(0), y: z.literal(0), w: z.literal(0), h: z.literal(0) }),
+])
 const panelSchema = z.looseObject({
   // Presentation-only; ids still address proxy calls and the generated allowlist.
   label: z.string().min(1).optional(),

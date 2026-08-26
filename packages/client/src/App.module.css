@@ -31,6 +31,94 @@
   min-height: 0;
   align-content: stretch;
 }
+.footerTools {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.layoutWarning {
+  position: relative;
+}
+.layoutWarningButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2em;
+  min-width: 2em;
+  min-height: 2em;
+  border: 1px solid var(--status-warning);
+  border-radius: 50%;
+  color: var(--status-warning);
+  background: var(--surface-raised);
+  font: inherit;
+  cursor: pointer;
+}
+.layoutWarningButton:hover,
+.layoutWarningButton:focus-visible {
+  background: var(--surface);
+}
+.layoutWarningDialog {
+  position: absolute;
+  z-index: 10;
+  right: 0;
+  bottom: calc(100% + 0.75rem);
+  width: min(32rem, calc(100vw - 2 * var(--gap)));
+  padding: 0.8rem;
+  border: 1px solid var(--status-warning);
+  border-radius: var(--radius);
+  color: var(--ink-secondary);
+  background: var(--surface-raised);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 35%);
+}
+.layoutWarningHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.layoutWarningHeading strong {
+  color: var(--status-warning);
+}
+.layoutWarningDialog p {
+  margin: 0.6rem 0;
+}
+.layoutWarningDialog ul {
+  margin: 0.35rem 0 0.75rem;
+  padding-left: 1.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+}
+.layoutWarningClose {
+  border: 0;
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: 1.25em;
+  line-height: 1;
+  cursor: pointer;
+}
+.layoutWarningDownloads {
+  display: grid;
+  gap: 0.35rem;
+}
+.layoutWarningDownloads a {
+  border: 1px solid var(--edge);
+  border-radius: 0.25rem;
+  background: var(--surface-raised);
+  color: var(--ink-secondary);
+  font: inherit;
+  padding: 0.3em 0.55em;
+  text-align: center;
+  text-decoration: none;
+}
+.layoutWarningDownloads a:hover,
+.layoutWarningDownloads a:focus-visible {
+  border-color: var(--ink-secondary);
+  color: var(--ink-primary);
+}
+.layoutWarningNote {
+  color: var(--ink-muted);
+  font-size: 0.85em;
+}
 .footer {
   display: flex;
   flex-wrap: wrap;
@@ -52,5 +140,10 @@
     grid-auto-rows: auto;
     flex: 0 0 auto;
     min-height: auto;
+  }
+  .layoutWarningDialog {
+    position: fixed;
+    right: var(--gap);
+    bottom: calc(var(--gap) + 3rem);
   }
 }

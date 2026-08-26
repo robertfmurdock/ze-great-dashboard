@@ -8,7 +8,8 @@ changed the sequence or scope.
 Detailed dated slices are recorded in [the Stage 4 HTTP value log](logs/stage4-http-value-log.md),
 the earlier [Stage 2 GitHub Actions log](logs/stage2-github-actions-log.md), and the [dashboard
 package and deployment log](logs/dashboard-package-log.md). See the full
-[implementation-log index](logs/README.md) for all records.
+[implementation-log index](logs/README.md) for all records. The current layout-resolution decisions
+and verification are recorded in the [layout resolution log](logs/layout-resolution-log.md).
 
 ## Deployment status
 
@@ -47,6 +48,9 @@ locally. The current implementation includes:
   text or JSON, and support the deliberately small field-and-index JSON-path subset.
 - Radiator layout polish: configured 12-column positions are rendered, narrow screens collapse to a
   readable single column, and every observation discloses relative age with stale readings emphasized.
+- Layout reporting is explicit: positions outside the intended 12×12 canvas and overlaps are shown
+  through the Diagnostics-adjacent warning control, with authored and legal normalized YAML
+  downloads that preserve panel settings.
 - Local development watches the configured board file, so editing deployable board configuration
   restarts the server listener without making the example board itself part of the product contract.
 - Docker, Lambda bundling, publishable local consumer/AWS packages, fixture-driven tests, and the

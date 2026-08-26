@@ -43,6 +43,15 @@ security-relevant proxy addresses; do not use a display rename to change one. `l
 presentation-only text for the wall display and defaults to the id. Positions use a twelve-column
 grid: `x` and `y` locate the panel, while `w` and `h` define its size.
 
+At desktop widths, positions are interpreted in an intended twelve-column by twelve-row space, but
+the current renderer continues to honor authored coordinates and may create implicit rows. The
+dashboard reports panels that exceed the intended space or overlap another panel; live rendering
+does not move, resize, or hide them. Panels without a position retain CSS Grid auto-placement. The
+warning offers a legal rendered YAML download that scales the explicit rendered area into 12×12 and
+makes deterministic nearest-cell adjustments, plus an authored download that preserves the source
+coordinates. Panels that cannot receive a legal cell retain all primary settings but use
+`{ x: 0, y: 0, w: 0, h: 0 }`. Narrow screens intentionally use a single-column flow.
+
 Use the optional `display` role to express how much attention a panel should receive. `primary`
 is for the most actionable signals, `supporting` is the default, and `compact` is for lower-priority
 context such as version values. The role changes presentation density and typography; `position`

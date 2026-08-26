@@ -14,3 +14,5 @@ evidence behind the current documentation without interrupting the task-oriented
   its validation history.
 - [Panel-scale animation log](panel-scale-animation-log.md) — active-run field redesign, visual
   review findings, and the remaining signal-field follow-up.
+- [Layout resolution log](layout-resolution-log.md) — layout warnings, legal normalized downloads,
+  and the example board's corrected coordinates.

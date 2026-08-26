@@ -55,7 +55,8 @@ export function PanelFrame({
 }) {
   const display =
     panel.display === 'primary' || panel.display === 'compact' ? panel.display : 'supporting'
-  const shallow = panel.position?.h !== undefined && panel.position.h <= 2
+  const position = panel.position
+  const shallow = position !== undefined && position.h <= 2
   return (
     <section
       className={`${styles.panel} ${styles[display]} ${shallow ? styles.shallow : ''} ${error ? styles.error : ''}`}
@@ -63,6 +64,9 @@ export function PanelFrame({
       aria-busy={envelope ? undefined : true}
       data-panel
       data-panel-id={panel.id}
+      data-panel-position={
+        position ? `${position.x},${position.y},${position.w},${position.h}` : undefined
+      }
       data-display={display}
       data-shallow={shallow}
       data-error={error || undefined}

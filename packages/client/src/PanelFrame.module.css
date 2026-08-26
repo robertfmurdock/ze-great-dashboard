@@ -114,6 +114,7 @@
 .link:hover {
   color: var(--ink-primary);
 }
+
 .primary :is(.hint, .observed, .link),
 .compact :is(.hint, .observed, .link) {
   font-size: 0.65em;
