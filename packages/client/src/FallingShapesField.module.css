@@ -61,11 +61,6 @@
 .piece[data-piece-phase="settled"] {
   opacity: 0.5;
 }
-@container panel (max-width: 24rem) {
-  .grid {
-    inset: 18%;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .piece,
   .field[data-recycling="true"] .piece {

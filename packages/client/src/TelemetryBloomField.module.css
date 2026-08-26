@@ -30,6 +30,7 @@
   height: 0.25em;
 }
 .markerBody {
+  --phased-marker-travel: -10cqw;
   border-radius: 999px;
   background: currentColor;
   box-shadow: 0 0 0.6em currentColor;
@@ -43,7 +44,7 @@
 .lane:nth-child(4) .markerBody {
   opacity: 0.8;
 }
-@container (max-width: 40rem) {
+@container running-field (max-width: 40rem) {
   .lanes {
     display: none;
   }
@@ -51,11 +52,6 @@
     width: 0.28em;
     border-right: 0;
     background: currentColor;
-  }
-}
-@media (max-width: 42rem) {
-  .lanes {
-    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {

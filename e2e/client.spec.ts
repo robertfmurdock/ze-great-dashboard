@@ -103,6 +103,12 @@ const signalFieldBoard = {
       running_animation: 'falling-shapes',
       position: { x: 0, y: 24, w: 12, h: 2 },
     },
+    {
+      id: 'narrow-bloom-build',
+      type: 'pipeline-status',
+      running_animation: 'telemetry-bloom',
+      position: { x: 0, y: 26, w: 2, h: 2 },
+    },
   ],
 }
 
@@ -327,7 +333,7 @@ test('keeps panel-scale fields behind readable content, adapts them without over
 
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/')
-  const field = page.locator('[data-running-field][data-animation="telemetry-bloom"]')
+  const field = page.locator('[data-running-field][data-animation="telemetry-bloom"]').first()
   await expect(field).toBeVisible()
   await expect(field.locator('[data-running-part="bloom-lane"]')).toHaveCount(4)
   const large = await field.evaluate((element) => {
@@ -348,6 +354,15 @@ test('keeps panel-scale fields behind readable content, adapts them without over
   expect(large.field?.bottom).toBeLessThanOrEqual(large.panel?.bottom ?? Number.POSITIVE_INFINITY)
   expect(large.content?.zIndex).not.toBe('auto')
   expect(large.packetAnimation).not.toBe('none')
+
+  // The compact decision must follow the panel's rendered width, not the viewport width.
+  const narrowBloom = page.locator('[data-running-field][data-animation="telemetry-bloom"]').nth(1)
+  await expect(narrowBloom).toBeVisible()
+  expect(
+    await narrowBloom
+      .locator('[data-running-part="bloom-lanes"]')
+      .evaluate((element) => getComputedStyle(element).display),
+  ).toBe('none')
 
   const transit = page.locator('[data-running-field][data-animation="release-transit"]')
   await expect(transit).toBeVisible()

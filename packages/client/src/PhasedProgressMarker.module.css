@@ -12,7 +12,7 @@
 }
 @keyframes phased-marker {
   from {
-    transform: translate(-10em, -50%);
+    transform: translate(var(--phased-marker-travel, -10em), -50%);
   }
   to {
     transform: translate(-50%, -50%);

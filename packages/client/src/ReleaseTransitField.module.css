@@ -58,7 +58,7 @@
   background: currentColor;
   box-shadow: 0 0 0.65em currentColor;
 }
-@container (max-width: 40rem) {
+@container running-field (max-width: 40rem) {
   .routes,
   .trail,
   .packet,
@@ -71,17 +71,9 @@
     background: currentColor;
   }
 }
-@media (max-width: 42rem) {
-  .routes,
-  .trail,
-  .packet,
-  .now {
-    display: none;
-  }
-}
 @keyframes packet {
   from {
-    transform: translate(-10vw, -50%);
+    transform: translate(-10cqw, -50%);
   }
   to {
     transform: translate(120cqw, -50%);

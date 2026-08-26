@@ -5,6 +5,7 @@
   overflow: hidden;
   pointer-events: none;
   container-type: size;
+  container-name: running-field;
   color: var(--status-warning);
 }
 .overdue {

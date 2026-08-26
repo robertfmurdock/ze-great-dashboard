@@ -110,3 +110,28 @@ bounds/layering, compact suppression, transit components, and legacy signal-fiel
 
 `npm run check` passed after the final changes: lint, typecheck, 201 unit tests, 6 browser tests,
 board validation, and published-package smoke testing.
+
+## Responsive sizing pass and standalone showcase (2026-08-26)
+
+The follow-up sizing pass covered all eight running treatments without changing their public
+configuration values or legacy markup. Panel-scale fields now use a named size container for
+responsive fallbacks instead of viewport media queries. Transit packet travel, telemetry marker
+travel, and weather drift dimensions and distances are panel-relative. The retained runway visual
+is constrained to its available panel width, and falling-shapes keeps its logical grid aligned with
+its rendered interior at compact sizes.
+
+Browser coverage now includes a narrow telemetry panel rendered on a wide viewport, protecting the
+requirement that compact behavior follows the panel rather than the viewport. Existing reduced
+motion, field layering, legacy-treatment, and overflow coverage remains passing.
+
+A standalone, source-free review board was added at `boards/animation-showcase.yaml`. The
+`animation-showcase` board displays all eight treatments in deliberately varied wide, medium, and
+compact panels, including a second compact falling-shapes panel. It can be reviewed locally with:
+
+```
+BOARD_CONFIG_URL=boards/animation-showcase.yaml BOARD=animation-showcase npm run dev
+```
+
+The existing `boards/example.yaml`, local defaults, APIs, and dependency set remain unchanged.
+Verification passed with `npm run check`: 241 unit tests, 8 browser tests, example-board and
+showcase-board validation, and published-package smoke testing.
