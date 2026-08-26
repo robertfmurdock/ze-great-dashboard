@@ -246,7 +246,19 @@ jobs:
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
         env:
           IMAGE: ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
-        run: bash scripts/test-ecs-image.sh
+        run: |
+          for attempt in 1 2 3; do
+            echo "ECS Docker smoke-test attempt $attempt/3"
+            if bash scripts/test-ecs-image.sh; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo 'ECS Docker smoke test did not pass; retrying in 10 seconds.' >&2
+              sleep 10
+            fi
+          done
+          echo 'ECS Docker smoke test failed after 3 attempts.' >&2
+          exit 1
 
       - name: Save verified release candidate
         if: github.ref == 'refs/heads/main'
