@@ -1,41 +1,45 @@
-# Small public board used by the quickstart and schema tests. It is intentionally asymmetric so
-# the grid layout is obvious when trying the dashboard locally.
-
-sources:
-  example-github:
-    type: github-actions
-    repo: actions/checkout
-    branch: main
-    token_env: GITHUB_TOKEN
-
 boards:
   example:
-    refresh: 60s
     panels:
       - id: example-build
-        type: pipeline-status
+        pipeline: "88506573"
+        position:
+          h: 3
+          w: 8
+          x: 0
+          y: 0
         source: example-github
-        pipeline: '88506573'
-        position: { x: 0, y: 0, w: 8, h: 6 }
-
+        type: pipeline-status
       - id: example-version
+        json_path: $.version
+        position:
+          h: 3
+          w: 4
+          x: 8
+          y: 0
         type: http-value
         url: https://example.com/version.json
-        json_path: $.version
-        position: { x: 8, y: 0, w: 4, h: 6 }
-
-      # Local-only comparison aid: it derives its active state from the browser clock and never
-      # calls a source or the panel proxy.
-      - id: active-run-treatments
+      - display: supporting
+        id: active-run-treatments
+        position:
+          h: 3
+          w: 12
+          x: 0
+          y: 3
         type: pipeline-animation-demo
-        display: supporting
-        position: { x: 0, y: 6, w: 12, h: 6 }
-
-      # Focused, source-free review surface for the signal-field marker issue. Unlike the rotating
-      # comparison aid above, this stays on one treatment so timing ticks and phase reversals are
-      # easy to watch.
-      - id: signal-field-motion-review
-        type: pipeline-animation-demo
+      - display: supporting
+        id: signal-field-motion-review
+        position:
+          h: 6
+          w: 12
+          x: 0
+          y: 6
         running_animation: signal-field
-        display: supporting
-        position: { x: 0, y: 12, w: 12, h: 12 }
+        type: pipeline-animation-demo
+    refresh: 60s
+sources:
+  example-github:
+    branch: main
+    repo: actions/checkout
+    token_env: GITHUB_TOKEN
+    type: github-actions
