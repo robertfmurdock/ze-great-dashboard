@@ -1,3 +1,4 @@
+import { PhasedProgressMarker } from './PhasedProgressMarker.tsx'
 import styles from './TelemetryBloomField.module.css'
 
 export function TelemetryBloomField() {
@@ -7,7 +8,13 @@ export function TelemetryBloomField() {
       <span className={styles.lanes} data-running-part="bloom-lanes">
         {[0, 1, 2, 3].map((lane) => (
           <span className={styles.lane} key={lane} data-running-part="bloom-lane">
-            <span className={styles.marker} data-running-part="bloom-marker" />
+            <PhasedProgressMarker
+              anchorClassName={styles.markerAnchor}
+              bodyClassName={styles.markerBody}
+              delay={[undefined, '-0.8s', '-1.7s', '-2.4s'][lane]}
+              anchorPart="bloom-marker-anchor"
+              bodyPart="bloom-marker"
+            />
           </span>
         ))}
       </span>

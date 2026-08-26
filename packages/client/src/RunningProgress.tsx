@@ -1,5 +1,6 @@
 import type { RunningAnimation } from '@ze-great-dashboard/shared'
 import type { CSSProperties } from 'react'
+import { PhasedProgressMarker } from './PhasedProgressMarker.tsx'
 import styles from './RunningProgress.module.css'
 import { compactTiming, type RunningTiming, timingDescription } from './running-timing.ts'
 
@@ -46,9 +47,13 @@ export function RunningProgress({
             <span className={styles.tracks} data-running-part="signal-tracks">
               {[0, 1, 2, 3, 4].map((track) => (
                 <span className={styles.track} key={track} data-running-part="signal-track">
-                  <span className={styles.marker}>
-                    <span className={styles.markerDot} />
-                  </span>
+                  <PhasedProgressMarker
+                    anchorClassName={styles.markerAnchor}
+                    bodyClassName={styles.markerBody}
+                    delay={[undefined, '-0.8s', '-1.7s', '-2.4s', '-0.35s'][track]}
+                    anchorPart="signal-marker-anchor"
+                    bodyPart="signal-marker"
+                  />
                 </span>
               ))}
             </span>

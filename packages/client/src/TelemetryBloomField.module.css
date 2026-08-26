@@ -25,27 +25,22 @@
     transparent
   );
 }
-.marker {
-  position: absolute;
-  top: 50%;
-  left: var(--running-progress);
+.markerAnchor {
   width: 0.42em;
   height: 0.25em;
+}
+.markerBody {
   border-radius: 999px;
   background: currentColor;
   box-shadow: 0 0 0.6em currentColor;
-  animation: marker 3.2s ease-in-out infinite alternate;
 }
-.lane:nth-child(2) .marker {
-  animation-delay: -0.8s;
+.lane:nth-child(2) .markerBody {
   opacity: 0.7;
 }
-.lane:nth-child(3) .marker {
-  animation-delay: -1.7s;
+.lane:nth-child(3) .markerBody {
   opacity: 0.5;
 }
-.lane:nth-child(4) .marker {
-  animation-delay: -2.4s;
+.lane:nth-child(4) .markerBody {
   opacity: 0.8;
 }
 @container (max-width: 40rem) {
@@ -63,19 +58,7 @@
     display: none;
   }
 }
-@keyframes marker {
-  from {
-    transform: translate(-10em, -50%);
-  }
-  to {
-    transform: translate(-50%, -50%);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
-  .marker {
-    animation: none;
-    transition: none;
-  }
   .frontier {
     transition: none;
   }

@@ -66,11 +66,13 @@ status label or timing text.
 ## Local animation demo
 
 `pipeline-animation-demo` is a local visualization aid for comparing active pipeline treatments.
-It accepts only the usual panel metadata (`id`, optional `display`, and optional `position`) and
-does not name a source, refresh interval, credential, or API endpoint. It rotates through all seven
-supported visible treatments on a fixed 20-second loop, including the overdue treatment after its
-15-second advisory estimate. Add it to a local board while choosing a treatment; omit it from a
-production board when it is no longer useful.
+It does not name a source, refresh interval, credential, or API endpoint. Without
+`running_animation`, it rotates through all seven supported visible treatments on a fixed 20-second
+loop, including the overdue treatment after its 15-second advisory estimate. Give it a visible
+`running_animation` value to hold one treatment for focused review; that review mode uses a matching
+five-minute synthetic run so it cannot rebase at the rotating demo’s 20-second run boundary. Add it
+to a local board while choosing a treatment; omit it from a production board when it is no longer
+useful.
 
 ## Credentials
 

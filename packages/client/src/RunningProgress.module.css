@@ -241,7 +241,10 @@
     display: none;
   }
 }
-@container (min-width: 26rem) and (min-height: 10rem) {
+/* A size-contained signal field cannot use its own intrinsic height as a query input: its
+   auto-sized content would always satisfy the compact branch. Width is the stable panel-scale
+   discriminator; the field's parent already controls its available height. */
+@container (min-width: 26rem) {
   .signalField .visual {
     height: 100%;
     min-height: 8em;
@@ -300,35 +303,28 @@
       transparent
     );
   }
-  .marker {
-    position: absolute;
-    top: 50%;
-    left: var(--running-progress);
+  .markerAnchor {
     width: 0.38em;
     height: 0.22em;
   }
-  .markerDot {
-    position: absolute;
-    inset: 0;
+  .markerBody {
     border-radius: 0.06em;
     background: var(--status-warning);
     box-shadow: 0 0 0.4em var(--status-warning);
-    animation: bloom 3.2s ease-in-out infinite alternate;
-    will-change: transform;
   }
-  .track:nth-child(2) .markerDot {
+  .track:nth-child(2) .markerBody {
     animation-delay: -0.8s;
     opacity: 0.7;
   }
-  .track:nth-child(3) .markerDot {
+  .track:nth-child(3) .markerBody {
     animation-delay: -1.7s;
     opacity: 0.45;
   }
-  .track:nth-child(4) .markerDot {
+  .track:nth-child(4) .markerBody {
     animation-delay: -2.4s;
     opacity: 0.7;
   }
-  .track:nth-child(5) .markerDot {
+  .track:nth-child(5) .markerBody {
     animation-delay: -0.35s;
     opacity: 0.55;
   }
@@ -366,14 +362,6 @@
     transform: translate(calc(var(--running-progress) + 0.5em), -50%);
   }
 }
-@keyframes bloom {
-  from {
-    transform: translate(-10em, -50%);
-  }
-  to {
-    transform: translate(-50%, -50%);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .radial .visual::after,
   .spark,
@@ -381,7 +369,6 @@
   .particle,
   .pulse,
   .lead,
-  .markerDot,
   .signalField .visual::before,
   .indeterminate .visual {
     animation: none;

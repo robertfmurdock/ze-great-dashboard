@@ -79,4 +79,26 @@ describe('RunningField', () => {
       expect(rendered.querySelector('[data-running-field]')).toBeNull()
     },
   )
+
+  it('uses the shared phased marker anchor/body structure for bloom and signal-field', () => {
+    const bloom = render(
+      <PipelinePanel
+        panel={{ ...panel, running_animation: 'telemetry-bloom' }}
+        envelope={envelope()}
+      />,
+    ).container
+    expect(bloom.querySelectorAll('[data-running-part="bloom-marker-anchor"]')).toHaveLength(4)
+    expect(bloom.querySelectorAll('[data-running-part="bloom-marker"]')).toHaveLength(4)
+
+    cleanup()
+    const signal = render(
+      <PipelinePanel
+        panel={{ ...panel, running_animation: 'signal-field' }}
+        envelope={envelope()}
+      />,
+    ).container
+    expect(signal.querySelectorAll('[data-running-part="signal-track"]')).toHaveLength(5)
+    expect(signal.querySelectorAll('[data-running-part="signal-marker-anchor"]')).toHaveLength(5)
+    expect(signal.querySelectorAll('[data-running-part="signal-marker"]')).toHaveLength(5)
+  })
 })

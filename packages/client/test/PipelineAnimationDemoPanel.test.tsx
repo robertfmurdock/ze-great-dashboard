@@ -69,4 +69,20 @@ describe('PipelineAnimationDemoPanel', () => {
     expect(rendered.container.textContent).toContain('Elapsed 16s')
     expect(rendered.container.textContent).toContain('Over estimate')
   })
+
+  it('holds a configured visible treatment for focused local review', async () => {
+    const rendered = render(
+      <PipelineAnimationDemoPanel panel={{ ...panel, running_animation: 'signal-field' }} />,
+    )
+
+    expect(
+      rendered.container.querySelector('[data-running-progress="signal-field"]'),
+    ).not.toBeNull()
+    await act(async () => vi.advanceTimersByTime(40_000))
+    expect(
+      rendered.container.querySelector('[data-running-progress="signal-field"]'),
+    ).not.toBeNull()
+    expect(rendered.container.textContent).toContain('Demo treatment · signal-field')
+    expect(rendered.container.textContent).toContain('0:40/~5:00')
+  })
 })

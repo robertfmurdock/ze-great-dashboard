@@ -52,18 +52,23 @@ The implementation was adjusted from real visual review, not only tests:
   to its compact badge mode. `.panel__content:has(.running-progress--signal-field)` restores the
   retained treatment's in-flow height. Browser coverage checks its full tracks are present.
 
-## Known follow-up: signal-field marker motion
+## Signal-field marker motion: still under investigation
 
-Signal-field marker motion remains visually suspect in manual review: dots can still appear to
-snap/rebase near a timing tick. The current implementation separates the moving progress anchor
-from the marker-dot transform and aligns the dot's pass/delay pattern with telemetry bloom, but this
-has not yet earned a clean visual sign-off.
+The shared marker experiment established matching markup and nominal animation metadata, but it did
+not reproduce or explain the reported browser-visible discontinuity. It must not be treated as a
+root-cause fix. The example board now includes a stable, source-free `signal-field-motion-review`
+panel so timing ticks and phase reversals can be observed without waiting for the rotating demo.
 
-Treat this as an open cosmetic issue, not a resolved one. Do not paper over it with more broad
-timing or panel CSS. Start the next investigation by comparing computed marker positions and
-animation phases against telemetry bloom in a large panel, then either make the implementations
-share a small marker primitive or deliberately simplify signal-field. Preserve its legacy class
-contract unless a reviewed compatibility decision changes it.
+The first video capture isolated one concrete discontinuity: the rotating demo reached
+`0:20/~0:15` and started a new synthetic run, resetting progress from 100% to 0%. That rebase moves
+every progress-anchored marker and is unrelated to the smooth 3.2-second alternating phase
+reversal. A fixed review treatment now uses a matching five-minute synthetic run to remove this
+known confounder from visual investigation.
+
+The next investigation must record the actual before/after frames from that focused panel, correlate
+any discontinuity with React rendering, layout/container-query changes, and animation lifecycle
+events, and then make the smallest change that removes the measured cause. Preserve `signal-field`,
+its five tracks, and its public configuration value.
 
 ## Verification
 

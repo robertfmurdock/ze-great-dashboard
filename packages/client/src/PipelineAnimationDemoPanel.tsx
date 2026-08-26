@@ -9,6 +9,7 @@ import { useRunningTiming } from './running-timing.ts'
 
 const RUN_DURATION_MS = 20_000
 const ESTIMATED_DURATION_MS = 15_000
+const REVIEW_DURATION_MS = 300_000
 const variants = [
   'radial',
   'runway',
@@ -25,24 +26,40 @@ const variants = [
  */
 export function PipelineAnimationDemoPanel({ panel }: { panel: Panel }) {
   const now = useClock()
-  const runNumber = Math.floor(now / RUN_DURATION_MS)
-  const animation = variants[runNumber % variants.length] ?? 'radial'
-  const runStartedAt = runNumber * RUN_DURATION_MS
+  // A configured visible treatment turns the local comparison aid into a stable review panel.
+  // `off` retains the rotating default: the demo exists to render a treatment.
+  const fixedAnimation =
+    panel.running_animation === undefined || panel.running_animation === 'off'
+      ? undefined
+      : panel.running_animation
+  const durationMs = fixedAnimation ? REVIEW_DURATION_MS : RUN_DURATION_MS
+  const runNumber = Math.floor(now / durationMs)
+  const animation = fixedAnimation ?? variants[runNumber % variants.length] ?? 'radial'
+  const runStartedAt = runNumber * durationMs
 
-  return <DemoRun panel={panel} animation={animation} runStartedAt={runStartedAt} />
+  return (
+    <DemoRun
+      panel={panel}
+      animation={animation}
+      runStartedAt={runStartedAt}
+      estimatedDurationMs={fixedAnimation ? REVIEW_DURATION_MS : ESTIMATED_DURATION_MS}
+    />
+  )
 }
 
 function DemoRun({
   panel,
   animation,
   runStartedAt,
+  estimatedDurationMs,
 }: {
   panel: Panel
   animation: (typeof variants)[number]
   runStartedAt: number
+  estimatedDurationMs: number
 }) {
   const startedAt = new Date(runStartedAt).toISOString()
-  const timing = useRunningTiming(startedAt, ESTIMATED_DURATION_MS)
+  const timing = useRunningTiming(startedAt, estimatedDurationMs)
   const usesField = isRunningFieldAnimation(animation)
   return (
     <PanelFrame
@@ -63,7 +80,7 @@ function DemoRun({
       {usesField ? (
         <RunningFieldTiming
           elapsedMs={timing.elapsedMs}
-          estimatedDurationMs={ESTIMATED_DURATION_MS}
+          estimatedDurationMs={estimatedDurationMs}
           overdue={timing.overdue}
         />
       ) : (

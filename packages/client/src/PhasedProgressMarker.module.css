@@ -1,0 +1,25 @@
+.anchor {
+  position: absolute;
+  top: 50%;
+  left: var(--running-progress);
+}
+.body {
+  position: absolute;
+  inset: 0;
+  animation: phased-marker 3.2s ease-in-out infinite alternate;
+  animation-delay: var(--phased-marker-delay, 0s);
+  will-change: transform;
+}
+@keyframes phased-marker {
+  from {
+    transform: translate(-10em, -50%);
+  }
+  to {
+    transform: translate(-50%, -50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .body {
+    animation: none;
+  }
+}

@@ -30,3 +30,12 @@ boards:
         type: pipeline-animation-demo
         display: supporting
         position: { x: 0, y: 6, w: 12, h: 6 }
+
+      # Focused, source-free review surface for the signal-field marker issue. Unlike the rotating
+      # comparison aid above, this stays on one treatment so timing ticks and phase reversals are
+      # easy to watch.
+      - id: signal-field-motion-review
+        type: pipeline-animation-demo
+        running_animation: signal-field
+        display: supporting
+        position: { x: 0, y: 12, w: 12, h: 12 }

@@ -375,6 +375,12 @@ test('keeps panel-scale fields behind readable content, adapts them without over
       .first()
       .evaluate((element) => getComputedStyle(element).animationName),
   ).toBe('none')
+  expect(
+    await legacySignal
+      .locator('[data-running-part="signal-marker"]')
+      .first()
+      .evaluate((element) => getComputedStyle(element).animationName),
+  ).toBe('none')
   await expect(page.locator('[data-panel-content]').first()).toContainText('Elapsed')
 
   await page.setViewportSize({ width: 390, height: 844 })
@@ -388,6 +394,149 @@ test('keeps panel-scale fields behind readable content, adapts them without over
   })
   expect(narrow.lanesVisible).toBe(false)
   expect(narrow.documentWidth).toBeLessThanOrEqual(narrow.viewportWidth)
+})
+
+test('keeps phased signal and bloom markers continuous while progress updates and reverses', async ({
+  page,
+}) => {
+  const motionBoard = {
+    panels: [
+      {
+        id: 'bloom-build',
+        type: 'pipeline-status',
+        running_animation: 'telemetry-bloom',
+        position: { x: 0, y: 0, w: 12, h: 6 },
+      },
+      {
+        id: 'signal-build',
+        type: 'pipeline-status',
+        running_animation: 'signal-field',
+        position: { x: 0, y: 6, w: 12, h: 6 },
+      },
+    ],
+  }
+  const runStartedAt = new Date(Date.now() - 120_000).toISOString()
+  const runningSignal = {
+    state: 'ok',
+    observedAt: new Date().toISOString(),
+    link: null,
+    signal: {
+      type: 'pipeline-status',
+      status: 'running',
+      rawStatus: 'in_progress',
+      name: 'Build',
+      runStartedAt,
+      estimatedDurationMs: 300_000,
+    },
+  }
+  await page.addInitScript(() => {
+    window.env = {
+      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+      proxyPath: '/api',
+      board: 'ze-great-team',
+      clientVersion: 'browser-test',
+    }
+  })
+  await page.route('**/api/boards/ze-great-team', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify(motionBoard) }),
+  )
+  await page.route('**/api/client', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+        clientVersion: 'browser-test',
+      }),
+    }),
+  )
+  await page.route('**/api/panel/**', (route) => {
+    const panelId = decodeURIComponent(
+      new URL(route.request().url()).pathname.split('/').at(-1) ?? '',
+    )
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ ...runningSignal, panelId }),
+    })
+  })
+
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/')
+  await expect(page.locator('[data-running-part="bloom-marker"]')).toHaveCount(4)
+  await expect(page.locator('[data-running-part="signal-marker"]')).toHaveCount(5)
+
+  const sample = () =>
+    page.evaluate(() => {
+      const read = (bodyPart: string, anchorPart: string) => {
+        const body = document.querySelector<HTMLElement>(`[data-running-part="${bodyPart}"]`)
+        const anchor = document.querySelector<HTMLElement>(`[data-running-part="${anchorPart}"]`)
+        const field = body?.closest<HTMLElement>('[data-running-field], [data-running-progress]')
+        const animation = body?.getAnimations()[0]
+        const bodyRect = body?.getBoundingClientRect()
+        const anchorRect = anchor?.getBoundingClientRect()
+        const fieldRect = field?.getBoundingClientRect()
+        const computed = body ? getComputedStyle(body) : undefined
+        return {
+          bodyLeft: bodyRect?.left ?? Number.NaN,
+          anchorLeft: anchorRect?.left ?? Number.NaN,
+          fieldLeft: fieldRect?.left ?? Number.NaN,
+          fieldRight: fieldRect?.right ?? Number.NaN,
+          animationName: computed?.animationName,
+          animationDuration: computed?.animationDuration,
+          animationDirection: computed?.animationDirection,
+          animationTime: animation?.currentTime ?? Number.NaN,
+          progress: field ? getComputedStyle(field).getPropertyValue('--running-progress') : '',
+        }
+      }
+      return {
+        bloom: read('bloom-marker', 'bloom-marker-anchor'),
+        signal: read('signal-marker', 'signal-marker-anchor'),
+      }
+    })
+
+  const samples = [await sample()]
+  for (const delay of [20, 20, 20, 3_050, 20, 20]) {
+    await page.waitForTimeout(delay)
+    samples.push(await sample())
+  }
+  const diagnostics = JSON.stringify(samples, null, 2)
+  for (const treatment of ['bloom', 'signal'] as const) {
+    const positions = samples.map((entry) => entry[treatment])
+    expect(
+      positions.every(
+        (entry) => entry.bodyLeft >= entry.fieldLeft && entry.bodyLeft <= entry.fieldRight,
+      ),
+      diagnostics,
+    ).toBe(true)
+    expect(
+      positions.every((entry) => entry.animationName !== 'none'),
+      diagnostics,
+    ).toBe(true)
+    expect(
+      positions.every((entry) => entry.animationDuration === '3.2s'),
+      diagnostics,
+    ).toBe(true)
+    expect(
+      positions.every((entry) => entry.animationDirection === 'alternate'),
+      diagnostics,
+    ).toBe(true)
+    expect(positions.at(-1)?.animationTime, diagnostics).toBeGreaterThan(
+      positions[0]?.animationTime ?? 0,
+    )
+    const phaseSteps = [
+      [positions[0], positions[1]],
+      [positions[1], positions[2]],
+      [positions[2], positions[3]],
+      [positions[4], positions[5]],
+      [positions[5], positions[6]],
+    ].map(([before, after]) =>
+      Math.abs(after.bodyLeft - after.anchorLeft - (before.bodyLeft - before.anchorLeft)),
+    )
+    expect(Math.max(...phaseSteps), diagnostics).toBeLessThan(20)
+  }
+  expect(
+    samples.map((entry) => entry.bloom.animationName),
+    diagnostics,
+  ).toEqual(samples.map((entry) => entry.signal.animationName))
 })
 
 test('fits populated single-screen team layout without clipping required content', async ({
@@ -471,4 +620,60 @@ test('fits populated single-screen team layout without clipping required content
       .first()
       .evaluate((element) => getComputedStyle(element).flexDirection),
   ).toBe('row')
+})
+
+test('keeps the focused signal-field demo expanded at panel scale', async ({ page }) => {
+  const reviewBoard = {
+    panels: [
+      {
+        id: 'signal-field-motion-review',
+        type: 'pipeline-animation-demo',
+        running_animation: 'signal-field',
+        position: { x: 0, y: 0, w: 12, h: 12 },
+      },
+    ],
+  }
+  await page.addInitScript(() => {
+    window.env = {
+      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+      proxyPath: '/api',
+      board: 'ze-great-team',
+      clientVersion: 'browser-test',
+    }
+  })
+  await page.route('**/api/boards/ze-great-team', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify(reviewBoard) }),
+  )
+  await page.route('**/api/client', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+        clientVersion: 'browser-test',
+      }),
+    }),
+  )
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/')
+
+  const geometry = await page
+    .locator('[data-running-progress="signal-field"]')
+    .evaluate((element) => {
+      const panel = element.closest<HTMLElement>('[data-panel]')?.getBoundingClientRect()
+      const visual = element
+        .querySelector<HTMLElement>('[data-running-visual]')
+        ?.getBoundingClientRect()
+      const tracks = element.querySelector<HTMLElement>('[data-running-part="signal-tracks"]')
+      return {
+        panelWidth: panel?.width ?? 0,
+        panelHeight: panel?.height ?? 0,
+        visualWidth: visual?.width ?? 0,
+        visualHeight: visual?.height ?? 0,
+        tracksDisplay: tracks ? getComputedStyle(tracks).display : 'none',
+      }
+    })
+  expect(geometry.visualWidth).toBeGreaterThan(geometry.panelWidth * 0.8)
+  expect(geometry.visualHeight).toBeGreaterThan(geometry.panelHeight * 0.5)
+  expect(geometry.tracksDisplay).toBe('flex')
+  await expect(page.locator('[data-running-part="signal-track"]')).toHaveCount(5)
 })
