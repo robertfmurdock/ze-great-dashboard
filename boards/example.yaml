@@ -5,7 +5,7 @@ boards:
         pipeline: "88506573"
         position:
           h: 3
-          w: 8
+          w: 7
           x: 0
           y: 0
         source: example-github
@@ -14,8 +14,8 @@ boards:
         json_path: $.version
         position:
           h: 3
-          w: 4
-          x: 8
+          w: 3
+          x: 7
           y: 0
         type: http-value
         url: https://example.com/version.json
@@ -23,7 +23,7 @@ boards:
         id: active-run-treatments
         position:
           h: 3
-          w: 12
+          w: 10
           x: 0
           y: 3
         demo_run_duration: 20s
@@ -33,7 +33,7 @@ boards:
         id: signal-field-motion-review
         position:
           h: 3
-          w: 12
+          w: 10
           x: 0
           y: 6
         running_animation: signal-field
@@ -42,9 +42,19 @@ boards:
         id: falling-shapes-review
         position:
           h: 3
-          w: 12
+          w: 10
           x: 0
           y: 9
+        running_animation: falling-shapes
+        demo_review_duration: 1m
+        type: pipeline-animation-demo
+      - display: supporting
+        id: falling-shapes-review-2
+        position:
+          h: 12
+          w: 2
+          x: 10
+          y: 0
         running_animation: falling-shapes
         demo_review_duration: 1m
         type: pipeline-animation-demo

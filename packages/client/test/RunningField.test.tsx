@@ -88,6 +88,28 @@ describe('RunningField', () => {
     expect(rendered.container.querySelector('[data-animation="status-weather"]')).toBeNull()
   })
 
+  it('chooses a different default treatment when a panel enters running again', () => {
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0)
+    const rendered = render(
+      <PipelinePanel
+        panel={panel}
+        envelope={{ ...envelope(), signal: { ...envelope().signal, status: 'passed' } }}
+      />,
+    )
+
+    rendered.rerender(<PipelinePanel panel={panel} envelope={envelope()} />)
+    expect(rendered.container.querySelector('[data-running-progress="radial"]')).not.toBeNull()
+
+    rendered.rerender(
+      <PipelinePanel
+        panel={panel}
+        envelope={{ ...envelope(), signal: { ...envelope().signal, status: 'passed' } }}
+      />,
+    )
+    rendered.rerender(<PipelinePanel panel={panel} envelope={envelope()} />)
+    expect(rendered.container.querySelector('[data-running-progress="radial"]')).toBeNull()
+  })
+
   it.each(['radial', 'runway', 'orbit', 'signal-field'] as const)(
     'preserves %s legacy progress markup',
     (animation) => {

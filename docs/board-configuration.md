@@ -68,12 +68,13 @@ runs from all branches. `http-value` uses `url` and an optional `json_path` such
 
 `pipeline-status` panels may set `running_animation` to `off`, or to one of `radial`, `runway`,
 `orbit`, `signal-field`, `telemetry-bloom`, `release-transit`, `status-weather`, or
-`falling-shapes`. Omission chooses
-one of those visible treatments at random when the panel mounts. The first four are retained inline
-treatments; the latter four are panel-scale decorative fields. `falling-shapes` measures the rendered
-panel and scales an approximately square-cell field into its interior. Wide panels move pieces from
-right to left, while tall and square panels move them from top to bottom. This setting changes only
-the active-running presentation and never replaces the status label or timing text.
+`falling-shapes`. Omission chooses one of those visible treatments at random whenever the panel
+enters the running state, keeps it stable while that run is refreshed, and avoids repeating the
+previous treatment on the next running transition. The first four are retained inline treatments;
+the latter four are panel-scale decorative fields. `falling-shapes` measures the rendered panel and
+scales an approximately square-cell field into its interior. Wide panels move pieces from right to
+left, while tall and square panels move them from top to bottom. This setting changes only the
+active-running presentation and never replaces the status label or timing text.
 
 ## Local animation demo
 

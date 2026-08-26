@@ -3,9 +3,10 @@ import {
   type Panel,
   type PipelineStatus,
   pipelineStatusSchema,
+  type RunningAnimation,
   visibleRunningAnimations,
 } from '@ze-great-dashboard/shared'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { fallingSeed } from './falling-shapes.ts'
 import { ObservedAt } from './ObservedAt.tsx'
 import { PanelBranch, PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
@@ -61,9 +62,18 @@ function PipelineSignalPanel({
   signal: PipelineStatus
 }) {
   const presentation = statusPresentation(signal.status)
-  // Keep an omitted treatment stable for this panel's lifetime; timing updates must not reshuffle it.
-  const [defaultAnimation] = useState(selectDefaultRunningAnimation)
-  const animation = panel.running_animation ?? defaultAnimation
+  const [defaultAnimation, setDefaultAnimation] = useState<RunningAnimation | undefined>(() =>
+    signal.status === 'running' ? selectDefaultRunningAnimation() : undefined,
+  )
+  const previousStatusRef = useRef(signal.status)
+  if (signal.status !== previousStatusRef.current) {
+    const wasRunning = previousStatusRef.current === 'running'
+    previousStatusRef.current = signal.status
+    if (panel.running_animation === undefined && !wasRunning && signal.status === 'running') {
+      setDefaultAnimation((previousAnimation) => selectDefaultRunningAnimation(previousAnimation))
+    }
+  }
+  const animation = panel.running_animation ?? defaultAnimation ?? 'off'
   const activeRun = signal.status === 'running' && animation !== 'off'
   const timing = useRunningTiming(signal.runStartedAt, signal.estimatedDurationMs)
   const usesField = activeRun && isRunningFieldAnimation(animation)
@@ -119,11 +129,9 @@ function PipelineSignalPanel({
   )
 }
 
-function selectDefaultRunningAnimation() {
-  return (
-    visibleRunningAnimations[Math.floor(Math.random() * visibleRunningAnimations.length)] ??
-    'telemetry-bloom'
-  )
+function selectDefaultRunningAnimation(previousAnimation?: RunningAnimation) {
+  const candidates = visibleRunningAnimations.filter((animation) => animation !== previousAnimation)
+  return candidates[Math.floor(Math.random() * candidates.length)] ?? 'telemetry-bloom'
 }
 
 function formatDuration(durationMs: number) {
