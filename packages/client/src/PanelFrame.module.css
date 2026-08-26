@@ -103,24 +103,34 @@
 .unknown {
   color: var(--ink-secondary);
 }
-.link {
-  align-self: flex-start;
-  margin-top: 0.2em;
+.sourceAction {
+  position: absolute;
+  z-index: 2;
+  top: 0.35em;
+  right: 0.35em;
+  display: inline-grid;
+  width: 2em;
+  height: 2em;
+  place-items: center;
+  border-radius: 0.3em;
   color: var(--ink-secondary);
-  font-size: 0.75em;
+  font-size: 0.85em;
   font-weight: 600;
-  text-underline-offset: 0.18em;
+  line-height: 1;
+  text-decoration: none;
 }
-.link:hover {
+.sourceAction:hover {
   color: var(--ink-primary);
+  background: color-mix(in srgb, var(--ink-primary) 8%, transparent);
+}
+.sourceAction:focus-visible {
+  outline: 2px solid var(--ink-primary);
+  outline-offset: 2px;
 }
 
-.primary :is(.hint, .observed, .link),
-.compact :is(.hint, .observed, .link) {
+.primary :is(.hint, .observed),
+.compact :is(.hint, .observed) {
   font-size: 0.65em;
-}
-.compact .link {
-  margin-top: 0;
 }
 @container panel (min-width: 48rem) {
   .primary.shallow {
@@ -137,7 +147,7 @@
     flex: 0 0 auto;
     font-size: 1em;
   }
-  .primary.shallow :is(.label, .observed, .link) {
+  .primary.shallow :is(.label, .observed) {
     flex: 0 0 auto;
   }
 }
@@ -149,7 +159,7 @@
     column-gap: 0.7em;
     row-gap: 0.15em;
   }
-  .compact.shallow :is(.label, .observed, .link) {
+  .compact.shallow :is(.label, .observed) {
     flex: 0 0 auto;
   }
 }

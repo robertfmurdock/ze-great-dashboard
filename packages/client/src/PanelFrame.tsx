@@ -74,10 +74,10 @@ export function PanelFrame({
       data-error={error || undefined}
     >
       {field}
+      <PanelSourceLink panelId={panel.id} link={envelope?.link} />
       <div className={styles.content} data-panel-content>
         <h2 className={styles.label}>{panel.label ?? panel.id}</h2>
         {children}
-        <PanelSourceLink panelId={panel.id} link={envelope?.link} />
       </div>
     </section>
   )
@@ -88,14 +88,17 @@ function PanelSourceLink({ panelId, link }: { panelId: string; link?: string | n
 
   return (
     <a
-      className={styles.link}
+      className={styles.sourceAction}
       href={link}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`View source for ${panelId} (opens in a new tab)`}
+      title={`View source for ${panelId} (opens in a new tab)`}
+      data-panel-action="source"
       data-panel-link
     >
-      View source <span aria-hidden="true">↗</span>
+      <span aria-hidden="true">↗</span>
+      <span className="screen-reader-only">View source</span>
     </a>
   )
 }

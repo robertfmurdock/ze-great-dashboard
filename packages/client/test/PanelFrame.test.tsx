@@ -82,6 +82,11 @@ describe('PanelFrame', () => {
     expect(link?.getAttribute('target')).toBe('_blank')
     expect(link?.getAttribute('rel')).toBe('noopener noreferrer')
     expect(link?.getAttribute('aria-label')).toBe('View source for build (opens in a new tab)')
+    expect(link?.getAttribute('title')).toBe('View source for build (opens in a new tab)')
+    expect(link?.getAttribute('data-panel-action')).toBe('source')
+    expect(link?.className).toContain('sourceAction')
+    expect(link?.querySelector('[aria-hidden="true"]')?.textContent).toBe('↗')
+    expect(frame?.querySelector('[data-panel-content] [data-panel-link]')).toBeNull()
   })
 
   it('omits the source action when the envelope has no link', () => {

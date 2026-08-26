@@ -423,7 +423,7 @@ describe('pipeline-status refresh scheduling', () => {
     expect(rendered.textContent).toContain('No workflow runs')
     expect(rendered.textContent).toContain('branch "master"')
     const link = rendered.querySelector('[data-panel-link]')
-    expect(link?.textContent).toContain('View source')
+    expect(link?.getAttribute('aria-label')).toBe('View source for build (opens in a new tab)')
     expect(link?.getAttribute('href')).toBe(
       'https://github.com/example-org/example-repo/actions/workflows/build.yml',
     )
@@ -524,8 +524,11 @@ describe('http-value panels', () => {
     await act(async () => {})
     expect(requests.some((url) => url.endsWith('/version'))).toBe(true)
     expect(rendered.textContent).toContain('1.2.3')
-    expect(rendered.querySelector('a')?.getAttribute('href')).toBe(
+    expect(rendered.querySelector('[data-panel-link]')?.getAttribute('href')).toBe(
       'https://service.example.com/version',
+    )
+    expect(rendered.querySelector('[data-panel-link]')?.getAttribute('aria-label')).toBe(
+      'View source for version (opens in a new tab)',
     )
   })
 
