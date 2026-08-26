@@ -197,3 +197,12 @@ AWS rollout remains deliberately pending. An administrator must review and apply
 GitHub OIDC `2.2` template updates in the validation account before the new live release gate can
 pass. No successful live `bootstrap check` workflow run is recorded yet, and the package never
 performs the bootstrap update itself.
+
+## Coupling credential-path validation — 2026-08-26
+
+The Coupling integration appears to have proven that a minimally scoped GitHub fine-grained PAT is
+working as intended through the Parameter Store `SecureString` path: the token is held in the
+parameter-backed JSON credential map, the board refers only to `token_env: GITHUB_TOKEN`, and the
+consumer can use the resulting GitHub source without placing the PAT in Git, the board, or Lambda
+environment variables. This is evidence for the credential wiring and scope, not a change to the
+dashboard's rule that credentials remain consumer-owned.
