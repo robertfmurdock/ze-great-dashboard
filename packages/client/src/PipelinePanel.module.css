@@ -1,0 +1,8 @@
+.details {
+  display: contents;
+}
+@container panel (min-width: 48rem) {
+  :global([data-display="primary"][data-shallow="true"]) .details > * {
+    margin: 0;
+  }
+}

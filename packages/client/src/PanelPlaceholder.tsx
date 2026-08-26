@@ -12,9 +12,15 @@ export function PanelPlaceholder({
   wide?: boolean
 }) {
   return (
-    <section className={wide ? 'panel panel--wide' : 'panel'}>
-      <h2 className="panel__label">{label}</h2>
-      <p className="panel__hint">{hint}</p>
+    <section
+      className={`${styles.panel} ${wide ? styles.wide : ''}`}
+      data-panel
+      data-panel-id="placeholder"
+    >
+      <h2 className={styles.label}>{label}</h2>
+      <p className={styles.hint}>{hint}</p>
     </section>
   )
 }
+
+import styles from './PanelFrame.module.css'

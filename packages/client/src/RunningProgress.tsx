@@ -1,53 +1,53 @@
 import type { RunningAnimation } from '@ze-great-dashboard/shared'
 import type { CSSProperties } from 'react'
-import { compactTiming, timingDescription, useRunningTiming } from './running-timing.ts'
+import styles from './RunningProgress.module.css'
+import { compactTiming, type RunningTiming, timingDescription } from './running-timing.ts'
 
 export function RunningProgress({
   animation,
-  runStartedAt,
-  estimatedDurationMs,
+  timing,
 }: {
   animation: LegacyRunningAnimation
-  runStartedAt?: string
-  estimatedDurationMs?: number
+  timing: RunningTiming
 }) {
-  const { elapsedMs, hasEstimate, overdue, progress } = useRunningTiming(
-    runStartedAt,
-    estimatedDurationMs,
-  )
+  const { elapsedMs, estimatedDurationMs, hasEstimate, overdue, progress } = timing
   const usesReadout = animation === 'runway' || animation === 'signal-field'
   const timingText = timingDescription(elapsedMs, estimatedDurationMs, overdue)
   const style = {
     '--running-progress': `${progress * 100}%`,
     '--running-degrees': `${progress * 360}deg`,
   } as CSSProperties
+  const animationStyle = animation === 'signal-field' ? styles.signalField : styles[animation]
 
   return (
     <div
-      className={`running-progress running-progress--${animation}${overdue ? ' running-progress--overdue' : ''}${hasEstimate ? '' : ' running-progress--indeterminate'}`}
+      className={`${styles.progress} ${animationStyle} ${overdue ? styles.overdue : ''} ${hasEstimate ? '' : styles.indeterminate}`}
       style={style}
+      data-running-progress={animation}
+      data-overdue={overdue || undefined}
+      data-indeterminate={!hasEstimate || undefined}
     >
-      <div className="running-progress__visual" aria-hidden="true">
-        {animation === 'radial' && <span className="running-progress__radial-core" />}
-        {animation === 'runway' && <span className="running-progress__runway-spark" />}
+      <div className={styles.visual} aria-hidden="true" data-running-visual>
+        {animation === 'radial' && <span className={styles.radialCore} />}
+        {animation === 'runway' && <span className={styles.spark} />}
         {animation === 'orbit' && (
           <>
-            <span className="running-progress__orbit-core" />
-            <span className="running-progress__orbit-particle running-progress__orbit-particle--one" />
-            <span className="running-progress__orbit-particle running-progress__orbit-particle--two" />
+            <span className={styles.orbitCore} />
+            <span className={styles.particle} />
+            <span className={`${styles.particle} ${styles.particleTwo}`} />
           </>
         )}
         {animation === 'signal-field' && (
           <>
-            <span className="running-progress__signal-rail" />
-            <span className="running-progress__signal-lead" />
-            <span className="running-progress__signal-pulse running-progress__signal-pulse--one" />
-            <span className="running-progress__signal-pulse running-progress__signal-pulse--two" />
-            <span className="running-progress__signal-tracks">
+            <span className={styles.rail} />
+            <span className={styles.lead} />
+            <span className={styles.pulse} />
+            <span className={`${styles.pulse} ${styles.pulseTwo}`} />
+            <span className={styles.tracks} data-running-part="signal-tracks">
               {[0, 1, 2, 3, 4].map((track) => (
-                <span className="running-progress__signal-track" key={track}>
-                  <span className="running-progress__signal-marker">
-                    <span className="running-progress__signal-marker-dot" />
+                <span className={styles.track} key={track} data-running-part="signal-track">
+                  <span className={styles.marker}>
+                    <span className={styles.markerDot} />
                   </span>
                 </span>
               ))}
@@ -55,9 +55,7 @@ export function RunningProgress({
           </>
         )}
       </div>
-      <p
-        className={`running-progress__timing${usesReadout ? ' running-progress__timing--readout' : ''}`}
-      >
+      <p className={`${styles.timing} ${usesReadout ? styles.readout : ''}`}>
         {usesReadout ? (
           <>
             <span className="screen-reader-only">{timingText}</span>

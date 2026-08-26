@@ -1,7 +1,8 @@
 import type { Panel } from '@ze-great-dashboard/shared'
 import { type Envelope, httpValueSchema } from '@ze-great-dashboard/shared'
+import styles from './HttpValuePanel.module.css'
 import { ObservedAt } from './ObservedAt.tsx'
-import { PanelFrame } from './PanelFrame.tsx'
+import { PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
 
 export function HttpValuePanel({
   panel,
@@ -13,14 +14,14 @@ export function HttpValuePanel({
   if (!envelope)
     return (
       <PanelFrame panel={panel}>
-        <p className="panel__hint">Loading…</p>
+        <PanelHint>Loading…</PanelHint>
       </PanelFrame>
     )
   if (envelope.state === 'error')
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <p className="panel__status">⚠ Unable to read</p>
-        <p className="panel__hint">{envelope.error.message}</p>
+        <PanelStatus>⚠ Unable to read</PanelStatus>
+        <PanelHint>{envelope.error.message}</PanelHint>
         <ObservedAt value={envelope.observedAt} />
       </PanelFrame>
     )
@@ -28,14 +29,14 @@ export function HttpValuePanel({
   if (!signal.success)
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <p className="panel__status">⚠ Invalid value</p>
+        <PanelStatus>⚠ Invalid value</PanelStatus>
         <ObservedAt value={envelope.observedAt} />
       </PanelFrame>
     )
   return (
     <PanelFrame panel={panel} envelope={envelope}>
-      <div className="http-value-panel__fact">
-        <p className="panel__status">{String(signal.data.value)}</p>
+      <div className={styles.fact}>
+        <PanelStatus>{String(signal.data.value)}</PanelStatus>
         <ObservedAt value={envelope.observedAt} />
       </div>
     </PanelFrame>

@@ -1,5 +1,6 @@
 import type { Board, ClientEnv } from '@ze-great-dashboard/shared'
 import { useEffect, useRef, useState } from 'react'
+import styles from './App.module.css'
 import { Diagnostics } from './Diagnostics.tsx'
 import { BrowserDiagnosticStore, cacheMetadata } from './diagnostics.ts'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
@@ -86,19 +87,19 @@ export function App({ env }: { env: ClientEnv }) {
   }, [diagnostics, env.board, env.proxyPath])
 
   return (
-    <div className="board">
-      <header className="board__header">
-        <h1 className="board__title">{env.board}</h1>
+    <div className={styles.board}>
+      <header className={styles.header}>
+        <h1 className={styles.title}>{env.board}</h1>
       </header>
 
-      <main className="board__grid">
+      <main className={styles.grid}>
         {!board && <PanelPlaceholder label="board" hint="Loading configuration…" wide />}
         {board?.panels.map((panel) => (
           <PanelRenderer key={panel.id} panel={panel} envelope={signals[panel.id]} />
         ))}
       </main>
 
-      <footer className="board__footer">
+      <footer className={styles.footer} data-board-footer>
         <span>Signals are read live from their configured authorities.</span>
         <Diagnostics log={diagnostics} />
       </footer>

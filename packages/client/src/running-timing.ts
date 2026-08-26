@@ -2,14 +2,25 @@ import { useEffect, useState } from 'react'
 
 const VISUAL_TICK_MS = 20
 
-export function useRunningTiming(runStartedAt?: string, estimatedDurationMs?: number) {
+export type RunningTiming = {
+  elapsedMs: number | undefined
+  estimatedDurationMs: number | undefined
+  hasEstimate: boolean
+  overdue: boolean
+  progress: number
+}
+
+export function useRunningTiming(
+  runStartedAt?: string,
+  estimatedDurationMs?: number,
+): RunningTiming {
   const now = useClock(Boolean(runStartedAt))
   const startedAt = runStartedAt ? new Date(runStartedAt).valueOf() : Number.NaN
   const elapsedMs = Number.isFinite(startedAt) ? Math.max(0, now - startedAt) : undefined
   const hasEstimate = elapsedMs !== undefined && estimatedDurationMs !== undefined
   const overdue = hasEstimate && elapsedMs > estimatedDurationMs
   const progress = hasEstimate ? Math.min(elapsedMs / estimatedDurationMs, 1) : 0
-  return { elapsedMs, hasEstimate, overdue, progress }
+  return { elapsedMs, estimatedDurationMs, hasEstimate, overdue, progress }
 }
 
 function useClock(enabled: boolean) {

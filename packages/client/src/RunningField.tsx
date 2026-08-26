@@ -1,5 +1,9 @@
 import type { RunningAnimation } from '@ze-great-dashboard/shared'
 import type { CSSProperties } from 'react'
+import { ReleaseTransitField } from './ReleaseTransitField.tsx'
+import styles from './RunningField.module.css'
+import { StatusWeatherField } from './StatusWeatherField.tsx'
+import { TelemetryBloomField } from './TelemetryBloomField.tsx'
 
 export type RunningFieldAnimation = Extract<
   RunningAnimation,
@@ -26,53 +30,18 @@ export function RunningField({
   const style = {
     '--running-progress': `${progress * 100}%`,
   } as CSSProperties
-  const state = `${overdue ? ' running-field--overdue' : ''}${indeterminate ? ' running-field--indeterminate' : ''}`
-
   return (
     <div
-      className={`running-field running-field--${animation}${state}`}
+      className={`${styles.field} ${overdue ? styles.overdue : ''}`}
       data-animation={animation}
+      data-running-field
+      data-indeterminate={indeterminate || undefined}
       aria-hidden="true"
       style={style}
     >
-      {animation === 'telemetry-bloom' && (
-        <>
-          <span className="running-field__bloom-frontier" />
-          <span className="running-field__bloom-lanes">
-            {[0, 1, 2, 3].map((lane) => (
-              <span className="running-field__bloom-lane" key={lane}>
-                <span className="running-field__bloom-marker" />
-              </span>
-            ))}
-          </span>
-        </>
-      )}
-      {animation === 'release-transit' && (
-        <>
-          <span className="running-field__transit-frontier" />
-          <span className="running-field__transit-now" />
-          <span className="running-field__transit-routes">
-            {[0, 1, 2].map((route) => (
-              <span className="running-field__transit-route" key={route} />
-            ))}
-          </span>
-          <span className="running-field__transit-trail" />
-          <span className="running-field__transit-packet" />
-        </>
-      )}
-      {animation === 'status-weather' && (
-        <>
-          <span className="running-field__weather-haze" />
-          <span className="running-field__weather-band running-field__weather-band--one" />
-          <span className="running-field__weather-band running-field__weather-band--two" />
-          <span className="running-field__weather-band running-field__weather-band--three" />
-          <span className="running-field__weather-drift running-field__weather-drift--one" />
-          <span className="running-field__weather-drift running-field__weather-drift--two" />
-          <span className="running-field__weather-drift running-field__weather-drift--three" />
-          <span className="running-field__weather-drift running-field__weather-drift--four" />
-          <span className="running-field__weather-drift running-field__weather-drift--five" />
-        </>
-      )}
+      {animation === 'telemetry-bloom' && <TelemetryBloomField />}
+      {animation === 'release-transit' && <ReleaseTransitField />}
+      {animation === 'status-weather' && <StatusWeatherField />}
     </div>
   )
 }

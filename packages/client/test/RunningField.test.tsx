@@ -26,22 +26,22 @@ afterEach(() => {
 
 describe('RunningField', () => {
   it.each([
-    ['telemetry-bloom', '.running-field__bloom-lane'],
-    ['release-transit', '.running-field__transit-packet'],
-    ['status-weather', '.running-field__weather-haze'],
+    ['telemetry-bloom', 'bloom-lane'],
+    ['release-transit', 'transit-packet'],
+    ['status-weather', 'weather-haze'],
   ] as const)(
     'renders %s as an inert decorative sibling with timing in the text island',
     (animation, part) => {
       const rendered = render(
         <PipelinePanel panel={{ ...panel, running_animation: animation }} envelope={envelope()} />,
       ).container
-      const field = rendered.querySelector(`.running-field[data-animation="${animation}"]`)
+      const field = rendered.querySelector(`[data-running-field][data-animation="${animation}"]`)
       expect(field?.getAttribute('aria-hidden')).toBe('true')
-      expect(field?.querySelector(part)).not.toBeNull()
-      expect(field?.closest('.panel')?.querySelector('.panel__content')?.textContent).toContain(
-        'Elapsed',
-      )
-      expect(field?.closest('.panel')?.querySelector('.panel__link')).not.toBeNull()
+      expect(field?.querySelector(`[data-running-part="${part}"]`)).not.toBeNull()
+      expect(
+        field?.closest('[data-panel]')?.querySelector('[data-panel-content]')?.textContent,
+      ).toContain('Elapsed')
+      expect(field?.closest('[data-panel]')?.querySelector('[data-panel-link]')).not.toBeNull()
     },
   )
 
@@ -53,19 +53,19 @@ describe('RunningField', () => {
     const off = render(
       <PipelinePanel panel={{ ...panel, running_animation: 'off' }} envelope={envelope()} />,
     ).container
-    expect(off.querySelector('.running-field')).toBeNull()
+    expect(off.querySelector('[data-running-field]')).toBeNull()
     cleanup()
     const loading = render(<PipelinePanel panel={panel} envelope={undefined} />).container
-    expect(loading.querySelector('.running-field')).toBeNull()
+    expect(loading.querySelector('[data-running-field]')).toBeNull()
   })
 
   it('keeps its randomly selected default treatment through re-renders', () => {
     vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValue(0.99)
     const rendered = render(<PipelinePanel panel={panel} envelope={envelope()} />)
-    expect(rendered.container.querySelector('.running-progress--radial')).not.toBeNull()
+    expect(rendered.container.querySelector('[data-running-progress="radial"]')).not.toBeNull()
 
     rendered.rerender(<PipelinePanel panel={panel} envelope={envelope()} />)
-    expect(rendered.container.querySelector('.running-progress--radial')).not.toBeNull()
+    expect(rendered.container.querySelector('[data-running-progress="radial"]')).not.toBeNull()
     expect(rendered.container.querySelector('[data-animation="status-weather"]')).toBeNull()
   })
 
@@ -75,8 +75,8 @@ describe('RunningField', () => {
       const rendered = render(
         <PipelinePanel panel={{ ...panel, running_animation: animation }} envelope={envelope()} />,
       ).container
-      expect(rendered.querySelector(`.running-progress--${animation}`)).not.toBeNull()
-      expect(rendered.querySelector('.running-field')).toBeNull()
+      expect(rendered.querySelector(`[data-running-progress="${animation}"]`)).not.toBeNull()
+      expect(rendered.querySelector('[data-running-field]')).toBeNull()
     },
   )
 })

@@ -1,0 +1,12 @@
+.variant {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.72em;
+  text-transform: capitalize;
+  transition: color 180ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .variant {
+    transition: none;
+  }
+}

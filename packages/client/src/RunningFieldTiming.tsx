@@ -1,3 +1,4 @@
+import styles from './RunningField.module.css'
 import { compactTiming, timingDescription } from './running-timing.ts'
 
 /** The sole readable timing projection for panel-scale decorative fields. */
@@ -11,7 +12,7 @@ export function RunningFieldTiming({
   overdue: boolean
 }) {
   return (
-    <p className={`running-field__timing${overdue ? ' running-field__timing--overdue' : ''}`}>
+    <p className={`${styles.timing} ${overdue ? styles.timingOverdue : ''}`}>
       <span className="screen-reader-only">
         {timingDescription(elapsedMs, estimatedDurationMs, overdue)}
       </span>

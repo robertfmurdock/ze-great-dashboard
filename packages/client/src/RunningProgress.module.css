@@ -1,0 +1,389 @@
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  min-width: 0;
+  color: var(--status-warning);
+}
+.visual {
+  position: relative;
+  flex: 0 0 auto;
+}
+.timing {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: 0.72em;
+}
+.overdue {
+  color: var(--status-serious);
+}
+.overdue .timing {
+  color: var(--status-serious);
+}
+.readout {
+  width: 12ch;
+  flex: 0 0 12ch;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+.radial .visual {
+  width: 2.35em;
+  height: 2.35em;
+  border: 0.14em solid var(--edge);
+  border-radius: 50%;
+  background: conic-gradient(var(--status-warning) var(--running-progress), var(--edge) 0);
+  box-shadow:
+    inset 0 0 0 0.22em var(--surface-raised),
+    0 0 0.55em color-mix(in srgb, var(--status-warning) 45%, transparent);
+}
+.radial .visual::after {
+  content: "";
+  position: absolute;
+  inset: -0.14em;
+  border-radius: 50%;
+  border-top: 0.14em solid var(--status-warning);
+  animation: sweep 1.7s linear infinite;
+}
+.radialCore {
+  position: absolute;
+  inset: 0.68em;
+  border-radius: 50%;
+  background: var(--status-warning);
+  box-shadow: 0 0 0.45em var(--status-warning);
+}
+.runway {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-self: stretch;
+  container-type: inline-size;
+}
+.runway .visual {
+  width: min(12em, 36vw);
+  height: 0.8em;
+  overflow: hidden;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--status-warning) var(--running-progress), var(--edge) 0);
+}
+.runway .visual::after {
+  content: "";
+  position: absolute;
+  top: -0.25em;
+  bottom: -0.25em;
+  left: calc(var(--running-progress) - 0.06em);
+  width: 0.12em;
+  background: var(--ink-primary);
+  box-shadow: 0 0 0.45em var(--ink-primary);
+}
+.spark {
+  position: absolute;
+  top: 50%;
+  left: -0.5em;
+  width: 0.35em;
+  height: 0.35em;
+  border-radius: 50%;
+  background: var(--ink-primary);
+  box-shadow: 0 0 0.4em var(--status-warning);
+  animation: spark 1.5s linear infinite;
+}
+.orbit .visual {
+  width: 2.4em;
+  height: 2.4em;
+  border: 1px solid var(--edge);
+  border-radius: 50%;
+}
+.orbit .visual::before {
+  content: "";
+  position: absolute;
+  inset: 0.18em;
+  border: 0.12em solid transparent;
+  border-top-color: var(--status-warning);
+  border-radius: 50%;
+  transform: rotate(var(--running-degrees));
+}
+.orbitCore {
+  position: absolute;
+  inset: 0.75em;
+  border-radius: 50%;
+  background: var(--status-warning);
+  box-shadow: 0 0 0.45em var(--status-warning);
+}
+.particle {
+  position: absolute;
+  top: 0.25em;
+  left: calc(50% - 0.16em);
+  width: 0.32em;
+  height: 0.32em;
+  border-radius: 50%;
+  background: var(--ink-primary);
+  transform-origin: 0.16em 0.95em;
+  animation: orbit 1.8s linear infinite;
+}
+.particleTwo {
+  animation-delay: -0.9s;
+  background: var(--status-warning);
+}
+.indeterminate .visual {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--status-warning) 70%, transparent) 0 0.25em,
+    var(--edge) 0.25em 0.5em
+  );
+  animation: shift 1s linear infinite;
+}
+.signalField {
+  container-type: size;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-height: 2.8em;
+}
+.signalField .visual {
+  width: auto;
+  height: 1em;
+  overflow: hidden;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.rail {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--status-warning) var(--running-progress), var(--edge) 0);
+  opacity: 0.75;
+}
+.lead {
+  position: absolute;
+  top: -0.2em;
+  bottom: -0.2em;
+  left: calc(var(--running-progress) - 0.08em);
+  width: 0.16em;
+  border-radius: 999px;
+  background: var(--ink-primary);
+  box-shadow: 0 0 0.5em var(--status-warning);
+}
+.pulse {
+  position: absolute;
+  top: 50%;
+  left: -0.5em;
+  width: 0.3em;
+  height: 0.3em;
+  border-radius: 50%;
+  background: var(--ink-primary);
+  box-shadow: 0 0 0.4em var(--status-warning);
+  animation: pulse 2.4s ease-in-out infinite alternate;
+}
+.pulseTwo {
+  animation-delay: -1.2s;
+}
+.tracks {
+  display: none;
+}
+@container (min-width: 26rem) {
+  .runway .visual {
+    flex: 1 1 auto;
+    width: auto;
+    height: clamp(1.1em, 7cqw, 2.7em);
+    box-shadow: inset 0 0 1em color-mix(in srgb, var(--status-warning) 16%, transparent);
+  }
+  .runway .visual::after {
+    left: calc(var(--running-progress) - 0.08em);
+    width: 0.16em;
+  }
+  .spark {
+    animation-name: sparkWide;
+  }
+}
+@container (max-width: 18rem) {
+  .signalField {
+    flex: 0 1 auto;
+    min-height: 0;
+  }
+  .signalField .visual {
+    width: 2.65em;
+    height: 1.15em;
+  }
+  .signalField .rail {
+    background: var(--edge);
+  }
+  .signalField .lead {
+    top: 0.2em;
+    bottom: 0.2em;
+    width: 0.38em;
+    border-radius: 50%;
+  }
+  .pulse {
+    display: none;
+  }
+}
+@container (max-height: 5rem) {
+  .signalField {
+    flex: 0 1 auto;
+    min-height: 0;
+  }
+  .signalField .visual {
+    width: 2.65em;
+    height: 1.15em;
+  }
+  .signalField .rail {
+    background: var(--edge);
+  }
+  .signalField .lead {
+    top: 0.2em;
+    bottom: 0.2em;
+    width: 0.38em;
+    border-radius: 50%;
+  }
+  .pulse {
+    display: none;
+  }
+}
+@container (min-width: 26rem) and (min-height: 10rem) {
+  .signalField .visual {
+    height: 100%;
+    min-height: 8em;
+    border-radius: 0.25em;
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--edge) 60%, transparent),
+      transparent
+    );
+  }
+  .signalField .visual::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--running-progress);
+    background:
+      repeating-linear-gradient(
+        0deg,
+        transparent 0 0.55em,
+        color-mix(in srgb, var(--status-warning) 16%, transparent) 0.55em 0.6em
+      ),
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--status-warning) 19%, transparent),
+        color-mix(in srgb, var(--status-warning) 7%, transparent)
+      );
+    box-shadow: inset -0.8em 0 1em color-mix(in srgb, var(--status-warning) 22%, transparent);
+  }
+  .signalField .rail {
+    top: 50%;
+    bottom: auto;
+    height: 1px;
+  }
+  .signalField .lead {
+    top: calc(50% - 0.45em);
+    bottom: auto;
+    height: 0.9em;
+  }
+  .pulse {
+    display: none;
+  }
+  .tracks {
+    position: absolute;
+    inset: 0.8em 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .track {
+    position: relative;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--edge) 85%, transparent),
+      transparent
+    );
+  }
+  .marker {
+    position: absolute;
+    top: 50%;
+    left: var(--running-progress);
+    width: 0.38em;
+    height: 0.22em;
+  }
+  .markerDot {
+    position: absolute;
+    inset: 0;
+    border-radius: 0.06em;
+    background: var(--status-warning);
+    box-shadow: 0 0 0.4em var(--status-warning);
+    animation: bloom 3.2s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+  .track:nth-child(2) .markerDot {
+    animation-delay: -0.8s;
+    opacity: 0.7;
+  }
+  .track:nth-child(3) .markerDot {
+    animation-delay: -1.7s;
+    opacity: 0.45;
+  }
+  .track:nth-child(4) .markerDot {
+    animation-delay: -2.4s;
+    opacity: 0.7;
+  }
+  .track:nth-child(5) .markerDot {
+    animation-delay: -0.35s;
+    opacity: 0.55;
+  }
+}
+@keyframes sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes spark {
+  to {
+    transform: translateX(13em);
+  }
+}
+@keyframes sparkWide {
+  to {
+    transform: translateX(100cqw);
+  }
+}
+@keyframes orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes shift {
+  to {
+    background-position: 1em 0;
+  }
+}
+@keyframes pulse {
+  from {
+    transform: translate(-0.5em, -50%);
+  }
+  to {
+    transform: translate(calc(var(--running-progress) + 0.5em), -50%);
+  }
+}
+@keyframes bloom {
+  from {
+    transform: translate(-10em, -50%);
+  }
+  to {
+    transform: translate(-50%, -50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .radial .visual::after,
+  .spark,
+  .runway .visual::after,
+  .particle,
+  .pulse,
+  .lead,
+  .markerDot,
+  .signalField .visual::before,
+  .indeterminate .visual {
+    animation: none;
+  }
+}

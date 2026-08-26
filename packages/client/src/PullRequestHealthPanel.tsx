@@ -1,6 +1,6 @@
 import { type Envelope, type Panel, pullRequestHealthSchema } from '@ze-great-dashboard/shared'
 import { ObservedAt } from './ObservedAt.tsx'
-import { PanelFrame } from './PanelFrame.tsx'
+import { PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
 
 export function PullRequestHealthPanel({
   panel,
@@ -12,14 +12,14 @@ export function PullRequestHealthPanel({
   if (!envelope)
     return (
       <PanelFrame panel={panel}>
-        <p className="panel__hint">Loading…</p>
+        <PanelHint>Loading…</PanelHint>
       </PanelFrame>
     )
   if (envelope.state === 'error')
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <p className="panel__status">⚠ Unable to read</p>
-        <p className="panel__hint">{envelope.error.message}</p>
+        <PanelStatus>⚠ Unable to read</PanelStatus>
+        <PanelHint>{envelope.error.message}</PanelHint>
         <ObservedAt value={envelope.observedAt} />
       </PanelFrame>
     )
@@ -27,16 +27,16 @@ export function PullRequestHealthPanel({
   if (!signal.success)
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <p className="panel__status">⚠ Invalid signal</p>
+        <PanelStatus>⚠ Invalid signal</PanelStatus>
       </PanelFrame>
     )
   const presentation = statusPresentation(signal.data.status)
   return (
     <PanelFrame panel={panel} envelope={envelope}>
-      <p className={`panel__status panel__status--${signal.data.status}`}>
+      <PanelStatus status={signal.data.status}>
         {presentation.glyph} {presentation.label}
-      </p>
-      <p className="panel__hint">{signal.data.summary}</p>
+      </PanelStatus>
+      <PanelHint>{signal.data.summary}</PanelHint>
       <ObservedAt value={envelope.observedAt} />
     </PanelFrame>
   )

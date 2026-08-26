@@ -18,13 +18,13 @@ describe('PanelFrame', () => {
         <p>Loading…</p>
       </PanelFrame>,
     ).container
-    const frame = rendered.querySelector('.panel')
+    const frame = rendered.querySelector('[data-panel]')
 
     expect(frame?.getAttribute('aria-busy')).toBe('true')
     expect(frame?.getAttribute('style')).toContain('--panel-column: 3 / span 4')
     expect(frame?.getAttribute('style')).toContain('--panel-row: 2 / span 3')
-    expect(rendered.querySelector('.panel__label')?.textContent).toBe('build')
-    expect(rendered.querySelector('.panel__link')).toBeNull()
+    expect(rendered.querySelector('h2')?.textContent).toBe('build')
+    expect(rendered.querySelector('[data-panel-link]')).toBeNull()
   })
 
   it('uses a presentation label without changing the stable panel id', () => {
@@ -34,8 +34,10 @@ describe('PanelFrame', () => {
       </PanelFrame>,
     ).container
 
-    expect(rendered.querySelector('.panel__label')?.textContent).toBe('Build status')
-    expect(rendered.querySelector('.panel')?.getAttribute('style')).toContain('--panel-column')
+    expect(rendered.querySelector('h2')?.textContent).toBe('Build status')
+    expect(rendered.querySelector('[data-panel]')?.getAttribute('style')).toContain(
+      '--panel-column',
+    )
   })
 
   it('uses the panel display role as a semantic presentation class', () => {
@@ -45,7 +47,7 @@ describe('PanelFrame', () => {
       </PanelFrame>,
     ).container
 
-    expect(rendered.querySelector('.panel')?.classList.contains('panel--compact')).toBe(true)
+    expect(rendered.querySelector('[data-panel]')?.getAttribute('data-display')).toBe('compact')
   })
 
   it('falls back to supporting presentation for an unknown future role', () => {
@@ -55,8 +57,7 @@ describe('PanelFrame', () => {
       </PanelFrame>,
     ).container
 
-    expect(rendered.querySelector('.panel')?.classList.contains('panel--supporting')).toBe(true)
-    expect(rendered.querySelector('.panel')?.classList.contains('panel--hero')).toBe(false)
+    expect(rendered.querySelector('[data-panel]')?.getAttribute('data-display')).toBe('supporting')
   })
 
   it('owns error styling and the accessible source action', () => {
@@ -72,10 +73,10 @@ describe('PanelFrame', () => {
         <p>Unable to read</p>
       </PanelFrame>,
     ).container
-    const frame = rendered.querySelector('.panel')
-    const link = rendered.querySelector('.panel__link')
+    const frame = rendered.querySelector('[data-panel]')
+    const link = rendered.querySelector('[data-panel-link]')
 
-    expect(frame?.classList.contains('panel--error')).toBe(true)
+    expect(frame?.getAttribute('data-error')).toBe('true')
     expect(frame?.hasAttribute('aria-busy')).toBe(false)
     expect(link?.getAttribute('href')).toBe(envelope.link)
     expect(link?.getAttribute('target')).toBe('_blank')
@@ -97,6 +98,6 @@ describe('PanelFrame', () => {
       </PanelFrame>,
     ).container
 
-    expect(rendered.querySelector('.panel__link')).toBeNull()
+    expect(rendered.querySelector('[data-panel-link]')).toBeNull()
   })
 })

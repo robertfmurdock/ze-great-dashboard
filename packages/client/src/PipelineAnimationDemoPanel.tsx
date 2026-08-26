@@ -1,6 +1,7 @@
 import type { Panel } from '@ze-great-dashboard/shared'
 import { useEffect, useState } from 'react'
-import { PanelFrame } from './PanelFrame.tsx'
+import { PanelFrame, PanelStatus } from './PanelFrame.tsx'
+import styles from './PipelineAnimationDemoPanel.module.css'
 import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
 import { RunningFieldTiming } from './RunningFieldTiming.tsx'
 import { RunningProgress } from './RunningProgress.tsx'
@@ -57,8 +58,8 @@ function DemoRun({
         ) : undefined
       }
     >
-      <p className="panel__status panel__status--running">↻ Running</p>
-      <p className="pipeline-animation-demo__variant">Demo treatment · {animation}</p>
+      <PanelStatus status="running">↻ Running</PanelStatus>
+      <p className={styles.variant}>Demo treatment · {animation}</p>
       {usesField ? (
         <RunningFieldTiming
           elapsedMs={timing.elapsedMs}
@@ -66,11 +67,7 @@ function DemoRun({
           overdue={timing.overdue}
         />
       ) : (
-        <RunningProgress
-          animation={animation}
-          runStartedAt={startedAt}
-          estimatedDurationMs={ESTIMATED_DURATION_MS}
-        />
+        <RunningProgress animation={animation} timing={timing} />
       )}
     </PanelFrame>
   )

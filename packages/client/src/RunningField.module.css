@@ -1,0 +1,25 @@
+.field {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  container-type: size;
+  color: var(--status-warning);
+}
+.overdue {
+  color: var(--status-serious);
+}
+.timing {
+  width: 12ch;
+  margin: 0;
+  color: var(--ink-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72em;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+.timingOverdue {
+  color: var(--status-serious);
+}

@@ -34,7 +34,7 @@ test('the production client loads and renders with CDN modules', async ({ page }
 
   await page.goto('/')
   await expect(page.locator('h1')).toHaveText('ze-great-team')
-  await expect(page.locator('.board__footer')).toContainText('Signals are read live')
+  await expect(page.locator('[data-board-footer]')).toContainText('Signals are read live')
   expect(browserErrors).toEqual([])
 })
 
@@ -223,10 +223,10 @@ function stubBoard(page: import('@playwright/test').Page) {
 test('fits a positioned board inside the desktop viewport', async ({ page }) => {
   await stubBoard(page)
   await page.goto('/')
-  await expect(page.locator('.panel')).toHaveCount(positionedBoard.panels.length)
+  await expect(page.locator('[data-panel]')).toHaveCount(positionedBoard.panels.length)
 
   const layout = await page.evaluate(() => {
-    const panels = [...document.querySelectorAll<HTMLElement>('.panel')].map((panel) => {
+    const panels = [...document.querySelectorAll<HTMLElement>('[data-panel]')].map((panel) => {
       const rect = panel.getBoundingClientRect()
       return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }
     })
@@ -252,10 +252,10 @@ test('stacks panels readably on a narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await stubBoard(page)
   await page.goto('/')
-  await expect(page.locator('.panel')).toHaveCount(positionedBoard.panels.length)
+  await expect(page.locator('[data-panel]')).toHaveCount(positionedBoard.panels.length)
 
   const layout = await page.evaluate(() => {
-    const panels = [...document.querySelectorAll<HTMLElement>('.panel')].map((panel) => {
+    const panels = [...document.querySelectorAll<HTMLElement>('[data-panel]')].map((panel) => {
       const rect = panel.getBoundingClientRect()
       return { left: rect.left, top: rect.top, right: rect.right }
     })
@@ -272,7 +272,7 @@ test('stacks panels readably on a narrow viewport', async ({ page }) => {
   expect(layout.panels[0].top).toBeLessThan(layout.panels[1].top)
 })
 
-test('keeps panel-scale fields behind readable content and adapts them without overflow', async ({
+test('keeps panel-scale fields behind readable content, adapts them without overflow, and honors reduced motion', async ({
   page,
 }) => {
   const runningSignal = {
@@ -321,15 +321,15 @@ test('keeps panel-scale fields behind readable content and adapts them without o
 
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/')
-  const field = page.locator('.running-field--telemetry-bloom')
+  const field = page.locator('[data-running-field][data-animation="telemetry-bloom"]')
   await expect(field).toBeVisible()
-  await expect(field.locator('.running-field__bloom-lane')).toHaveCount(4)
+  await expect(field.locator('[data-running-part="bloom-lane"]')).toHaveCount(4)
   const large = await field.evaluate((element) => {
-    const panel = element.closest<HTMLElement>('.panel')?.getBoundingClientRect()
+    const panel = element.closest<HTMLElement>('[data-panel]')?.getBoundingClientRect()
     const content = element
-      .closest<HTMLElement>('.panel')
-      ?.querySelector<HTMLElement>('.panel__content')
-    const packet = element.querySelector<HTMLElement>('.running-field__bloom-marker')
+      .closest<HTMLElement>('[data-panel]')
+      ?.querySelector<HTMLElement>('[data-panel-content]')
+    const packet = element.querySelector<HTMLElement>('[data-running-part="bloom-marker"]')
     return {
       panel,
       field: element.getBoundingClientRect(),
@@ -341,25 +341,25 @@ test('keeps panel-scale fields behind readable content and adapts them without o
   expect(large.field?.left).toBeGreaterThanOrEqual(large.panel?.left ?? 0)
   expect(large.field?.bottom).toBeLessThanOrEqual(large.panel?.bottom ?? Number.POSITIVE_INFINITY)
   expect(large.content?.zIndex).not.toBe('auto')
-  expect(large.packetAnimation).toBe('bloom-marker')
+  expect(large.packetAnimation).not.toBe('none')
 
-  const transit = page.locator('.running-field--release-transit')
+  const transit = page.locator('[data-running-field][data-animation="release-transit"]')
   await expect(transit).toBeVisible()
-  await expect(transit.locator('.running-field__transit-packet')).toHaveCount(1)
-  await expect(transit.locator('.running-field__transit-trail')).toHaveCount(1)
-  await expect(transit.locator('.running-field__transit-now')).toHaveCount(1)
+  await expect(transit.locator('[data-running-part="transit-packet"]')).toHaveCount(1)
+  await expect(transit.locator('[data-running-part="transit-trail"]')).toHaveCount(1)
+  await expect(transit.locator('[data-running-part="transit-now"]')).toHaveCount(1)
   expect(
     await transit
-      .locator('.running-field__transit-packet')
+      .locator('[data-running-part="transit-packet"]')
       .evaluate((element) => getComputedStyle(element).animationName),
-  ).toBe('transit-packet')
+  ).not.toBe('none')
 
-  const legacySignal = page.locator('.running-progress--signal-field')
+  const legacySignal = page.locator('[data-running-progress="signal-field"]')
   await expect(legacySignal).toBeVisible()
-  await expect(legacySignal.locator('.running-progress__signal-track')).toHaveCount(5)
+  await expect(legacySignal.locator('[data-running-part="signal-track"]')).toHaveCount(5)
   const legacySignalLayout = await legacySignal.evaluate((element) => {
-    const visual = element.querySelector<HTMLElement>('.running-progress__visual')
-    const tracks = element.querySelector<HTMLElement>('.running-progress__signal-tracks')
+    const visual = element.querySelector<HTMLElement>('[data-running-visual]')
+    const tracks = element.querySelector<HTMLElement>('[data-running-part="signal-tracks"]')
     return {
       visualHeight: visual?.getBoundingClientRect().height ?? 0,
       tracksDisplay: tracks ? getComputedStyle(tracks).display : 'none',
@@ -368,9 +368,18 @@ test('keeps panel-scale fields behind readable content and adapts them without o
   expect(legacySignalLayout.visualHeight).toBeGreaterThan(100)
   expect(legacySignalLayout.tracksDisplay).toBe('flex')
 
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  expect(
+    await field
+      .locator('[data-running-part="bloom-marker"]')
+      .first()
+      .evaluate((element) => getComputedStyle(element).animationName),
+  ).toBe('none')
+  await expect(page.locator('[data-panel-content]').first()).toContainText('Elapsed')
+
   await page.setViewportSize({ width: 390, height: 844 })
   const narrow = await field.evaluate((element) => {
-    const lanes = element.querySelector<HTMLElement>('.running-field__bloom-lanes')
+    const lanes = element.querySelector<HTMLElement>('[data-running-part="bloom-lanes"]')
     return {
       lanesVisible: lanes ? getComputedStyle(lanes).display !== 'none' : false,
       documentWidth: document.documentElement.scrollWidth,
@@ -416,11 +425,11 @@ test('fits populated single-screen team layout without clipping required content
   })
 
   await page.goto('/')
-  await expect(page.locator('.panel')).toHaveCount(singleScreenBoard.panels.length)
-  await expect(page.locator('.panel__link')).toHaveCount(singleScreenBoard.panels.length)
+  await expect(page.locator('[data-panel]')).toHaveCount(singleScreenBoard.panels.length)
+  await expect(page.locator('[data-panel-link]')).toHaveCount(singleScreenBoard.panels.length)
 
   const layout = await page.evaluate(() => {
-    const panels = [...document.querySelectorAll<HTMLElement>('.panel')].map((panel) => {
+    const panels = [...document.querySelectorAll<HTMLElement>('[data-panel]')].map((panel) => {
       const rect = panel.getBoundingClientRect()
       return {
         left: rect.left,
@@ -452,13 +461,13 @@ test('fits populated single-screen team layout without clipping required content
   expect(new Set(versionPanels.map((panel) => panel.top)).size).toBe(1)
   expect(
     await page
-      .locator('.panel--primary .panel__content')
+      .locator('[data-panel][data-display="primary"] [data-panel-content]')
       .first()
       .evaluate((element) => getComputedStyle(element).flexDirection),
   ).toBe('row')
   expect(
     await page
-      .locator('.panel--compact .panel__content')
+      .locator('[data-panel][data-display="compact"] [data-panel-content]')
       .first()
       .evaluate((element) => getComputedStyle(element).flexDirection),
   ).toBe('row')

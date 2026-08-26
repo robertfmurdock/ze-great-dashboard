@@ -138,7 +138,7 @@ describe('pipeline-status refresh scheduling', () => {
     await settle()
 
     expect(rendered.textContent).toContain('Demo treatment ·')
-    expect(rendered.querySelector('.running-field, .running-progress')).not.toBeNull()
+    expect(rendered.querySelector('[data-running-field], [data-running-progress]')).not.toBeNull()
     expect(requests.filter((url) => url.includes('/panel/'))).toEqual([])
   })
 
@@ -223,15 +223,15 @@ describe('pipeline-status refresh scheduling', () => {
       expect(
         rendered.querySelector(
           isField
-            ? `.running-field[data-animation="${animation}"]`
-            : `.running-progress--${animation}`,
+            ? `[data-running-field][data-animation="${animation}"]`
+            : `[data-running-progress="${animation}"]`,
         ),
       ).not.toBeNull()
       if (animation === 'signal-field') {
-        expect(rendered.querySelectorAll('.running-progress__signal-track')).toHaveLength(5)
-        expect(
-          rendered.querySelector('.running-progress__visual')?.getAttribute('aria-hidden'),
-        ).toBe('true')
+        expect(rendered.querySelectorAll('[data-running-part="signal-track"]')).toHaveLength(5)
+        expect(rendered.querySelector('[data-running-visual]')?.getAttribute('aria-hidden')).toBe(
+          'true',
+        )
       }
       if (
         animation === 'runway' ||
@@ -281,10 +281,10 @@ describe('pipeline-status refresh scheduling', () => {
     const rendered = render(<App env={env} />)
     await settle()
 
-    expect(rendered.querySelector('.running-progress--overdue')).not.toBeNull()
+    expect(rendered.querySelector('[data-running-progress][data-overdue="true"]')).not.toBeNull()
     expect(rendered.textContent).toContain('⚠5:00/~1:00')
     expect(rendered.textContent).toContain('Running')
-    expect(rendered.querySelectorAll('.running-progress')).toHaveLength(1)
+    expect(rendered.querySelectorAll('[data-running-progress]')).toHaveLength(1)
   })
 
   it('renders an indeterminate active treatment when timing history is unavailable', async () => {
@@ -296,7 +296,9 @@ describe('pipeline-status refresh scheduling', () => {
     await settle()
 
     expect(
-      rendered.querySelector('.running-field--telemetry-bloom.running-field--indeterminate'),
+      rendered.querySelector(
+        '[data-running-field][data-animation="telemetry-bloom"][data-indeterminate="true"]',
+      ),
     ).not.toBeNull()
     expect(rendered.textContent).toContain('Expected duration unavailable')
   })
@@ -420,7 +422,7 @@ describe('pipeline-status refresh scheduling', () => {
     await settle()
     expect(rendered.textContent).toContain('No workflow runs')
     expect(rendered.textContent).toContain('branch "master"')
-    const link = rendered.querySelector('.panel__link')
+    const link = rendered.querySelector('[data-panel-link]')
     expect(link?.textContent).toContain('View source')
     expect(link?.getAttribute('href')).toBe(
       'https://github.com/example-org/example-repo/actions/workflows/build.yml',
@@ -448,7 +450,7 @@ describe('pipeline-status refresh scheduling', () => {
     const rendered = render(<App env={env} />)
     await settle()
     expect(rendered.textContent).toContain('Invalid signal')
-    expect(rendered.querySelector('.panel__link')?.getAttribute('href')).toBe(
+    expect(rendered.querySelector('[data-panel-link]')?.getAttribute('href')).toBe(
       'https://github.com/example-org/example-repo/actions/workflows/build.yml',
     )
   })
@@ -548,7 +550,7 @@ describe('http-value panels', () => {
     const rendered = render(<App env={env} />)
     await act(async () => {})
     expect(rendered.textContent).toContain('Unable to read')
-    expect(rendered.querySelector('.panel__link')?.getAttribute('href')).toBe(
+    expect(rendered.querySelector('[data-panel-link]')?.getAttribute('href')).toBe(
       'https://service.example.com/status',
     )
   })
@@ -584,7 +586,7 @@ describe('http-value panels', () => {
 
     const rendered = render(<App env={env} />)
     await act(async () => {})
-    const panel = rendered.querySelector('.panel')
+    const panel = rendered.querySelector('[data-panel]')
     expect(panel?.getAttribute('style')).toContain('--panel-column: 7 / span 6')
     expect(panel?.getAttribute('style')).toContain('--panel-row: 5 / span 3')
   })

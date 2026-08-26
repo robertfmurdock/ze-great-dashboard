@@ -1,0 +1,16 @@
+.error {
+  margin: 0 auto;
+  max-width: 60ch;
+  padding: 2rem;
+  color: var(--ink-primary);
+}
+.error pre {
+  padding: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--status-critical);
+  background: var(--surface-raised);
+  color: var(--ink-secondary);
+  font-size: 0.75em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

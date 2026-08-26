@@ -7,7 +7,8 @@ import {
 } from '@ze-great-dashboard/shared'
 import { useState } from 'react'
 import { ObservedAt } from './ObservedAt.tsx'
-import { PanelFrame } from './PanelFrame.tsx'
+import { PanelBranch, PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
+import styles from './PipelinePanel.module.css'
 import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
 import { RunningFieldTiming } from './RunningFieldTiming.tsx'
 import { isLegacyRunningAnimation, RunningProgress } from './RunningProgress.tsx'
@@ -23,16 +24,16 @@ export function PipelinePanel({
   if (!envelope)
     return (
       <PanelFrame panel={panel}>
-        <p className="panel__hint">Loading…</p>
+        <PanelHint>Loading…</PanelHint>
       </PanelFrame>
     )
   if (envelope.state === 'error') {
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <p className="panel__status">
+        <PanelStatus>
           ⚠ {envelope.error.kind === 'no-runs' ? 'No workflow runs' : 'Unable to read'}
-        </p>
-        <p className="panel__hint">{envelope.error.message}</p>
+        </PanelStatus>
+        <PanelHint>{envelope.error.message}</PanelHint>
         <ObservedAt value={envelope.observedAt} />
       </PanelFrame>
     )
@@ -42,7 +43,7 @@ export function PipelinePanel({
   if (!signal.success)
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <p className="panel__status">⚠ Invalid signal</p>
+        <PanelStatus>⚠ Invalid signal</PanelStatus>
         <ObservedAt value={envelope.observedAt} />
       </PanelFrame>
     )
@@ -81,20 +82,20 @@ function PipelineSignalPanel({
         ) : undefined
       }
     >
-      <div className="pipeline-panel__details">
-        <p className={`panel__status panel__status--${signal.status}`}>
+      <div className={styles.details}>
+        <PanelStatus status={signal.status}>
           {presentation.glyph} {presentation.label}
-        </p>
-        <p className="panel__hint">
+        </PanelStatus>
+        <PanelHint>
           {signal.name} · {signal.rawStatus}
           {signal.branch && (
-            <span className="panel__branch" title={`Branch: ${signal.branch}`}>
+            <PanelBranch title={`Branch: ${signal.branch}`}>
               <span aria-hidden="true"> · ⎇ </span>
               <span className="screen-reader-only">Branch: </span>
               {signal.branch}
-            </span>
+            </PanelBranch>
           )}
-        </p>
+        </PanelHint>
         {usesField && (
           <RunningFieldTiming
             elapsedMs={timing.elapsedMs}
@@ -102,15 +103,9 @@ function PipelineSignalPanel({
             overdue={timing.overdue}
           />
         )}
-        {usesLegacyProgress && (
-          <RunningProgress
-            animation={animation}
-            runStartedAt={signal.runStartedAt}
-            estimatedDurationMs={signal.estimatedDurationMs}
-          />
-        )}
+        {usesLegacyProgress && <RunningProgress animation={animation} timing={timing} />}
         {signal.status !== 'running' && signal.durationMs !== undefined && (
-          <p className="panel__hint">Took {formatDuration(signal.durationMs)}</p>
+          <PanelHint>Took {formatDuration(signal.durationMs)}</PanelHint>
         )}
         {signal.sourceUpdatedAt && (
           <ObservedAt value={signal.sourceUpdatedAt} label="Run updated" />

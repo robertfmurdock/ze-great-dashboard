@@ -1,3 +1,5 @@
+import { PanelObserved } from './PanelFrame.tsx'
+
 export function ObservedAt({ value, label = 'As of' }: { value: string; label?: string }) {
   const observed = new Date(value)
   const formatted = observed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -5,9 +7,9 @@ export function ObservedAt({ value, label = 'As of' }: { value: string; label?: 
   const stale = age > 5 * 60 * 1000
   const ageText = formatAge(age)
   return (
-    <p className={`panel__hint panel__observed${stale ? ' panel__observed--stale' : ''}`}>
+    <PanelObserved stale={stale}>
       <span aria-hidden="true">◷</span> {label} {formatted} · {ageText}
-    </p>
+    </PanelObserved>
   )
 }
 
