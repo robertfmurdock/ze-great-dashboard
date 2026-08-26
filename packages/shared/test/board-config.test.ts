@@ -171,6 +171,7 @@ describe('the board config schema', () => {
     'telemetry-bloom',
     'release-transit',
     'status-weather',
+    'falling-shapes',
     'off',
   ])('accepts the %s running animation', (animation) => {
     const result = boardConfigSchema.parse({
@@ -179,6 +180,27 @@ describe('the board config schema', () => {
       },
     })
     expect(result.boards.a?.panels[0]?.running_animation).toBe(animation)
+  })
+
+  it('accepts configurable animation-demo durations', () => {
+    const result = boardConfigSchema.parse({
+      boards: {
+        a: {
+          panels: [
+            {
+              id: 'demo',
+              type: 'pipeline-animation-demo',
+              demo_run_duration: '45s',
+              demo_review_duration: '2m',
+            },
+          ],
+        },
+      },
+    })
+    expect(result.boards.a?.panels[0]).toMatchObject({
+      demo_run_duration: '45s',
+      demo_review_duration: '2m',
+    })
   })
 
   it('rejects an unknown running animation instead of silently changing the comparison', () => {

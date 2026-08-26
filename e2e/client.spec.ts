@@ -97,6 +97,12 @@ const signalFieldBoard = {
       running_animation: 'signal-field',
       position: { x: 0, y: 12, w: 12, h: 12 },
     },
+    {
+      id: 'falling-shapes-build',
+      type: 'pipeline-status',
+      running_animation: 'falling-shapes',
+      position: { x: 0, y: 24, w: 12, h: 2 },
+    },
   ],
 }
 
@@ -286,7 +292,7 @@ test('keeps panel-scale fields behind readable content, adapts them without over
       rawStatus: 'in_progress',
       name: 'Build',
       runStartedAt: '2026-08-24T13:58:00.000Z',
-      estimatedDurationMs: 300_000,
+      estimatedDurationMs: 2_000,
     },
   }
   await page.addInitScript(() => {
@@ -354,6 +360,23 @@ test('keeps panel-scale fields behind readable content, adapts them without over
       .evaluate((element) => getComputedStyle(element).animationName),
   ).not.toBe('none')
 
+  const falling = page.locator('[data-running-field][data-animation="falling-shapes"]')
+  await expect(falling).toBeVisible()
+  const fallingField = falling.locator('[data-running-part="falling-shapes-field"]')
+  await expect(fallingField).toHaveAttribute('data-direction', 'horizontal')
+  await expect(fallingField).toHaveCount(1)
+  await page.waitForTimeout(1_400)
+  await expect(falling.locator('[data-piece]')).toHaveCount(1)
+  const firstPieceCells = await falling
+    .locator('[data-piece]')
+    .first()
+    .locator(':scope > span')
+    .count()
+  expect(firstPieceCells).toBeGreaterThanOrEqual(2)
+  expect(firstPieceCells).toBeLessThanOrEqual(4)
+  await page.waitForTimeout(1_800)
+  await expect(falling.locator('[data-piece]')).toHaveCount(2)
+
   const legacySignal = page.locator('[data-running-progress="signal-field"]')
   await expect(legacySignal).toBeVisible()
   await expect(legacySignal.locator('[data-running-part="signal-track"]')).toHaveCount(5)
@@ -369,6 +392,13 @@ test('keeps panel-scale fields behind readable content, adapts them without over
   expect(legacySignalLayout.tracksDisplay).toBe('flex')
 
   await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.waitForTimeout(100)
+  const reducedFallingPosition = await falling.locator('[data-piece]').first().getAttribute('style')
+  await page.waitForTimeout(200)
+  await expect(falling.locator('[data-piece]').first()).toHaveAttribute(
+    'style',
+    reducedFallingPosition ?? '',
+  )
   expect(
     await field
       .locator('[data-running-part="bloom-marker"]')

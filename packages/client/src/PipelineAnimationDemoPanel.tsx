@@ -1,5 +1,6 @@
-import type { Panel } from '@ze-great-dashboard/shared'
+import { type Panel, parseDuration } from '@ze-great-dashboard/shared'
 import { useEffect, useState } from 'react'
+import { fallingSeed } from './falling-shapes.ts'
 import { PanelFrame, PanelStatus } from './PanelFrame.tsx'
 import styles from './PipelineAnimationDemoPanel.module.css'
 import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
@@ -7,9 +8,10 @@ import { RunningFieldTiming } from './RunningFieldTiming.tsx'
 import { RunningProgress } from './RunningProgress.tsx'
 import { useRunningTiming } from './running-timing.ts'
 
-const RUN_DURATION_MS = 20_000
+const DEFAULT_RUN_DURATION_MS = 20_000
 const ESTIMATED_DURATION_MS = 15_000
-const REVIEW_DURATION_MS = 300_000
+const DEFAULT_REVIEW_DURATION_MS = 300_000
+const REVIEW_CYCLE_MULTIPLIER = 1.25
 const variants = [
   'radial',
   'runway',
@@ -18,6 +20,7 @@ const variants = [
   'telemetry-bloom',
   'release-transit',
   'status-weather',
+  'falling-shapes',
 ] as const
 
 /**
@@ -32,7 +35,11 @@ export function PipelineAnimationDemoPanel({ panel }: { panel: Panel }) {
     panel.running_animation === undefined || panel.running_animation === 'off'
       ? undefined
       : panel.running_animation
-  const durationMs = fixedAnimation ? REVIEW_DURATION_MS : RUN_DURATION_MS
+  const runDurationMs = durationMillis(panel.demo_run_duration, DEFAULT_RUN_DURATION_MS)
+  const reviewDurationMs = durationMillis(panel.demo_review_duration, DEFAULT_REVIEW_DURATION_MS)
+  const durationMs = fixedAnimation
+    ? Math.ceil(reviewDurationMs * REVIEW_CYCLE_MULTIPLIER)
+    : runDurationMs
   const runNumber = Math.floor(now / durationMs)
   const animation = fixedAnimation ?? variants[runNumber % variants.length] ?? 'radial'
   const runStartedAt = runNumber * durationMs
@@ -42,9 +49,14 @@ export function PipelineAnimationDemoPanel({ panel }: { panel: Panel }) {
       panel={panel}
       animation={animation}
       runStartedAt={runStartedAt}
-      estimatedDurationMs={fixedAnimation ? REVIEW_DURATION_MS : ESTIMATED_DURATION_MS}
+      estimatedDurationMs={fixedAnimation ? reviewDurationMs : ESTIMATED_DURATION_MS}
     />
   )
+}
+
+function durationMillis(value: Panel['demo_run_duration'], fallback: number): number {
+  if (!value) return fallback
+  return parseDuration(value) ?? fallback
 }
 
 function DemoRun({
@@ -67,10 +79,13 @@ function DemoRun({
       field={
         usesField ? (
           <RunningField
+            key={`${animation}-${runStartedAt}`}
             animation={animation}
             progress={timing.progress}
+            estimatedDurationMs={timing.estimatedDurationMs}
             overdue={timing.overdue}
             indeterminate={!timing.hasEstimate}
+            seed={fallingSeed(panel.id)}
           />
         ) : undefined
       }

@@ -67,21 +67,26 @@ runs from all branches. `http-value` uses `url` and an optional `json_path` such
 ## Active pipeline treatments
 
 `pipeline-status` panels may set `running_animation` to `off`, or to one of `radial`, `runway`,
-`orbit`, `signal-field`, `telemetry-bloom`, `release-transit`, or `status-weather`. Omission chooses
-one of those visible treatments at random when the panel mounts. The first four are retained inline treatments; the latter three are panel-scale
-decorative fields. This setting changes only the active-running presentation and never replaces the
-status label or timing text.
+`orbit`, `signal-field`, `telemetry-bloom`, `release-transit`, `status-weather`, or
+`falling-shapes`. Omission chooses
+one of those visible treatments at random when the panel mounts. The first four are retained inline
+treatments; the latter four are panel-scale decorative fields. `falling-shapes` measures the rendered
+panel and scales an approximately square-cell field into its interior. Wide panels move pieces from
+right to left, while tall and square panels move them from top to bottom. This setting changes only
+the active-running presentation and never replaces the status label or timing text.
 
 ## Local animation demo
 
 `pipeline-animation-demo` is a local visualization aid for comparing active pipeline treatments.
 It does not name a source, refresh interval, credential, or API endpoint. Without
-`running_animation`, it rotates through all seven supported visible treatments on a fixed 20-second
-loop, including the overdue treatment after its 15-second advisory estimate. Give it a visible
-`running_animation` value to hold one treatment for focused review; that review mode uses a matching
-five-minute synthetic run so it cannot rebase at the rotating demo’s 20-second run boundary. Add it
-to a local board while choosing a treatment; omit it from a production board when it is no longer
-useful.
+`running_animation`, it rotates through all eight supported visible treatments on a 20-second loop,
+including the overdue treatment after its 15-second advisory estimate. Set `demo_run_duration` to
+change that rotation interval. Give it a visible `running_animation` value to hold one treatment
+for focused review; that review mode uses a five-minute estimated run followed by a short overtime
+tail before restarting. Set
+`demo_review_duration` to change the focused-review interval and estimate. Both fields use duration
+values such as `20s` or `5m`; omitted values retain the defaults. Add it to a local board while
+choosing a treatment; omit it from a production board when it is no longer useful.
 
 ## Credentials
 

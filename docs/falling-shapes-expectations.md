@@ -19,7 +19,8 @@ name of any existing commercial puzzle game.
 At the beginning of a run, the field should be mostly open. New pieces should
 arrive at a measured pace, leaving enough empty space for the viewer to notice
 each one. The field should become denser gradually over the lifetime of the
-run; it should never appear filled immediately after the animation starts.
+run, reaching roughly 85% occupied cells at the estimated duration; it should
+never appear filled immediately after the animation starts.
 
 Each arriving piece should be visually distinct from the pieces already at
 rest. A viewer should be able to follow the active piece through these stages:
@@ -83,12 +84,21 @@ distance. The active piece needs enough time in its entry and travel phases to
 be perceived, but the treatment should remain atmospheric rather than
 demanding sustained attention.
 
+Until the estimated run duration is exceeded, the generator should favor pieces and destinations
+that have a clear path and connect cleanly to the settled field. Once the run is overdue, it may
+relax the support preference and introduce gaps while still keeping pieces inside the field and
+preventing them from passing through settled pieces.
+
 ## What happens when space becomes scarce
 
 The field is a continuously recycled visual, not a game-over screen. Once the
-field has been occupied for long enough, older rows or columns should
-gradually disappear to make room for new pieces, according to the direction of
-travel. New material may then introduce openings again.
+estimate is reached, pieces should continue arriving and placing normally. If
+the field cannot accept another piece, clear one line at the discard edge—the
+bottom row for vertical flow or the left column for horizontal flow. Remove
+only the cells in that line, retain unaffected cells from intersecting shapes,
+and shift the surviving field into the opening with a visible coordinated
+animation. Prefer a complete line, using a partial edge line only as a
+deadlock fallback.
 
 This recycling should feel like an ongoing flow through the panel. It should
 not clear the entire field abruptly, erase pieces while they are visibly

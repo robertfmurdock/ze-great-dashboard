@@ -10,6 +10,8 @@ const panel: Panel = {
   type: 'pipeline-animation-demo',
 }
 
+const duration = (value: string) => value as Panel['demo_run_duration']
+
 beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date(0))
@@ -54,6 +56,9 @@ describe('PipelineAnimationDemoPanel', () => {
     expect(rendered.container.querySelector('[data-animation="status-weather"]')).not.toBeNull()
 
     await act(async () => vi.advanceTimersByTime(20_000))
+    expect(rendered.container.querySelector('[data-animation="falling-shapes"]')).not.toBeNull()
+
+    await act(async () => vi.advanceTimersByTime(20_000))
     expect(rendered.container.querySelector('[data-running-progress="radial"]')).not.toBeNull()
     expect(rendered.container.textContent).toContain('Elapsed 0s')
     expect(rendered.container.textContent).not.toContain('Over estimate')
@@ -84,5 +89,50 @@ describe('PipelineAnimationDemoPanel', () => {
     ).not.toBeNull()
     expect(rendered.container.textContent).toContain('Demo treatment · signal-field')
     expect(rendered.container.textContent).toContain('0:40/~5:00')
+  })
+
+  it('uses configured cycle and focused-review durations', async () => {
+    const rotating = render(
+      <PipelineAnimationDemoPanel panel={{ ...panel, demo_run_duration: duration('5s') }} />,
+    )
+    await act(async () => vi.advanceTimersByTime(5_000))
+    expect(rotating.container.querySelector('[data-running-progress="runway"]')).not.toBeNull()
+
+    vi.setSystemTime(new Date(0))
+    const focused = render(
+      <PipelineAnimationDemoPanel
+        panel={{
+          ...panel,
+          running_animation: 'signal-field',
+          demo_review_duration: duration('7s'),
+        }}
+      />,
+    )
+    expect(focused.container.textContent).toContain('Expected ≈ 7s')
+    await act(async () => vi.advanceTimersByTime(6_000))
+    expect(focused.container.textContent).toContain('Elapsed 6s')
+    await act(async () => vi.advanceTimersByTime(2_000))
+    expect(focused.container.textContent).toContain('Over estimate')
+  })
+
+  it('remounts the decorative field when a focused demo run resets', async () => {
+    const rendered = render(
+      <PipelineAnimationDemoPanel
+        panel={{
+          ...panel,
+          running_animation: 'falling-shapes',
+          demo_review_duration: duration('2s'),
+        }}
+      />,
+    )
+    const firstField = rendered.container.querySelector('[data-running-field]')
+    expect(firstField).not.toBeNull()
+
+    await act(async () => vi.advanceTimersByTime(3_000))
+
+    const secondField = rendered.container.querySelector('[data-running-field]')
+    expect(secondField).not.toBeNull()
+    expect(secondField).not.toBe(firstField)
+    expect(rendered.container.textContent).toContain('Elapsed 0s')
   })
 })

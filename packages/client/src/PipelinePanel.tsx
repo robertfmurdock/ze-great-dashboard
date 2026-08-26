@@ -6,6 +6,7 @@ import {
   visibleRunningAnimations,
 } from '@ze-great-dashboard/shared'
 import { useState } from 'react'
+import { fallingSeed } from './falling-shapes.ts'
 import { ObservedAt } from './ObservedAt.tsx'
 import { PanelBranch, PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
 import styles from './PipelinePanel.module.css'
@@ -76,8 +77,10 @@ function PipelineSignalPanel({
           <RunningField
             animation={animation}
             progress={timing.progress}
+            estimatedDurationMs={timing.estimatedDurationMs}
             overdue={timing.overdue}
             indeterminate={!timing.hasEstimate}
+            seed={fallingSeed(panel.id)}
           />
         ) : undefined
       }

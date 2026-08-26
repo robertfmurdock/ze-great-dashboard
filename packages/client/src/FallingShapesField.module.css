@@ -1,0 +1,85 @@
+.field {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout paint;
+  color: var(--status-warning);
+}
+.grid {
+  position: absolute;
+  inset: 10%;
+}
+.piece {
+  position: absolute;
+  left: calc((var(--piece-x) / var(--shape-columns)) * 100%);
+  top: calc((var(--piece-y) / var(--shape-rows)) * 100%);
+  width: calc((var(--piece-width) / var(--shape-columns)) * 100%);
+  height: calc((var(--piece-height) / var(--shape-rows)) * 100%);
+  transition:
+    left 120ms linear,
+    top 120ms linear;
+}
+.field[data-recycling="true"] .piece {
+  transition:
+    left 500ms cubic-bezier(0.22, 1, 0.36, 1),
+    top 500ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+.cell {
+  position: absolute;
+  left: calc((var(--cell-x) / var(--piece-width)) * 100% + 0.12em);
+  top: calc((var(--cell-y) / var(--piece-height)) * 100% + 0.12em);
+  width: calc(100% / var(--piece-width) - 0.24em);
+  height: calc(100% / var(--piece-height) - 0.24em);
+  border: 1px solid color-mix(in srgb, currentColor 55%, transparent);
+  border-radius: 0.12em;
+  background: color-mix(in srgb, currentColor 28%, transparent);
+  box-shadow: 0 0 0.45em color-mix(in srgb, currentColor 35%, transparent);
+}
+.clearingCell {
+  position: absolute;
+  left: calc((var(--clear-x) / var(--shape-columns)) * 100% + 0.12em);
+  top: calc((var(--clear-y) / var(--shape-rows)) * 100% + 0.12em);
+  width: calc(100% / var(--shape-columns) - 0.24em);
+  height: calc(100% / var(--shape-rows) - 0.24em);
+  border: 1px solid color-mix(in srgb, currentColor 55%, transparent);
+  border-radius: 0.12em;
+  background: color-mix(in srgb, currentColor 28%, transparent);
+  animation: clear-cell 500ms ease-out forwards;
+}
+.piece[data-piece-phase="entry"] {
+  opacity: 0.35;
+}
+.piece[data-piece-phase="align"] {
+  opacity: 0.65;
+}
+.piece[data-piece-phase="travel"] {
+  opacity: 0.9;
+}
+.piece[data-piece-phase="settled"] {
+  opacity: 0.5;
+}
+@container panel (max-width: 24rem) {
+  .grid {
+    inset: 18%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .piece,
+  .field[data-recycling="true"] .piece {
+    transition: none;
+  }
+  .clearingCell {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+@keyframes clear-cell {
+  to {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+}

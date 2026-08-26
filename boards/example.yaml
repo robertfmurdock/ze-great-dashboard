@@ -26,15 +26,27 @@ boards:
           w: 12
           x: 0
           y: 3
+        demo_run_duration: 20s
+        demo_review_duration: 5m
         type: pipeline-animation-demo
       - display: supporting
         id: signal-field-motion-review
         position:
-          h: 6
+          h: 3
           w: 12
           x: 0
           y: 6
         running_animation: signal-field
+        type: pipeline-animation-demo
+      - display: supporting
+        id: falling-shapes-review
+        position:
+          h: 3
+          w: 12
+          x: 0
+          y: 9
+        running_animation: falling-shapes
+        demo_review_duration: 1m
         type: pipeline-animation-demo
     refresh: 60s
 sources:

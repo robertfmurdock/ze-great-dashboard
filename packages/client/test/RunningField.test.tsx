@@ -29,6 +29,7 @@ describe('RunningField', () => {
     ['telemetry-bloom', 'bloom-lane'],
     ['release-transit', 'transit-packet'],
     ['status-weather', 'weather-haze'],
+    ['falling-shapes', 'falling-shapes-field'],
   ] as const)(
     'renders %s as an inert decorative sibling with timing in the text island',
     (animation, part) => {
@@ -45,10 +46,28 @@ describe('RunningField', () => {
     },
   )
 
+  it('renders falling shapes as an inert field behind readable content', () => {
+    const rendered = render(
+      <PipelinePanel
+        panel={{
+          ...panel,
+          position: { x: 0, y: 0, w: 12, h: 12 },
+          running_animation: 'falling-shapes',
+        }}
+        envelope={envelope()}
+      />,
+    ).container
+    const field = rendered.querySelector('[data-animation="falling-shapes"]')
+    expect(field?.getAttribute('aria-hidden')).toBe('true')
+    expect(field?.querySelector('[data-running-part="falling-shapes-field"]')).not.toBeNull()
+    expect(rendered.querySelector('[data-panel-content]')?.textContent).toContain('Running')
+    expect(rendered.querySelector('[data-panel-link]')).not.toBeNull()
+  })
+
   it('chooses a visible treatment at random by default and excludes inactive, off, error, and loading panels', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.99)
     const running = render(<PipelinePanel panel={panel} envelope={envelope()} />).container
-    expect(running.querySelector('[data-animation="status-weather"]')).not.toBeNull()
+    expect(running.querySelector('[data-animation="falling-shapes"]')).not.toBeNull()
     cleanup()
     const off = render(
       <PipelinePanel panel={{ ...panel, running_animation: 'off' }} envelope={envelope()} />,

@@ -46,6 +46,7 @@ export const visibleRunningAnimations = [
   'telemetry-bloom',
   'release-transit',
   'status-weather',
+  'falling-shapes',
 ] as const
 
 export const runningAnimationSchema = z.enum([...visibleRunningAnimations, 'off'])
@@ -64,6 +65,10 @@ export const panelSchema = z.looseObject({
   refresh: durationSchema.optional(),
   /** Optional active-run treatment. Omitted selects a visible treatment at random. */
   running_animation: runningAnimationSchema.optional(),
+  /** Local animation-demo cycle duration; ignored by other panel types. */
+  demo_run_duration: durationSchema.optional(),
+  /** Local animation-demo focused-review duration; ignored by other panel types. */
+  demo_review_duration: durationSchema.optional(),
   /** A deliberate override only. Adapters derive links; hand-written ones drift. */
   link: z.url().optional(),
   /** Source-agnostic endpoint used by the http-value signal. */

@@ -70,6 +70,38 @@ any discontinuity with React rendering, layout/container-query changes, and anim
 events, and then make the smallest change that removes the measured cause. Preserve `signal-field`,
 its five tracks, and its public configuration value.
 
+## Falling shapes and responsive field geometry (2026-08-26)
+
+The falling-shapes treatment was added as an eighth visible active-run animation and exposed
+through both `pipeline-status` and the local `pipeline-animation-demo`. It uses seeded shape
+selection so panels retain stable variation while still producing different pieces and
+destinations. Each piece keeps its chosen destination and becomes part of the settled collision
+state when it arrives; older settled content is recycled only when a new piece genuinely cannot
+be placed. This prevents a completed piece from disappearing from the state used by the next
+piece.
+
+The field now derives its logical density from the measured panel interior, preserving approximately
+square cells while using the available space. Direction is selected once for the field lifetime so
+near-square resize events cannot make a run switch orientation. Pieces enter at the visible edge,
+move through explicit lifecycle phases, and use the estimate to reach an approximately 85% settled
+fill at 100% progress. After that boundary, pieces continue placing normally; when placement
+genuinely runs out, the field clears one bottom row or left column, retaining unaffected cells from
+intersecting shapes and animating the survivors into the opening. Complete lines are preferred,
+with a partial edge line as a deadlock fallback. Runs without an estimate retain steady fallback
+pacing and the same placement-first clearing behavior. Reduced motion uses a deterministic settled
+composition rather than continuing the simulation without CSS transitions.
+
+The local animation demo accepts `demo_run_duration` and `demo_review_duration` duration values.
+They default to `20s` and `5m`, respectively, preserving the prior behavior while allowing the
+rotation interval and focused-review estimate to be adjusted independently. Focused review runs
+for 125% of its estimate so the overtime behavior is observable. The example board
+includes a dedicated `falling-shapes-review` panel with a one-minute review duration for visual
+inspection.
+
+No new dependency was added and existing animation treatments were retained. Verification passed
+with `npm run check`: 231 unit tests, 8 browser tests, board validation, and published-package
+smoke testing.
+
 ## Verification
 
 Focused component coverage validates treatment selection, markup, accessibility, timing placement,
