@@ -2,7 +2,7 @@
 
 Ze Great Dashboard boards are YAML documents containing named sources and one or more named
 boards. A panel refers to a source, identifies the signal type to render, and can define its
-refresh interval and grid position.
+refresh interval, concise wall label, and grid position.
 
 ## Example
 
@@ -22,6 +22,7 @@ boards:
     refresh: 60s
     panels:
       - id: build
+        label: Build
         type: pipeline-status
         display: primary
         source: github
@@ -37,8 +38,10 @@ boards:
 ```
 
 The board-level `refresh` is the default for panels that do not provide their own value. Refresh
-durations use values such as `60s` or `5m`. Panel IDs must be unique within a board. Positions use
-a twelve-column grid: `x` and `y` locate the panel, while `w` and `h` define its size.
+durations use values such as `60s` or `5m`. Panel IDs must be unique within a board and are stable,
+security-relevant proxy addresses; do not use a display rename to change one. `label` is optional,
+presentation-only text for the wall display and defaults to the id. Positions use a twelve-column
+grid: `x` and `y` locate the panel, while `w` and `h` define its size.
 
 Use the optional `display` role to express how much attention a panel should receive. `primary`
 is for the most actionable signals, `supporting` is the default, and `compact` is for lower-priority

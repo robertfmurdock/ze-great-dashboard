@@ -12,6 +12,8 @@ const positionSchema = z.object({
   h: z.number().int().min(1),
 })
 const panelSchema = z.looseObject({
+  // Presentation-only; ids still address proxy calls and the generated allowlist.
+  label: z.string().min(1).optional(),
   id: z.string().min(1),
   type: z.string().min(1),
   source: z.string().min(1).optional(),

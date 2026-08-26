@@ -274,6 +274,40 @@ took the daemon down with it, costing a restart mid-verification. Prefer stoppin
 
 ---
 
+## Grid-first radiator density (2026-08-26)
+
+The first populated team board had enough information to fit a screen, but its balanced card layout
+made the most important question — “which build needs attention?” — slower to scan than it needed to
+be. The board was changed to five full-width, two-row pipeline rectangles followed by four compact
+published-version rectangles in the final row. Update-health panels were removed from this board,
+not from the product: another board can still place and render them when that context earns screen
+space.
+
+The grid remains the sole board-layout API. Authors still choose only `position` and `display`; no
+sections, inferred groups, or board-name selectors were added. Panel components inspect their own
+allocated rectangle: shallow primary panels arrange their existing evidence into scan rows, while
+taller primary panels retain the card treatment and its room for active-run detail. Compact HTTP
+value panels become inline facts when their own rectangle is wide enough, then stack naturally on a
+narrow screen. A first implementation used size containment on every panel; that changed intrinsic
+sizing for tall animation panels. The final implementation uses inline-size containment and derives
+the shallow treatment from the explicit two-row rectangle, preserving tall panel behavior.
+
+`label` was added as an optional presentation-only panel field so a wall can say “JSmints” without
+renaming the stable `jsmints-build` address. IDs remain required, unique, and the proxy/allowlist
+key; requests and routes did not change, and boards without labels render their IDs exactly as
+before. The AWS-side compatibility validator knows the field as well, so release assembly preserves
+it intentionally rather than only through loose-object pass-through.
+
+The always-visible header now keeps only the board name. Client version and asset path moved to the
+existing Diagnostics disclosure: deployment context remains available on request without competing
+with live operational evidence. No dependencies, persistence, or server API routes were added.
+
+Verification covered schema compatibility, label fallback, source-link ownership, Diagnostics
+disclosure, a populated 2048×1024 wall layout with five full-width build rows and four final-row
+facts, clipping/overflow, and narrow-screen stacking. `npm run check` passed after the change.
+
+---
+
 ## If you are picking this up cold
 
 1. `npm install && npm run dev`, open <http://localhost:3000>. That is the loop.

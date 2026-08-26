@@ -34,8 +34,10 @@ export function HttpValuePanel({
     )
   return (
     <PanelFrame panel={panel} envelope={envelope}>
-      <p className="panel__status">{String(signal.data.value)}</p>
-      <ObservedAt value={envelope.observedAt} />
+      <div className="http-value-panel__fact">
+        <p className="panel__status">{String(signal.data.value)}</p>
+        <ObservedAt value={envelope.observedAt} />
+      </div>
     </PanelFrame>
   )
 }

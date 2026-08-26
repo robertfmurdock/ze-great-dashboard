@@ -102,55 +102,65 @@ const signalFieldBoard = {
 
 const singleScreenBoard = {
   panels: [
-    { id: 'coupling-build', type: 'pipeline-status', position: { x: 0, y: 0, w: 6, h: 4 } },
-    { id: 'jsmints-build', type: 'pipeline-status', position: { x: 6, y: 0, w: 6, h: 4 } },
-    { id: 'testmints-build', type: 'pipeline-status', position: { x: 0, y: 4, w: 4, h: 4 } },
-    { id: 'tools-build', type: 'pipeline-status', position: { x: 4, y: 4, w: 4, h: 4 } },
-    { id: 'dashboard-build', type: 'pipeline-status', position: { x: 8, y: 4, w: 4, h: 4 } },
     {
-      id: 'coupling-update-health',
-      type: 'pull-request-health',
-      position: { x: 0, y: 8, w: 3, h: 2 },
-      display: 'compact',
+      id: 'coupling-build',
+      label: 'Coupling',
+      type: 'pipeline-status',
+      display: 'primary',
+      position: { x: 0, y: 0, w: 12, h: 2 },
     },
     {
-      id: 'jsmints-update-health',
-      type: 'pull-request-health',
-      position: { x: 3, y: 8, w: 3, h: 2 },
-      display: 'compact',
+      id: 'jsmints-build',
+      label: 'JSmints',
+      type: 'pipeline-status',
+      display: 'primary',
+      position: { x: 0, y: 2, w: 12, h: 2 },
     },
     {
-      id: 'testmints-update-health',
-      type: 'pull-request-health',
-      position: { x: 6, y: 8, w: 3, h: 2 },
-      display: 'compact',
+      id: 'testmints-build',
+      label: 'Testmints',
+      type: 'pipeline-status',
+      display: 'primary',
+      position: { x: 0, y: 4, w: 12, h: 2 },
     },
     {
-      id: 'tools-update-health',
-      type: 'pull-request-health',
-      position: { x: 9, y: 8, w: 3, h: 2 },
-      display: 'compact',
+      id: 'tools-build',
+      label: 'Tools',
+      type: 'pipeline-status',
+      display: 'primary',
+      position: { x: 0, y: 6, w: 12, h: 2 },
+    },
+    {
+      id: 'dashboard-build',
+      label: 'Dashboard',
+      type: 'pipeline-status',
+      display: 'primary',
+      position: { x: 0, y: 8, w: 12, h: 2 },
     },
     {
       id: 'tagger-version',
+      label: 'Tagger',
       type: 'http-value',
       position: { x: 0, y: 10, w: 3, h: 2 },
       display: 'compact',
     },
     {
       id: 'coupling-version',
+      label: 'Coupling',
       type: 'http-value',
       position: { x: 3, y: 10, w: 3, h: 2 },
       display: 'compact',
     },
     {
       id: 'jsmints-version',
+      label: 'JSmints',
       type: 'http-value',
       position: { x: 6, y: 10, w: 3, h: 2 },
       display: 'compact',
     },
     {
       id: 'testmints-version',
+      label: 'Testmints',
       type: 'http-value',
       position: { x: 9, y: 10, w: 3, h: 2 },
       display: 'compact',
@@ -171,20 +181,6 @@ const pipelineEnvelope = (panelId: string) => ({
     branch: 'main',
     durationMs: 134_000,
     sourceUpdatedAt: '2026-08-24T13:00:00.000Z',
-  },
-})
-
-const healthEnvelope = (panelId: string) => ({
-  panelId,
-  state: 'ok',
-  observedAt: '2026-08-24T14:00:00.000Z',
-  link: 'https://github.com/example/example',
-  signal: {
-    type: 'pull-request-health',
-    status: 'passed',
-    summary: '2 update workflows · No open update PRs',
-    workflows: [],
-    pullRequests: [],
   },
 })
 
@@ -415,11 +411,7 @@ test('fits populated single-screen team layout without clipping required content
     )
     const panel = singleScreenBoard.panels.find((candidate) => candidate.id === panelId)
     const body =
-      panel?.type === 'pipeline-status'
-        ? pipelineEnvelope(panelId)
-        : panel?.type === 'pull-request-health'
-          ? healthEnvelope(panelId)
-          : valueEnvelope(panelId)
+      panel?.type === 'pipeline-status' ? pipelineEnvelope(panelId) : valueEnvelope(panelId)
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) })
   })
 
@@ -452,7 +444,22 @@ test('fits populated single-screen team layout without clipping required content
   expect(layout.document.scrollHeight).toBeLessThanOrEqual(layout.viewport.height)
   expect(layout.panels.every((panel) => panel.contentFits)).toBe(true)
   expect(layout.panels.every((panel) => panel.bottom <= layout.viewport.height)).toBe(true)
-  expect(layout.panels.some((panel) => panel.right - panel.left < layout.viewport.width / 2)).toBe(
+  const buildRows = layout.panels.slice(0, 5)
+  const versionPanels = layout.panels.slice(5)
+  expect(buildRows.every((panel) => panel.right - panel.left > layout.viewport.width * 0.9)).toBe(
     true,
   )
+  expect(new Set(versionPanels.map((panel) => panel.top)).size).toBe(1)
+  expect(
+    await page
+      .locator('.panel--primary .panel__content')
+      .first()
+      .evaluate((element) => getComputedStyle(element).flexDirection),
+  ).toBe('row')
+  expect(
+    await page
+      .locator('.panel--compact .panel__content')
+      .first()
+      .evaluate((element) => getComputedStyle(element).flexDirection),
+  ).toBe('row')
 })

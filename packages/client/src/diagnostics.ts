@@ -144,6 +144,10 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
     return this.events.length
   }
 
+  clientVersion = () => this.env.clientVersion
+
+  assetPath = () => this.env.assetPath
+
   snapshot = () => this.revision
 
   summary = (): DiagnosticsSummary => summarizeDiagnostics(this.events, this.retention)

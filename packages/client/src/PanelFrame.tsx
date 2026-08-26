@@ -18,15 +18,16 @@ export function PanelFrame({
 }) {
   const display =
     panel.display === 'primary' || panel.display === 'compact' ? panel.display : 'supporting'
+  const shallow = panel.position?.h !== undefined && panel.position.h <= 2
   return (
     <section
-      className={`panel panel--${display}${error ? ' panel--error' : ''}`}
+      className={`panel panel--${display}${shallow ? ' panel--shallow' : ''}${error ? ' panel--error' : ''}`}
       style={panelLayout(panel)}
       aria-busy={envelope ? undefined : true}
     >
       {field}
       <div className="panel__content">
-        <h2 className="panel__label">{panel.id}</h2>
+        <h2 className="panel__label">{panel.label ?? panel.id}</h2>
         {children}
         <PanelSourceLink panelId={panel.id} link={envelope?.link} />
       </div>

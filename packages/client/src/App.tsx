@@ -89,16 +89,6 @@ export function App({ env }: { env: ClientEnv }) {
     <div className="board">
       <header className="board__header">
         <h1 className="board__title">{env.board}</h1>
-        <dl className="board__meta">
-          <div>
-            <dt>client</dt>
-            <dd>{env.clientVersion}</dd>
-          </div>
-          <div>
-            <dt>assets</dt>
-            <dd>{env.assetPath}</dd>
-          </div>
-        </dl>
       </header>
 
       <main className="board__grid">

@@ -79,10 +79,7 @@ body {
 
 .board__header {
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
-  justify-content: space-between;
-  gap: var(--gap);
   border-bottom: 1px solid var(--edge);
   padding-bottom: var(--gap);
   flex: 0 0 auto;
@@ -93,33 +90,6 @@ body {
   font-size: 1.75em;
   font-weight: 650;
   letter-spacing: -0.01em;
-}
-
-.board__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: calc(var(--gap) * 1.5);
-  margin: 0;
-  font-size: 0.7em;
-}
-
-.board__meta div {
-  display: flex;
-  flex-direction: column;
-}
-
-.board__meta dt {
-  color: var(--ink-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.8em;
-}
-
-.board__meta dd {
-  margin: 0;
-  color: var(--ink-secondary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  overflow-wrap: anywhere;
 }
 
 /*
@@ -156,6 +126,8 @@ body {
   isolation: isolate;
   overflow: hidden;
   line-height: 1.2;
+  container-name: panel;
+  container-type: inline-size;
 }
 
 /* Text remains a normal-flow island above any optional active-run field. */
@@ -1073,6 +1045,7 @@ body {
   padding: 0.2em;
   gap: 0;
   line-height: 1.05;
+  justify-content: flex-start;
 }
 
 .panel--compact .panel__content {
@@ -1095,6 +1068,73 @@ body {
 
 .panel--compact .panel__link {
   margin-top: 0;
+}
+
+/* Components use the rectangle their author assigned, never board-specific grouping rules. */
+@container panel (min-width: 48rem) {
+  .panel--primary.panel--shallow {
+    padding: 0.45em 0.65em;
+  }
+
+  .panel--primary.panel--shallow .panel__content,
+  .panel--compact.panel--shallow .panel__content {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 0.7em;
+    row-gap: 0.15em;
+  }
+
+  .pipeline-panel__details,
+  .http-value-panel__fact {
+    display: contents;
+  }
+
+  .panel--primary.panel--shallow .pipeline-panel__details > *,
+  .panel--compact.panel--shallow .http-value-panel__fact > * {
+    margin: 0;
+  }
+
+  .panel--primary.panel--shallow .panel__status {
+    flex: 0 0 auto;
+    font-size: 1em;
+  }
+
+  .panel--primary.panel--shallow .panel__label,
+  .panel--compact.panel--shallow .panel__label {
+    flex: 0 0 auto;
+  }
+
+  .panel--primary.panel--shallow .panel__observed,
+  .panel--compact.panel--shallow .panel__observed,
+  .panel--primary.panel--shallow .panel__link,
+  .panel--compact.panel--shallow .panel__link {
+    flex: 0 0 auto;
+  }
+}
+
+@container panel (min-width: 12rem) {
+  .panel--compact.panel--shallow .panel__content {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 0.7em;
+    row-gap: 0.15em;
+  }
+
+  .http-value-panel__fact {
+    display: contents;
+  }
+
+  .panel--compact.panel--shallow .http-value-panel__fact > * {
+    margin: 0;
+  }
+
+  .panel--compact.panel--shallow .panel__label,
+  .panel--compact.panel--shallow .panel__observed,
+  .panel--compact.panel--shallow .panel__link {
+    flex: 0 0 auto;
+  }
 }
 
 .board__footer {
@@ -1144,5 +1184,11 @@ body {
     grid-column: 1 / -1;
     grid-row: auto;
     min-height: 6em;
+  }
+
+  .panel--primary .panel__content,
+  .panel--compact .panel__content {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

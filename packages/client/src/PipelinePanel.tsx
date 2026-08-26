@@ -81,38 +81,42 @@ function PipelineSignalPanel({
         ) : undefined
       }
     >
-      <p className={`panel__status panel__status--${signal.status}`}>
-        {presentation.glyph} {presentation.label}
-      </p>
-      <p className="panel__hint">
-        {signal.name} · {signal.rawStatus}
-        {signal.branch && (
-          <span className="panel__branch" title={`Branch: ${signal.branch}`}>
-            <span aria-hidden="true"> · ⎇ </span>
-            <span className="screen-reader-only">Branch: </span>
-            {signal.branch}
-          </span>
+      <div className="pipeline-panel__details">
+        <p className={`panel__status panel__status--${signal.status}`}>
+          {presentation.glyph} {presentation.label}
+        </p>
+        <p className="panel__hint">
+          {signal.name} · {signal.rawStatus}
+          {signal.branch && (
+            <span className="panel__branch" title={`Branch: ${signal.branch}`}>
+              <span aria-hidden="true"> · ⎇ </span>
+              <span className="screen-reader-only">Branch: </span>
+              {signal.branch}
+            </span>
+          )}
+        </p>
+        {usesField && (
+          <RunningFieldTiming
+            elapsedMs={timing.elapsedMs}
+            estimatedDurationMs={signal.estimatedDurationMs}
+            overdue={timing.overdue}
+          />
         )}
-      </p>
-      {usesField && (
-        <RunningFieldTiming
-          elapsedMs={timing.elapsedMs}
-          estimatedDurationMs={signal.estimatedDurationMs}
-          overdue={timing.overdue}
-        />
-      )}
-      {usesLegacyProgress && (
-        <RunningProgress
-          animation={animation}
-          runStartedAt={signal.runStartedAt}
-          estimatedDurationMs={signal.estimatedDurationMs}
-        />
-      )}
-      {signal.status !== 'running' && signal.durationMs !== undefined && (
-        <p className="panel__hint">Took {formatDuration(signal.durationMs)}</p>
-      )}
-      {signal.sourceUpdatedAt && <ObservedAt value={signal.sourceUpdatedAt} label="Run updated" />}
-      <ObservedAt value={envelope.observedAt} />
+        {usesLegacyProgress && (
+          <RunningProgress
+            animation={animation}
+            runStartedAt={signal.runStartedAt}
+            estimatedDurationMs={signal.estimatedDurationMs}
+          />
+        )}
+        {signal.status !== 'running' && signal.durationMs !== undefined && (
+          <p className="panel__hint">Took {formatDuration(signal.durationMs)}</p>
+        )}
+        {signal.sourceUpdatedAt && (
+          <ObservedAt value={signal.sourceUpdatedAt} label="Run updated" />
+        )}
+        <ObservedAt value={envelope.observedAt} />
+      </div>
     </PanelFrame>
   )
 }

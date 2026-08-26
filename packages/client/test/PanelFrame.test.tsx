@@ -27,6 +27,17 @@ describe('PanelFrame', () => {
     expect(rendered.querySelector('.panel__link')).toBeNull()
   })
 
+  it('uses a presentation label without changing the stable panel id', () => {
+    const rendered = render(
+      <PanelFrame panel={{ ...panel, label: 'Build status' }}>
+        <p>Loading…</p>
+      </PanelFrame>,
+    ).container
+
+    expect(rendered.querySelector('.panel__label')?.textContent).toBe('Build status')
+    expect(rendered.querySelector('.panel')?.getAttribute('style')).toContain('--panel-column')
+  })
+
   it('uses the panel display role as a semantic presentation class', () => {
     const rendered = render(
       <PanelFrame panel={{ ...panel, display: 'compact' }}>

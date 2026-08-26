@@ -32,97 +32,50 @@ boards:
   ze-great-team:
     refresh: 60s
     panels:
-      # Build health: two balanced rows. Keep the whole radiator within the first 12 grid rows.
+      # Build health gets the first screen: each pipeline owns one full-width scan row.
       - id: coupling-build
+        label: Coupling
         type: pipeline-status
         display: primary
         source: coupling
         pipeline: main.yml
-        position: { x: 0, y: 0, w: 6, h: 4 }
+        position: { x: 0, y: 0, w: 12, h: 2 }
 
       - id: jsmints-build
+        label: JSmints
         type: pipeline-status
         display: primary
         source: jsmints
         pipeline: main.yml
-        position: { x: 6, y: 0, w: 6, h: 4 }
+        position: { x: 0, y: 2, w: 12, h: 2 }
 
       - id: testmints-build
+        label: Testmints
         type: pipeline-status
         display: primary
         source: testmints
         pipeline: main.yml
-        position: { x: 0, y: 4, w: 4, h: 4 }
+        position: { x: 0, y: 4, w: 12, h: 2 }
 
       - id: ze-great-tools-build
+        label: Tools
         type: pipeline-status
         display: primary
         source: ze-great-tools
         pipeline: main.yml
-        position: { x: 4, y: 4, w: 4, h: 4 }
+        position: { x: 0, y: 6, w: 12, h: 2 }
 
       - id: ze-great-dashboard-build
+        label: Dashboard
         type: pipeline-status
         display: primary
         source: ze-great-dashboard
         pipeline: main.yml
-        position: { x: 8, y: 4, w: 4, h: 4 }
+        position: { x: 0, y: 8, w: 12, h: 2 }
 
-      # Related change health: compact context beneath the canonical build signals.
-      - id: coupling-update-health
-        type: pull-request-health
-        display: compact
-        source: coupling
-        base_branch: master
-        update_workflows:
-          - workflow: dependency-update.yml
-            branch_prefixes: [cpr-gradle-update/]
-          - workflow: update-gradle-wrapper.yml
-            branch_prefixes: [create-pull-request/]
-        build_workflow: main.yml
-        position: { x: 0, y: 8, w: 3, h: 2 }
-
-      - id: jsmints-update-health
-        type: pull-request-health
-        display: compact
-        source: jsmints
-        base_branch: master
-        update_workflows:
-          - workflow: gradle-update.yml
-            branch_prefixes: [cpr-gradle-update/]
-          - workflow: update-gradle-wrapper.yml
-            branch_prefixes: [cpr/]
-        build_workflow: main.yml
-        position: { x: 3, y: 8, w: 3, h: 2 }
-
-      - id: testmints-update-health
-        type: pull-request-health
-        display: compact
-        source: testmints
-        base_branch: master
-        update_workflows:
-          - workflow: gradle-update.yml
-            branch_prefixes: [create-pull-request/]
-          - workflow: update-gradle-wrapper.yml
-            branch_prefixes: [create-pull-request/]
-        build_workflow: main.yml
-        position: { x: 6, y: 8, w: 3, h: 2 }
-
-      - id: ze-great-tools-update-health
-        type: pull-request-health
-        display: compact
-        source: ze-great-tools
-        base_branch: main
-        update_workflows:
-          - workflow: gradle-update.yml
-            branch_prefixes: [cpr-gradle-update/]
-          - workflow: update-gradle-wrapper.yml
-            branch_prefixes: [create-pull-request/]
-        build_workflow: main.yml
-        position: { x: 9, y: 8, w: 3, h: 2 }
-
-      # Published versions: compact supporting context beneath the actionable signals.
+      # Published versions share the final row.
       - id: tagger-latest-version
+        label: Tagger
         type: http-value
         display: compact
         url: https://registry.npmjs.org/@continuous-excellence%2Ftagger/latest
@@ -132,6 +85,7 @@ boards:
         position: { x: 0, y: 10, w: 3, h: 2 }
 
       - id: coupling-latest-version
+        label: Coupling
         type: http-value
         display: compact
         url: https://registry.npmjs.org/@continuous-excellence%2Fcoupling-cli/latest
@@ -141,6 +95,7 @@ boards:
         position: { x: 3, y: 10, w: 3, h: 2 }
 
       - id: jsmints-latest-version
+        label: JSmints
         type: http-value
         display: compact
         url: 'https://search.maven.org/solrsearch/select?q=g%3A%22com.zegreatrob.jsmints%22%20AND%20a%3A%22plugins%22&rows=1&wt=json'
@@ -150,6 +105,7 @@ boards:
         position: { x: 6, y: 10, w: 3, h: 2 }
 
       - id: testmints-latest-version
+        label: Testmints
         type: http-value
         display: compact
         url: 'https://search.maven.org/solrsearch/select?q=g%3A%22com.zegreatrob.testmints%22%20AND%20a%3A%22report%22&rows=1&wt=json'

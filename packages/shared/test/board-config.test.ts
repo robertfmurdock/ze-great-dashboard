@@ -72,6 +72,14 @@ describe('the board config schema', () => {
     expect(boardConfigSchema.safeParse(validConfig).success).toBe(true)
   })
 
+  it('accepts an optional presentation label while retaining the stable id', () => {
+    const panel = boardConfigSchema.parse({
+      boards: { a: { panels: [{ id: 'build-main', label: 'Build', type: 'pipeline-status' }] } },
+    }).boards.a?.panels[0]
+
+    expect(panel).toMatchObject({ id: 'build-main', label: 'Build' })
+  })
+
   it('accepts named display roles and preserves unknown cosmetic roles for compatibility', () => {
     expect(
       boardConfigSchema.safeParse({

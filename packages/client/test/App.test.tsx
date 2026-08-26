@@ -1,4 +1,4 @@
-import { cleanup, render as rtlRender } from '@testing-library/react'
+import { cleanup, fireEvent, render as rtlRender } from '@testing-library/react'
 import type { ClientEnv } from '@ze-great-dashboard/shared'
 import { act, StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,10 +36,10 @@ describe('the board shell', () => {
     expect(render(<App env={env} />).textContent).toContain('ze-great-team')
   })
 
-  it('shows which client version is running', () => {
-    // This readout is what makes two published versions visibly different, which is the whole
-    // point of the Stage 1 proof — a version you can't see doesn't demonstrate anything.
-    const text = render(<App env={env} />).textContent
+  it('keeps deployment details available through Diagnostics', () => {
+    const rendered = render(<App env={env} />)
+    fireEvent.click(rendered.querySelector('button') as HTMLButtonElement)
+    const text = rendered.textContent
     expect(text).toContain('1.0.7')
     expect(text).toContain('https://assets.example.com/dashboard/1.0.7')
   })

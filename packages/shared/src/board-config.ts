@@ -49,6 +49,8 @@ export const runningAnimationSchema = z.enum([...visibleRunningAnimations, 'off'
 export type RunningAnimation = z.infer<typeof runningAnimationSchema>
 
 export const panelSchema = z.looseObject({
+  /** Presentation-only wall label. `id` remains the stable proxy and allowlist address. */
+  label: z.string().min(1).optional(),
   id: z.string().min(1),
   type: z.string().min(1),
   source: z.string().min(1).optional(),

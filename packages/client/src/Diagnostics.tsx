@@ -34,6 +34,9 @@ export function Diagnostics({ log }: { log: BrowserDiagnosticStore }) {
       {open && (
         <div className={styles.area}>
           <p>
+            Client {log.clientVersion()} · assets {log.assetPath()}
+          </p>
+          <p>
             {summary.retained.eventCount} retained browser-local events across{' '}
             {summary.retained.sessionCount} session{summary.retained.sessionCount === 1 ? '' : 's'}
             {summary.retained.firstEventAt && summary.retained.lastEventAt
