@@ -135,3 +135,20 @@ BOARD_CONFIG_URL=boards/animation-showcase.yaml BOARD=animation-showcase npm run
 The existing `boards/example.yaml`, local defaults, APIs, and dependency set remain unchanged.
 Verification passed with `npm run check`: 241 unit tests, 8 browser tests, example-board and
 showcase-board validation, and published-package smoke testing.
+
+## Legacy signal-field containment (2026-08-26)
+
+Visual review of the standalone showcase found that the retained `signal-field` treatment could
+grow beyond a three-row panel while the panel's intentional `overflow: hidden` made the excess look
+like missing content. Its wide-panel visual had an `8em` minimum and the flex item could also exceed
+the available content height.
+
+The legacy field now permits its flex item and visual to shrink to the panel's available height.
+Three-row-or-shorter positioned panels use the inline-height visual, while tall panels retain the
+expanded wide-panel treatment. The legacy markup, five tracks, compact behavior, and public
+`signal-field` configuration value are unchanged.
+
+Browser coverage now exercises the exact showcase geometry and checks that the visual stays within
+the panel and that the panel has no internal scroll overflow. The focused tall-panel expansion test
+remains in place. Verification passed with `npm run check`: 241 unit tests, 9 browser tests,
+board validation, and published-package smoke testing.

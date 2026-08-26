@@ -722,3 +722,57 @@ test('keeps the focused signal-field demo expanded at panel scale', async ({ pag
   expect(geometry.tracksDisplay).toBe('flex')
   await expect(page.locator('[data-running-part="signal-track"]')).toHaveCount(5)
 })
+
+test('keeps the showcase signal-field visual inside its three-row panel', async ({ page }) => {
+  const showcaseBoard = {
+    panels: [
+      {
+        id: 'showcase-signal-field',
+        type: 'pipeline-animation-demo',
+        running_animation: 'signal-field',
+        position: { x: 7, y: 6, w: 5, h: 3 },
+      },
+    ],
+  }
+  await page.addInitScript(() => {
+    window.env = {
+      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+      proxyPath: '/api',
+      board: 'animation-showcase',
+      clientVersion: 'browser-test',
+    }
+  })
+  await page.route('**/api/boards/animation-showcase', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify(showcaseBoard) }),
+  )
+  await page.route('**/api/client', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+        clientVersion: 'browser-test',
+      }),
+    }),
+  )
+
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/')
+
+  const signal = page.locator('[data-running-progress="signal-field"]')
+  await expect(signal).toBeVisible()
+  const geometry = await signal.evaluate((element) => {
+    const panel = element.closest<HTMLElement>('[data-panel]')
+    const visual = element.querySelector<HTMLElement>('[data-running-visual]')
+    const tracks = element.querySelector<HTMLElement>('[data-running-part="signal-tracks"]')
+    return {
+      panelBottom: panel?.getBoundingClientRect().bottom ?? 0,
+      visualBottom: visual?.getBoundingClientRect().bottom ?? 0,
+      panelFits: panel ? panel.scrollHeight <= panel.clientHeight : false,
+      tracksDisplay: tracks ? getComputedStyle(tracks).display : 'none',
+    }
+  })
+
+  expect(geometry.visualBottom).toBeLessThanOrEqual(geometry.panelBottom)
+  expect(geometry.panelFits).toBe(true)
+  expect(geometry.tracksDisplay).toBe('flex')
+})

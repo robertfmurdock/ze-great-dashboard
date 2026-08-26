@@ -140,11 +140,13 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-self: stretch;
   flex: 1 1 auto;
-  min-height: 2.8em;
+  min-height: 0;
+  max-height: 100%;
 }
 .signalField .visual {
   width: auto;
   height: 1em;
+  max-height: 100%;
   overflow: hidden;
   border: 1px solid var(--edge);
   border-radius: 999px;
@@ -248,7 +250,7 @@
 @container panel (min-width: 26rem) {
   .signalField .visual {
     height: 100%;
-    min-height: 8em;
+    min-height: 0;
     border-radius: 0.25em;
     background: linear-gradient(
       180deg,
@@ -329,6 +331,9 @@
     animation-delay: -0.35s;
     opacity: 0.55;
   }
+}
+.short .signalField .visual {
+  height: 1em;
 }
 @keyframes sweep {
   to {
