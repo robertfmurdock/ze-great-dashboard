@@ -63,6 +63,12 @@ export const panelSchema = z.looseObject({
   /** Advisory in v1 — a panel without a position renders in config order rather than not at all. */
   position: positionSchema.optional(),
   refresh: durationSchema.optional(),
+  /** Active pipeline runs are checked more often than normal panels. */
+  running_refresh: durationSchema.optional(),
+  /** Polling cadence around the estimated completion boundary. */
+  running_completion_refresh: durationSchema.optional(),
+  /** Maximum length of the tighter completion polling burst. */
+  running_completion_window: durationSchema.optional(),
   /** Optional active-run treatment. Omitted selects a visible treatment at random. */
   running_animation: runningAnimationSchema.optional(),
   /** Local animation-demo cycle duration; ignored by other panel types. */
@@ -92,6 +98,9 @@ export type Source = z.infer<typeof sourceSchema>
 
 export const boardSchema = z.object({
   refresh: durationSchema.optional(),
+  running_refresh: durationSchema.optional(),
+  running_completion_refresh: durationSchema.optional(),
+  running_completion_window: durationSchema.optional(),
   panels: z
     .array(panelSchema)
     .min(1)

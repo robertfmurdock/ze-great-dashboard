@@ -4,12 +4,12 @@ import {
   type Envelope,
   envelopeSchema,
   isZeroPosition,
-  parseDuration,
-  resolveRefreshMillis,
+  resolvePollingSettings,
 } from '@ze-great-dashboard/shared'
 import { useEffect, useRef, useState } from 'react'
 import { cacheMetadata, type DiagnosticSink } from './diagnostics.ts'
 import { panelDiagnosticChanged, projectPanelDiagnostic } from './panel-diagnostics.ts'
+import { nextPollDelayMillis } from './polling-schedule.ts'
 
 export function usePanelSignals({
   board,
@@ -29,7 +29,7 @@ export function usePanelSignals({
     if (!board) return
 
     let cancelled = false
-    const timers: number[] = []
+    const timers = new Set<number>()
     for (const panel of board.panels) {
       if (isZeroPosition(panel.position)) continue
       if (
@@ -39,14 +39,9 @@ export function usePanelSignals({
       )
         continue
       let inFlight = false
-      const refreshMillis = resolveRefreshMillis({
-        boardDefaultMillis: parseDuration(board.refresh ?? '60s') ?? 60_000,
-        panelOverrideMillis: panel.refresh
-          ? (parseDuration(panel.refresh) ?? undefined)
-          : undefined,
-        adapterFloorMillis: 0,
-      })
+      const settings = resolvePollingSettings(board, panel)
       const path = `${env.proxyPath}/panel/${encodeURIComponent(env.board)}/${encodeURIComponent(panel.id)}`
+      let lastEnvelope: Envelope | undefined
       const refresh = () => {
         if (cancelled || inFlight) return
         inFlight = true
@@ -91,6 +86,7 @@ export function usePanelSignals({
             }
           })
           .then((envelope) => {
+            if (envelope) lastEnvelope = envelope
             if (!cancelled && envelope) {
               const previous = signalsRef.current[panel.id]
               if (panelDiagnosticChanged(previous, panel, envelope)) {
@@ -117,14 +113,23 @@ export function usePanelSignals({
           })
           .finally(() => {
             inFlight = false
+            if (!cancelled) {
+              const nextTimer = window.setTimeout(
+                () => {
+                  timers.delete(nextTimer)
+                  refresh()
+                },
+                nextPollDelayMillis(lastEnvelope, Date.now(), settings),
+              )
+              timers.add(nextTimer)
+            }
           })
       }
       refresh()
-      timers.push(window.setInterval(refresh, refreshMillis))
     }
     return () => {
       cancelled = true
-      for (const timer of timers) window.clearInterval(timer)
+      for (const timer of timers) window.clearTimeout(timer)
     }
   }, [board, diagnostics, env.board, env.proxyPath])
 

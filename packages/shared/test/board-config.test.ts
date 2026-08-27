@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { boardConfigSchema } from '../src/board-config.ts'
 import { parseDuration } from '../src/duration.ts'
+import { resolvePollingSettings } from '../src/polling-policy.ts'
 
 describe('the example board configs', () => {
   // Cheap, and it catches the schema drifting away from its own documentation — the example is
@@ -123,6 +124,55 @@ describe('the board config schema', () => {
     })
 
     expect(result.success).toBe(false)
+  })
+
+  it('accepts active-run polling settings and resolves panel overrides first', () => {
+    const board = boardConfigSchema.parse({
+      boards: {
+        a: {
+          refresh: '60s',
+          running_refresh: '15s',
+          running_completion_refresh: '5s',
+          running_completion_window: '2m',
+          panels: [
+            {
+              id: 'build',
+              type: 'pipeline-status',
+              running_refresh: '10s',
+              running_completion_window: '1m',
+            },
+          ],
+        },
+      },
+    }).boards.a
+    if (!board) throw new Error('expected board')
+    const panel = board.panels[0]
+    if (!panel) throw new Error('expected panel')
+    expect(resolvePollingSettings(board, panel)).toEqual({
+      refreshMillis: 60_000,
+      runningRefreshMillis: 10_000,
+      runningCompletionRefreshMillis: 5_000,
+      runningCompletionWindowMillis: 60_000,
+    })
+  })
+
+  it('rejects malformed and non-positive active-run durations', () => {
+    for (const key of [
+      'running_refresh',
+      'running_completion_refresh',
+      'running_completion_window',
+    ]) {
+      expect(
+        boardConfigSchema.safeParse({
+          boards: { a: { [key]: '0s', panels: [{ id: 'x', type: 'pipeline-status' }] } },
+        }).success,
+      ).toBe(false)
+      expect(
+        boardConfigSchema.safeParse({
+          boards: { a: { panels: [{ id: 'x', type: 'pipeline-status', [key]: 'soon' }] } },
+        }).success,
+      ).toBe(false)
+    }
   })
 
   it('preserves signal-specific fields it does not yet know about', () => {

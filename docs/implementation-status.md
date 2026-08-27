@@ -40,8 +40,8 @@ locally. The current implementation includes:
 - A bounded panel endpoint; the browser supplies a board and panel id, never an arbitrary URL.
 - GitHub Actions `pipeline-status` panels with normalized status, source links, timestamps, cache
   validator forwarding, and explicit upstream error envelopes.
-- Independent client polling with panel/board/default refresh precedence, no overlapping requests,
-  304 preservation, and lifecycle cleanup.
+- Independent client polling with panel/board/default refresh precedence, adaptive active-run
+  cadence, no overlapping requests, 304 preservation, and lifecycle cleanup.
 - Server-authoritative client update checks: the browser polls the no-store client identity endpoint
   every 60 seconds and reloads when the server selects a different immutable client.
 - Source-agnostic `http-value` panels. They fetch configured HTTP(S) endpoints, accept plain scalar
@@ -126,3 +126,10 @@ still outside the current MVP.
 When implementation forces a meaningful change in product intent, update this document or a focused
 decision record. Do not rewrite `original-pitch.md`; preserving the original reasoning is useful
 when evaluating which assumptions held and which did not.
+
+## Watch items
+
+- Completion polling compares client `Date.now()` with source-provided run timestamps. Significant
+  wall-clock skew could move the burst boundary; revisit if deployed observations show this matters.
+- The pure scheduler tests protect timing policy. Add a focused hook lifecycle regression test only
+  if a concrete fetch/timer race appears; avoid duplicating policy coverage through broad timer tests.

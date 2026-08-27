@@ -20,6 +20,9 @@ sources:
 boards:
   operations:
     refresh: 60s
+    running_refresh: 15s
+    running_completion_refresh: 5s
+    running_completion_window: 2m
     panels:
       - id: build
         label: Build
@@ -51,6 +54,19 @@ warning offers a legal rendered YAML download that scales the explicit rendered 
 makes deterministic nearest-cell adjustments, plus an authored download that preserves the source
 coordinates. Panels that cannot receive a legal cell retain all primary settings but use
 `{ x: 0, y: 0, w: 0, h: 0 }`. Narrow screens intentionally use a single-column flow.
+
+### Adaptive pipeline polling
+
+`refresh` controls the normal cadence and defaults to `60s`. For panels whose latest
+`pipeline-status` signal is running, `running_refresh` defaults to `15s`. When the signal includes
+both `runStartedAt` and `estimatedDurationMs`, polling switches to `running_completion_refresh`
+(default `5s`) at the estimated completion time. It remains there only for
+`running_completion_window` (default `2m`), then returns to `running_refresh` if the run is still
+active. A run without an estimate uses `running_refresh` and never enters the completion burst.
+
+Each setting may be placed on the board or overridden on an individual panel. Panel values take
+precedence over board values, which take precedence over these product defaults. The completion
+window is deliberately bounded so a delayed run cannot keep the tighter cadence indefinitely.
 
 Use the optional `display` role to express how much attention a panel should receive. `primary`
 is for the most actionable signals, `supporting` is the default, and `compact` is for lower-priority

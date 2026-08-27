@@ -46,3 +46,8 @@ export {
   isZeroPosition,
   normalizeBoardLayout,
 } from './layout.ts'
+export {
+  type PollingSettings,
+  pollingDefaults,
+  resolvePollingSettings,
+} from './polling-policy.ts'
