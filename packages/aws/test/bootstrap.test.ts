@@ -15,6 +15,8 @@ import {
 describe('AWS consumer bootstrap contract', () => {
   it('has one authoritative mode resolver for manifests, artifacts, and CLI assertions', () => {
     expect(resolveComputeMode()).toBe('lambda')
+    expect(resolveComputeMode({ artifact: 'ecs', explicit: 'ecs' })).toBe('ecs')
+    expect(resolveComputeMode({ artifact: 'ecs' })).toBe('ecs')
     expect(resolveComputeMode({ persisted: 'ecs', artifact: 'ecs', explicit: 'ecs' })).toBe('ecs')
     expect(() => resolveComputeMode({ persisted: 'ecs', artifact: 'lambda' })).toThrow(
       /regenerate the bootstrap/,

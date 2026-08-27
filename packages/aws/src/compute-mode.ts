@@ -17,16 +17,20 @@ function valid(value: string, label: string): ComputeMode {
 
 /** Resolves every deployment mode decision and rejects contradictory selectors. */
 export function resolveComputeMode(input: ComputeModeInputs = {}): ComputeMode {
-  const persisted = valid(input.persisted ?? 'lambda', 'persisted mode')
-  if (input.artifact !== undefined && valid(input.artifact, 'ComputeMode') !== persisted)
+  const persisted =
+    input.persisted === undefined ? undefined : valid(input.persisted, 'persisted mode')
+  const artifact = input.artifact === undefined ? undefined : valid(input.artifact, 'ComputeMode')
+  const explicit = input.explicit === undefined ? undefined : valid(input.explicit, 'mode')
+  const selected = persisted ?? explicit ?? artifact ?? 'lambda'
+  if (artifact !== undefined && artifact !== selected)
     throw new Error(
-      `ComputeMode ${input.artifact} disagrees with persisted mode ${persisted}; regenerate the bootstrap and parameter artifacts to change deployment mode`,
+      `ComputeMode ${artifact} disagrees with persisted mode ${selected}; regenerate the bootstrap and parameter artifacts to change deployment mode`,
     )
-  if (input.explicit !== undefined && valid(input.explicit, 'mode') !== persisted)
+  if (explicit !== undefined && explicit !== selected)
     throw new Error(
-      `explicit mode ${input.explicit} disagrees with persisted mode ${persisted}; regenerate the bootstrap and parameter artifacts to change deployment mode`,
+      `explicit mode ${explicit} disagrees with persisted mode ${selected}; regenerate the bootstrap and parameter artifacts to change deployment mode`,
     )
-  return persisted
+  return selected
 }
 
 export function computeMode(config: { mode?: string }): ComputeMode {
