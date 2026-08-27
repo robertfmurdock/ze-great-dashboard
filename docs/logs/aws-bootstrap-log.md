@@ -206,3 +206,39 @@ parameter-backed JSON credential map, the board refers only to `token_env: GITHU
 consumer can use the resulting GitHub source without placing the PAT in Git, the board, or Lambda
 environment variables. This is evidence for the credential wiring and scope, not a change to the
 dashboard's rule that credentials remain consumer-owned.
+
+## Persisted compute mode, ECS dogfooding, and bootstrap repair — completed 2026-08-27
+
+Compute mode is now persisted in the checked-in bootstrap manifest and generated application
+parameters. Existing manifests and parameter files without `mode` or `ComputeMode` remain Lambda
+for compatibility. Lambda and ECS application templates accept only their own mode, and package,
+doctor, deployment handoff, and diagnostic paths reject contradictory explicit, persisted, or
+artifact modes rather than silently switching an existing deployment.
+
+The AWS package now includes ECS/Fargate application and bootstrap templates, mode-specific IAM
+policies, immutable GHCR digest validation, ECS deployment metadata, and a checked-in ECS package
+fixture. The repository keeps its persistent reference deployment on Lambda. The release workflow
+packages the exact candidate image, validates the ECS template, runs one ephemeral Fargate smoke
+task, and cleans up its task, task definition, and temporary cluster. It creates no ECS service,
+load balancer, target group, or persistent ECS cluster for repository validation.
+
+Bootstrap revisions advanced to core `1.3` and GitHub OIDC `2.3`. The release gate performs a
+read-only consistency check and reports actual revision, parameter, identity, and accessibility
+mismatches. The contributor-only repair script,
+`scripts/repair-consumer-bootstrap-validation.sh`, captures both fixed validation stacks,
+generates preserved parameter files and change-set handoffs, pauses before creating change sets,
+pauses again after displaying expanded changes, executes only after confirmation, waits for both
+updates, and runs the final consistency check. It leaves its captured inputs and handoffs in a
+timestamped `.bootstrap-work` directory.
+
+The implementation was validated through the real release path after correcting several surfaced
+issues: ECS mode selection when no manifest is present, YAML whitespace in the ECS assertion, the
+scoped/local package invocation in the repair guide, and the distinction between `--config` for
+bootstrap subcommands versus `--bootstrap-config` for application parameter generation.
+
+Release evidence: workflow run `33107035840` for commit `28cda79971ace7a67151336d98987109d0bef84b`
+completed successfully across Build and check, Validate consumer bootstrap candidate, and Release.
+The release path therefore proved the updated bootstrap stacks, Lambda reference deployment, ECS
+packaging/template validation, ephemeral ECS runtime path, and release promotion together. Local
+`npm run check` also passed with 249 unit tests, 9 browser tests, Docker health validation, board
+validation, and published-package staging smoke validation.

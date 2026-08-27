@@ -30,6 +30,12 @@ It never contains the client build or environment-specific configuration.
 The ECS task is stopped and its temporary task definition and cluster are removed so the test does
 not leave a billable long-running service behind.
 
+The persisted compute-mode migration and ECS dogfooding path are now verified in the real release
+workflow. Run `33107035840` for commit `28cda79971ace7a67151336d98987109d0bef84b` completed Build
+and check, consumer bootstrap validation, and Release. The validation stacks were repaired through
+the reviewed contributor script; the repository’s persistent reference deployment remains Lambda,
+while ECS validation remains an ephemeral task with no service or load balancer.
+
 ## Current checkpoint
 
 The repository has the immutable web application shell and the first live data slices working
