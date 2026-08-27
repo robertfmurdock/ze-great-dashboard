@@ -83,7 +83,7 @@ if ! composition_parameters="$(jq -r 'map("\(.ParameterKey)=\(.ParameterValue)")
 fi
 echo "Deploying composition stack ${stack_name} with ${composition_parameter_count} parameters."
 
-aws cloudformation deploy \
+if ! aws cloudformation deploy \
   --stack-name "${stack_name}" \
   --template-file "${composition_template}" \
   --role-arn "${REFERENCE_EXECUTION_ROLE_ARN}" \
@@ -91,7 +91,16 @@ aws cloudformation deploy \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides ${composition_parameters} \
   --no-fail-on-empty-changeset \
-  --no-cli-pager
+  --no-cli-pager; then
+  echo "Reference composition deployment failed; recent CloudFormation events:" >&2
+  aws cloudformation describe-stack-events \
+    --stack-name "${stack_name}" \
+    --region "${region}" \
+    --query 'StackEvents[].[Timestamp,LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason]' \
+    --output table \
+    --no-cli-pager >&2 || echo "Unable to retrieve CloudFormation events." >&2
+  exit 1
+fi
 
 expected_asset_path="$(jq -er '.clientAssetUrl' "${REFERENCE_RELEASE_DIR}/release.json")"
 deployed_asset_path="$(aws cloudformation describe-stacks \

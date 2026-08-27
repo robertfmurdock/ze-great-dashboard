@@ -23,6 +23,13 @@ packages. Say what it buys and what it costs in the change that adds it. This is
 `app.request()` covers it), no husky (`core.hooksPath` covers it), and no separate formatter (Biome
 does both).
 
+**Tests justify themselves by running the code they test through its real interface.** A test that
+only checks source text or repeats an implementation detail has no meaningful behavioral value. For
+example, tests of SQL must execute the SQL against the database engine that interprets it; tests of
+a shell or deployment interface must exercise its observable inputs and outputs, or validate syntax
+when syntax is the actual contract. Prefer a smaller number of real contract tests over symbolic
+assertions about how the implementation happens to be written.
+
 ## Commands
 
 | | |

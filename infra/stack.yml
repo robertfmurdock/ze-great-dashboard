@@ -234,6 +234,13 @@ Resources:
                   - cloudformation:GetTemplate
                   - cloudformation:GetTemplateSummary
                 Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ze-great-dashboard-reference-*/*'
+              - Sid: PassReferenceExecutionRoleToNestedStacks
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt ReferenceCloudFormationExecutionRole.Arn
+                Condition:
+                  StringEquals:
+                    'iam:PassedToService': cloudformation.amazonaws.com
               - Sid: ReferenceServerRoles
                 Effect: Allow
                 Action:

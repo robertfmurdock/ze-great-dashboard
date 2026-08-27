@@ -65,6 +65,12 @@ adding new tests over editing existing tests, so the old behavior remains visibl
 board-format fields should have both feature coverage and a legacy-shape test proving that the field's
 absence still behaves as before.
 
+Tests justify themselves by running the code they test through its real interface. Source-text
+assertions and tests that merely repeat implementation details do not provide behavioral coverage.
+For example, SQL tests must execute the SQL against the database engine that interprets it. For
+shell and deployment interfaces, exercise observable inputs and outputs, or test syntax when syntax
+itself is the contract. Prefer fewer real contract tests over symbolic assertions about source text.
+
 If a behavior must intentionally change, keep an explicit test for the prior default or compatibility
 path and explain the changed expectation in the change. Tests at separate package boundaries—such as
 the shared board validator and the AWS release validator—must agree on the accepted configuration
