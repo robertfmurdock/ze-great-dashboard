@@ -8,9 +8,20 @@
 Ze Great Dashboard is a team-visible, stateless trust dashboard that reads current engineering
 signals from their authorities: a lens, not a system of record.
 
+![README panel-state gallery](docs/assets/readme-panel-states.png)
+
+This fixture-driven gallery shows the six states a dashboard needs to communicate honestly: passed,
+running, failed, cancelled, unknown, and a source error. Status is never color alone; each state is
+paired with a glyph and a readable label.
+
 ![Animated Ze Great Dashboard preview](docs/assets/readme-demo.gif)
 
 This preview shows the read-only animation showcase using fixture data.
+
+The two README visuals are source-free and safe to regenerate locally. Run
+`npm run capture:readme:states` for the static gallery or `npm run capture:readme` for the animated
+preview. The capture details and inspection commands are in
+[`docs/capture-readme-demo.md`](docs/capture-readme-demo.md).
 
 It is for teams that want a big, visible answer to “are the things we rely on working now?” It is
 not a metrics warehouse, historical analytics product, hosted SaaS, or a replacement for the systems

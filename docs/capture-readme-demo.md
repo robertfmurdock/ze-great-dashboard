@@ -1,5 +1,29 @@
 # README preview capture
 
+## Static panel-state gallery
+
+`docs/assets/readme-panel-states.png` is a checked-in 1440 × 900 screenshot of the
+`readme-panel-states` board. It shows passed, running, failed, cancelled, unknown, and source-error
+states using deterministic fixture envelopes. The board and fixtures contain no credentials, and
+the Playwright capture intercepts every board and panel API response, so no GitHub or other live
+authority is contacted.
+
+Regenerate it with:
+
+```sh
+npm run capture:readme:states
+```
+
+The command uses the normal Vite and application-server development path, disables motion, writes
+`docs/assets/readme-panel-states.png`, checks that all six labels rendered, and cleans up its local
+server processes. Inspect it with:
+
+```sh
+file docs/assets/readme-panel-states.png
+```
+
+The animated preview workflow follows below.
+
 `docs/assets/readme-demo.gif` is a checked-in visual preview of the dashboard's animated pipeline
 treatments. It is generated from the source-free `animation-showcase` board in
 `boards/animation-showcase.yaml`, so it does not call GitHub, use credentials, or depend on live
