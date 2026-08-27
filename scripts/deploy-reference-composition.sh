@@ -59,9 +59,8 @@ jq \
 composition_parameters_file="${REFERENCE_RELEASE_DIR}/composition-parameters.json"
 jq -e 'length == 10 and all(.[]; (.ParameterValue // "") != "")' \
   "${composition_parameters_file}" > /dev/null
-composition_parameters_text="$(jq -r '.[] | "\(.ParameterKey)=\(.ParameterValue)"' \
-  "${composition_parameters_file}")"
-mapfile -t composition_parameters <<< "${composition_parameters_text}"
+composition_parameters="$(jq -r '.[] | "\(.ParameterKey)=\(.ParameterValue)"' \
+  "${composition_parameters_file}" | paste -sd ' ' -)"
 
 aws cloudformation deploy \
   --stack-name "${stack_name}" \
@@ -69,7 +68,7 @@ aws cloudformation deploy \
   --role-arn "${REFERENCE_EXECUTION_ROLE_ARN}" \
   --region "${region}" \
   --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides "${composition_parameters[@]}" \
+  --parameter-overrides ${composition_parameters} \
   --no-fail-on-empty-changeset \
   --no-cli-pager
 
