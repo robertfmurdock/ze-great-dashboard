@@ -105,24 +105,33 @@ git checkout FAILED_ACTION_SHA
 npm ci
 npm run build:packages
 validation_cli=./node_modules/.bin/ze-great-dashboard-aws
+region=$(jq -er '.region' reference/consumer-bootstrap-validation.json)
+aws cloudformation describe-stacks \
+  --region "$region" \
+  --stack-name ze-great-dashboard-consumer-validation-bootstrap \
+  > core-deployed-stack.json
+aws cloudformation describe-stacks \
+  --region "$region" \
+  --stack-name ze-great-dashboard-consumer-validation-github-bootstrap \
+  > github-bootstrap-deployed-stack.json
 
 "$validation_cli" bootstrap parameters \
-  --bootstrap-config reference/consumer-bootstrap-validation.json \
+  --config reference/consumer-bootstrap-validation.json \
   --kind core --deployed-stack-json core-deployed-stack.json \
   --output core-bootstrap-parameters.json
 "$validation_cli" bootstrap change-set \
-  --bootstrap-config reference/consumer-bootstrap-validation.json \
+  --config reference/consumer-bootstrap-validation.json \
   --kind core --parameters core-bootstrap-parameters.json \
   --stack-name ze-great-dashboard-consumer-validation-bootstrap \
   --change-set-name repair-core-bootstrap --format-shell
 
 "$validation_cli" bootstrap parameters \
-  --bootstrap-config reference/consumer-bootstrap-validation.json \
+  --config reference/consumer-bootstrap-validation.json \
   --kind github-oidc --core-stack-json core-deployed-stack.json \
   --deployed-stack-json github-bootstrap-deployed-stack.json \
   --output github-bootstrap-parameters.json
 "$validation_cli" bootstrap change-set \
-  --bootstrap-config reference/consumer-bootstrap-validation.json \
+  --config reference/consumer-bootstrap-validation.json \
   --kind github-oidc --parameters github-bootstrap-parameters.json \
   --stack-name ze-great-dashboard-consumer-validation-github-bootstrap \
   --change-set-name repair-github-bootstrap --format-shell
