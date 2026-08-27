@@ -1,4 +1,5 @@
 {
+  "mode": "lambda",
   "region": "us-east-1",
   "core": {
     "stackName": "ze-great-dashboard-consumer-validation-bootstrap",

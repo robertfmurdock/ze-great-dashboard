@@ -9,9 +9,20 @@ import {
   deployedBootstrapStack,
   mergeBootstrapParameters,
   requiredBootstrapParameters,
+  resolveComputeMode,
 } from '../src/index.ts'
 
 describe('AWS consumer bootstrap contract', () => {
+  it('has one authoritative mode resolver for manifests, artifacts, and CLI assertions', () => {
+    expect(resolveComputeMode()).toBe('lambda')
+    expect(resolveComputeMode({ persisted: 'ecs', artifact: 'ecs', explicit: 'ecs' })).toBe('ecs')
+    expect(() => resolveComputeMode({ persisted: 'ecs', artifact: 'lambda' })).toThrow(
+      /regenerate the bootstrap/,
+    )
+    expect(() => resolveComputeMode({ persisted: 'lambda', explicit: 'ecs' })).toThrow(
+      /explicit mode ecs/,
+    )
+  })
   it('reports installed template provenance and scoped IAM actions without external state', async () => {
     const plan = await bootstrapPlan({ region: 'us-east-1' })
     expect(plan.packageVersion).toBe('0.0.0-dev')
@@ -53,14 +64,14 @@ describe('AWS consumer bootstrap contract', () => {
         ],
         Outputs: [
           { OutputKey: 'BootstrapContractVersion', OutputValue: '1' },
-          { OutputKey: 'BootstrapTemplateRevision', OutputValue: '1.2' },
+          { OutputKey: 'BootstrapTemplateRevision', OutputValue: '1.3' },
           { OutputKey: 'ArtifactBucketName', OutputValue: 'wrong' },
           { OutputKey: 'ApplicationStackName', OutputValue: 'team' },
           { OutputKey: 'CloudFormationExecutionRoleArn', OutputValue: 'arn:role' },
         ],
       },
       '1',
-      '1.2',
+      '1.3',
     )
     expect(result.ok).toBe(false)
     expect(result.mismatches).toContain('ArtifactBucketName is wrong; expected expected')
@@ -70,7 +81,7 @@ describe('AWS consumer bootstrap contract', () => {
   it('locks down the core artifact bucket and execution role', async () => {
     const template = await bootstrapTemplate('core')
     expect(bootstrapContractVersion(template)).toBe('1')
-    expect(bootstrapTemplateRevision(template)).toBe('1.2')
+    expect(bootstrapTemplateRevision(template)).toBe('1.3')
     expect(template).toContain('BucketOwnerEnforced')
     expect(template).toContain('BlockPublicAcls: true')
     expect(template).toContain('BlockPublicPolicy: true')
@@ -90,7 +101,7 @@ describe('AWS consumer bootstrap contract', () => {
   it('requires the exact immutable GitHub repository/environment subject, audience, stack and prefix', async () => {
     const template = await bootstrapTemplate('github-oidc')
     expect(bootstrapContractVersion(template)).toBe('2')
-    expect(bootstrapTemplateRevision(template)).toBe('2.2')
+    expect(bootstrapTemplateRevision(template)).toBe('2.3')
     expect(template).toContain('Federated: !Ref GitHubOidcProviderArn')
     expect(template).toContain("'token.actions.githubusercontent.com:aud': sts.amazonaws.com")
     expect(template).toMatch(

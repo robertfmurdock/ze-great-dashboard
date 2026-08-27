@@ -1,0 +1,6 @@
+[
+  { "ParameterKey": "ComputeMode", "ParameterValue": "ecs" },
+  { "ParameterKey": "Name", "ParameterValue": "ze-great-dashboard-ecs-smoke" },
+  { "ParameterKey": "Subnets", "ParameterValue": "subnet-00000000000000000" },
+  { "ParameterKey": "SecurityGroups", "ParameterValue": "sg-00000000000000000" }
+]

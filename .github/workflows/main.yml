@@ -83,6 +83,7 @@ jobs:
 
       - name: Build and publish candidate Docker image
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
+        id: candidate-image
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -242,11 +243,26 @@ jobs:
           role-to-assume: ${{ steps.infrastructure.outputs.reference_smoke_role_arn }}
           aws-region: us-east-1
 
+      - name: Package and validate the ECS release template
+        if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
+        run: |
+          cp reference/board.yaml .ecs-consumer-board.yaml
+          cp reference/aws-dashboard-ecs-parameters.json .ecs-parameters.json
+          reference_cli=.reference-consumer/node_modules/.bin/ze-great-dashboard-aws
+          "$reference_cli" package --mode ecs \
+            --board-config .ecs-consumer-board.yaml \
+            --parameters .ecs-parameters.json \
+            --image "ghcr.io/${{ github.repository }}@${{ steps.candidate-image.outputs.digest }}" \
+            --output .ecs-release
+          test "$(jq -er '.computeMode' .ecs-release/release.json)" = ecs
+          test -n "$(jq -er '.image' .ecs-release/release.json)"
+          grep -q 'AWS::ECS::Service' .ecs-release/template.yml
+          grep -q 'AllowedValues: \[ecs\]' .ecs-release/template.yml
+
       - name: Run ephemeral ECS Docker smoke test
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
-        env:
-          IMAGE: ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
         run: |
+          export IMAGE="$(jq -er '.image' .ecs-release/release.json)"
           for attempt in 1 2 3; do
             echo "ECS Docker smoke-test attempt $attempt/3"
             if bash scripts/test-ecs-image.sh; then
@@ -322,13 +338,17 @@ jobs:
       - name: Check live bootstrap consistency
         run: |
           validation_cli=.consumer-bootstrap-validation/node_modules/.bin/ze-great-dashboard-aws
-          if ! "$validation_cli" bootstrap check \
+          if check_output=$("$validation_cli" bootstrap check \
             --config reference/consumer-bootstrap-validation.json \
-            --format text; then
+            --format text 2>&1); then
+            printf '%s\n' "$check_output"
+          else
+            check_status=$?
+            printf '%s\n' "$check_output"
             guide="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA/infra/README.md#repair-the-consumer-bootstrap-validation-stack"
-            echo "::error title=Consumer bootstrap requires administrator update::The candidate requires a newer bootstrap template revision. Review and apply the documented upgrade: $guide"
+            echo "::error title=Consumer bootstrap requires administrator update::Bootstrap consistency failed. Review every reported mismatch, apply both affected stack updates, then rerun this action: $guide"
             echo "Bootstrap upgrade instructions: $guide"
-            exit 1
+            exit "$check_status"
           fi
 
       - name: Package and deploy the source-free reference board

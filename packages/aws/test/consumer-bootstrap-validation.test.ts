@@ -50,6 +50,9 @@ describe('consumer bootstrap deployment handoff', () => {
     )
     expect(validationJob).toContain('Check live bootstrap consistency')
     expect(validationJob).toContain('bootstrap check')
+    expect(validationJob).toContain('check_output=')
+    expect(validationJob).toContain('Bootstrap consistency failed')
+    expect(validationJob).toContain('apply both affected stack updates')
     expect(validationJob).toContain('Consumer bootstrap requires administrator update')
     expect(validationJob).toContain(
       'infra/README.md#repair-the-consumer-bootstrap-validation-stack',

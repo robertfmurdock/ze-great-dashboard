@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Ze Great Dashboard ECS/Fargate application (consumer-owned network and ingress)
+
+Metadata:
+  PackageManagedParameters: [ComputeMode, Image, DashboardVersion]
+
+Parameters:
+  ComputeMode: { Type: String, Default: ecs, AllowedValues: [ecs] }
+  Image: { Type: String }
+  DashboardVersion: { Type: String }
+  Name: { Type: String, Default: dashboard }
+  AssetBaseUrl: { Type: String, Default: https://public-assets.zegreatrob.com }
+  BoardConfigPath: { Type: String, Default: /app/boards/example.yaml }
+  Subnets: { Type: List<AWS::EC2::Subnet::Id> }
+  SecurityGroups: { Type: List<AWS::EC2::SecurityGroup::Id> }
+  DesiredCount: { Type: Number, Default: 1, MinValue: 1 }
+  Cpu: { Type: String, Default: '256' }
+  Memory: { Type: String, Default: '512' }
+  ContainerPort: { Type: Number, Default: 3000 }
+  LogRetentionInDays: { Type: Number, Default: 14, MinValue: 1 }
+  SecretReference: { Type: String, Default: '' }
+
+Conditions:
+  HasSecretReference: !Not [!Equals [!Ref SecretReference, '']]
+
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties: { ClusterName: !Ref Name }
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: { LogGroupName: !Sub '/aws/ecs/${Name}', RetentionInDays: !Ref LogRetentionInDays }
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${Name}-execution'
+      AssumeRolePolicyDocument: { Version: '2012-10-17', Statement: [{ Effect: Allow, Principal: { Service: ecs-tasks.amazonaws.com }, Action: sts:AssumeRole }] }
+      ManagedPolicyArns: [arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy]
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${Name}-task'
+      AssumeRolePolicyDocument: { Version: '2012-10-17', Statement: [{ Effect: Allow, Principal: { Service: ecs-tasks.amazonaws.com }, Action: sts:AssumeRole }] }
+      Policies:
+        - PolicyName: read-consumer-credentials
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [secretsmanager:DescribeSecret, secretsmanager:GetSecretValue]
+                Resource: !If [HasSecretReference, !Ref SecretReference, !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ze-great-dashboard-no-secret-configured']
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !If [HasSecretReference, !Ref SecretReference, !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ze-great-dashboard-no-credential-configured']
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'kms:ViaService': !Sub 'ssm.${AWS::Region}.amazonaws.com'
+                    'kms:EncryptionContext:PARAMETER_ARN': !Ref SecretReference
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref Name
+      Cpu: !Ref Cpu
+      Memory: !Ref Memory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: dashboard
+          Image: !Ref Image
+          Essential: true
+          PortMappings: [{ ContainerPort: !Ref ContainerPort, Protocol: tcp }]
+          Environment:
+            - { Name: ASSET_PATH, Value: !Sub '${AssetBaseUrl}/dashboard/${DashboardVersion}' }
+            - { Name: BOARD_CONFIG_URL, Value: !Ref BoardConfigPath }
+            - { Name: HOST, Value: 0.0.0.0 }
+            - { Name: PORT, Value: '3000' }
+            - { Name: SECRET_REFERENCE, Value: !If [HasSecretReference, !Ref SecretReference, ''] }
+          LogConfiguration: { LogDriver: awslogs, Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: dashboard } }
+          HealthCheck: { Command: [CMD-SHELL, 'node /app/docker-healthcheck.mjs'], Interval: 30, Timeout: 5, Retries: 3, StartPeriod: 20 }
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: LogGroup
+    Properties:
+      Cluster: !Ref Cluster
+      ServiceName: !Ref Name
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      TaskDefinition: !Ref TaskDefinition
+      NetworkConfiguration: { AwsvpcConfiguration: { AssignPublicIp: DISABLED, Subnets: !Ref Subnets, SecurityGroups: !Ref SecurityGroups } }
+
+Outputs:
+  ComputeMode: { Value: !Ref ComputeMode }
+  ServiceName: { Value: !Ref Service }
+  ClusterName: { Value: !Ref Cluster }
+  Image: { Value: !Ref Image }
+  AssetPath: { Value: !Sub '${AssetBaseUrl}/dashboard/${DashboardVersion}' }

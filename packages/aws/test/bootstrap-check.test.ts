@@ -44,7 +44,7 @@ function stack(kind: 'core' | 'github-oidc') {
       ],
       Outputs: [
         { OutputKey: 'BootstrapContractVersion', OutputValue: '1' },
-        { OutputKey: 'BootstrapTemplateRevision', OutputValue: '1.2' },
+        { OutputKey: 'BootstrapTemplateRevision', OutputValue: '1.3' },
         { OutputKey: 'ArtifactBucketName', OutputValue: config.core?.artifactBucketName },
         { OutputKey: 'ApplicationStackName', OutputValue: config.core?.applicationStackName },
         { OutputKey: 'CloudFormationExecutionRoleArn', OutputValue: executionRole },
@@ -68,7 +68,7 @@ function stack(kind: 'core' | 'github-oidc') {
     ],
     Outputs: [
       { OutputKey: 'BootstrapContractVersion', OutputValue: '2' },
-      { OutputKey: 'BootstrapTemplateRevision', OutputValue: '2.2' },
+      { OutputKey: 'BootstrapTemplateRevision', OutputValue: '2.3' },
       {
         OutputKey: 'GitHubDeployRoleArn',
         OutputValue: 'arn:aws:iam::123456789012:role/dashboard-github-deploy',

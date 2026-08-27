@@ -3,6 +3,7 @@ import {
   bootstrapContractVersion,
   bootstrapTemplate,
   bootstrapTemplatePath,
+  computeMode,
   coreBootstrapOutputs,
   type DeployedBootstrapStack,
   deployedBootstrapStack,
@@ -245,10 +246,12 @@ export const githubOidcProvider: BootstrapProvider = {
   },
 }
 
-async function contracts() {
+async function contracts(config: BootstrapConfig) {
   return {
-    core: bootstrapContractVersion(await bootstrapTemplate('core')),
-    githubOidc: bootstrapContractVersion(await bootstrapTemplate('github-oidc')),
+    core: bootstrapContractVersion(await bootstrapTemplate('core', computeMode(config))),
+    githubOidc: bootstrapContractVersion(
+      await bootstrapTemplate('github-oidc', computeMode(config)),
+    ),
   }
 }
 
@@ -263,7 +266,7 @@ export async function bootstrapHandoff(input: {
   provider?: BootstrapProvider
   runner?: CommandRunner
 }): Promise<BootstrapHandoff> {
-  const expectedContracts = await contracts()
+  const expectedContracts = await contracts(input.config)
   const coreCapturePath = input.coreStackPath ?? workFile(input.workDir, 'core-deployed-stack.json')
   const core =
     input.coreStack === undefined
@@ -279,7 +282,7 @@ export async function bootstrapHandoff(input: {
       ApplicationStackName: input.config.core?.applicationStackName,
       DashboardFunctionName: input.config.core?.dashboardFunctionName,
     })
-    const templatePath = await bootstrapTemplatePath('core')
+    const templatePath = await bootstrapTemplatePath('core', computeMode(input.config))
     return {
       phase: 'core',
       expectedContracts,
@@ -319,7 +322,7 @@ export async function bootstrapHandoff(input: {
       ConsumerGatewayStackName: input.config.githubOidc?.consumerGatewayStackName,
       ...coreBootstrapOutputs(core),
     })
-    const templatePath = await bootstrapTemplatePath('github-oidc')
+    const templatePath = await bootstrapTemplatePath('github-oidc', computeMode(input.config))
     return {
       phase: 'github-oidc',
       expectedContracts,
@@ -393,7 +396,7 @@ export async function verifyBootstrap(input: {
   coreStack: unknown
   githubOidcStack: unknown
 }): Promise<BootstrapVerification> {
-  const expected = await contracts()
+  const expected = await contracts(input.config)
   const core = deployedBootstrapStack(input.coreStack, expected.core)
   const oidc = deployedBootstrapStack(input.githubOidcStack, expected.githubOidc)
   for (const [kind, capture] of [

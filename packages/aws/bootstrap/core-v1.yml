@@ -2,6 +2,11 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Ze Great Dashboard bootstrap core v1. Administrator-managed; do not grant this authority to CI.
 
 Parameters:
+  ComputeMode:
+    Type: String
+    Default: lambda
+    AllowedValues: [lambda]
+    Description: Persistent application compute mode for this bootstrap
   ArtifactBucketName:
     Type: String
     Description: Globally unique bucket for private Lambda artifacts
@@ -123,7 +128,7 @@ Resources:
 
 Outputs:
   BootstrapContractVersion: { Value: '1' }
-  BootstrapTemplateRevision: { Value: '1.2' }
+  BootstrapTemplateRevision: { Value: '1.3' }
   ArtifactBucketName: { Value: !Ref ArtifactBucket }
   ArtifactBucketArn: { Value: !GetAtt ArtifactBucket.Arn }
   CloudFormationExecutionRoleArn: { Value: !GetAtt CloudFormationExecutionRole.Arn }

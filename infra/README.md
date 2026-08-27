@@ -73,7 +73,7 @@ this change: an AWS administrator reruns the **existing** `ze-great-dashboard-bo
 with the updated `bootstrap.yml`. This extends its CloudFormation execution role only to the named
 reference bucket, three named reference roles, and the fixed fake credential smoke secret; it does
 not add another bootstrap stack or give GitHub broader access. The consumer core bootstrap is now
-revision `1.2`; its normal revision-check upgrade installs the matching Parameter Store and
+revision `1.3`; its normal revision-check upgrade installs the matching ComputeMode, Parameter Store and
 KMS-context permissions alongside the existing Secrets Manager contract.
 
 The release workflow also assumes `ZeGreatDashboardReferenceSmoke` for an ephemeral ECS Fargate
@@ -88,16 +88,43 @@ infrastructure update.
 
 ### Repair the consumer-bootstrap validation stack
 
-This repository-owned release gate uses a fixed consumer bootstrap stack. If its workflow failure
-reports a core-template revision mismatch, an approved administrator can update that one stack from
-CloudShell with this exact command:
+This repository-owned release gate uses fixed core and GitHub OIDC consumer bootstrap stacks. The
+release gate is deliberately a three-step workflow: a pushed release first performs a read-only
+consistency check; a stale bootstrap fails with the actual mismatches and this repair link; after an
+approved administrator updates every affected stack, rerunning the same action must pass. A code
+change is not required between the repair and the rerun.
+
+Use the package's capture-and-reviewed-change-set path for both stacks. Run these commands from the
+repository revision named by the failed action, with the exact package version used by that action:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/robertfmurdock/ze-great-dashboard/d2a700f/packages/aws/bootstrap/core-v1.yml -o /tmp/ze-great-dashboard-core-v1.yml && aws cloudformation deploy --region us-east-1 --stack-name ze-great-dashboard-consumer-validation-bootstrap --template-file /tmp/ze-great-dashboard-core-v1.yml --parameter-overrides ArtifactBucketName=ze-great-dashboard-consumer-validation-artifacts-174159267544 ApplicationStackName=ze-great-dashboard-consumer-validation DashboardFunctionName=ze-great-dashboard-consumer-validation RuntimeSecretArn='' ArtifactKmsKeyArn='' --capabilities CAPABILITY_NAMED_IAM --tags Project=ze-great-dashboard ManagedBy=cloudformation
+npm exec -- ze-great-dashboard-aws bootstrap parameters \
+  --bootstrap-config reference/consumer-bootstrap-validation.json \
+  --kind core --deployed-stack-json core-deployed-stack.json \
+  --output core-bootstrap-parameters.json
+npm exec -- ze-great-dashboard-aws bootstrap change-set \
+  --bootstrap-config reference/consumer-bootstrap-validation.json \
+  --kind core --parameters core-bootstrap-parameters.json \
+  --stack-name ze-great-dashboard-consumer-validation-bootstrap \
+  --change-set-name repair-core-bootstrap --format-shell
+
+npm exec -- ze-great-dashboard-aws bootstrap parameters \
+  --bootstrap-config reference/consumer-bootstrap-validation.json \
+  --kind github-oidc --core-stack-json core-deployed-stack.json \
+  --deployed-stack-json github-bootstrap-deployed-stack.json \
+  --output github-bootstrap-parameters.json
+npm exec -- ze-great-dashboard-aws bootstrap change-set \
+  --bootstrap-config reference/consumer-bootstrap-validation.json \
+  --kind github-oidc --parameters github-bootstrap-parameters.json \
+  --stack-name ze-great-dashboard-consumer-validation-github-bootstrap \
+  --change-set-name repair-github-bootstrap --format-shell
 ```
 
-It applies immediately and is only safe for this fixed reference stack. Do not adapt it for a
-consumer bootstrap: use the package's capture-and-reviewed-change-set upgrade path instead.
+Capture each live stack first with `aws cloudformation describe-stacks`, inspect the generated
+templates, parameters, and change sets, then execute both reviewed change sets. Capture both stacks
+again and rerun the failed action. The action should now succeed without another source change.
+These commands are an administrator handoff, not hidden automation; they do not execute AWS
+mutations themselves.
 
 ## Manual inspection
 

@@ -4,6 +4,8 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { strToU8, zipSync } from 'fflate'
+import { parseDocument, Scalar } from 'yaml'
+import type { ComputeMode } from './bootstrap.js'
 import { assembleRelease, sha256 } from './release.ts'
 
 export {
@@ -19,11 +21,15 @@ export {
   bootstrapTemplatePath,
   bootstrapTemplateRevision,
   type CloudFormationParameterValue,
+  type ComputeMode,
+  computeMode,
   coreBootstrapOutputs,
   type DeployedBootstrapStack,
   deployedBootstrapStack,
   mergeBootstrapParameters,
+  requireComputeMode,
   requiredBootstrapParameters,
+  resolveComputeMode,
 } from './bootstrap.js'
 export {
   type BootstrapCheck,
@@ -58,6 +64,7 @@ export {
 const run = promisify(execFile)
 
 export type ReleaseMetadata = {
+  computeMode: ComputeMode
   dashboardVersion: string
   clientAssetUrl: string
   serverRuntimeVersion: string
@@ -66,7 +73,7 @@ export type ReleaseMetadata = {
   runtimeCompatibility: { node: string }
 }
 
-export type PackagedRelease = ReleaseMetadata & { artifactKey: string }
+export type PackagedRelease = ReleaseMetadata & { artifactKey: string; image?: string }
 
 export type LambdaPackageOptions = {
   boardConfigPath: string
@@ -77,30 +84,52 @@ export type LambdaPackageOptions = {
   secretReference?: string
 }
 
+export type EcsPackageOptions = Omit<LambdaPackageOptions, 'secretReference'> & {
+  secretReference?: string
+  imageReference?: string
+}
+
+function requireImageDigest(image: string): string {
+  if (!/^[^\s@]+@sha256:[a-f0-9]{64}$/.test(image))
+    throw new Error(
+      'ECS imageReference must be an immutable registry digest (image@sha256:<64 hex>)',
+    )
+  return image
+}
+
 function deploymentTemplate(template: string, values: Record<string, string>): string {
-  const listed = template.match(/^ {2}PackageManagedParameters: \[([^\]]*)\]\s*$/m)?.[1]
-  if (listed === undefined)
+  const document = parseDocument(template)
+  if (document.errors.length)
+    throw new Error(`Invalid CloudFormation template: ${document.errors[0]}`)
+  const managedValue = (document.toJS() as { Metadata?: { PackageManagedParameters?: unknown } })
+    .Metadata?.PackageManagedParameters
+  if (!Array.isArray(managedValue))
     throw new Error('CloudFormation template has no PackageManagedParameters metadata')
-  const managed = listed
-    .split(',')
-    .map((key) => key.trim())
-    .filter(Boolean)
+  const managed = managedValue.filter((key): key is string => typeof key === 'string')
+  if (managed.length !== managedValue.length)
+    throw new Error('CloudFormation template has invalid PackageManagedParameters metadata')
   const missing = managed.filter((key) => !Object.hasOwn(values, key))
   const unknown = Object.keys(values).filter((key) => !managed.includes(key))
   if (missing.length || unknown.length)
     throw new Error(
       `Package-managed CloudFormation parameters are out of sync (missing: ${missing.join(', ') || 'none'}; unknown: ${unknown.join(', ') || 'none'})`,
     )
-  return managed.reduce((rendered, key) => {
-    const pattern = new RegExp(`^  ${key}: \\{[^\\n]+\\}\\s*$`, 'm')
-    const declaration = rendered.match(pattern)?.[0]
-    if (!declaration || /\bDefault:/.test(declaration))
-      throw new Error(`Unable to set the CloudFormation default for ${key}`)
-    return rendered.replace(
-      pattern,
-      declaration.replace(/\s*}\s*$/, `, Default: ${JSON.stringify(values[key])} }`),
-    )
-  }, template)
+  for (const key of managed) {
+    const path = ['Parameters', key]
+    const parameter = document.getIn(path) as Record<string, unknown> | undefined
+    if (!parameter || typeof parameter !== 'object')
+      throw new Error(`CloudFormation template has no declaration for ${key}`)
+    const current = document.getIn([...path, 'Default'], true)
+    if (current !== undefined) {
+      if (String(current) !== values[key])
+        throw new Error(`Package-managed CloudFormation parameter ${key} has a conflicting default`)
+    } else {
+      const scalar = new Scalar(values[key])
+      scalar.type = 'QUOTE_DOUBLE'
+      document.setIn([...path, 'Default'], scalar)
+    }
+  }
+  return document.toString({ lineWidth: 0 })
 }
 
 export async function packageLambda(options: LambdaPackageOptions): Promise<PackagedRelease> {
@@ -120,6 +149,7 @@ export async function packageLambda(options: LambdaPackageOptions): Promise<Pack
   })
   const runtimeMetadata = {
     ...release.metadata,
+    computeMode: 'lambda' as const,
     artifactChecksums: {
       ...release.metadata.artifactChecksums,
       'index.mjs': sha256(await readFile(join(runtimeDir, 'index.mjs'))),
@@ -155,10 +185,46 @@ export async function packageLambda(options: LambdaPackageOptions): Promise<Pack
   await writeFile(join(outputDir, 'release.json'), `${JSON.stringify(packagedRelease, null, 2)}\n`)
   await writeFile(
     join(outputDir, 'template.yml'),
-    deploymentTemplate(await cloudFormationTemplate(), {
+    deploymentTemplate(await cloudFormationTemplate('lambda'), {
+      ComputeMode: 'lambda',
       LambdaArtifactKey: packagedRelease.artifactKey,
       DashboardVersion: packagedRelease.dashboardVersion,
     }),
+  )
+  return packagedRelease
+}
+
+/** Packages the published container reference and ECS CloudFormation handoff. */
+export async function packageEcs(options: EcsPackageOptions): Promise<PackagedRelease> {
+  const outputDir = resolve(options.outputDir)
+  await mkdir(outputDir, { recursive: true })
+  const imageReference = requireImageDigest(options.imageReference ?? '')
+  const release = await assembleRelease({
+    boardConfigPath: options.boardConfigPath,
+    outputDir,
+    version: options.version,
+    providers: ['aws-ecs-fargate'],
+    assetDomain: options.assetDomain,
+    secretReference: options.secretReference,
+  })
+  const packagedRelease = {
+    ...release.metadata,
+    computeMode: 'ecs' as const,
+    image: imageReference,
+    artifactKey: `ecs/${sha256(JSON.stringify({ ...release.metadata, image: imageReference }))}`,
+  }
+  await writeFile(join(outputDir, 'release.json'), `${JSON.stringify(packagedRelease, null, 2)}\n`)
+  await writeFile(
+    join(outputDir, 'template.yml'),
+    deploymentTemplate(await cloudFormationTemplate('ecs'), {
+      ComputeMode: 'ecs',
+      Image: imageReference,
+      DashboardVersion: packagedRelease.dashboardVersion,
+    }),
+  )
+  await writeFile(
+    join(outputDir, 'SHA256SUMS'),
+    `${sha256(await readFile(join(outputDir, 'release.json')))}  release.json\n`,
   )
   return packagedRelease
 }
@@ -196,6 +262,11 @@ export async function publishClientAssets(options: PublishClientAssetsOptions): 
   return assetPath
 }
 
-export async function cloudFormationTemplate(): Promise<string> {
-  return readFile(fileURLToPath(new URL('../template.yml', import.meta.url)), 'utf8')
+export async function cloudFormationTemplate(mode: ComputeMode = 'lambda'): Promise<string> {
+  return readFile(
+    fileURLToPath(
+      new URL(mode === 'ecs' ? '../template-ecs.yml' : '../template.yml', import.meta.url),
+    ),
+    'utf8',
+  )
 }

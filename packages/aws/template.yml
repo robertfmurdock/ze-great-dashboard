@@ -2,9 +2,10 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Ze Great Dashboard private Lambda application (integrate through a customer-managed gateway)
 
 Metadata:
-  PackageManagedParameters: [LambdaArtifactKey, DashboardVersion]
+  PackageManagedParameters: [ComputeMode, LambdaArtifactKey, DashboardVersion]
 
 Parameters:
+  ComputeMode: { Type: String, Default: lambda, AllowedValues: [lambda] }
   Name: { Type: String, Default: dashboard }
   LambdaArtifactBucket: { Type: String }
   LambdaArtifactKey: { Type: String }

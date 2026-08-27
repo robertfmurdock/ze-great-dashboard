@@ -70,6 +70,16 @@ Local development is the case this doesn't cover cleanly: Vite's dev server serv
 
 "No persistence" means no database and no accumulated observations. Caching is handled by passthrough revalidation rather than proxy-side storage — see below.
 
+### Bootstrap changes must be recoverable by rerun
+
+Infrastructure bootstrap is an explicit administrator boundary, but it must not become a release
+lottery. Every bootstrap change follows a visible three-step contract: a pushed release performs a
+read-only consistency check before deployment; if the installed bootstrap is stale, the action
+prints the actual mismatches and links the reviewed repair instructions; after the administrator
+updates every affected stack, rerunning that same action succeeds without another source change.
+Bootstrap handoffs enumerate all affected stacks and preserve their current values. The workflow
+never silently switches deployment mode or mutates bootstrap infrastructure as a side effect.
+
 ### Caching by Passthrough Revalidation
 
 The freshness question belongs to the data source, not to the dashboard. **If the API says its data can be cached, we don't second-guess it.** The proxy never invents, shortens, or overrides a cache directive — it forwards the conversation:
@@ -637,4 +647,3 @@ And three were settled on their own terms:
 - **Config location for multi-repo teams.** If signals span repos and pipelines, does the board config live in its own repo or a team-level location?
 - **Startup walkthrough UX.** Terminal wizard before container start, vs. web form on first load? The web form is nicer but needs somewhere to persist credential validation state, which fights the no-persistence rule.
 - **Source extensibility.** New source types as a plugin system, or just a new adapter in the repo? Note this is the *harder* half of extensibility: the widget system above covers rendering, but a new fetcher needs proxy-side code, and the allowlist means it can't be loaded from an arbitrary URL the way a widget can. Adapters may simply have to be contributed upstream — which is an argument for the adapter interface being small and well-documented early.
-

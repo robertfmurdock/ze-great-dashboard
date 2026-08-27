@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { parse } from 'yaml'
+import { type ComputeMode, computeMode } from './bootstrap.ts'
 import { bootstrapTemplate, bootstrapTemplateRevision, cloudFormationTemplate } from './index.ts'
 
 const run = promisify(execFile)
@@ -45,7 +46,11 @@ function readParameterValues(value: unknown): ParameterValue[] {
 }
 
 async function templateContract(parameters: ParameterValue[]) {
-  const template = await cloudFormationTemplate()
+  const values = Object.fromEntries(
+    parameters.map((item) => [item.ParameterKey, item.ParameterValue]),
+  )
+  const mode = computeMode({ mode: values.ComputeMode as ComputeMode | undefined })
+  const template = await cloudFormationTemplate(mode)
   const parametersBlock = template.match(
     /^Parameters:\n[\s\S]*?(?=^[A-Za-z][A-Za-z0-9]*:\s*$)/m,
   )?.[0]
@@ -62,9 +67,6 @@ async function templateContract(parameters: ParameterValue[]) {
   if (!Array.isArray(managedValue) || !managedValue.every((key) => typeof key === 'string'))
     throw new Error('template has invalid PackageManagedParameters metadata')
   const managed = new Set(managedValue)
-  const values = Object.fromEntries(
-    parameters.map((item) => [item.ParameterKey, item.ParameterValue]),
-  )
   const stale = Object.keys(values).filter((key) => !Object.hasOwn(definitions, key))
   const missing = Object.entries(definitions)
     .filter(
@@ -137,10 +139,14 @@ export async function runDoctor(
       JSON.parse(await readFile(options.parametersPath, 'utf8')),
     )
     parameterData = await templateContract(parameters)
-    return `${options.parametersPath} is compatible`
+    return `${options.parametersPath} is compatible (${computeMode({ mode: parameterData.values.ComputeMode as ComputeMode | undefined })})`
   })
 
   await check('Artifact bucket', async () => {
+    if (
+      computeMode({ mode: parameterData?.values.ComputeMode as ComputeMode | undefined }) === 'ecs'
+    )
+      return 'not required for ECS image deployments'
     const bucket = parameterData?.values.LambdaArtifactBucket
     if (!bucket) throw new Error('skipped because parameters do not provide LambdaArtifactBucket')
     if (!awsAvailable) throw new Error('skipped because the AWS CLI is unavailable')

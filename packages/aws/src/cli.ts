@@ -12,16 +12,21 @@ import {
   bootstrapPreflight,
   bootstrapTemplate,
   bootstrapTemplatePath,
+  type ComputeMode,
   checkBootstrap,
   cloudFormationTemplate,
+  computeMode,
   coreBootstrapOutputs,
   deployedBootstrapStack,
   formatBootstrapCheckText,
   mergeBootstrapParameters,
   type PackagedRelease,
+  packageEcs,
   packageLambda,
   publishClientAssets,
+  requireComputeMode,
   requiredBootstrapParameters,
+  resolveComputeMode,
   scaffoldBootstrapManifest,
   verifyBootstrap,
 } from './index.ts'
@@ -57,8 +62,10 @@ type TemplateParameterData = {
 }
 type SuppliedParameterValues = Record<string, string>
 type DeploymentHandoff = {
+  mode: ComputeMode
   template: 'template.yml'
-  lambdaZip: 'lambda.zip'
+  lambdaZip?: 'lambda.zip'
+  image?: string
   releaseFile: 'release.json'
   artifact: { bucket: string; key: string }
   release: PackagedRelease
@@ -135,6 +142,7 @@ function bootstrapValues(
     DashboardFunctionName: option('--function-name', config.core?.dashboardFunctionName),
     RuntimeSecretArn: option('--runtime-secret-arn', config.core?.runtimeSecretArn ?? ''),
     ArtifactKmsKeyArn: option('--artifact-kms-key-arn', config.core?.artifactKmsKeyArn ?? ''),
+    ComputeMode: computeMode(config),
     GitHubOidcProviderArn: option('--github-oidc-provider-arn', config.githubOidc?.providerArn),
     GitHubRepository: option('--github-repository', config.githubOidc?.repository),
     GitHubOwnerId: option('--github-owner-id', config.githubOidc?.ownerId),
@@ -163,8 +171,8 @@ function shellCommand(command: string[]): string {
   return command.map((argument) => `'${argument.replaceAll("'", "'\\\"'\\\"'")}'`).join(' ')
 }
 
-async function templateParameters(): Promise<TemplateParameterData> {
-  const template = await cloudFormationTemplate()
+async function templateParameters(mode: ComputeMode = 'lambda'): Promise<TemplateParameterData> {
+  const template = await cloudFormationTemplate(mode)
   const block = template.match(/^Parameters:\n[\s\S]*?(?=^[A-Za-z][A-Za-z0-9]*:\s*$)/m)?.[0]
   if (!block) throw new Error('Unable to read Parameters from the CloudFormation template')
   const parsed = parse(block) as { Parameters?: Record<string, CloudFormationParameter> }
@@ -202,7 +210,9 @@ function validateConsumerParameters(
   const unknown = Object.keys(values).filter((key) => !templateKeys.includes(key))
   if (unknown.length)
     throw new Error(`Parameter file contains unknown parameters: ${unknown.join(', ')}`)
-  const overridden = [...template.packageManaged].filter((key) => Object.hasOwn(values, key))
+  const overridden = [...template.packageManaged].filter(
+    (key) => key !== 'ComputeMode' && Object.hasOwn(values, key),
+  )
   if (overridden.length)
     throw new Error(
       `Parameter file must not set package-managed parameters: ${overridden.join(', ')}`,
@@ -242,23 +252,29 @@ function deploymentHandoff(input: {
   const prefix = input.outputDir.replace(/\/+$/, '')
   const path = (name: string) => `${prefix}/${name}`
   const parameterFile = path('parameters.json')
+  const mode = input.release.computeMode
+  const upload =
+    mode === 'lambda'
+      ? [
+          'aws',
+          's3',
+          'cp',
+          path('lambda.zip'),
+          `s3://${input.artifactBucket}/${input.artifactKey}`,
+          '--region',
+          '$AWS_REGION',
+        ]
+      : []
   return {
+    mode,
     template: 'template.yml',
-    lambdaZip: 'lambda.zip',
+    ...(mode === 'lambda' ? { lambdaZip: 'lambda.zip' as const } : { image: input.release.image }),
     releaseFile: 'release.json',
     artifact: { bucket: input.artifactBucket, key: input.artifactKey },
     release: input.release,
     parameters: 'parameters.json',
     commands: {
-      upload: [
-        'aws',
-        's3',
-        'cp',
-        path('lambda.zip'),
-        `s3://${input.artifactBucket}/${input.artifactKey}`,
-        '--region',
-        '$AWS_REGION',
-      ],
+      upload,
       deploy: [
         'aws',
         'cloudformation',
@@ -345,12 +361,17 @@ try {
     const existingValues = Object.fromEntries(
       existing.map(({ ParameterKey, ParameterValue }) => [ParameterKey, ParameterValue]),
     )
+    const mode = resolveComputeMode({
+      persisted: consumerConfig?.mode,
+      artifact: existingValues.ComputeMode,
+      explicit: option('--mode'),
+    })
     const artifactBucket = option(
       '--artifact-bucket',
       existingValues.LambdaArtifactBucket ?? consumerConfig?.core?.artifactBucketName,
     )
-    if (!artifactBucket) throw new Error('--artifact-bucket is required')
-    const { definitions, packageManaged } = await templateParameters()
+    if (mode === 'lambda' && !artifactBucket) throw new Error('--artifact-bucket is required')
+    const { definitions, packageManaged } = await templateParameters(mode)
     const templateKeys = Object.keys(definitions)
     const hasDefault = (key: string) => Object.hasOwn(definitions[key] ?? {}, 'Default')
     const hasValue = (key: string) =>
@@ -371,7 +392,7 @@ try {
     const parameters = templateKeys
       .filter(
         (key) =>
-          !packageManaged.has(key) &&
+          (!packageManaged.has(key) || key === 'ComputeMode') &&
           (includeDefaults ||
             !hasDefault(key) ||
             Object.hasOwn(existingValues, key) ||
@@ -381,10 +402,12 @@ try {
         const definition = definitions[key]
         const value =
           key === 'LambdaArtifactBucket'
-            ? artifactBucket
-            : key === 'Name' && functionName
-              ? functionName
-              : (existingValues[key] ?? definition?.Default)
+            ? (artifactBucket ?? '')
+            : key === 'ComputeMode'
+              ? mode
+              : key === 'Name' && functionName
+                ? functionName
+                : (existingValues[key] ?? definition?.Default)
         if (value === undefined) throw new Error(`No value for CloudFormation parameter ${key}`)
         return parameter(key, String(value))
       })
@@ -418,6 +441,7 @@ try {
         ownerId: option('--github-owner-id'),
         repositoryId: option('--github-repository-id'),
         consumerGatewayStackName: option('--consumer-gateway-stack'),
+        mode: (option('--mode', 'lambda') ?? 'lambda') as ComputeMode,
         runner,
       })
       await writeFile(output, `${JSON.stringify(manifest, null, 2)}\n`, { flag: 'wx' })
@@ -520,11 +544,13 @@ try {
         )
       } else if (action === 'template') {
         const kind = bootstrapKind()
+        const mode = requireComputeMode(config, option('--mode'))
         console.log(
           JSON.stringify({
             kind,
-            template: await bootstrapTemplatePath(kind),
-            contractVersion: bootstrapContractVersion(await bootstrapTemplate(kind)),
+            mode,
+            template: await bootstrapTemplatePath(kind, mode),
+            contractVersion: bootstrapContractVersion(await bootstrapTemplate(kind, mode)),
           }),
         )
       } else if (action === 'plan') {
@@ -563,6 +589,7 @@ try {
         if (!result.ok) process.exitCode = 1
       } else if (action === 'parameters') {
         const kind = bootstrapKind()
+        const mode = requireComputeMode(config, option('--mode'))
         const output =
           option('--output', `aws-dashboard-bootstrap-${kind}.json`) ??
           `aws-dashboard-bootstrap-${kind}.json`
@@ -572,17 +599,20 @@ try {
           coreOutputs = coreBootstrapOutputs(
             deployedBootstrapStack(
               JSON.parse(await readFile(coreStackPath, 'utf8')),
-              bootstrapContractVersion(await bootstrapTemplate('core')),
+              bootstrapContractVersion(await bootstrapTemplate('core', mode)),
             ),
           )
         }
-        const supplied = requiredBootstrapParameters(kind, bootstrapValues(config, coreOutputs))
+        const supplied = requiredBootstrapParameters(
+          kind,
+          bootstrapValues({ ...config, mode }, coreOutputs),
+        )
         let parameters = supplied
         const deployedStackPath = option('--deployed-stack-json')
         if (deployedStackPath) {
           const stack = deployedBootstrapStack(
             JSON.parse(await readFile(deployedStackPath, 'utf8')),
-            bootstrapContractVersion(await bootstrapTemplate(kind)),
+            bootstrapContractVersion(await bootstrapTemplate(kind, mode)),
           )
           if (
             kind === 'github-oidc' &&
@@ -663,25 +693,49 @@ try {
     const outputDir = option('--output', 'aws-dashboard-release') ?? 'aws-dashboard-release'
     const parametersPath =
       option('--parameters', 'aws-dashboard-parameters.json') ?? 'aws-dashboard-parameters.json'
-    const template = await templateParameters()
-    const consumerParameters = validateConsumerParameters(
-      await existingParameters(parametersPath),
-      template,
-    )
+    const rawParameters = await existingParameters(parametersPath)
+    const rawMode = rawParameters.find(
+      ({ ParameterKey }) => ParameterKey === 'ComputeMode',
+    )?.ParameterValue
+    const mode = resolveComputeMode({ artifact: rawMode, explicit: option('--mode') })
+    const template = await templateParameters(mode)
+    const consumerParameters = validateConsumerParameters(rawParameters, template)
     const secretReference =
       consumerParameters.SecretReference ??
       String(template.definitions.SecretReference?.Default ?? '')
-    const metadata = await packageLambda({
-      boardConfigPath: boardConfig,
-      outputDir,
-      version,
-      assetDomain: option('--asset-domain'),
-      secretReference,
-    })
+    const metadata =
+      mode === 'lambda'
+        ? await packageLambda({
+            boardConfigPath: boardConfig,
+            outputDir,
+            version,
+            assetDomain: option('--asset-domain'),
+            secretReference,
+          })
+        : await packageEcs({
+            boardConfigPath: boardConfig,
+            outputDir,
+            version,
+            assetDomain: option('--asset-domain'),
+            secretReference,
+            imageReference: option('--image'),
+          })
     const resolvedParameters = resolvedReleaseParameters(consumerParameters, template, {
+      ComputeMode: mode,
       LambdaArtifactKey: metadata.artifactKey,
+      Image: metadata.image ?? '',
       DashboardVersion: metadata.dashboardVersion,
     })
+    // Parameter files created before mode persistence remain valid and stay byte-compatible;
+    // newly generated files include ComputeMode and make the choice reviewable.
+    if (
+      mode === 'lambda' &&
+      !rawParameters.some(({ ParameterKey }) => ParameterKey === 'ComputeMode')
+    )
+      resolvedParameters.splice(
+        resolvedParameters.findIndex(({ ParameterKey }) => ParameterKey === 'ComputeMode'),
+        1,
+      )
     await writeFile(
       `${outputDir}/parameters.json`,
       `${JSON.stringify(resolvedParameters, null, 2)}\n`,
@@ -695,7 +749,9 @@ try {
       release: metadata,
     })
     await writeFile(`${outputDir}/deployment.json`, `${JSON.stringify(handoff, null, 2)}\n`)
-    console.log(`Packaged ${outputDir}/lambda.zip and ${outputDir}/template.yml`)
+    console.log(
+      `Packaged ${mode === 'lambda' ? `${outputDir}/lambda.zip` : metadata.image} and ${outputDir}/template.yml`,
+    )
     console.log(`Complete parameters: ${outputDir}/parameters.json`)
     console.log(`Deployment handoff: ${outputDir}/deployment.json`)
     console.log(`Upload: ${copyableCommand(handoff.commands.upload)}`)

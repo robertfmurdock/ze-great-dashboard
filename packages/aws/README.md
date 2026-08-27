@@ -1,7 +1,17 @@
 # Ze Great Dashboard on AWS
 
-`@continuous-excellence/ze-great-dashboard-aws` packages a board as a private AWS Lambda. It
-includes the Lambda runtime, matching browser client, deployment CLI, and CloudFormation templates.
+`@continuous-excellence/ze-great-dashboard-aws` packages a board for a private AWS Lambda or ECS
+deployment. It includes the Lambda runtime, matching browser client, deployment CLI, and
+CloudFormation templates.
+
+Deployment mode is persisted in `dashboard-bootstrap.json` and generated application parameters
+as `ComputeMode`. Existing files without that field mean `lambda`. Choose `--mode ecs` during
+bootstrap initialization; routine packaging and diagnostics then select the matching template.
+An explicit mode fails if it disagrees with persisted configuration, so changing mode requires
+regenerating the reviewed bootstrap and parameter artifacts.
+
+Consumer ECS deployments use the long-lived service template and provide their own subnets and
+security groups.
 
 This deployment path is intended for teams that already operate AWS and have a protected gateway
 such as API Gateway or an ALB. It deliberately does not create a public endpoint, choose an

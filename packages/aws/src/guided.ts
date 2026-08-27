@@ -1,4 +1,4 @@
-import { type BootstrapConfig, bootstrapPlan } from './bootstrap.js'
+import { type BootstrapConfig, bootstrapPlan, type ComputeMode } from './bootstrap.js'
 import {
   type BootstrapProvider,
   bootstrapHandoff,
@@ -16,6 +16,7 @@ export type BootstrapPreflightCheck = {
 export type BootstrapPreflight = { ready: boolean; checks: BootstrapPreflightCheck[] }
 
 export type BootstrapInitInput = {
+  mode?: ComputeMode
   slug: string
   repository: string
   environment: string
@@ -66,6 +67,7 @@ async function discovered(input: BootstrapInitInput) {
   const github =
     (parseOrUnavailable(repo) as { id?: unknown; owner?: { id?: unknown } } | undefined) ?? {}
   return {
+    ...(input.mode ? { mode: input.mode } : {}),
     accountId,
     region: region?.trim() || undefined,
     ownerId:
@@ -91,6 +93,8 @@ export async function scaffoldBootstrapManifest(
   const environment = value(input.environment, 'environment')
   const providerArn = value(input.providerArn, 'github OIDC provider ARN')
   if (!accountFromArn(providerArn)) throw new Error('github OIDC provider ARN is invalid')
+  if (input.mode && input.mode !== 'lambda' && input.mode !== 'ecs')
+    throw new Error('mode must be lambda or ecs')
   const found = await discovered(input)
   const accountId = input.accountId ?? found.accountId
   const region = input.region ?? found.region

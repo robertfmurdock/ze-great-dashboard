@@ -1,6 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { type ComputeMode, computeMode, resolveComputeMode } from './compute-mode.js'
 import { sha256 } from './release.ts'
+
+export { type ComputeMode, computeMode, resolveComputeMode } from './compute-mode.js'
 
 export type BootstrapKind = 'core' | 'github-oidc'
 export type CloudFormationParameterValue = {
@@ -18,6 +21,8 @@ export type DeployedBootstrapStack = {
 }
 
 export type BootstrapConfig = {
+  /** Omitted in older manifests; Lambda is the compatibility default. */
+  mode?: ComputeMode
   region?: string
   core?: {
     stackName?: string
@@ -57,18 +62,37 @@ export type BootstrapPlan = {
 
 export type BootstrapConsistency = { ok: boolean; mismatches: string[] }
 
-const templates: Record<BootstrapKind, string> = {
-  core: '../bootstrap/core-v1.yml',
-  'github-oidc': '../bootstrap/github-oidc-v2.yml',
+const templates: Record<BootstrapKind, Record<ComputeMode, string>> = {
+  core: {
+    lambda: '../bootstrap/core-v1.yml',
+    ecs: '../bootstrap/core-ecs-v1.yml',
+  },
+  'github-oidc': {
+    lambda: '../bootstrap/github-oidc-v2.yml',
+    ecs: '../bootstrap/github-oidc-ecs-v1.yml',
+  },
 }
 
-export async function bootstrapTemplatePath(kind: BootstrapKind): Promise<string> {
+export function requireComputeMode(
+  persisted: Pick<BootstrapConfig, 'mode'>,
+  explicit?: string,
+): ComputeMode {
+  return resolveComputeMode({ persisted: persisted.mode, explicit })
+}
+
+export async function bootstrapTemplatePath(
+  kind: BootstrapKind,
+  mode: ComputeMode = 'lambda',
+): Promise<string> {
   if (!Object.hasOwn(templates, kind)) throw new Error(`Unknown bootstrap template: ${kind}`)
-  return fileURLToPath(new URL(templates[kind], import.meta.url))
+  return fileURLToPath(new URL(templates[kind][mode], import.meta.url))
 }
 
-export async function bootstrapTemplate(kind: BootstrapKind): Promise<string> {
-  return readFile(await bootstrapTemplatePath(kind), 'utf8')
+export async function bootstrapTemplate(
+  kind: BootstrapKind,
+  mode: ComputeMode = 'lambda',
+): Promise<string> {
+  return readFile(await bootstrapTemplatePath(kind, mode), 'utf8')
 }
 
 export function bootstrapContractVersion(template: string): string {
@@ -118,9 +142,10 @@ export async function bootstrapPlan(config: BootstrapConfig): Promise<BootstrapP
   ) as { version?: unknown }
   const packageTemplates = await Promise.all(
     (['core', 'github-oidc'] as BootstrapKind[]).map(async (kind) => {
+      const mode = computeMode(config)
       const [path, template] = await Promise.all([
-        bootstrapTemplatePath(kind),
-        bootstrapTemplate(kind),
+        bootstrapTemplatePath(kind, mode),
+        bootstrapTemplate(kind, mode),
       ])
       return inspectTemplate(kind, path, template)
     }),
@@ -219,6 +244,7 @@ export function bootstrapConsistency(
           ArtifactBucketName: config.core?.artifactBucketName,
           ApplicationStackName: config.core?.applicationStackName,
           DashboardFunctionName: config.core?.dashboardFunctionName,
+          ComputeMode: config.mode,
           RuntimeSecretArn: config.core?.runtimeSecretArn ?? '',
           ArtifactKmsKeyArn: config.core?.artifactKmsKeyArn ?? '',
         }
@@ -231,6 +257,7 @@ export function bootstrapConsistency(
           CoreBootstrapStackName: config.core?.stackName,
           ApplicationStackName: config.core?.applicationStackName,
           ArtifactBucketName: config.core?.artifactBucketName,
+          ComputeMode: config.mode,
           CloudFormationExecutionRoleArn: coreOutputs.CloudFormationExecutionRoleArn,
           ConsumerGatewayStackName: config.githubOidc?.consumerGatewayStackName ?? '',
         }
@@ -320,7 +347,9 @@ export function requiredBootstrapParameters(
   const missing = keys.filter((key) => !values[key])
   if (missing.length) throw new Error(`Missing required bootstrap values: ${missing.join(', ')}`)
   const optional =
-    kind === 'core' ? ['RuntimeSecretArn', 'ArtifactKmsKeyArn'] : ['ConsumerGatewayStackName']
+    kind === 'core'
+      ? ['RuntimeSecretArn', 'ArtifactKmsKeyArn', 'ComputeMode']
+      : ['ConsumerGatewayStackName', 'ComputeMode']
   return [...keys, ...optional]
     .filter((key) => values[key] !== undefined)
     .map((ParameterKey) => ({ ParameterKey, ParameterValue: values[ParameterKey] ?? '' }))

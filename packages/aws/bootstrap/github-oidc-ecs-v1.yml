@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Ze Great Dashboard GitHub OIDC adapter for ECS deployments.
+Parameters:
+  ComputeMode: { Type: String, Default: ecs, AllowedValues: [ecs] }
+  GitHubOidcProviderArn: { Type: String }
+  GitHubRepository: { Type: String }
+  GitHubOwnerId: { Type: String }
+  GitHubRepositoryId: { Type: String }
+  GitHubEnvironment: { Type: String }
+  CoreBootstrapStackName: { Type: String }
+  ApplicationStackName: { Type: String }
+  ArtifactBucketName: { Type: String }
+  CloudFormationExecutionRoleArn: { Type: String }
+Resources:
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ApplicationStackName}-github-deploy'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Federated: !Ref GitHubOidcProviderArn }, Action: sts:AssumeRoleWithWebIdentity }]
+      Policies:
+        - PolicyName: DeployOneEcsApplication
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: OperateOneApplicationStack
+                Effect: Allow
+                Action: [cloudformation:CreateChangeSet, cloudformation:DescribeChangeSet, cloudformation:ExecuteChangeSet, cloudformation:DeleteChangeSet, cloudformation:DescribeStacks, cloudformation:GetTemplate, cloudformation:GetTemplateSummary]
+                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ApplicationStackName}/*'
+              - Sid: PassCoreExecutionRole
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Ref CloudFormationExecutionRoleArn
+                Condition: { StringEquals: { 'iam:PassedToService': cloudformation.amazonaws.com } }
+Outputs:
+  BootstrapContractVersion: { Value: '1' }
+  BootstrapTemplateRevision: { Value: '1.0-ecs' }
+  GitHubDeployRoleArn: { Value: !GetAtt GitHubDeployRole.Arn }

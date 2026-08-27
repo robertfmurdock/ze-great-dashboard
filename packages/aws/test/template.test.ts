@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { strFromU8, unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
-import { cloudFormationTemplate, packageLambda } from '../src/index.ts'
+import { cloudFormationTemplate, packageEcs, packageLambda } from '../src/index.ts'
 
 const secretReference = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dashboard'
 
@@ -87,6 +87,34 @@ describe('AWS deployment contract', () => {
     })
     expect(changed.artifactKey).not.toBe(metadata.artifactKey)
   }, 15_000)
+
+  it('requires a digest-pinned image and emits an ECS-only template handoff', async () => {
+    const outputDir = await mkdtemp('/tmp/dashboard-aws-ecs-')
+    await expect(
+      packageEcs({
+        boardConfigPath: fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url)),
+        outputDir,
+        version: '1.2.3',
+        imageReference: 'ghcr.io/example/dashboard:1.2.3',
+        secretReference,
+      }),
+    ).rejects.toThrow(/immutable registry digest/)
+    const metadata = await packageEcs({
+      boardConfigPath: fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url)),
+      outputDir,
+      version: '1.2.3',
+      imageReference: `ghcr.io/example/dashboard@sha256:${'a'.repeat(64)}`,
+      secretReference,
+    })
+    expect(metadata).toMatchObject({
+      computeMode: 'ecs',
+      image: `ghcr.io/example/dashboard@sha256:${'a'.repeat(64)}`,
+    })
+    const template = await readFile(join(outputDir, 'template.yml'), 'utf8')
+    expect(template).toContain('AWS::ECS::Service')
+    expect(template).toContain(`Default: "${metadata.image}"`)
+    expect(template).toContain('AllowedValues: [ ecs ]')
+  })
 
   it('rejects a credentialed board until a SecretReference ARN is supplied', async () => {
     const board = join(await mkdtemp('/tmp/dashboard-aws-private-board-'), 'board.yaml')

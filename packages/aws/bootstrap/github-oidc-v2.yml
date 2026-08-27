@@ -2,6 +2,11 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Ze Great Dashboard GitHub OIDC adapter v2. Administrator-managed; requires a central OIDC provider.
 
 Parameters:
+  ComputeMode:
+    Type: String
+    Default: lambda
+    AllowedValues: [lambda]
+    Description: Persistent application compute mode for this bootstrap
   GitHubOidcProviderArn: { Type: String }
   GitHubRepository: { Type: String, Description: owner/repository }
   GitHubOwnerId: { Type: String, Description: Immutable numeric GitHub owner id }
@@ -97,5 +102,5 @@ Resources:
 
 Outputs:
   BootstrapContractVersion: { Value: '2' }
-  BootstrapTemplateRevision: { Value: '2.2' }
+  BootstrapTemplateRevision: { Value: '2.3' }
   GitHubDeployRoleArn: { Value: !GetAtt GitHubDeployRole.Arn }

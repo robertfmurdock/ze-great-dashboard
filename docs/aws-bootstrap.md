@@ -170,7 +170,8 @@ audit; CloudFormation drift detection is slower.
 ## Upgrading bootstrap
 
 Contract versions change only for coordinated migrations. Template revisions identify compatible
-updates. When `bootstrap check` reports a revision mismatch:
+updates. When `bootstrap check` reports any mismatch, including a revision or newly required
+parameter:
 
 1. Install the target exact package version and review `bootstrap plan`.
 2. Capture the current stack with `aws cloudformation describe-stacks`.
@@ -179,6 +180,7 @@ updates. When `bootstrap check` reports a revision mismatch:
 4. Use `bootstrap change-set --change-set-type UPDATE --format-shell` to produce the reviewed AWS
    command.
 5. Inspect and execute the change set, capture the stack again, and rerun `bootstrap check`.
+6. Repeat the process for every affected bootstrap stack, then rerun `bootstrap check`.
 
 The GitHub OIDC v1-to-v2 change is a contract migration to immutable repository IDs. Generate fresh
 v2 parameters from the reviewed core capture; a v1 deployed capture is intentionally rejected as a
