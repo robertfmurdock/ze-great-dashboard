@@ -56,13 +56,22 @@ jq \
     {"ParameterKey":"ParameterReference","ParameterValue":$parameter_reference}
   ]' > "${REFERENCE_RELEASE_DIR}/composition-parameters.json"
 
+composition_parameters_text="$(jq -er '
+  if any(.[]; (.ParameterValue // "") == "") then
+    error("composition parameter values must not be empty")
+  else
+    .[] | "\(.ParameterKey)=\(.ParameterValue)"
+  end
+' "${REFERENCE_RELEASE_DIR}/composition-parameters.json")"
+mapfile -t composition_parameters <<< "${composition_parameters_text}"
+
 aws cloudformation deploy \
   --stack-name "${stack_name}" \
   --template-file "${composition_template}" \
   --role-arn "${REFERENCE_EXECUTION_ROLE_ARN}" \
   --region "${region}" \
   --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides "file://${REFERENCE_RELEASE_DIR}/composition-parameters.json" \
+  --parameter-overrides "${composition_parameters[@]}" \
   --no-fail-on-empty-changeset \
   --no-cli-pager
 

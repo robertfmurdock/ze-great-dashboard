@@ -182,6 +182,17 @@ describe('persistent consumer reference', () => {
     expect(script).toContain('reference/consumer-composition.yml')
     expect(script).toContain('composition-parameters.json')
     expect(script).toContain(`templates/${String.fromCharCode(36)}{artifact_key%.zip}.yml`)
+    expect(script).toContain('composition parameter values must not be empty')
+    expect(script).toContain(
+      ['--parameter-overrides "', String.fromCharCode(36), '{composition_parameters[@]}"'].join(''),
+    )
+    expect(script).not.toContain(
+      [
+        '--parameter-overrides "file://',
+        String.fromCharCode(36),
+        '{REFERENCE_RELEASE_DIR}/composition-parameters.json"',
+      ].join(''),
+    )
     expect(script).toContain('SecretsFunctionArn')
     expect(script).toContain('ParameterFunctionArn')
     expect(script.match(/aws s3 cp/g)).toHaveLength(2)
