@@ -42,6 +42,7 @@ export function RunningField({
       className={`${styles.field} ${overdue ? styles.overdue : ''}`}
       data-animation={animation}
       data-running-field
+      data-overdue={overdue || undefined}
       data-indeterminate={indeterminate || undefined}
       aria-hidden="true"
       style={style}

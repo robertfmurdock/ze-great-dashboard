@@ -71,6 +71,23 @@
     background: currentColor;
   }
 }
+[data-overdue="true"] .frontier {
+  width: 70%;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, currentColor 28%, transparent),
+    transparent
+  );
+}
+[data-overdue="true"] .packet {
+  left: 70%;
+  animation: packet-stall 1.8s ease-in-out infinite alternate;
+}
+[data-overdue="true"] .trail {
+  left: 43%;
+  width: 27%;
+  animation: trail-backup 1.8s ease-in-out infinite alternate;
+}
 @keyframes packet {
   from {
     transform: translate(-10cqw, -50%);
@@ -79,7 +96,29 @@
     transform: translate(120cqw, -50%);
   }
 }
+@keyframes packet-stall {
+  from {
+    transform: translate(-50%, -50%) scale(0.82);
+    opacity: 0.72;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1.12);
+    opacity: 1;
+  }
+}
+@keyframes trail-backup {
+  from {
+    transform: translate(-8%, -50%);
+    opacity: 0.5;
+  }
+  to {
+    transform: translate(8%, -50%);
+    opacity: 0.95;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
+  [data-overdue="true"] .trail,
+  [data-overdue="true"] .packet,
   .trail,
   .packet {
     animation: none;

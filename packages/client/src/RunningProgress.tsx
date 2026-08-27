@@ -30,7 +30,15 @@ export function RunningProgress({
     >
       <div className={styles.visual} aria-hidden="true" data-running-visual>
         {animation === 'radial' && <span className={styles.radialCore} />}
-        {animation === 'runway' && <span className={styles.spark} />}
+        {animation === 'runway' && (
+          <>
+            <span className={styles.spark} data-running-part="runway-spark" />
+            <span
+              className={`${styles.spark} ${styles.sparkTwo}`}
+              data-running-part="runway-spark-two"
+            />
+          </>
+        )}
         {animation === 'orbit' && (
           <>
             <span className={styles.orbitCore} />

@@ -75,6 +75,34 @@ describe('PipelineAnimationDemoPanel', () => {
     expect(rendered.container.textContent).toContain('Over estimate')
   })
 
+  it.each([
+    'radial',
+    'runway',
+    'orbit',
+    'signal-field',
+    'telemetry-bloom',
+    'release-transit',
+    'status-weather',
+    'falling-shapes',
+  ] as const)('keeps %s mounted and marks it overdue after its estimate', async (animation) => {
+    const rendered = render(
+      <PipelineAnimationDemoPanel
+        panel={{
+          ...panel,
+          running_animation: animation,
+          demo_review_duration: duration('10s'),
+        }}
+      />,
+    )
+
+    await act(async () => vi.advanceTimersByTime(11_000))
+    const treatment = rendered.container.querySelector(
+      `[data-overdue="true"][data-running-progress="${animation}"], [data-overdue="true"][data-animation="${animation}"]`,
+    )
+    expect(treatment).not.toBeNull()
+    expect(rendered.container.textContent).toContain('Over estimate')
+  })
+
   it('holds a configured visible treatment for focused local review', async () => {
     const rendered = render(
       <PipelineAnimationDemoPanel panel={{ ...panel, running_animation: 'signal-field' }} />,

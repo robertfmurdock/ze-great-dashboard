@@ -9,6 +9,9 @@
   );
   border-right: 1px solid color-mix(in srgb, currentColor 75%, transparent);
 }
+.flare {
+  display: none;
+}
 .lanes {
   position: absolute;
   inset: 13% 7%;
@@ -54,8 +57,47 @@
     background: currentColor;
   }
 }
+[data-overdue="true"] .frontier {
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, currentColor 34%, transparent),
+    transparent
+  );
+  border-right-color: currentColor;
+}
+[data-overdue="true"] .flare {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 100%;
+  width: 2.4em;
+  height: 100%;
+  background: radial-gradient(ellipse, currentColor 0, transparent 68%);
+  transform: translateX(-50%);
+  animation: bloom-flare 1.6s ease-in-out infinite alternate;
+}
+[data-overdue="true"] .markerBody {
+  --phased-marker-travel: -22.5cqw;
+  animation-duration: 0.72s;
+  animation-timing-function: ease-in-out;
+}
 @media (prefers-reduced-motion: reduce) {
   .frontier {
     transition: none;
+  }
+  [data-overdue="true"] .flare,
+  [data-overdue="true"] .markerBody {
+    animation: none;
+  }
+}
+@keyframes bloom-flare {
+  from {
+    opacity: 0.42;
+    transform: translateX(-50%) scale(0.8);
+  }
+  to {
+    opacity: 0.95;
+    transform: translateX(-50%) scale(1.15);
   }
 }

@@ -4,6 +4,7 @@ export function StatusWeatherField() {
   return (
     <>
       <span className={styles.haze} data-running-part="weather-haze" />
+      <span className={styles.pressure} data-running-part="weather-pressure" />
       <span className={`${styles.band} ${styles.bandOne}`} />
       <span className={`${styles.band} ${styles.bandTwo}`} />
       <span className={`${styles.band} ${styles.bandThree}`} />

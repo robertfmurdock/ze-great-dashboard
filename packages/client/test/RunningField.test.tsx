@@ -21,6 +21,7 @@ const envelope = () => ({
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -120,6 +121,35 @@ describe('RunningField', () => {
       expect(rendered.querySelector('[data-running-field]')).toBeNull()
     },
   )
+
+  it('exposes the same overdue contract on legacy progress and decorative fields', () => {
+    const overdueEnvelope = {
+      ...envelope(),
+      signal: { ...envelope().signal, runStartedAt: '2026-08-24T13:00:00.000Z' },
+    }
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-24T14:00:00.000Z'))
+
+    const legacy = render(
+      <PipelinePanel
+        panel={{ ...panel, running_animation: 'radial' }}
+        envelope={overdueEnvelope}
+      />,
+    ).container
+    expect(
+      legacy.querySelector('[data-running-progress="radial"][data-overdue="true"]'),
+    ).not.toBeNull()
+
+    cleanup()
+    const field = render(
+      <PipelinePanel
+        panel={{ ...panel, running_animation: 'telemetry-bloom' }}
+        envelope={overdueEnvelope}
+      />,
+    ).container
+    expect(field.querySelector('[data-running-field][data-overdue="true"]')).not.toBeNull()
+    expect(field.querySelector('[data-running-part="bloom-flare"]')).not.toBeNull()
+  })
 
   it('uses the shared phased marker anchor/body structure for bloom and signal-field', () => {
     const bloom = render(

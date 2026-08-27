@@ -5,6 +5,7 @@ export function TelemetryBloomField() {
   return (
     <>
       <span className={styles.frontier} data-running-part="frontier" />
+      <span className={styles.flare} data-running-part="bloom-flare" />
       <span className={styles.lanes} data-running-part="bloom-lanes">
         {[0, 1, 2, 3].map((lane) => (
           <span className={styles.lane} key={lane} data-running-part="bloom-lane">

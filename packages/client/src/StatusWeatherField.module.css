@@ -14,6 +14,9 @@
     );
   animation: haze 15s ease-in-out infinite alternate;
 }
+.pressure {
+  display: none;
+}
 .band {
   position: absolute;
   right: -15%;
@@ -100,6 +103,41 @@
     opacity: 0.65;
   }
 }
+[data-overdue="true"] .haze {
+  inset: -30%;
+  background:
+    radial-gradient(
+      ellipse at 22% 48%,
+      color-mix(in srgb, currentColor 34%, transparent),
+      transparent 42%
+    ),
+    radial-gradient(
+      ellipse at 78% 58%,
+      color-mix(in srgb, currentColor 25%, transparent),
+      transparent 36%
+    );
+}
+[data-overdue="true"] .pressure {
+  display: block;
+  position: absolute;
+  inset: 20% 0;
+  border-top: 1px solid color-mix(in srgb, currentColor 65%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, currentColor 65%, transparent);
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0 0.55em,
+    color-mix(in srgb, currentColor 14%, transparent) 0.55em 0.62em
+  );
+  opacity: 0.75;
+  animation: pressure 3.4s ease-in-out infinite alternate;
+}
+[data-overdue="true"] .band {
+  background: linear-gradient(90deg, transparent, currentColor, transparent);
+  animation-name: storm-band;
+}
+[data-overdue="true"] .drift {
+  transform: translate(12cqw, -2cqh) scale(0.82);
+}
 @keyframes haze {
   to {
     transform: translate(9%, -4%);
@@ -116,10 +154,30 @@
     transform: translate(10cqw, -2cqh);
   }
 }
+@keyframes pressure {
+  from {
+    transform: scaleY(0.72);
+    opacity: 0.45;
+  }
+  to {
+    transform: scaleY(1.12);
+    opacity: 0.9;
+  }
+}
+@keyframes storm-band {
+  to {
+    transform: translateX(-14%);
+    opacity: 0.9;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
+  [data-overdue="true"] .pressure,
   .haze,
   .band,
   .drift {
+    animation: none;
+  }
+  .pressure {
     animation: none;
   }
 }

@@ -252,6 +252,7 @@ export function FallingShapesField({
       ref={rootRef}
       className={styles.field}
       data-running-part="falling-shapes-field"
+      data-overdue={overdue || undefined}
       data-direction={geometry.direction}
       data-recycling={recycling || undefined}
       style={

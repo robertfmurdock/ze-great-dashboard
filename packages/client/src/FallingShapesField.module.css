@@ -27,6 +27,18 @@
     top 500ms cubic-bezier(0.22, 1, 0.36, 1),
     opacity 180ms ease;
 }
+.field[data-overdue="true"] .piece[data-piece-phase="settled"] {
+  opacity: 0.72;
+  border-color: currentColor;
+}
+.field[data-overdue="true"] .cell {
+  background: color-mix(in srgb, currentColor 38%, transparent);
+  box-shadow: 0 0 0.6em color-mix(in srgb, currentColor 48%, transparent);
+}
+.field[data-overdue="true"] .clearingCell {
+  animation-duration: 900ms;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: base cell rules follow the overdue override intentionally. */
 .cell {
   position: absolute;
   left: calc((var(--cell-x) / var(--piece-width)) * 100% + 0.12em);
@@ -38,6 +50,7 @@
   background: color-mix(in srgb, currentColor 28%, transparent);
   box-shadow: 0 0 0.45em color-mix(in srgb, currentColor 35%, transparent);
 }
+/* biome-ignore lint/style/noDescendingSpecificity: base clearing rules follow the overdue override intentionally. */
 .clearingCell {
   position: absolute;
   left: calc((var(--clear-x) / var(--shape-columns)) * 100% + 0.12em);
@@ -58,6 +71,7 @@
 .piece[data-piece-phase="travel"] {
   opacity: 0.9;
 }
+/* biome-ignore lint/style/noDescendingSpecificity: settled phase is the base state for the overdue override. */
 .piece[data-piece-phase="settled"] {
   opacity: 0.5;
 }
@@ -66,6 +80,11 @@
   .field[data-recycling="true"] .piece {
     transition: none;
   }
+  .field[data-overdue="true"] .clearingCell {
+    animation: none;
+    opacity: 0;
+  }
+  /* biome-ignore lint/style/noDescendingSpecificity: reduced-motion base rule follows the overdue override. */
   .clearingCell {
     animation: none;
     opacity: 0;

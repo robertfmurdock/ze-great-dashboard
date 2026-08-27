@@ -46,12 +46,26 @@
   border-top: 0.14em solid var(--status-warning);
   animation: sweep 1.7s linear infinite;
 }
+.overdue.radial .visual::before {
+  content: "";
+  position: absolute;
+  inset: -0.42em;
+  border: 0.1em solid var(--status-serious);
+  border-radius: 50%;
+  box-shadow: 0 0 0.55em color-mix(in srgb, var(--status-serious) 65%, transparent);
+  animation: alarm-ring 1.8s ease-in-out infinite;
+}
 .radialCore {
   position: absolute;
   inset: 0.68em;
   border-radius: 50%;
   background: var(--status-warning);
   box-shadow: 0 0 0.45em var(--status-warning);
+}
+.overdue .radialCore {
+  background: var(--status-serious);
+  box-shadow: 0 0 0.55em var(--status-serious);
+  animation: reactor-breathe 1.8s ease-in-out infinite alternate;
 }
 .runway {
   display: grid;
@@ -78,6 +92,25 @@
   background: var(--ink-primary);
   box-shadow: 0 0 0.45em var(--ink-primary);
 }
+.overdue.runway .visual::before {
+  content: "";
+  position: absolute;
+  inset: -0.2em 0;
+  left: calc(100% - 0.55em);
+  width: 0.55em;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--status-serious) 0 0.12em,
+    var(--surface) 0.12em 0.24em
+  );
+  box-shadow: 0 0 0.5em color-mix(in srgb, var(--status-serious) 70%, transparent);
+  animation: barrier-pulse 1.4s ease-in-out infinite alternate;
+}
+.overdue.runway .visual::after {
+  background: var(--status-serious);
+  box-shadow: 0 0 0.55em var(--status-serious);
+  animation: barrier-pulse 1.4s ease-in-out infinite alternate;
+}
 .spark {
   position: absolute;
   top: 50%;
@@ -89,12 +122,23 @@
   box-shadow: 0 0 0.4em var(--status-warning);
   animation: spark 1.5s linear infinite;
 }
+.overdue.runway .spark {
+  animation-duration: 1s;
+}
+.sparkTwo {
+  display: none;
+  animation-delay: -0.5s;
+}
+.overdue.runway .sparkTwo {
+  display: block;
+}
 .orbit .visual {
   width: 2.4em;
   height: 2.4em;
   border: 1px solid var(--edge);
   border-radius: 50%;
 }
+/* biome-ignore lint/style/noDescendingSpecificity: the radial overdue ring precedes this separate legacy treatment. */
 .orbit .visual::before {
   content: "";
   position: absolute;
@@ -111,6 +155,11 @@
   background: var(--status-warning);
   box-shadow: 0 0 0.45em var(--status-warning);
 }
+.overdue .orbitCore {
+  background: var(--status-serious);
+  box-shadow: 0 0 0.55em var(--status-serious);
+  animation: reactor-breathe 1.15s ease-in-out infinite alternate;
+}
 .particle {
   position: absolute;
   top: 0.25em;
@@ -125,6 +174,19 @@
 .particleTwo {
   animation-delay: -0.9s;
   background: var(--status-warning);
+}
+.overdue.orbit .visual::after {
+  content: "";
+  position: absolute;
+  inset: 0.42em;
+  border: 0.08em solid color-mix(in srgb, var(--status-serious) 75%, transparent);
+  border-radius: 50%;
+  box-shadow: 0 0 0.6em color-mix(in srgb, var(--status-serious) 55%, transparent);
+  animation: gravity-well 1.15s ease-in-out infinite alternate;
+}
+.overdue.orbit .particle {
+  transform-origin: 0.16em 0.7em;
+  animation-duration: 0.95s;
 }
 .indeterminate .visual {
   background-image: repeating-linear-gradient(
@@ -332,12 +394,76 @@
     opacity: 0.55;
   }
 }
+.overdue.signalField .rail {
+  background: linear-gradient(90deg, var(--status-serious) 0 100%);
+  opacity: 0.42;
+}
+.overdue.signalField .lead {
+  background: var(--status-serious);
+  box-shadow: 0 0 0.7em var(--status-serious);
+  animation: endpoint-pulse 1.2s ease-in-out infinite alternate;
+}
+.overdue.signalField .markerBody {
+  --phased-marker-travel: -10em;
+  background: var(--status-serious);
+  box-shadow: 0 0 0.55em var(--status-serious);
+  animation-duration: 0.68s;
+  animation-timing-function: ease-in-out;
+}
 .short .signalField .visual {
   height: 1em;
 }
 @keyframes sweep {
   to {
     transform: rotate(360deg);
+  }
+}
+@keyframes alarm-ring {
+  from {
+    transform: scale(0.92);
+    opacity: 0.45;
+  }
+  to {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+@keyframes reactor-breathe {
+  from {
+    transform: scale(0.84);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+@keyframes barrier-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes gravity-well {
+  from {
+    transform: scale(0.82);
+    opacity: 0.45;
+  }
+  to {
+    transform: scale(1.08);
+    opacity: 0.95;
+  }
+}
+@keyframes endpoint-pulse {
+  from {
+    transform: scaleY(0.75);
+    opacity: 0.65;
+  }
+  to {
+    transform: scaleY(1.15);
+    opacity: 1;
   }
 }
 @keyframes spark {
@@ -370,11 +496,19 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .radial .visual::after,
+  .overdue.radial .visual::before,
+  .overdue .radialCore,
   .spark,
   .runway .visual::after,
+  .overdue.runway .visual::before,
+  .overdue.runway .visual::after,
   .particle,
+  .overdue.orbit .visual::after,
   .pulse,
   .lead,
+  .overdue.signalField .lead,
+  .overdue.signalField .markerBody,
+  /* biome-ignore lint/style/noDescendingSpecificity: the shared reduced-motion list intentionally follows themed overrides. */
   .signalField .visual::before,
   .indeterminate .visual {
     animation: none;

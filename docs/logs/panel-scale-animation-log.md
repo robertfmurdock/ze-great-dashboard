@@ -152,3 +152,28 @@ Browser coverage now exercises the exact showcase geometry and checks that the v
 the panel and that the panel has no internal scroll overflow. The focused tall-panel expansion test
 remains in place. Verification passed with `npm run check`: 241 unit tests, 9 browser tests,
 board validation, and published-package smoke testing.
+
+## Overdue animation phases (2026-08-27)
+
+All eight active-run treatments now expose the estimate-exceeded state through the shared
+`data-overdue="true"` contract. The existing timing calculation remains authoritative: a run only
+enters this phase when it has an estimate and elapsed time exceeds it. The run remains mounted and
+the readable `Over estimate` timing text remains the semantic signal. Decorative additions remain
+`aria-hidden`, and reduced motion keeps the static escalation while disabling the added animation.
+
+The overdue treatments are themed rather than a shared flashing alarm: radial adds an alarm ring
+and breathing core; runway holds at a pulsing end barrier; orbit tightens and accelerates around a
+gravity-well ring; signal-field saturates its frontier and pulses its endpoint; telemetry-bloom
+expands its frontier and adds a denser edge flare; release-transit stalls its packet and backs up
+the trail; status-weather shifts from haze to pressure bands and storm movement; and falling-shapes
+keeps its recycled/cleared overflow state denser and more persistent.
+
+The marker motion was tuned through focused visual review. Telemetry-bloom keeps its larger overdue
+rebound (`-22.5cqw`, 0.72s cycle). Signal-field’s overdue styling is restored, but its markers keep
+the normal travel distance (`-10em`) and only use the faster 0.68s cycle. Runway’s moving spark is
+1.5x faster overdue (1.0s instead of 1.5s) and a second, phase-offset spark appears only in that
+phase. The regular treatments remain unchanged by these additions.
+
+No dependencies or schema changes were introduced. Final verification passed with `npm run check`:
+259 unit tests, 9 browser tests including responsive and reduced-motion coverage, Docker healthcheck,
+board validation, and published-package smoke testing.
