@@ -51,6 +51,7 @@ ENV BOARD_CONFIG_URL=/app/boards/example.yaml
 
 COPY --from=build /app/dist/server.mjs ./server.mjs
 COPY boards ./boards
+COPY docker-healthcheck.mjs ./docker-healthcheck.mjs
 
 # Bind to all interfaces: nothing outside the container can reach localhost. The server logs a
 # warning about the missing auth this implies, which is correct and worth seeing.
@@ -61,7 +62,7 @@ EXPOSE 3000
 # 127.0.0.1 rather than localhost: inside the container localhost resolves to ::1 first, and the
 # server binds IPv4, so the healthcheck would fail against a perfectly working server.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s \
-  CMD ["/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+  CMD ["/nodejs/bin/node", "/app/docker-healthcheck.mjs"]
 
 # Distroless supplies Node as its entrypoint; this argument runs the standalone server bundle.
 CMD ["server.mjs"]

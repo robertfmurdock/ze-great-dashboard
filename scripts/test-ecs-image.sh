@@ -62,7 +62,7 @@ task_definition_arn="$(aws ecs register-task-definition \
   --memory 512 \
   --container-definitions "$(jq -nc \
     --arg image "$IMAGE" \
-    '[{name:"dashboard",image:$image,essential:true,environment:[{name:"BOARD_CONFIG_URL",value:"/app/boards/example.yaml"},{name:"TEMPLATE_WAIT_MS",value:"0"}]}]')" \
+    '[{name:"dashboard",image:$image,essential:true,healthCheck:{command:["CMD","/nodejs/bin/node","/app/docker-healthcheck.mjs"],interval:5,timeout:2,retries:3,startPeriod:10},environment:[{name:"BOARD_CONFIG_URL",value:"/app/boards/example.yaml"},{name:"TEMPLATE_WAIT_MS",value:"0"}]}]')" \
   --query 'taskDefinition.taskDefinitionArn' --output text)"
 
 task_arn="$(aws ecs run-task \
