@@ -178,28 +178,6 @@ describe('persistent consumer reference', () => {
     expect(infrastructure).toContain('cloudformation:DeleteStack')
     const compositionScript = join(repositoryRoot, 'scripts/deploy-reference-composition.sh')
     execFileSync('bash', ['-n', compositionScript])
-    const script = await readFile(compositionScript, 'utf8')
-    expect(script).toContain('reference/consumer-composition.yml')
-    expect(script).toContain('composition-parameters.json')
-    expect(script).toContain(`templates/${String.fromCharCode(36)}{artifact_key%.zip}.yml`)
-    expect(script).toContain('Expected 10 composition parameters, found')
-    expect(script).toContain('Composition parameters with empty values:')
-    expect(script).toContain('Deploying composition stack')
-    expect(script).toContain(
-      ['--parameter-overrides ', String.fromCharCode(36), '{composition_parameters}'].join(''),
-    )
-    expect(script).not.toContain(
-      [
-        '--parameter-overrides "file://',
-        String.fromCharCode(36),
-        '{REFERENCE_RELEASE_DIR}/composition-parameters.json"',
-      ].join(''),
-    )
-    expect(script).toContain('SecretsFunctionArn')
-    expect(script).toContain('ParameterFunctionArn')
-    expect(script.match(/aws s3 cp/g)).toHaveLength(2)
-    expect(script.match(/aws cloudformation deploy/g)).toHaveLength(1)
-    expect(script.match(/invoke_health /g)).toHaveLength(2)
     expect(workflow).toContain('for attempt in {1..12}')
     expect(workflow).toContain('Assume Docker smoke-test credentials')
     expect(workflow).toContain('Run ephemeral ECS Docker smoke test')

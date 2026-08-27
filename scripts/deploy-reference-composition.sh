@@ -32,7 +32,7 @@ if [ "${reference_status}" = ROLLBACK_COMPLETE ]; then
   aws cloudformation wait stack-delete-complete --stack-name "${stack_name}" --region "${region}"
 fi
 
-jq \
+jq -n \
   --arg template_url "https://${REFERENCE_ARTIFACT_BUCKET}.s3.amazonaws.com/${template_key}" \
   --arg artifact_bucket "${REFERENCE_ARTIFACT_BUCKET}" \
   --arg artifact_key "${artifact_key}" \
