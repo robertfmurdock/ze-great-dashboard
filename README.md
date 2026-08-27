@@ -8,6 +8,10 @@
 Ze Great Dashboard is a team-visible, stateless trust dashboard that reads current engineering
 signals from their authorities: a lens, not a system of record.
 
+![Animated Ze Great Dashboard preview](docs/assets/readme-demo.gif)
+
+This preview shows the read-only animation showcase using fixture data.
+
 It is for teams that want a big, visible answer to “are the things we rely on working now?” It is
 not a metrics warehouse, historical analytics product, hosted SaaS, or a replacement for the systems
 that own the underlying facts.

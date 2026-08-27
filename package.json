@@ -36,6 +36,7 @@
     "test:browser": "node scripts/test-browser.mjs",
     "test:browser:no-build": "node scripts/test-browser.mjs --no-build",
     "test:watch": "vitest",
+    "capture:readme": "node scripts/capture-readme-demo.mjs",
     "dev": "concurrently -k -n client,server -c cyan,green \"npm:dev:client\" \"npm:dev:server\"",
     "dev:client": "npm run dev --workspace @ze-great-dashboard/client",
     "dev:server": "ASSET_PATH=http://localhost:5173/__ASSET_PATH__ TEMPLATE_WAIT_MS=20000 npm run dev --workspace @ze-great-dashboard/server",
