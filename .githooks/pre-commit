@@ -1,13 +1,13 @@
 #!/bin/sh
 #
-# Blocks a commit that fails `npm run check` — lint, typecheck, and tests.
+# Blocks a commit that fails the complete local verification — lint, typecheck, tests, and builds.
 #
 # Enabled by the root postinstall running `git config core.hooksPath .githooks`, so it arrives with
 # `npm install` and is reviewable in the diff rather than hiding in a tool's generated files.
 #
 # To bypass in a genuine emergency: `git commit --no-verify`. If you find yourself doing that more
-# than rarely, the check is too slow or too flaky, and that is the bug to fix.
+# than rarely, verification is too slow or too flaky, and that is the bug to fix.
 set -e
 
-echo "pre-commit: npm run check"
-npm run check
+echo "pre-commit: npm run verify"
+npm run verify

@@ -24,13 +24,14 @@ BOARD_CONFIG_URL="$PWD/boards/ze-great-team.yaml" npm run dev
 Run the full repository gate before handing off work:
 
 ```sh
-npm run check
+npm run verify
 ```
 
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Start the client and server development loop. |
 | `npm run check` | Lint, typecheck, unit and browser tests, validate the example board, and test the published package. The unit phase builds packages once; the browser phase reuses that client build. |
+| `npm run verify` | Run `check`, then build the production client and Lambda bundle. This is the commit-hook gate. |
 | `npm run test:browser` | Build the client and run browser tests independently. |
 | `npm run test:watch` | Run unit tests in watch mode. |
 | `npm run build` | Build the production client. |
@@ -38,10 +39,9 @@ npm run check
 | `docker compose up` | Run the published GHCR server image against a published asset path. |
 | `docker compose -f docker-compose.yml -f docker-compose.local.yml up --build` | Build and run the current source locally. |
 
-Contributions must pass `npm run check`. A single, unified gate maximizes consistency: every change
-gets the same complete signal before it is handed off. That consistency also creates design pressure
-to keep the process efficient and each test valuable; a check should earn its place by catching a
-meaningful failure mode, not by adding filler to a longer command.
+Contributions must pass `npm run verify`. The committed pre-commit hook runs this same gate, so
+production-build failures are found before a change enters history. Pushes do not run a second local
+gate; CI still runs its own checks and release builds.
 
 New dependencies need a clear justification: the project deliberately keeps its dependency surface
 small.
