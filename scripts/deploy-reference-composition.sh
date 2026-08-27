@@ -57,10 +57,31 @@ jq \
   ]' > "${REFERENCE_RELEASE_DIR}/composition-parameters.json"
 
 composition_parameters_file="${REFERENCE_RELEASE_DIR}/composition-parameters.json"
-jq -e 'length == 10 and all(.[]; (.ParameterValue // "") != "")' \
-  "${composition_parameters_file}" > /dev/null
-composition_parameters="$(jq -r '.[] | "\(.ParameterKey)=\(.ParameterValue)"' \
-  "${composition_parameters_file}" | paste -sd ' ' -)"
+if ! composition_parameter_count="$(jq -r 'if type == "array" then length else error("expected an array") end' \
+  "${composition_parameters_file}")"; then
+  echo "Unable to read composition parameters as a JSON array: ${composition_parameters_file}" >&2
+  exit 1
+fi
+if [ "${composition_parameter_count}" -ne 10 ]; then
+  echo "Expected 10 composition parameters, found ${composition_parameter_count}" >&2
+  exit 1
+fi
+if ! empty_composition_parameters="$(jq -r '
+  map(select((.ParameterValue // "") == "") | .ParameterKey) | join(", ")
+' "${composition_parameters_file}")"; then
+  echo "Unable to inspect composition parameter values: ${composition_parameters_file}" >&2
+  exit 1
+fi
+if [ -n "${empty_composition_parameters}" ]; then
+  echo "Composition parameters with empty values: ${empty_composition_parameters}" >&2
+  exit 1
+fi
+if ! composition_parameters="$(jq -r 'map("\(.ParameterKey)=\(.ParameterValue)") | join(" ")' \
+  "${composition_parameters_file}")"; then
+  echo "Unable to convert composition parameters for AWS CLI: ${composition_parameters_file}" >&2
+  exit 1
+fi
+echo "Deploying composition stack ${stack_name} with ${composition_parameter_count} parameters."
 
 aws cloudformation deploy \
   --stack-name "${stack_name}" \

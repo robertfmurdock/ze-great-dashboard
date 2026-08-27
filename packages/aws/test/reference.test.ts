@@ -182,7 +182,9 @@ describe('persistent consumer reference', () => {
     expect(script).toContain('reference/consumer-composition.yml')
     expect(script).toContain('composition-parameters.json')
     expect(script).toContain(`templates/${String.fromCharCode(36)}{artifact_key%.zip}.yml`)
-    expect(script).toContain('length == 10 and all(.[]; (.ParameterValue // "") != "")')
+    expect(script).toContain('Expected 10 composition parameters, found')
+    expect(script).toContain('Composition parameters with empty values:')
+    expect(script).toContain('Deploying composition stack')
     expect(script).toContain(
       ['--parameter-overrides ', String.fromCharCode(36), '{composition_parameters}'].join(''),
     )
