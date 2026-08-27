@@ -97,23 +97,31 @@ change is not required between the repair and the rerun.
 Use the package's capture-and-reviewed-change-set path for both stacks. Run these commands from the
 repository revision named by the failed action, with the exact package version used by that action:
 
+Replace `FAILED_ACTION_SHA` below with the commit SHA shown in the failed workflow before running
+the commands.
+
 ```sh
-npm exec -- ze-great-dashboard-aws bootstrap parameters \
+git checkout FAILED_ACTION_SHA
+npm ci
+npm run build:packages
+validation_cli=./node_modules/.bin/ze-great-dashboard-aws
+
+"$validation_cli" bootstrap parameters \
   --bootstrap-config reference/consumer-bootstrap-validation.json \
   --kind core --deployed-stack-json core-deployed-stack.json \
   --output core-bootstrap-parameters.json
-npm exec -- ze-great-dashboard-aws bootstrap change-set \
+"$validation_cli" bootstrap change-set \
   --bootstrap-config reference/consumer-bootstrap-validation.json \
   --kind core --parameters core-bootstrap-parameters.json \
   --stack-name ze-great-dashboard-consumer-validation-bootstrap \
   --change-set-name repair-core-bootstrap --format-shell
 
-npm exec -- ze-great-dashboard-aws bootstrap parameters \
+"$validation_cli" bootstrap parameters \
   --bootstrap-config reference/consumer-bootstrap-validation.json \
   --kind github-oidc --core-stack-json core-deployed-stack.json \
   --deployed-stack-json github-bootstrap-deployed-stack.json \
   --output github-bootstrap-parameters.json
-npm exec -- ze-great-dashboard-aws bootstrap change-set \
+"$validation_cli" bootstrap change-set \
   --bootstrap-config reference/consumer-bootstrap-validation.json \
   --kind github-oidc --parameters github-bootstrap-parameters.json \
   --stack-name ze-great-dashboard-consumer-validation-github-bootstrap \
