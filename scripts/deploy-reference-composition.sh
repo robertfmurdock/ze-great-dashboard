@@ -56,13 +56,11 @@ jq \
     {"ParameterKey":"ParameterReference","ParameterValue":$parameter_reference}
   ]' > "${REFERENCE_RELEASE_DIR}/composition-parameters.json"
 
-composition_parameters_text="$(jq -er '
-  if any(.[]; (.ParameterValue // "") == "") then
-    error("composition parameter values must not be empty")
-  else
-    .[] | "\(.ParameterKey)=\(.ParameterValue)"
-  end
-' "${REFERENCE_RELEASE_DIR}/composition-parameters.json")"
+composition_parameters_file="${REFERENCE_RELEASE_DIR}/composition-parameters.json"
+jq -e 'length == 10 and all(.[]; (.ParameterValue // "") != "")' \
+  "${composition_parameters_file}" > /dev/null
+composition_parameters_text="$(jq -r '.[] | "\(.ParameterKey)=\(.ParameterValue)"' \
+  "${composition_parameters_file}")"
 mapfile -t composition_parameters <<< "${composition_parameters_text}"
 
 aws cloudformation deploy \
