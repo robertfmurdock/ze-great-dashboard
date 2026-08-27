@@ -237,7 +237,7 @@ Resources:
               - Sid: PassReferenceExecutionRoleToNestedStacks
                 Effect: Allow
                 Action: iam:PassRole
-                Resource: !GetAtt ReferenceCloudFormationExecutionRole.Arn
+                Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceCloudFormationExecution'
                 Condition:
                   StringEquals:
                     'iam:PassedToService': cloudformation.amazonaws.com
