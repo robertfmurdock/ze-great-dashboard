@@ -6,13 +6,16 @@ import { fileURLToPath } from 'node:url'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
 const useDocker = process.env.PLAYWRIGHT_DOCKER === '1'
+const noBuild = process.argv.includes('--no-build')
 const playwrightVersion = useDocker ? require('@playwright/test/package.json').version : undefined
 const composeArgs = ['compose', '-f', 'compose.playwright.yml']
 const npmCli = process.env.npm_execpath
 const npmCommand = npmCli ? process.execPath : 'npm'
+// The standalone command builds; the aggregate test command opts into reuse after test:unit.
+const clientScript = noBuild ? 'test:browser:no-build' : 'test:browser'
 const npmArgs = npmCli
-  ? [npmCli, 'run', 'test:browser', '--workspace', '@ze-great-dashboard/client']
-  : ['run', 'test:browser', '--workspace', '@ze-great-dashboard/client']
+  ? [npmCli, 'run', clientScript, '--workspace', '@ze-great-dashboard/client']
+  : ['run', clientScript, '--workspace', '@ze-great-dashboard/client']
 
 let activeChild
 let interruptedBy
