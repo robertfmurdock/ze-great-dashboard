@@ -319,15 +319,18 @@ image contains that bundle and `boards/` only. It has no npm, `tsx`, shell, or p
 
 The container explicitly defaults `BOARD_CONFIG_URL` to `/app/boards/example.yaml`, while retaining
 environment overrides. Its healthcheck is an exec-form Node request to `127.0.0.1:3000/health`,
-and the ECS smoke test now waits for the image healthcheck instead of replacing the command with a
-shell script. The release workflow still publishes an exact candidate image and promotes that
-same tested image to `latest`.
+using Distroless's explicit `/nodejs/bin/node` path because Docker healthchecks do not inherit the
+image entrypoint. The ECS smoke test waits for that image healthcheck instead of replacing the
+command with a shell script. The release workflow still publishes an exact candidate image and
+promotes that same tested image to `latest`.
 
 Verified locally: the image builds, renders the published client template, serves the example board
 and `/health`, runs as UID 65532, and has no `/bin/sh`. Unit tests, published-package tests, the
 immutable-web-app tests, shell syntax checks, and `git diff --check` passed. The full `npm run check`
-was blocked only when the local macOS Playwright browser failed to launch inside the sandbox, before
-any browser test executed.
+initially hit a local macOS Playwright launch restriction before any browser test executed. A
+subsequent run passed the full gate, including the new real Docker image healthcheck. The first
+pushed candidate exposed the healthcheck-entrypoint nuance in the ECS smoke test; the follow-up
+changed the healthcheck to the explicit Node path and reproduced a healthy container locally.
 
 ---
 

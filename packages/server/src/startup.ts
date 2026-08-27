@@ -22,8 +22,12 @@ export async function startup(options: { fetcher?: Fetcher } = {}): Promise<Star
 
   // Fail at boot rather than serving a 500 per request. A typo'd ASSET_PATH should fail like the
   // misconfiguration it is, while someone is still watching the logs.
-  await waitForTemplate(config, fetcher)
-  const boardConfig = await loadBoardConfig(config.boardConfigUrl, fetcher)
+  // These independent reads happen together so a remote board config does not wait behind the
+  // client template fetch. Startup still completes only after both have succeeded.
+  const [, boardConfig] = await Promise.all([
+    waitForTemplate(config, fetcher),
+    loadBoardConfig(config.boardConfigUrl, fetcher),
+  ])
   const board = selectBoard(config.board, boardConfig)
   const resolvedConfig = { ...config, board }
   const credentialNames = Object.values(boardConfig.sources)
