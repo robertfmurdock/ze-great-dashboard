@@ -126,6 +126,20 @@ Verified locally for this slice:
 The release gate is the consumer reference smoke test; it exercises the public package contract
 before publication without rebuilding the archive or updating a second Lambda.
 
+## Consumer-owned Lambda composition
+
+Recorded 2026-08-27: the persistent reference deployment now uses the checked-in
+`reference/consumer-composition.yml` as a consumer-style parent stack. The workflow uploads the
+generated application template and Lambda artifact once, then creates two nested application
+stacks from that unchanged template: one with the reference Secrets Manager credential map and
+one with the reference Parameter Store `SecureString` map. It invokes `/health` on both functions
+before publication. The consumer-bootstrap validation job remains separate because it validates a
+different bootstrap account/setup.
+
+This is intentionally a fixture rather than a new CLI composition API. A future CLI interface can
+make explicit wrapper composition reusable if another release needs it; this round keeps the
+consumer-facing generated template unchanged.
+
 ## Candidate verification and release boundary
 
 Recorded 2026-08-21: the workflow now separates release-candidate verification from release

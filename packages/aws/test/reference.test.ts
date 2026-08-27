@@ -3,10 +3,17 @@ import { mkdtemp, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
 import { packageLambda } from '../src/index.ts'
 
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url))
 const referenceDirectory = join(repositoryRoot, 'reference')
+
+const cloudFormationTags = [
+  { tag: '!Ref', resolve: (value: string) => ({ Ref: value }) },
+  { tag: '!Sub', resolve: (value: string) => ({ Sub: value }) },
+  { tag: '!GetAtt', resolve: (value: string) => ({ GetAtt: value }) },
+]
 
 describe('persistent consumer reference', () => {
   it('keeps its checked-in consumer inputs compatible with the generated template', async () => {
@@ -33,6 +40,62 @@ describe('persistent consumer reference', () => {
     expect(template).toContain('LambdaArtifactBucket: { Type: String }')
     expect(template).toContain(`Default: "${release.artifactKey}"`)
     expect(template).toContain('Default: "1.2.3"')
+  })
+
+  it('keeps the reference composition consumer-owned and forwards both credential paths', async () => {
+    const composition = parse(
+      await readFile(join(referenceDirectory, 'consumer-composition.yml'), 'utf8'),
+      { customTags: cloudFormationTags },
+    ) as {
+      Resources: Record<
+        string,
+        { Type: string; Properties: { TemplateURL: unknown; Parameters: Record<string, unknown> } }
+      >
+      Outputs: Record<string, { Value: unknown }>
+    }
+    expect(Object.keys(composition.Resources)).toEqual([
+      'SecretsApplication',
+      'ParameterApplication',
+    ])
+    const sharedParameters = {
+      LambdaArtifactBucket: { Ref: 'LambdaArtifactBucket' },
+      LambdaArtifactKey: { Ref: 'LambdaArtifactKey' },
+      DashboardVersion: { Ref: 'DashboardVersion' },
+      AssetBaseUrl: { Ref: 'AssetBaseUrl' },
+      BoardConfigPath: { Ref: 'BoardConfigPath' },
+    }
+    expect(composition.Resources.SecretsApplication).toEqual({
+      Type: 'AWS::CloudFormation::Stack',
+      Properties: {
+        TemplateURL: { Ref: 'ApplicationTemplateUrl' },
+        Parameters: {
+          Name: { Ref: 'SecretsName' },
+          ...sharedParameters,
+          SecretReference: { Ref: 'SecretsReference' },
+        },
+      },
+    })
+    expect(composition.Resources.ParameterApplication).toEqual({
+      Type: 'AWS::CloudFormation::Stack',
+      Properties: {
+        TemplateURL: { Ref: 'ApplicationTemplateUrl' },
+        Parameters: {
+          Name: { Ref: 'ParameterName' },
+          ...sharedParameters,
+          SecretReference: { Ref: 'ParameterReference' },
+        },
+      },
+    })
+    expect(composition.Outputs).toMatchObject({
+      AssetPath: {
+        Value: {
+          Sub: `${String.fromCharCode(36)}{AssetBaseUrl}/dashboard/${String.fromCharCode(36)}{DashboardVersion}`,
+        },
+      },
+      LambdaArtifactKey: { Value: { Ref: 'LambdaArtifactKey' } },
+      SecretsFunctionArn: { Value: { GetAtt: 'SecretsApplication.Outputs.ServerFunctionArn' } },
+      ParameterFunctionArn: { Value: { GetAtt: 'ParameterApplication.Outputs.ServerFunctionArn' } },
+    })
   })
 
   it('scopes the reference identities and deploys before publication', async () => {
@@ -100,17 +163,7 @@ describe('persistent consumer reference', () => {
     expect(reference).toBeLessThan(publish)
     expect(publish).toBeLessThan(registry)
     expect(registry).toBeLessThan(tag)
-    expect(workflow).toContain('aws-dashboard-release/template.yml')
-    expect(workflow).toContain('aws-dashboard-release/parameters.json')
-    expect(workflow).toContain('.commands.upload[4]')
-    expect(workflow).toContain('deployed_asset_path')
-    expect(workflow).toContain('deployed_artifact_key')
-    expect(workflow).toContain(
-      `--query "Stacks[0].Outputs[?OutputKey=='AssetPath'].OutputValue" --output text`,
-    )
-    expect(workflow).toContain(
-      `--query "Stacks[0].Parameters[?ParameterKey=='LambdaArtifactKey'].ParameterValue" --output text`,
-    )
+    expect(workflow).toContain('bash scripts/deploy-reference-composition.sh')
     expect(workflow).toContain('verified-release-candidate')
     expect(workflow).not.toContain('Deploy application 🚀')
     expect(workflow).toContain('reference_artifact_bucket')
@@ -122,13 +175,19 @@ describe('persistent consumer reference', () => {
     expect(workflow).toContain('ParameterKey":"SecretReference')
     expect(workflow).toContain('aws ssm put-parameter')
     expect(workflow).toContain('--type SecureString')
-    expect(workflow).toContain('/tmp/reference-parameter-health.json')
-    expect(workflow).toContain('reference_status')
-    expect(workflow).toContain('ROLLBACK_COMPLETE')
     expect(infrastructure).toContain('cloudformation:DeleteStack')
+    const compositionScript = join(repositoryRoot, 'scripts/deploy-reference-composition.sh')
+    execFileSync('bash', ['-n', compositionScript])
+    const script = await readFile(compositionScript, 'utf8')
+    expect(script).toContain('reference/consumer-composition.yml')
+    expect(script).toContain('composition-parameters.json')
+    expect(script).toContain(`templates/${String.fromCharCode(36)}{artifact_key%.zip}.yml`)
+    expect(script).toContain('SecretsFunctionArn')
+    expect(script).toContain('ParameterFunctionArn')
+    expect(script.match(/aws s3 cp/g)).toHaveLength(2)
+    expect(script.match(/aws cloudformation deploy/g)).toHaveLength(1)
+    expect(script.match(/invoke_health /g)).toHaveLength(2)
     expect(workflow).toContain('for attempt in {1..12}')
-    expect(workflow).toContain('ServerFunctionArn')
-    expect(workflow).toContain('aws lambda invoke')
     expect(workflow).toContain('Assume Docker smoke-test credentials')
     expect(workflow).toContain('Run ephemeral ECS Docker smoke test')
     expect(workflow).toContain('for attempt in 1 2 3')

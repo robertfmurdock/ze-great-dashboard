@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Consumer-owned composition fixture for two credential-backed dashboard Lambdas
+
+Parameters:
+  ApplicationTemplateUrl:
+    Type: String
+    Description: S3 URL for the generated application template
+  LambdaArtifactBucket:
+    Type: String
+  LambdaArtifactKey:
+    Type: String
+  DashboardVersion:
+    Type: String
+  AssetBaseUrl:
+    Type: String
+  BoardConfigPath:
+    Type: String
+  SecretsName:
+    Type: String
+    Default: ze-great-dashboard-reference-secrets
+  ParameterName:
+    Type: String
+    Default: ze-great-dashboard-reference-parameter
+  SecretsReference:
+    Type: String
+  ParameterReference:
+    Type: String
+
+Resources:
+  SecretsApplication:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Ref ApplicationTemplateUrl
+      Parameters:
+        Name: !Ref SecretsName
+        LambdaArtifactBucket: !Ref LambdaArtifactBucket
+        LambdaArtifactKey: !Ref LambdaArtifactKey
+        DashboardVersion: !Ref DashboardVersion
+        AssetBaseUrl: !Ref AssetBaseUrl
+        BoardConfigPath: !Ref BoardConfigPath
+        SecretReference: !Ref SecretsReference
+
+  ParameterApplication:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Ref ApplicationTemplateUrl
+      Parameters:
+        Name: !Ref ParameterName
+        LambdaArtifactBucket: !Ref LambdaArtifactBucket
+        LambdaArtifactKey: !Ref LambdaArtifactKey
+        DashboardVersion: !Ref DashboardVersion
+        AssetBaseUrl: !Ref AssetBaseUrl
+        BoardConfigPath: !Ref BoardConfigPath
+        SecretReference: !Ref ParameterReference
+
+Outputs:
+  AssetPath:
+    Value: !Sub '${AssetBaseUrl}/dashboard/${DashboardVersion}'
+  LambdaArtifactKey:
+    Value: !Ref LambdaArtifactKey
+  SecretsFunctionArn:
+    Value: !GetAtt SecretsApplication.Outputs.ServerFunctionArn
+  ParameterFunctionArn:
+    Value: !GetAtt ParameterApplication.Outputs.ServerFunctionArn

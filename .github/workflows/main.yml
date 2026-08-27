@@ -150,6 +150,15 @@ jobs:
 
       - name: Deploy and check the exact tarball as the consumer reference
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
+        env:
+          AWS_REGION: us-east-1
+          REFERENCE_RELEASE_DIR: .reference-consumer/aws-dashboard-release
+          REFERENCE_ARTIFACT_BUCKET: ${{ steps.infrastructure.outputs.reference_artifact_bucket }}
+          REFERENCE_EXECUTION_ROLE_ARN: ${{ steps.infrastructure.outputs.reference_execution_role_arn }}
+          REFERENCE_VERSION: ${{ steps.version.outputs.version }}
+          REFERENCE_ASSET_BASE_URL: ${{ steps.infrastructure.outputs.assets_base_url }}
+          REFERENCE_SECRET_ARN: ${{ steps.infrastructure.outputs.reference_credential_smoke_secret_arn }}
+          REFERENCE_PARAMETER_ARN: ${{ steps.infrastructure.outputs.reference_credential_smoke_parameter_arn }}
         run: |
           cp reference/credential-smoke-board.yaml .reference-consumer/board.yaml
           cp reference/aws-dashboard-parameters.json .reference-consumer/
@@ -167,74 +176,13 @@ jobs:
           jq --arg secret_arn "${{ steps.infrastructure.outputs.reference_credential_smoke_secret_arn }}" \
             '. + [{"ParameterKey":"SecretReference","ParameterValue":$secret_arn}]' \
             .reference-consumer/aws-dashboard-parameters.json \
-            > .reference-consumer/aws-dashboard-parameters.next.json
-          mv .reference-consumer/aws-dashboard-parameters.next.json .reference-consumer/aws-dashboard-parameters.json
+            > .reference-consumer/aws-dashboard-parameters.with-secret.json
+          mv .reference-consumer/aws-dashboard-parameters.with-secret.json .reference-consumer/aws-dashboard-parameters.json
           "$reference_cli" package \
             --board-config .reference-consumer/board.yaml \
             --parameters .reference-consumer/aws-dashboard-parameters.json \
             --output .reference-consumer/aws-dashboard-release
-          artifact_key="$(jq -er '.artifactKey' .reference-consumer/aws-dashboard-release/release.json)"
-          aws s3 cp .reference-consumer/aws-dashboard-release/lambda.zip \
-            "$(jq -er '.commands.upload[4]' .reference-consumer/aws-dashboard-release/deployment.json)" \
-            --region us-east-1
-          reference_status="$(aws cloudformation describe-stacks \
-            --stack-name ze-great-dashboard-reference \
-            --region us-east-1 \
-            --query 'Stacks[0].StackStatus' \
-            --output text 2>/dev/null || true)"
-          if [ "$reference_status" = ROLLBACK_COMPLETE ]; then
-            aws cloudformation delete-stack \
-              --stack-name ze-great-dashboard-reference \
-              --region us-east-1
-            aws cloudformation wait stack-delete-complete \
-              --stack-name ze-great-dashboard-reference \
-              --region us-east-1
-          fi
-          aws cloudformation deploy \
-            --stack-name ze-great-dashboard-reference \
-            --template-file .reference-consumer/aws-dashboard-release/template.yml \
-            --role-arn "${{ steps.infrastructure.outputs.reference_execution_role_arn }}" \
-            --region us-east-1 \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides file://.reference-consumer/aws-dashboard-release/parameters.json \
-            --no-fail-on-empty-changeset \
-            --no-cli-pager
-          expected_asset_path="$(jq -er '.clientAssetUrl' .reference-consumer/aws-dashboard-release/release.json)"
-          deployed_asset_path="$(aws cloudformation describe-stacks \
-            --stack-name ze-great-dashboard-reference --region us-east-1 \
-            --query "Stacks[0].Outputs[?OutputKey=='AssetPath'].OutputValue" --output text)"
-          deployed_artifact_key="$(aws cloudformation describe-stacks \
-            --stack-name ze-great-dashboard-reference --region us-east-1 \
-            --query "Stacks[0].Parameters[?ParameterKey=='LambdaArtifactKey'].ParameterValue" --output text)"
-          [ "$deployed_asset_path" = "$expected_asset_path" ]
-          [ "$deployed_artifact_key" = "$artifact_key" ]
-          function_arn="$(aws cloudformation describe-stacks \
-            --stack-name ze-great-dashboard-reference \
-            --region us-east-1 \
-            --query "Stacks[0].Outputs[?OutputKey=='ServerFunctionArn'].OutputValue" \
-            --output text)"
-          aws lambda invoke --function-name "$function_arn" --invocation-type RequestResponse \
-            --payload '{"version":"2.0","rawPath":"/health","requestContext":{"http":{"method":"GET"}}}' \
-            --cli-binary-format raw-in-base64-out --region us-east-1 /tmp/reference-health.json
-          jq -e '.statusCode == 200' /tmp/reference-health.json > /dev/null
-          jq --arg parameter_arn "${{ steps.infrastructure.outputs.reference_credential_smoke_parameter_arn }}" \
-            'map(if .ParameterKey == "SecretReference" then .ParameterValue = $parameter_arn else . end)' \
-            .reference-consumer/aws-dashboard-release/parameters.json \
-            > .reference-consumer/aws-dashboard-release/parameters.next.json
-          mv .reference-consumer/aws-dashboard-release/parameters.next.json .reference-consumer/aws-dashboard-release/parameters.json
-          aws cloudformation deploy \
-            --stack-name ze-great-dashboard-reference \
-            --template-file .reference-consumer/aws-dashboard-release/template.yml \
-            --role-arn "${{ steps.infrastructure.outputs.reference_execution_role_arn }}" \
-            --region us-east-1 \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides file://.reference-consumer/aws-dashboard-release/parameters.json \
-            --no-fail-on-empty-changeset \
-            --no-cli-pager
-          aws lambda invoke --function-name "$function_arn" --invocation-type RequestResponse \
-            --payload '{"version":"2.0","rawPath":"/health","requestContext":{"http":{"method":"GET"}}}' \
-            --cli-binary-format raw-in-base64-out --region us-east-1 /tmp/reference-parameter-health.json
-          jq -e '.statusCode == 200' /tmp/reference-parameter-health.json > /dev/null
+          bash scripts/deploy-reference-composition.sh
 
       - name: Assume Docker smoke-test credentials
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
