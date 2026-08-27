@@ -94,54 +94,18 @@ consistency check; a stale bootstrap fails with the actual mismatches and this r
 approved administrator updates every affected stack, rerunning the same action must pass. A code
 change is not required between the repair and the rerun.
 
-Use the package's capture-and-reviewed-change-set path for both stacks. Run these commands from the
-repository revision named by the failed action, with the exact package version used by that action:
-
-Replace `FAILED_ACTION_SHA` below with the commit SHA shown in the failed workflow before running
-the commands.
+Use the repository repair script from the commit named by the failed action. Replace
+`FAILED_ACTION_SHA` with the commit SHA shown in the failed workflow:
 
 ```sh
 git checkout FAILED_ACTION_SHA
-npm ci
-npm run build:packages
-validation_cli=./node_modules/.bin/ze-great-dashboard-aws
-region=$(jq -er '.region' reference/consumer-bootstrap-validation.json)
-aws cloudformation describe-stacks \
-  --region "$region" \
-  --stack-name ze-great-dashboard-consumer-validation-bootstrap \
-  > core-deployed-stack.json
-aws cloudformation describe-stacks \
-  --region "$region" \
-  --stack-name ze-great-dashboard-consumer-validation-github-bootstrap \
-  > github-bootstrap-deployed-stack.json
-
-"$validation_cli" bootstrap parameters \
-  --config reference/consumer-bootstrap-validation.json \
-  --kind core --deployed-stack-json core-deployed-stack.json \
-  --output core-bootstrap-parameters.json
-"$validation_cli" bootstrap change-set \
-  --config reference/consumer-bootstrap-validation.json \
-  --kind core --parameters core-bootstrap-parameters.json \
-  --stack-name ze-great-dashboard-consumer-validation-bootstrap \
-  --change-set-name repair-core-bootstrap --format-shell
-
-"$validation_cli" bootstrap parameters \
-  --config reference/consumer-bootstrap-validation.json \
-  --kind github-oidc --core-stack-json core-deployed-stack.json \
-  --deployed-stack-json github-bootstrap-deployed-stack.json \
-  --output github-bootstrap-parameters.json
-"$validation_cli" bootstrap change-set \
-  --config reference/consumer-bootstrap-validation.json \
-  --kind github-oidc --parameters github-bootstrap-parameters.json \
-  --stack-name ze-great-dashboard-consumer-validation-github-bootstrap \
-  --change-set-name repair-github-bootstrap --format-shell
+bash scripts/repair-consumer-bootstrap-validation.sh FAILED_ACTION_SHA
 ```
 
-Capture each live stack first with `aws cloudformation describe-stacks`, inspect the generated
-templates, parameters, and change sets, then execute both reviewed change sets. Capture both stacks
-again and rerun the failed action. The action should now succeed without another source change.
-These commands are an administrator handoff, not hidden automation; they do not execute AWS
-mutations themselves.
+The script pauses twice: once before creating the change sets and again after printing their expanded
+contents, before executing either update. It waits for both updates, runs the final consistency check,
+and leaves all captured inputs and generated handoffs in a timestamped `.bootstrap-work` directory.
+After it reports success, rerun the failed action; it should pass without another source change.
 
 ## Manual inspection
 

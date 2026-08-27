@@ -16,10 +16,11 @@ describe('consumer bootstrap deployment handoff', () => {
   })
 
   it('makes consumer bootstrap validation a pre-publication release gate with its restricted bootstrap contract', async () => {
-    const [workflow, workflowFiles, manifest] = await Promise.all([
+    const [workflow, workflowFiles, manifest, repairScript] = await Promise.all([
       readFile(repositoryFile('.github/workflows/main.yml'), 'utf8'),
       readdir(repositoryFile('.github/workflows')),
       readFile(repositoryFile('reference/consumer-bootstrap-validation.json'), 'utf8'),
+      readFile(repositoryFile('scripts/repair-consumer-bootstrap-validation.sh'), 'utf8'),
     ])
 
     expect(workflowFiles).not.toContain('consumer-bootstrap-validation.yml')
@@ -57,6 +58,11 @@ describe('consumer bootstrap deployment handoff', () => {
     expect(validationJob).toContain(
       'infra/README.md#repair-the-consumer-bootstrap-validation-stack',
     )
+    expect(repairScript).toContain('Create both CloudFormation change sets?')
+    expect(repairScript).toContain('Execute both reviewed CloudFormation updates?')
+    expect(repairScript).toContain('aws cloudformation execute-change-set')
+    expect(repairScript).toContain('aws cloudformation wait stack-update-complete')
+    expect(repairScript).toContain('bootstrap check --config')
     expect(validationJob.indexOf('bootstrap check')).toBeLessThan(
       validationJob.indexOf('--board-config reference/board.yaml'),
     )
