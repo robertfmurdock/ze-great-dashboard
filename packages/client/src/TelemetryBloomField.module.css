@@ -47,7 +47,7 @@
 .lane:nth-child(4) .markerBody {
   opacity: 0.8;
 }
-@container running-field (max-width: 40rem) {
+@container running-field (max-width: 40rem) or (max-height: 6rem) {
   .lanes {
     display: none;
   }

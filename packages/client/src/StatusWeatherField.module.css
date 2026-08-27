@@ -91,7 +91,7 @@
   animation-delay: -6s;
   opacity: 0.45;
 }
-@container running-field (max-width: 40rem) {
+@container running-field (max-width: 40rem) or (max-height: 6rem) {
   .drift,
   .band {
     display: none;

@@ -23,7 +23,7 @@
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-template-rows: repeat(12, minmax(0, 1fr));
   grid-auto-rows: minmax(0, 1fr);
   gap: var(--gap);
@@ -129,7 +129,7 @@
   font-size: 0.75em;
   flex: 0 0 auto;
 }
-@media (max-width: 60rem) {
+@media (max-width: 64rem) {
   .board {
     height: auto;
     min-height: 100dvh;

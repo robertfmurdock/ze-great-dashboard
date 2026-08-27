@@ -4,10 +4,10 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 0.25em;
+  gap: 0.15em;
   min-width: 0;
   min-height: 0;
-  padding: var(--gap);
+  padding: clamp(0.5rem, 0.8vw, var(--gap));
   border: 1px solid var(--edge);
   border-radius: var(--radius);
   background: var(--surface-raised);
@@ -25,12 +25,18 @@
   flex: 0 1 auto;
   flex-direction: column;
   justify-content: center;
-  gap: 0.25em;
+  gap: 0.1em;
   min-width: 0;
   min-height: 0;
 }
+.content > *,
+.details > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.content:has([data-running-progress="runway"]),
 .content:has([data-running-progress="signal-field"]) {
-  flex: 1 1 auto;
+  flex: 1 1 0;
 }
 .error {
   border-color: var(--status-serious);
@@ -57,6 +63,7 @@
 }
 .label {
   margin: 0;
+  overflow-wrap: anywhere;
   font-size: 1em;
   font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -69,13 +76,15 @@
   margin: 0;
   font-size: 0.75em;
   color: var(--ink-muted);
+  overflow-wrap: anywhere;
 }
 .branch {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .observed {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.35em;
   align-items: center;
 }
@@ -163,7 +172,17 @@
     flex: 0 0 auto;
   }
 }
-@media (max-width: 60rem) {
+@container panel (max-width: 15rem) {
+  .panel {
+    font-size: 0.9em;
+  }
+}
+@container panel (max-width: 22rem) {
+  .panel {
+    font-size: 0.8em;
+  }
+}
+@media (max-width: 64rem) {
   .panel {
     grid-column: 1 / -1;
     grid-row: auto;

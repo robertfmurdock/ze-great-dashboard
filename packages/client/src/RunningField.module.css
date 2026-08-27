@@ -12,7 +12,10 @@
   color: var(--status-serious);
 }
 .timing {
-  width: 12ch;
+  width: min(12ch, 100%);
+  max-width: 100%;
+  min-width: 0;
+  flex: 0 1 12ch;
   margin: 0;
   color: var(--ink-secondary);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -20,6 +23,7 @@
   font-variant-numeric: tabular-nums;
   text-align: end;
   white-space: nowrap;
+  overflow: hidden;
 }
 .timingOverdue {
   color: var(--status-serious);
