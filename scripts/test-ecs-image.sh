@@ -54,18 +54,6 @@ cluster_arn="$(aws ecs create-cluster \
   --cluster-name "$cluster_name" \
   --query 'cluster.clusterArn' --output text)"
 
-smoke_script='set -eu
-tsx packages/server/src/node-server.ts >/tmp/dashboard.log 2>&1 &
-server_pid=$!
-cleanup_server() { kill "$server_pid" 2>/dev/null || true; }
-trap cleanup_server EXIT
-for attempt in $(seq 1 30); do
-  if wget -q -O- http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
-  sleep 1
-done
-cat /tmp/dashboard.log
-exit 1'
-
 task_definition_arn="$(aws ecs register-task-definition \
   --family "$task_family" \
   --network-mode awsvpc \
@@ -74,8 +62,7 @@ task_definition_arn="$(aws ecs register-task-definition \
   --memory 512 \
   --container-definitions "$(jq -nc \
     --arg image "$IMAGE" \
-    --arg command "$smoke_script" \
-    '[{name:"dashboard",image:$image,essential:true,command:["sh","-ec",$command],environment:[{name:"BOARD_CONFIG_URL",value:"./boards/example.yaml"},{name:"TEMPLATE_WAIT_MS",value:"0"}]}]')" \
+    '[{name:"dashboard",image:$image,essential:true,environment:[{name:"BOARD_CONFIG_URL",value:"/app/boards/example.yaml"},{name:"TEMPLATE_WAIT_MS",value:"0"}]}]')" \
   --query 'taskDefinition.taskDefinitionArn' --output text)"
 
 task_arn="$(aws ecs run-task \
@@ -86,11 +73,21 @@ task_arn="$(aws ecs run-task \
   --query 'tasks[0].taskArn' --output text)"
 test -n "$task_arn" -a "$task_arn" != None
 
-aws ecs wait tasks-stopped --cluster "$cluster_arn" --tasks "$task_arn"
-task_result="$(aws ecs describe-tasks --cluster "$cluster_arn" --tasks "$task_arn" --output json)"
-echo "$task_result" | jq '{lastStatus: .tasks[0].lastStatus, stopCode: .tasks[0].stopCode, stoppedReason: .tasks[0].stoppedReason, containers: .tasks[0].containers}'
-exit_code="$(echo "$task_result" | jq -r '.tasks[0].containers[0].exitCode // 1')"
-if [ "$exit_code" != 0 ]; then
-  echo "ECS Docker smoke test failed with exit code $exit_code"
-  exit 1
-fi
+for attempt in $(seq 1 30); do
+  task_result="$(aws ecs describe-tasks --cluster "$cluster_arn" --tasks "$task_arn" --output json)"
+  task_state="$(echo "$task_result" | jq -r '.tasks[0].lastStatus // "UNKNOWN"')"
+  health_status="$(echo "$task_result" | jq -r '.tasks[0].containers[0].healthStatus // "UNKNOWN"')"
+  if [ "$health_status" = HEALTHY ]; then
+    echo 'ECS Docker smoke test passed: image healthcheck is healthy.'
+    exit 0
+  fi
+  if [ "$task_state" = STOPPED ]; then
+    echo "$task_result" | jq '{lastStatus: .tasks[0].lastStatus, stopCode: .tasks[0].stopCode, stoppedReason: .tasks[0].stoppedReason, containers: .tasks[0].containers}'
+    echo "ECS Docker smoke test failed before the image became healthy"
+    exit 1
+  fi
+  sleep 1
+done
+
+echo 'ECS Docker smoke test timed out waiting for the image healthcheck.'
+exit 1

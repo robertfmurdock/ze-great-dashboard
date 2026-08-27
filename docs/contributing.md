@@ -40,6 +40,18 @@ npm run check
 Contributions must pass `npm run check`. New dependencies need a clear justification: the project
 deliberately keeps its dependency surface small.
 
+## Container image
+
+The Dockerfile deliberately splits the build and runtime concerns. An Alpine Node 24 builder runs
+the existing `esbuild` dependency and emits one standalone server bundle; the production image is
+the free, shell-free Google Distroless Node 24 Debian 13 `nonroot` image and contains only that
+bundle and the board files. This keeps npm, `tsx`, source files, and build-time dependencies out of
+the deployed image without adding a dependency to the repository.
+
+Both base images are pinned to reviewed multi-architecture manifest SHA256 digests. A digest update
+is therefore an intentional review of the builder and runtime release pair, rather than an
+automatic tag refresh.
+
 ## Regression and compatibility testing
 
 Treat existing tests as contracts for previous defaults and behavior. When adding a feature, prefer

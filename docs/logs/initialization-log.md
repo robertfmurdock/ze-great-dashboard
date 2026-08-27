@@ -308,6 +308,29 @@ facts, clipping/overflow, and narrow-screen stacking. `npm run check` passed aft
 
 ---
 
+## Follow-up: hardened Docker runtime (2026-08-26)
+
+The container runtime was subsequently hardened without changing the release contract. The
+Dockerfile now pins the multi-architecture Node 24 Alpine builder and Google Distroless Node 24
+Debian 13 `nonroot` runtime by reviewed manifest SHA256 digests. Alpine is used only to install the
+existing build dependencies and produce a standalone ESM bundle of `node-server.ts`; the final
+image contains that bundle and `boards/` only. It has no npm, `tsx`, shell, or production
+`node_modules`.
+
+The container explicitly defaults `BOARD_CONFIG_URL` to `/app/boards/example.yaml`, while retaining
+environment overrides. Its healthcheck is an exec-form Node request to `127.0.0.1:3000/health`,
+and the ECS smoke test now waits for the image healthcheck instead of replacing the command with a
+shell script. The release workflow still publishes an exact candidate image and promotes that
+same tested image to `latest`.
+
+Verified locally: the image builds, renders the published client template, serves the example board
+and `/health`, runs as UID 65532, and has no `/bin/sh`. Unit tests, published-package tests, the
+immutable-web-app tests, shell syntax checks, and `git diff --check` passed. The full `npm run check`
+was blocked only when the local macOS Playwright browser failed to launch inside the sandbox, before
+any browser test executed.
+
+---
+
 ## If you are picking this up cold
 
 1. `npm install && npm run dev`, open <http://localhost:3000>. That is the loop.
