@@ -257,7 +257,7 @@ jobs:
           test "$(jq -er '.computeMode' .ecs-release/release.json)" = ecs
           test -n "$(jq -er '.image' .ecs-release/release.json)"
           grep -q 'AWS::ECS::Service' .ecs-release/template.yml
-          grep -q 'AllowedValues: \[ecs\]' .ecs-release/template.yml
+          grep -Eq 'AllowedValues: \[ ?ecs ?\]' .ecs-release/template.yml
 
       - name: Run ephemeral ECS Docker smoke test
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
