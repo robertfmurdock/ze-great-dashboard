@@ -4,10 +4,17 @@ import { promisify } from 'node:util'
 import { parse } from 'yaml'
 import { type ComputeMode, computeMode } from './bootstrap.ts'
 import { bootstrapTemplate, bootstrapTemplateRevision, cloudFormationTemplate } from './index.ts'
+import { type BootstrapRemediation, bootstrapRemediation } from './remediation.js'
 
 const run = promisify(execFile)
 
-export type DoctorCheck = { name: string; ok: boolean; detail: string; warning?: boolean }
+export type DoctorCheck = {
+  name: string
+  ok: boolean
+  detail: string
+  warning?: boolean
+  remediation?: BootstrapRemediation
+}
 export type DoctorDependencies = {
   execute(command: string, args: string[]): Promise<string>
   fetch(url: string): Promise<{ ok: boolean; status: number }>
@@ -206,5 +213,17 @@ export async function runDoctor(
       checkResult.detail = `WARNING: ${checkResult.detail}`
     }
   }
-  return checks
+  const remediation = bootstrapRemediation(
+    {},
+    {
+      summary: checks.some(({ ok }) => !ok)
+        ? 'Deployment doctor found issues that require operator review.'
+        : 'Deployment doctor is healthy; proceed to the deployment check.',
+      issues: checks.filter(({ ok }) => !ok).map(({ detail }) => detail),
+      nextOperation: checks.some(({ ok }) => !ok)
+        ? 'Resolve failed checks, then rerun the deployment doctor and bootstrap check.'
+        : 'Run bootstrap check before deploying the release.',
+    },
+  )
+  return checks.map((check) => ({ ...check, remediation }))
 }

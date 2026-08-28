@@ -60,6 +60,13 @@ export {
   githubOidcProvider,
   verifyBootstrap,
 } from './handoff.js'
+export {
+  type BootstrapAffectedStack,
+  type BootstrapRemediation,
+  type BootstrapRemediationInput,
+  bootstrapRemediation,
+  formatBootstrapRemediationText,
+} from './remediation.js'
 
 const run = promisify(execFile)
 

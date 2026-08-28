@@ -167,6 +167,11 @@ It fails on inaccessible or unhealthy stacks and on identity, Region, parameter,
 or template-revision mismatches. Add `--resource-drift` only to a scheduled or manually triggered
 audit; CloudFormation drift detection is slower.
 
+The JSON and text formats carry the same package-owned remediation model: failure summary, affected
+stacks, immediate and upgrade steps, a revalidation command, and the administrator safety boundary.
+Use JSON for automation and text for logs. The shell format is deliberately command-only and does
+not replace the remediation-bearing formats.
+
 ## Upgrading bootstrap
 
 Contract versions change only for coordinated migrations. Template revisions identify compatible

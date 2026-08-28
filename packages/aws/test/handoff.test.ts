@@ -103,6 +103,7 @@ describe('manifest-driven bootstrap handoff', () => {
     expect(handoff.commands.find(({ name }) => name === 'create-change-set')?.args).toContain(
       'CAPABILITY_NAMED_IAM',
     )
+    expect(handoff.remediation.upgradeSteps.join(' ')).toContain('reviewed UPDATE change set')
   })
 
   it('keeps generated parameters and captures in the requested disposable work directory', async () => {
@@ -193,6 +194,7 @@ describe('manifest-driven bootstrap handoff', () => {
       AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN: 'arn:aws:iam::123456789012:role/dashboard-execution',
     })
     expect(result.immutableSubject).toBe('repo:example@1234/dashboard@5678:environment:production')
+    expect(result.remediation.revalidateCommand).toContain('bootstrap check')
     expect(result.githubEnvironmentInstructions).toHaveLength(2)
     expect(result.githubEnvironmentInstructions[0]?.slice(0, 3)).toEqual(['gh', 'variable', 'set'])
     await expect(

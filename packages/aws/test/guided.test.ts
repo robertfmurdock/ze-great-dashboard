@@ -67,6 +67,7 @@ describe('guided bootstrap', () => {
     })
     expect(result.ready).toBe(true)
     expect(result.checks.map((check) => check.status)).toContain('unverified')
+    expect(result.remediation.revalidateCommand).toContain('bootstrap check')
     expect(calls.every((call) => !/create|update|delete|execute/.test(call))).toBe(true)
   })
 
@@ -99,5 +100,6 @@ describe('guided bootstrap', () => {
     expect(result.checks.find((check) => check.name === 'github-repository')?.status).toBe(
       'mismatch',
     )
+    expect(result.remediation.failureSummary).toContain('issues')
   })
 })

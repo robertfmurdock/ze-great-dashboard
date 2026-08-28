@@ -143,6 +143,9 @@ describe('canonical bootstrap consistency check', () => {
     expect(formatBootstrapCheckText(result)).toContain(
       'PASS github-oidc: dashboard-github-bootstrap (UPDATE_COMPLETE)',
     )
+    expect(result.remediation.affectedStacks).toHaveLength(2)
+    expect(result.remediation.revalidateCommand).toContain('bootstrap check --config manifest.json')
+    expect(formatBootstrapCheckText(result)).toContain('Safety: AWS mutations are emitted')
   })
 
   it('reports drifted resources and fails the optional full drift check', async () => {
@@ -154,6 +157,9 @@ describe('canonical bootstrap consistency check', () => {
       resourceType: 'AWS::IAM::Role',
     })
     expect(result.stacks[0]?.resourceDrift?.resources[0]?.differences[0]?.path).toBe('/Policies/0')
+    expect(result.remediation.affectedStacks).toContainEqual(
+      expect.objectContaining({ kind: 'core', issue: 'resource drift: DRIFTED' }),
+    )
   })
 
   it('reports inaccessible stacks as failed consistency rather than throwing away the report', async () => {

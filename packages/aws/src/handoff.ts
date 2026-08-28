@@ -9,6 +9,7 @@ import {
   deployedBootstrapStack,
   requiredBootstrapParameters,
 } from './bootstrap.js'
+import { type BootstrapRemediation, bootstrapRemediation } from './remediation.js'
 
 export type BootstrapPhase = 'core' | 'github-oidc' | 'github-environment' | 'application-gateway'
 export type CommandRunner = { execute(command: string, args: string[]): Promise<string> }
@@ -32,6 +33,7 @@ export type BootstrapHandoff = {
   reviewCheckpoints: string[]
   commands: HandoffCommand[]
   prerequisite?: ProviderPrerequisite
+  remediation: BootstrapRemediation
 }
 export type BootstrapVerification = {
   verified: true
@@ -42,6 +44,7 @@ export type BootstrapVerification = {
   }
   reviewedArns: { githubDeployRoleArn: string; cloudFormationExecutionRoleArn: string }
   githubEnvironmentInstructions: string[][]
+  remediation: BootstrapRemediation
 }
 
 const githubSubjectKeys = [
@@ -308,6 +311,11 @@ export async function bootstrapHandoff(input: {
         parameterPath: workFile(input.workDir, 'core-bootstrap.json'),
         workDir: input.workDir,
       }),
+      remediation: bootstrapRemediation(input.config, {
+        configPath: input.configPath,
+        nextOperation:
+          'Review and execute the core bootstrap change set, then capture the core stack.',
+      }),
     }
   }
   coreBootstrapOutputs(core)
@@ -351,6 +359,11 @@ export async function bootstrapHandoff(input: {
         input.config,
         input.runner,
       ),
+      remediation: bootstrapRemediation(input.config, {
+        configPath: input.configPath,
+        nextOperation:
+          'Review and execute the GitHub OIDC change set, then capture the GitHub OIDC stack.',
+      }),
     }
   }
   const prerequisite = await (input.provider ?? githubOidcProvider).prerequisite(
@@ -370,6 +383,12 @@ export async function bootstrapHandoff(input: {
       ],
       commands: [],
       prerequisite,
+      remediation: bootstrapRemediation(input.config, {
+        configPath: input.configPath,
+        summary: 'The GitHub Environment immutable-subject prerequisite is not verified.',
+        nextOperation:
+          'A GitHub administrator must complete and verify the immutable-subject migration, then rerun bootstrap handoff.',
+      }),
     }
   return {
     phase: 'application-gateway',
@@ -381,6 +400,11 @@ export async function bootstrapHandoff(input: {
     ],
     commands: [],
     prerequisite,
+    remediation: bootstrapRemediation(input.config, {
+      configPath: input.configPath,
+      nextOperation:
+        'Configure and verify the consumer gateway, then run bootstrap verify and the deployment check.',
+    }),
   }
 }
 
@@ -508,5 +532,9 @@ export async function verifyBootstrap(input: {
         executionRole,
       ],
     ],
+    remediation: bootstrapRemediation(input.config, {
+      nextOperation:
+        'Set the reviewed GitHub Environment variables, then run bootstrap check before deployment.',
+    }),
   }
 }

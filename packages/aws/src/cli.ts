@@ -10,6 +10,7 @@ import {
   bootstrapHandoff,
   bootstrapPlan,
   bootstrapPreflight,
+  bootstrapRemediation,
   bootstrapTemplate,
   bootstrapTemplatePath,
   type ComputeMode,
@@ -19,6 +20,7 @@ import {
   coreBootstrapOutputs,
   deployedBootstrapStack,
   formatBootstrapCheckText,
+  formatBootstrapRemediationText,
   mergeBootstrapParameters,
   type PackagedRelease,
   packageEcs,
@@ -169,6 +171,27 @@ function bootstrapStackName(
 
 function shellCommand(command: string[]): string {
   return command.map((argument) => `'${argument.replaceAll("'", "'\\\"'\\\"'")}'`).join(' ')
+}
+
+function outputFormat(defaultFormat: 'json' | 'text' = 'json'): 'json' | 'text' | 'shell' {
+  if (args.includes('--format-shell')) return 'shell'
+  const format = option('--format', defaultFormat)
+  if (format !== 'json' && format !== 'text') throw new Error('--format must be json or text')
+  return format
+}
+
+function printBootstrap(
+  value: unknown,
+  text: string,
+  shell?: string,
+  defaultFormat: 'json' | 'text' = 'json',
+): void {
+  const format = outputFormat(defaultFormat)
+  if (format === 'shell') {
+    if (!shell) throw new Error('--format-shell is only supported for command handoffs')
+    console.log(shell)
+  } else if (format === 'text') console.log(text)
+  else console.log(JSON.stringify(value))
 }
 
 async function templateParameters(mode: ComputeMode = 'lambda'): Promise<TemplateParameterData> {
@@ -345,10 +368,14 @@ try {
         packageVersion,
       },
     )
-    for (const check of checks)
-      console.log(
-        `${check.warning ? 'WARN' : check.ok ? 'PASS' : 'FAIL'} ${check.name}: ${check.detail}`,
-      )
+    const remediation = checks[0]?.remediation
+    if (outputFormat('text') === 'text') {
+      for (const check of checks)
+        console.log(
+          `${check.warning ? 'WARN' : check.ok ? 'PASS' : 'FAIL'} ${check.name}: ${check.detail}`,
+        )
+      if (remediation) console.log(formatBootstrapRemediationText(remediation).join('\n'))
+    } else console.log(JSON.stringify({ checks, remediation }))
     if (checks.some(({ ok }) => !ok)) process.exitCode = 1
   } else if (args[0] === 'parameters') {
     const output =
@@ -412,7 +439,7 @@ try {
         return parameter(key, String(value))
       })
     await writeFile(output, `${JSON.stringify(parameters, null, 2)}\n`)
-    console.log(JSON.stringify({ output }))
+    printBootstrap({ output }, `Wrote ${output}. Next: run the generated deployment handoff.`)
   } else if (args[0] === 'bootstrap') {
     const action = args[1]
     if (action === 'init') {
@@ -445,7 +472,10 @@ try {
         runner,
       })
       await writeFile(output, `${JSON.stringify(manifest, null, 2)}\n`, { flag: 'wx' })
-      console.log(JSON.stringify({ output, manifest }))
+      printBootstrap(
+        { output, manifest, remediation: (await bootstrapPlan(manifest)).remediation },
+        `Wrote ${output}. Next: run bootstrap preflight, then bootstrap handoff.`,
+      )
     } else {
       const config = await bootstrapConfig()
       if (action === 'preflight') {
@@ -468,10 +498,16 @@ try {
           },
         }
         const result = await bootstrapPreflight({ config, runner })
-        if (option('--format') === 'text')
-          for (const check of result.checks)
-            console.log(`${check.status.toUpperCase()} ${check.name}: ${check.detail}`)
-        else console.log(JSON.stringify(result))
+        printBootstrap(
+          result,
+          [
+            ...result.checks.map(
+              (check) => `${check.status.toUpperCase()} ${check.name}: ${check.detail}`,
+            ),
+            '',
+            ...formatBootstrapRemediationText(result.remediation),
+          ].join('\n'),
+        )
         if (!result.ready) process.exitCode = 1
       } else if (action === 'guide') {
         const configPath = requiredOption('--config')
@@ -484,21 +520,35 @@ try {
             return (await promisify(execFile)(command, commandArgs)).stdout.trim()
           },
         }
-        process.stdout.write(
-          await bootstrapGuide({
-            config,
-            configPath,
-            workDir: option('--work-dir'),
-            coreStack: coreStackPath
-              ? JSON.parse(await readFile(coreStackPath, 'utf8'))
-              : undefined,
-            coreStackPath,
-            githubOidcStack: githubStackPath
-              ? JSON.parse(await readFile(githubStackPath, 'utf8'))
-              : undefined,
-            githubOidcStackPath: githubStackPath,
-            runner,
-          }),
+        const handoff = await bootstrapHandoff({
+          config,
+          configPath,
+          workDir: option('--work-dir'),
+          coreStack: coreStackPath ? JSON.parse(await readFile(coreStackPath, 'utf8')) : undefined,
+          coreStackPath,
+          githubOidcStack: githubStackPath
+            ? JSON.parse(await readFile(githubStackPath, 'utf8'))
+            : undefined,
+          githubOidcStackPath: githubStackPath,
+          runner,
+        })
+        const guide = await bootstrapGuide({
+          config,
+          configPath,
+          workDir: option('--work-dir'),
+          coreStack: coreStackPath ? JSON.parse(await readFile(coreStackPath, 'utf8')) : undefined,
+          coreStackPath,
+          githubOidcStack: githubStackPath
+            ? JSON.parse(await readFile(githubStackPath, 'utf8'))
+            : undefined,
+          githubOidcStackPath: githubStackPath,
+          runner,
+        })
+        printBootstrap(
+          { handoff, guide, remediation: handoff.remediation },
+          guide,
+          undefined,
+          'text',
         )
       } else if (action === 'handoff') {
         const configPath = requiredOption('--config')
@@ -511,52 +561,55 @@ try {
             return (await promisify(execFile)(command, commandArgs)).stdout.trim()
           },
         }
-        console.log(
-          JSON.stringify(
-            await bootstrapHandoff({
-              config,
-              configPath,
-              workDir: option('--work-dir'),
-              coreStack: coreStackPath
-                ? JSON.parse(await readFile(coreStackPath, 'utf8'))
-                : undefined,
-              coreStackPath,
-              githubOidcStack: githubStackPath
-                ? JSON.parse(await readFile(githubStackPath, 'utf8'))
-                : undefined,
-              githubOidcStackPath: githubStackPath,
-              runner,
-            }),
-          ),
+        const handoff = await bootstrapHandoff({
+          config,
+          configPath,
+          workDir: option('--work-dir'),
+          coreStack: coreStackPath ? JSON.parse(await readFile(coreStackPath, 'utf8')) : undefined,
+          coreStackPath,
+          githubOidcStack: githubStackPath
+            ? JSON.parse(await readFile(githubStackPath, 'utf8'))
+            : undefined,
+          githubOidcStackPath: githubStackPath,
+          runner,
+        })
+        printBootstrap(
+          handoff,
+          `${JSON.stringify(handoff, null, 2)}\n${formatBootstrapRemediationText(handoff.remediation).join('\n')}`,
         )
       } else if (action === 'verify') {
         requiredOption('--config')
         const coreStackPath = requiredOption('--core-stack-json')
         const githubStackPath = requiredOption('--github-oidc-stack-json')
-        console.log(
-          JSON.stringify(
-            await verifyBootstrap({
-              config,
-              coreStack: JSON.parse(await readFile(coreStackPath, 'utf8')),
-              githubOidcStack: JSON.parse(await readFile(githubStackPath, 'utf8')),
-            }),
-          ),
+        const verified = await verifyBootstrap({
+          config,
+          coreStack: JSON.parse(await readFile(coreStackPath, 'utf8')),
+          githubOidcStack: JSON.parse(await readFile(githubStackPath, 'utf8')),
+        })
+        printBootstrap(
+          verified,
+          `Bootstrap verified.\n${formatBootstrapRemediationText(verified.remediation).join('\n')}`,
         )
       } else if (action === 'template') {
         const kind = bootstrapKind()
         const mode = requireComputeMode(config, option('--mode'))
-        console.log(
-          JSON.stringify({
-            kind,
-            mode,
-            template: await bootstrapTemplatePath(kind, mode),
-            contractVersion: bootstrapContractVersion(await bootstrapTemplate(kind, mode)),
+        const template = {
+          kind,
+          mode,
+          template: await bootstrapTemplatePath(kind, mode),
+          contractVersion: bootstrapContractVersion(await bootstrapTemplate(kind, mode)),
+          remediation: bootstrapRemediation(config, {
+            nextOperation: `Review the ${kind} template, then run bootstrap parameters and create a reviewed change set.`,
           }),
+        }
+        printBootstrap(
+          template,
+          `Template: ${template.template}\nContract: ${template.contractVersion}\n${formatBootstrapRemediationText(template.remediation).join('\n')}`,
         )
       } else if (action === 'plan') {
         requiredOption('--config')
         const plan = await bootstrapPlan(config)
-        if (option('--format') === 'text') {
+        if (outputFormat() === 'text') {
           console.log('AWS bootstrap plan (read-only)')
           console.log(`Package version: ${plan.packageVersion}`)
           for (const template of plan.packageTemplates) {
@@ -570,6 +623,7 @@ try {
             console.log(`  declared IAM actions: ${template.iamActions.join(', ') || 'none'}`)
           }
           console.log(`\n${plan.notes.join('\n')}`)
+          console.log(formatBootstrapRemediationText(plan.remediation).join('\n'))
         } else console.log(JSON.stringify(plan))
       } else if (action === 'check') {
         requiredOption('--config')
@@ -584,7 +638,7 @@ try {
             },
           },
         )
-        if (option('--format') === 'text') process.stdout.write(formatBootstrapCheckText(result))
+        if (outputFormat() === 'text') process.stdout.write(formatBootstrapCheckText(result))
         else console.log(JSON.stringify(result))
         if (!result.ok) process.exitCode = 1
       } else if (action === 'parameters') {
@@ -628,8 +682,14 @@ try {
           parameters = mergeBootstrapParameters(supplied, stack.Parameters ?? [])
         }
         await writeFile(output, `${JSON.stringify(parameters, null, 2)}\n`)
-        console.log(
-          JSON.stringify({ output, kind, preservedDeployedValues: Boolean(deployedStackPath) }),
+        printBootstrap(
+          {
+            output,
+            kind,
+            preservedDeployedValues: Boolean(deployedStackPath),
+            remediation: (await bootstrapPlan(config)).remediation,
+          },
+          `Wrote ${output}. Next: review and execute the generated ${kind} change set.\n${formatBootstrapRemediationText((await bootstrapPlan(config)).remediation).join('\n')}`,
         )
       } else if (action === 'change-set') {
         const kind = bootstrapKind()
@@ -660,17 +720,21 @@ try {
           ...(region ? ['--region', region] : []),
           '--no-cli-pager',
         ]
-        console.log(
-          JSON.stringify({
-            kind,
-            packageVersion: plan.packageVersion,
-            contractVersion: template?.contractVersion,
-            templateRevision: template?.templateRevision,
-            templateSha256: template?.sha256,
-            reviewRequired: true,
-            awsCommand,
-            shellCommand: args.includes('--format-shell') ? shellCommand(awsCommand) : undefined,
-          }),
+        const handoff = {
+          kind,
+          packageVersion: plan.packageVersion,
+          contractVersion: template?.contractVersion,
+          templateRevision: template?.templateRevision,
+          templateSha256: template?.sha256,
+          reviewRequired: true,
+          awsCommand,
+          shellCommand: args.includes('--format-shell') ? shellCommand(awsCommand) : undefined,
+          remediation: (await bootstrapPlan(config)).remediation,
+        }
+        printBootstrap(
+          handoff,
+          `Run the reviewed change set command:\n${shellCommand(awsCommand)}`,
+          shellCommand(awsCommand),
         )
       } else {
         throw new Error(

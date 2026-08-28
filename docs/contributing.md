@@ -46,6 +46,23 @@ gate; CI still runs its own checks and release builds.
 New dependencies need a clear justification: the project deliberately keeps its dependency surface
 small.
 
+## AWS bootstrap output contract
+
+Bootstrap validation and handoff commands support `--format json|text`; the formats are
+behaviorally equivalent. JSON is the stable automation contract and text is the operator-facing
+contract. `--format-shell` is an intentional exception: it emits only one copy/pasteable AWS shell
+command, while remediation is available from JSON or text. Remediation wording and commands must
+come from the AWS package's package-owned instruction model, not from a second CLI, workflow, or
+Markdown procedure. AWS commands are emitted for explicit administrator review and invocation; the
+library never hides or executes AWS mutations.
+
+CLI backward compatibility has high value. Treat command names, flags, defaults, output format,
+JSON field names and meanings, and exit statuses as public bootstrap contracts. Prefer additive
+fields, new opt-in flags, and explicit migrations. Any change that could break an existing user or
+automation must be called out in the change and approved by a human before merging; passing tests
+alone is not approval. Add a meaningful real-interface compatibility test for the preserved behavior
+or the approved migration path.
+
 ## Container image
 
 The Dockerfile deliberately splits the build and runtime concerns. An Alpine Node 24 builder runs

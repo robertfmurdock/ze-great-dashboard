@@ -6,6 +6,11 @@ import {
   githubOidcProvider,
   verifyBootstrap,
 } from './handoff.js'
+import {
+  type BootstrapRemediation,
+  bootstrapRemediation,
+  formatBootstrapRemediationText,
+} from './remediation.js'
 
 export type BootstrapCheckStatus = 'ready' | 'missing' | 'mismatch' | 'unverified'
 export type BootstrapPreflightCheck = {
@@ -13,7 +18,11 @@ export type BootstrapPreflightCheck = {
   status: BootstrapCheckStatus
   detail: string
 }
-export type BootstrapPreflight = { ready: boolean; checks: BootstrapPreflightCheck[] }
+export type BootstrapPreflight = {
+  ready: boolean
+  checks: BootstrapPreflightCheck[]
+  remediation: BootstrapRemediation
+}
 
 export type BootstrapInitInput = {
   mode?: ComputeMode
@@ -169,7 +178,16 @@ export async function bootstrapPreflight(input: {
       ? { name: 'manifest', status: 'missing', detail: `Missing: ${missing.join(', ')}` }
       : { name: 'manifest', status: 'ready', detail: 'Manifest has all bootstrap fields.' },
   )
-  if (missing.length) return { ready: false, checks }
+  if (missing.length)
+    return {
+      ready: false,
+      checks,
+      remediation: bootstrapRemediation(input.config, {
+        summary: 'Bootstrap manifest configuration is incomplete.',
+        issues: missing,
+        nextOperation: 'Complete the missing manifest fields, then rerun bootstrap preflight.',
+      }),
+    }
   const runner = input.runner
   const identityRaw = await optional(runner, 'aws', [
     'sts',
@@ -292,9 +310,21 @@ export async function bootstrapPreflight(input: {
     status: subject.status === 'immutable-subject-required' ? 'mismatch' : subject.status,
     detail: subject.detail,
   })
+  const ready = !checks.some(({ status }) => status === 'missing' || status === 'mismatch')
   return {
-    ready: !checks.some(({ status }) => status === 'missing' || status === 'mismatch'),
+    ready,
     checks,
+    remediation: bootstrapRemediation(input.config, {
+      summary: ready
+        ? 'Bootstrap preflight is ready.'
+        : 'Bootstrap preflight found configuration or identity issues.',
+      issues: checks
+        .filter(({ status }) => status === 'missing' || status === 'mismatch')
+        .map(({ detail }) => detail),
+      nextOperation: ready
+        ? 'Run bootstrap plan, then create and review the next bootstrap change set.'
+        : 'Resolve the reported configuration or identity issues, then rerun bootstrap preflight.',
+    }),
   }
 }
 
@@ -346,5 +376,6 @@ export async function bootstrapGuide(
     )
     for (const command of verified.githubEnvironmentInstructions) lines.push(quote(command))
   }
+  lines.push('', ...formatBootstrapRemediationText(plan.remediation))
   return `${lines.join('\n')}\n`
 }

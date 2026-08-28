@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { type ComputeMode, computeMode, resolveComputeMode } from './compute-mode.js'
 import { sha256 } from './release.ts'
+import { type BootstrapRemediation, bootstrapRemediation } from './remediation.js'
 
 export { type ComputeMode, computeMode, resolveComputeMode } from './compute-mode.js'
 
@@ -58,6 +59,7 @@ export type BootstrapPlan = {
   packageTemplates: BootstrapTemplateInspection[]
   configuration: BootstrapConfig
   notes: string[]
+  remediation: BootstrapRemediation
 }
 
 export type BootstrapConsistency = { ok: boolean; mismatches: string[] }
@@ -160,6 +162,10 @@ export async function bootstrapPlan(config: BootstrapConfig): Promise<BootstrapP
       'Generated CloudFormation parameter files and describe-stacks captures are deployment artifacts, not source configuration.',
       'This plan performs no AWS or GitHub mutations.',
     ],
+    remediation: bootstrapRemediation(config, {
+      nextOperation:
+        'Review the installed templates, then run bootstrap preflight before creating a change set.',
+    }),
   }
 }
 

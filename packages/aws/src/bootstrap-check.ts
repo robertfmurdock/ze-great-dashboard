@@ -5,6 +5,11 @@ import {
   bootstrapConsistency,
   bootstrapPlan,
 } from './bootstrap.js'
+import {
+  type BootstrapRemediation,
+  bootstrapRemediation,
+  formatBootstrapRemediationText,
+} from './remediation.js'
 
 export type BootstrapResourceDifference = {
   path?: string
@@ -43,6 +48,7 @@ export type BootstrapCheck = {
   ok: boolean
   packageVersion: string
   stacks: BootstrapStackCheck[]
+  remediation: BootstrapRemediation
 }
 
 export type BootstrapCheckDependencies = {
@@ -72,6 +78,7 @@ export function formatBootstrapCheckText(result: BootstrapCheck): string {
         )
     }
   }
+  lines.push('', ...formatBootstrapRemediationText(result.remediation))
   return `${lines.join('\n')}\n`
 }
 
@@ -332,11 +339,38 @@ export async function checkBootstrap(
       return checked
     }),
   )
+  const failed = stacks.filter(
+    ({ consistency, resourceDrift }) =>
+      !consistency.ok || Boolean(resourceDrift && !resourceDrift.ok),
+  )
   return {
     ok: stacks.every(
       ({ consistency, resourceDrift: drift }) => consistency.ok && (!drift || drift.ok),
     ),
     packageVersion: plan.packageVersion,
     stacks,
+    remediation: bootstrapRemediation(config, {
+      summary: failed.length
+        ? `Bootstrap validation failed for ${failed.length} stack${failed.length === 1 ? '' : 's'}.`
+        : 'Bootstrap stacks are consistent and ready for the deployment check.',
+      affectedStacks: (failed.length ? failed : stacks).map(
+        ({ kind, stackName, consistency, resourceDrift }) => ({
+          kind,
+          stackName,
+          ...(!consistency.ok
+            ? { issue: consistency.mismatches[0] ?? 'consistency mismatch' }
+            : resourceDrift && !resourceDrift.ok
+              ? { issue: `resource drift: ${resourceDrift.status}` }
+              : {}),
+        }),
+      ),
+      nextOperation: failed.length
+        ? 'Apply only reviewed administrator-approved bootstrap updates, then capture both stacks again.'
+        : 'Run the deployment or release check that consumes these bootstrap outputs.',
+      issues: failed.flatMap(({ consistency, resourceDrift }) => [
+        ...consistency.mismatches,
+        ...(resourceDrift && !resourceDrift.ok ? [`resource drift: ${resourceDrift.status}`] : []),
+      ]),
+    }),
   }
 }
