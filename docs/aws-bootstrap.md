@@ -172,6 +172,36 @@ stacks, immediate and upgrade steps, a revalidation command, and the administrat
 Use JSON for automation and text for logs. The shell format is deliberately command-only and does
 not replace the remediation-bearing formats.
 
+## Bootstrap upgrade FAQ
+
+### Does every package release require a bootstrap upgrade?
+
+No. The package version controls the dashboard application and its immutable client assets; the
+bootstrap stacks have their own contract and template-revision markers. A routine package upgrade
+uses the existing bootstrap unless `bootstrap check` reports a bootstrap mismatch or the release
+notes call out a required migration.
+
+### How often will bootstrap upgrades happen?
+
+There is no fixed upgrade schedule. A template revision changes only when the bootstrap resources,
+permissions, parameters, or other administrator-managed behavior changes. Contract-version changes
+are reserved for coordinated migrations. Security fixes or newly required configuration can make an
+upgrade necessary sooner; `bootstrap check` is the read-only gate that detects this.
+
+### Can a Lambda bootstrap change force an ECS bootstrap upgrade?
+
+Normally, no. Lambda and ECS select separate core and GitHub OIDC bootstrap templates and track
+their revisions independently. A Lambda-only revision change is not checked against an ECS
+deployment, and an ECS-only change is not checked against Lambda. Both modes are affected only by
+an explicitly coordinated shared contract or schema migration.
+
+### Does changing compute mode happen automatically?
+
+No. The mode is persisted in `dashboard-bootstrap.json` and in generated application parameters.
+Changing from Lambda to ECS, or vice versa, requires regenerating the reviewed bootstrap and
+parameter artifacts and applying the resulting administrator-reviewed change sets. Existing
+manifests without a mode remain Lambda for compatibility.
+
 ## Upgrading bootstrap
 
 Contract versions change only for coordinated migrations. Template revisions identify compatible
