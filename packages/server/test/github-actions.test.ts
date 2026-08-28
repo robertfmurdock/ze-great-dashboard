@@ -114,7 +114,7 @@ describe('the GitHub Actions adapter', () => {
     expect((options?.headers as Headers | undefined)?.get('if-none-match')).toBe('W/"fixture"')
   })
 
-  it('uses the newest run while deriving a median estimate from valid completed history', async () => {
+  it('uses the newest run without deriving client timing history on the server', async () => {
     const run = (status: string, started: string | null, updated: string | undefined) => ({
       status,
       conclusion: status === 'completed' ? 'success' : null,
@@ -140,9 +140,11 @@ describe('the GitHub Actions adapter', () => {
       signal: {
         status: 'running',
         runStartedAt: '2026-08-17T14:00:00Z',
-        estimatedDurationMs: 200_000,
       },
     })
+    expect(result.envelope?.state === 'ok' ? result.envelope.signal : undefined).not.toHaveProperty(
+      'estimatedDurationMs',
+    )
   })
 
   it('omits timing advice when completed history has missing or invalid timestamps', async () => {

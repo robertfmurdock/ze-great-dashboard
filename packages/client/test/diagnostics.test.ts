@@ -105,6 +105,34 @@ describe('browser-local diagnostics', () => {
     expect(log.count()).toBe(2)
   })
 
+  it('keeps consistency incidents outside ordinary pruning and exports and clears them explicitly', () => {
+    const store = memory()
+    const log = new BrowserDiagnosticStore(env, store, () => new Date('2026-08-21T12:00:00Z'))
+    log.recordGithubConsistencyIncident({
+      panelId: 'build',
+      endpoint: '/api/panel/team/build',
+      identity: { source: 'github', workflow: 'build.yml', branch: 'main' },
+      accepted: {
+        sourceUpdatedAt: '2026-08-21T11:00:00Z',
+        status: 'failed',
+        link: 'https://github.test/new',
+      },
+      regressed: {
+        sourceUpdatedAt: '2026-08-21T10:00:00Z',
+        status: 'passed',
+        link: 'https://github.test/old',
+      },
+      response: { httpStatus: 200, date: 'Fri, 21 Aug 2026 12:00:00 GMT', etag: 'old' },
+    })
+    expect(log.githubConsistencyIncidentCount()).toBe(1)
+    expect(log.export().githubConsistencyIncidents).toHaveLength(1)
+
+    const reloaded = new BrowserDiagnosticStore(env, store, () => new Date('2026-08-21T12:00:00Z'))
+    expect(reloaded.githubConsistencyIncidentCount()).toBe(1)
+    reloaded.clear()
+    expect(reloaded.githubConsistencyIncidentCount()).toBe(0)
+  })
+
   it('summarizes retained healthy, failed, malformed, and multi-session panel evidence', () => {
     const events = [
       event({ kind: 'session-start', sessionId: 'first' }),

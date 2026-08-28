@@ -1,4 +1,11 @@
 import type { ClientEnv, Envelope } from '@ze-great-dashboard/shared'
+import {
+  type BrowserStorageLike,
+  browserLocalStorage,
+  readBrowserJson,
+  removeBrowserValue,
+  writeBrowserJson,
+} from './browser-storage.ts'
 import { type DiagnosticsSummary, summarizeDiagnostics } from './diagnostics-summary.ts'
 
 const storageKey = 'ze-great-dashboard.diagnostics.v1'
@@ -25,6 +32,17 @@ const diagnosticKinds = [
 export type CacheMetadata = Partial<
   Record<'cacheControl' | 'etag' | 'lastModified' | 'date' | 'age', string>
 >
+
+export type GithubConsistencyIncident = {
+  at: string
+  board: string
+  panelId: string
+  endpoint: string
+  identity: { source: string; workflow: string; branch: string }
+  accepted: { sourceUpdatedAt: string; status: string; link: string | null }
+  regressed: { sourceUpdatedAt: string; status: string; link: string | null }
+  response: { httpStatus?: number; date?: string; etag?: string; cacheControl?: string }
+}
 
 type EventMetadata = {
   schemaVersion: typeof diagnosticsSchemaVersion
@@ -87,6 +105,7 @@ export type DiagnosticEvent = DiagnosticEventInput extends infer Event
 /** The only interface client features need in order to emit browser diagnostics. */
 export interface DiagnosticSink {
   record(event: DiagnosticEventInput): void
+  recordGithubConsistencyIncident?(incident: Omit<GithubConsistencyIncident, 'at' | 'board'>): void
 }
 
 type PersistedDiagnosticEvent = Omit<DiagnosticEvent, 'schemaVersion'> & { schemaVersion?: number }
@@ -99,26 +118,39 @@ type StoredDiagnostics = {
   schemaVersion: number
   events: PersistedDiagnosticEvent[]
   retention?: Partial<DiagnosticRetention>
+  githubConsistencyIncidents?: GithubConsistencyIncident[]
 }
 
-type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+type StorageLike = BrowserStorageLike & Pick<Storage, 'removeItem'>
 
 /** Browser-local diagnostic evidence. It deliberately has no server or shared-contract counterpart. */
 export class BrowserDiagnosticStore implements DiagnosticSink {
   private events: DiagnosticEvent[] = []
   private retention: DiagnosticRetention = emptyRetention()
   private revision = 0
+  private incidents: GithubConsistencyIncident[] = []
   private readonly listeners = new Set<() => void>()
   private readonly sessionId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
 
   constructor(
     private readonly env: ClientEnv,
-    private readonly storage: StorageLike | undefined = storageOrUndefined(),
+    private readonly storage: StorageLike | undefined = browserLocalStorage() as
+      | StorageLike
+      | undefined,
     private readonly now: () => Date = () => new Date(),
   ) {
     this.events = this.read()
     this.record({ kind: 'session-start' })
   }
+
+  recordGithubConsistencyIncident(incident: Omit<GithubConsistencyIncident, 'at' | 'board'>) {
+    this.incidents.push({ ...incident, at: this.now().toISOString(), board: this.env.board })
+    this.persist()
+    this.revision++
+    this.notify()
+  }
+
+  githubConsistencyIncidentCount = () => this.incidents.length
 
   record(event: DiagnosticEventInput) {
     const pruned = prune(
@@ -152,16 +184,14 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
 
   snapshot = () => this.revision
 
-  summary = (): DiagnosticsSummary => summarizeDiagnostics(this.events, this.retention)
+  summary = (): DiagnosticsSummary =>
+    summarizeDiagnostics(this.events, this.retention, this.incidents.length)
 
   clear() {
     this.events = []
+    this.incidents = []
     this.retention = emptyRetention()
-    try {
-      this.storage?.removeItem(storageKey)
-    } catch {
-      // Diagnostics must not interrupt the radiator when browser storage is unavailable.
-    }
+    removeBrowserValue(this.storage, storageKey)
     this.revision++
     this.notify()
   }
@@ -184,62 +214,68 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
         sessionId: this.sessionId,
       },
       events: this.events,
+      githubConsistencyIncidents: this.incidents,
       summary: this.summary(),
     }
   }
 
   private read(): DiagnosticEvent[] {
-    try {
-      const raw = this.storage?.getItem(storageKey)
-      if (!raw) return []
-      const parsed = JSON.parse(raw) as Partial<StoredDiagnostics>
-      if (parsed.schemaVersion !== diagnosticsSchemaVersion || !Array.isArray(parsed.events)) {
-        this.storage?.removeItem(storageKey)
-        return []
-      }
-      if (!parsed.events.every(isDiagnosticEvent)) {
-        this.storage?.removeItem(storageKey)
-        return []
-      }
-      // v1 retained events predate per-event versions. Their containing store was already v1, so
-      // retain them and normalize on the next write rather than discarding viewer evidence.
-      const pruned = prune(
-        parsed.events.map(
-          (event) => ({ ...event, schemaVersion: diagnosticsSchemaVersion }) as DiagnosticEvent,
-        ),
-        this.now(),
-        validRetention(parsed.retention),
-      )
-      this.retention = pruned.retention
-      return pruned.events
-    } catch {
-      try {
-        this.storage?.removeItem(storageKey)
-      } catch {
-        // Storage can fail on both reads and writes (for example, private browsing policies).
-      }
+    const parsed = readBrowserJson<Partial<StoredDiagnostics>>(this.storage, storageKey)
+    if (
+      !parsed ||
+      parsed.schemaVersion !== diagnosticsSchemaVersion ||
+      !Array.isArray(parsed.events)
+    ) {
+      removeBrowserValue(this.storage, storageKey)
       return []
     }
+    if (!parsed.events.every(isDiagnosticEvent)) {
+      removeBrowserValue(this.storage, storageKey)
+      return []
+    }
+    // v1 retained events predate per-event versions. Their containing store was already v1, so
+    // retain them and normalize on the next write rather than discarding viewer evidence.
+    const pruned = prune(
+      parsed.events.map(
+        (event) => ({ ...event, schemaVersion: diagnosticsSchemaVersion }) as DiagnosticEvent,
+      ),
+      this.now(),
+      validRetention(parsed.retention),
+    )
+    this.retention = pruned.retention
+    this.incidents = validIncidents(parsed.githubConsistencyIncidents)
+    return pruned.events
   }
 
   private persist() {
-    try {
-      this.storage?.setItem(
-        storageKey,
-        JSON.stringify({
-          schemaVersion: diagnosticsSchemaVersion,
-          events: this.events,
-          retention: this.retention,
-        }),
-      )
-    } catch {
-      // Keep the in-memory record for this page, but never make diagnostics a rendering failure.
-    }
+    writeBrowserJson(this.storage, storageKey, {
+      schemaVersion: diagnosticsSchemaVersion,
+      events: this.events,
+      retention: this.retention,
+      githubConsistencyIncidents: this.incidents,
+    })
   }
 
   private notify() {
     for (const listener of this.listeners) listener()
   }
+}
+
+function validIncidents(value: unknown): GithubConsistencyIncident[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((incident): incident is GithubConsistencyIncident => {
+    if (!incident || typeof incident !== 'object') return false
+    const item = incident as Partial<GithubConsistencyIncident>
+    return (
+      typeof item.at === 'string' &&
+      typeof item.board === 'string' &&
+      typeof item.panelId === 'string' &&
+      typeof item.endpoint === 'string' &&
+      !!item.accepted &&
+      !!item.regressed &&
+      !!item.response
+    )
+  })
 }
 
 export function cacheMetadata(headers: Headers): CacheMetadata | undefined {
@@ -306,12 +342,4 @@ function isDiagnosticEvent(value: unknown): value is PersistedDiagnosticEvent {
     typeof event.board === 'string' &&
     diagnosticKinds.includes(event.kind as (typeof diagnosticKinds)[number])
   )
-}
-
-function storageOrUndefined(): StorageLike | undefined {
-  try {
-    return window.localStorage
-  } catch {
-    return undefined
-  }
 }

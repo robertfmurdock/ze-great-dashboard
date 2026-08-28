@@ -9,19 +9,25 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { cacheMetadata, type DiagnosticSink } from './diagnostics.ts'
 import { panelDiagnosticChanged, projectPanelDiagnostic } from './panel-diagnostics.ts'
+import { BrowserPanelMemory, resolvePanelMemoryIdentity } from './panel-memory.ts'
+import { reconcilePipelineResponse } from './pipeline-reconciliation.ts'
 import { nextPollDelayMillis } from './polling-schedule.ts'
 
 export function usePanelSignals({
   board,
   env,
   diagnostics,
+  memory,
 }: {
   board: Board | undefined
   env: ClientEnv
   diagnostics: DiagnosticSink
+  memory?: BrowserPanelMemory
 }) {
   const [signals, setSignals] = useState<Record<string, Envelope | undefined>>({})
   const signalsRef = useRef<Record<string, Envelope | undefined>>({})
+  const memoryRef = useRef<BrowserPanelMemory | null>(null)
+  if (!memoryRef.current) memoryRef.current = memory ?? new BrowserPanelMemory()
 
   useEffect(() => {
     signalsRef.current = {}
@@ -39,6 +45,8 @@ export function usePanelSignals({
       )
         continue
       let inFlight = false
+      const memory = memoryRef.current
+      if (!memory) return
       const settings = resolvePollingSettings(board, panel)
       const path = `${env.proxyPath}/panel/${encodeURIComponent(env.board)}/${encodeURIComponent(panel.id)}`
       let lastEnvelope: Envelope | undefined
@@ -73,7 +81,7 @@ export function usePanelSignals({
                 return undefined
               }
               diagnostics.record({ ...transport, envelope })
-              return envelope
+              return { envelope, cache: transport.cache, status: response.status }
             } catch (error) {
               diagnostics.record(transport)
               diagnostics.record({
@@ -85,9 +93,56 @@ export function usePanelSignals({
               throw new DiagnosticParseFailure(error)
             }
           })
-          .then((envelope) => {
-            if (envelope) lastEnvelope = envelope
-            if (!cancelled && envelope) {
+          .then((result) => {
+            if (!result) return
+            let envelope = result.envelope
+            if (panel.type === 'pipeline-status') {
+              const identity = resolvePanelMemoryIdentity(env.board, panel)
+              const accepted = memory.latest(identity)
+              const reconciliation = reconcilePipelineResponse({
+                envelope,
+                accepted,
+                estimatedDurationMs: memory.medianDuration(identity),
+              })
+              if (reconciliation.kind === 'rejected' && accepted) {
+                const signal = reconciliation.signal
+                diagnostics.recordGithubConsistencyIncident?.({
+                  panelId: panel.id,
+                  endpoint: path,
+                  identity: {
+                    source: identity.source,
+                    workflow: identity.workflow,
+                    branch: identity.branch,
+                  },
+                  accepted,
+                  regressed: {
+                    sourceUpdatedAt: signal.sourceUpdatedAt,
+                    status: signal.status,
+                    link: envelope.link,
+                  },
+                  response: {
+                    httpStatus: result.status,
+                    date: result.cache?.date,
+                    etag: result.cache?.etag,
+                    cacheControl: result.cache?.cacheControl,
+                  },
+                })
+                return
+              }
+              if (reconciliation.kind === 'accepted') {
+                envelope = reconciliation.envelope
+                if (reconciliation.accepted)
+                  memory.rememberLatest(identity, reconciliation.accepted)
+                if (reconciliation.durationSample) {
+                  memory.recordSuccessfulRun(identity, reconciliation.durationSample.link, {
+                    durationMs: reconciliation.durationSample.durationMs,
+                    sourceUpdatedAt: reconciliation.durationSample.sourceUpdatedAt,
+                  })
+                }
+              }
+            }
+            lastEnvelope = envelope
+            if (!cancelled) {
               const previous = signalsRef.current[panel.id]
               if (panelDiagnosticChanged(previous, panel, envelope)) {
                 diagnostics.record({

@@ -58,6 +58,9 @@ export const panelSchema = z.looseObject({
   id: z.string().min(1),
   type: z.string().min(1),
   source: z.string().min(1).optional(),
+  pipeline: z.union([z.string(), z.number()]).optional(),
+  /** Resolved public source branch, supplied by the board endpoint for client memory scoping. */
+  branch: z.string().min(1).optional(),
   /** Semantic visual weight; position still controls the panel's explicit grid placement. */
   display: panelDisplaySchema.optional(),
   /** Advisory in v1 — a panel without a position renders in config order rather than not at all. */

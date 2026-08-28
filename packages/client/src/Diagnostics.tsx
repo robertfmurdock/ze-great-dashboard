@@ -6,6 +6,7 @@ export function Diagnostics({ log }: { log: BrowserDiagnosticStore }) {
   const [open, setOpen] = useState(false)
   useSyncExternalStore(log.subscribe, log.snapshot, log.snapshot)
   const count = log.count()
+  const githubConsistencyIncidents = log.githubConsistencyIncidentCount()
   const summary = log.summary()
   const download = () => {
     const blob = new Blob([JSON.stringify(log.export(), null, 2)], { type: 'application/json' })
@@ -30,6 +31,7 @@ export function Diagnostics({ log }: { log: BrowserDiagnosticStore }) {
         onClick={() => setOpen(!open)}
       >
         Diagnostics ({count})
+        {githubConsistencyIncidents > 0 && ` · GitHub consistency ${githubConsistencyIncidents}`}
       </button>
       {open && (
         <div className={styles.area}>
@@ -55,6 +57,12 @@ export function Diagnostics({ log }: { log: BrowserDiagnosticStore }) {
             Update failures: {summary.failures.clientUpdate}; board fetch failures:{' '}
             {summary.failures.boardFetch}.
           </p>
+          {log.githubConsistencyIncidentCount() > 0 && (
+            <p className={styles.warning} role="alert">
+              GitHub API consistency incidents: {log.githubConsistencyIncidentCount()}. A response
+              older than the last accepted run was rejected; download diagnostics to report it.
+            </p>
+          )}
           {summary.panels.length > 0 && (
             <div className={styles.panels}>
               {summary.panels.map((panel) => (

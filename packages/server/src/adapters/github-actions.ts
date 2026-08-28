@@ -390,7 +390,6 @@ export async function fetchGithubActionsPipeline(args: {
       ...(timestamp(run.updated_at) ? { sourceUpdatedAt: timestamp(run.updated_at) } : {}),
       ...(timestamp(run.run_started_at) ? { runStartedAt: timestamp(run.run_started_at) } : {}),
       ...(run.status === 'completed' ? completedRunDuration(run) : {}),
-      ...(run.status !== 'completed' ? estimatedRunDuration(runs) : {}),
     }
     const envelope: Envelope = {
       panelId: args.panel.id,
@@ -429,27 +428,6 @@ function completedRunDuration(run: z.infer<typeof runSchema>): Pick<PipelineStat
 function timestamp(value: string | null | undefined): string | undefined {
   if (!value || !z.iso.datetime().safeParse(value).success) return undefined
   return Number.isFinite(new Date(value).valueOf()) ? value : undefined
-}
-
-function estimatedRunDuration(
-  runs: z.infer<typeof runSchema>[],
-): Pick<PipelineStatus, 'estimatedDurationMs'> {
-  const durations = runs
-    .filter((run) => run.status === 'completed')
-    .map((run) => completedRunDuration(run).durationMs)
-    .filter((duration): duration is number => duration !== undefined)
-    .sort((left, right) => left - right)
-  if (durations.length === 0) return {}
-  const middle = Math.floor(durations.length / 2)
-  // Average the two central values for an even sample, retaining whole milliseconds.
-  const estimatedDurationMs = durations[middle]
-  if (estimatedDurationMs === undefined) return {}
-  if (durations.length % 2 === 0) {
-    const lowerDuration = durations[middle - 1]
-    if (lowerDuration === undefined) return {}
-    return { estimatedDurationMs: Math.floor((lowerDuration + estimatedDurationMs) / 2) }
-  }
-  return { estimatedDurationMs }
 }
 
 function normalizeStatus(status: string, conclusion: string | null): PipelineStatus['status'] {

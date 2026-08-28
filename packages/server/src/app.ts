@@ -59,7 +59,18 @@ export function createApp(deps: AppDependencies): Hono {
   app.get('/boards/:board', (c) => renderEntrypoint(c.req.raw, c.req.param('board')))
   app.get('/api/boards/:board', (c) => {
     const board = deps.boardConfig?.boards[c.req.param('board')]
-    return board ? c.json(board) : c.notFound()
+    if (!board) return c.notFound()
+    // The branch is public source metadata, not a credential. Returning it with the board lets
+    // the browser keep histories separate when one panel's source branch changes.
+    return c.json({
+      ...board,
+      panels: board.panels.map((panel) => {
+        const source = panel.source ? deps.boardConfig?.sources[panel.source] : undefined
+        return source && 'branch' in source && typeof source.branch === 'string'
+          ? { ...panel, branch: source.branch }
+          : panel
+      }),
+    })
   })
   const layoutDownload = (
     c: Context<Record<string, never>, '/api/boards/:board/rendered'>,

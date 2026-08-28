@@ -15,6 +15,7 @@ export type PanelDiagnosticsSummary = {
 }
 
 export type DiagnosticsSummary = {
+  githubConsistencyIncidents: number
   retained: {
     eventCount: number
     firstEventAt?: string
@@ -34,6 +35,7 @@ export type DiagnosticsSummary = {
 export function summarizeDiagnostics(
   events: readonly DiagnosticEvent[],
   retention: DiagnosticRetention,
+  githubConsistencyIncidents = 0,
 ): DiagnosticsSummary {
   const panels = new Map<string, PanelDiagnosticsSummary>()
   const sessions = new Set<string>()
@@ -74,6 +76,7 @@ export function summarizeDiagnostics(
   const timestamps = events.map((event) => event.at).sort()
   const discarded = retention.eventsPrunedByAge + retention.eventsPrunedByCount
   return {
+    githubConsistencyIncidents,
     retained: {
       eventCount: events.length,
       firstEventAt: timestamps[0],
