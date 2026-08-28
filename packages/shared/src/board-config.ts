@@ -27,15 +27,9 @@ export const positionSchema = z.union([
 
 export type Position = z.infer<typeof positionSchema>
 
-/**
- * Supported roles are intentionally documented separately from the wire schema. Display roles are
- * cosmetic, so a newer board may name a role an older client does not know yet; the client safely
- * falls back to supporting presentation instead of rejecting the whole board.
- */
-export const panelDisplayRoles = ['primary', 'supporting', 'compact'] as const
-export const panelDisplaySchema = z.string().min(1)
-
-export type PanelDisplay = z.infer<typeof panelDisplaySchema>
+export const panelDensities = ['auto', 'comfortable', 'compact'] as const
+export const panelDensitySchema = z.enum(panelDensities)
+export type PanelDensity = z.infer<typeof panelDensitySchema>
 
 /** A deliberately small, comparable set of visible active-run treatments. */
 export const visibleRunningAnimations = [
@@ -52,42 +46,52 @@ export const visibleRunningAnimations = [
 export const runningAnimationSchema = z.enum([...visibleRunningAnimations, 'off'])
 export type RunningAnimation = z.infer<typeof runningAnimationSchema>
 
-export const panelSchema = z.looseObject({
-  /** Presentation-only wall label. `id` remains the stable proxy and allowlist address. */
-  label: z.string().min(1).optional(),
-  id: z.string().min(1),
-  type: z.string().min(1),
-  source: z.string().min(1).optional(),
-  pipeline: z.union([z.string(), z.number()]).optional(),
-  /** Resolved public source branch, supplied by the board endpoint for client memory scoping. */
-  branch: z.string().min(1).optional(),
-  /** Semantic visual weight; position still controls the panel's explicit grid placement. */
-  display: panelDisplaySchema.optional(),
-  /** Advisory in v1 — a panel without a position renders in config order rather than not at all. */
-  position: positionSchema.optional(),
-  refresh: durationSchema.optional(),
-  /** Active pipeline runs are checked more often than normal panels. */
-  running_refresh: durationSchema.optional(),
-  /** Polling cadence around the estimated completion boundary. */
-  running_completion_refresh: durationSchema.optional(),
-  /** Maximum length of the tighter completion polling burst. */
-  running_completion_window: durationSchema.optional(),
-  /** Optional active-run treatment. Omitted selects a visible treatment at random. */
-  running_animation: runningAnimationSchema.optional(),
-  /** Local animation-demo cycle duration; ignored by other panel types. */
-  demo_run_duration: durationSchema.optional(),
-  /** Local animation-demo focused-review duration; ignored by other panel types. */
-  demo_review_duration: durationSchema.optional(),
-  /** A deliberate override only. Adapters derive links; hand-written ones drift. */
-  link: z.url().optional(),
-  /** Source-agnostic endpoint used by the http-value signal. */
-  url: z.url().optional(),
-  /** Small, deliberate JSON path subset: $.version, $.deployment.version, or $.response.docs[0].latestVersion. */
-  json_path: z
-    .string()
-    .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/, 'must be a simple JSON path')
-    .optional(),
-})
+export const panelSchema = z
+  .looseObject({
+    /** Presentation-only wall label. `id` remains the stable proxy and allowlist address. */
+    label: z.string().min(1).optional(),
+    id: z.string().min(1),
+    type: z.string().min(1),
+    source: z.string().min(1).optional(),
+    pipeline: z.union([z.string(), z.number()]).optional(),
+    /** Resolved public source branch, supplied by the board endpoint for client memory scoping. */
+    branch: z.string().min(1).optional(),
+    /** Content-density bias; position still controls the panel's explicit grid placement. */
+    density: panelDensitySchema.optional(),
+    /** Advisory in v1 — a panel without a position renders in config order rather than not at all. */
+    position: positionSchema.optional(),
+    refresh: durationSchema.optional(),
+    /** Active pipeline runs are checked more often than normal panels. */
+    running_refresh: durationSchema.optional(),
+    /** Polling cadence around the estimated completion boundary. */
+    running_completion_refresh: durationSchema.optional(),
+    /** Maximum length of the tighter completion polling burst. */
+    running_completion_window: durationSchema.optional(),
+    /** Optional active-run treatment. Omitted selects a visible treatment at random. */
+    running_animation: runningAnimationSchema.optional(),
+    /** Local animation-demo cycle duration; ignored by other panel types. */
+    demo_run_duration: durationSchema.optional(),
+    /** Local animation-demo focused-review duration; ignored by other panel types. */
+    demo_review_duration: durationSchema.optional(),
+    /** A deliberate override only. Adapters derive links; hand-written ones drift. */
+    link: z.url().optional(),
+    /** Source-agnostic endpoint used by the http-value signal. */
+    url: z.url().optional(),
+    /** Small, deliberate JSON path subset: $.version, $.deployment.version, or $.response.docs[0].latestVersion. */
+    json_path: z
+      .string()
+      .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/, 'must be a simple JSON path')
+      .optional(),
+  })
+  .superRefine((panel, ctx) => {
+    if ('display' in panel) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['display'],
+        message: 'display was removed; use density',
+      })
+    }
+  })
 
 export type Panel = z.infer<typeof panelSchema>
 

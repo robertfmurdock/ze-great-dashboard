@@ -27,13 +27,13 @@ boards:
       - id: build
         label: Build
         type: pipeline-status
-        display: primary
+        density: comfortable
         source: github
         pipeline: main.yml
         position: { x: 0, y: 0, w: 8, h: 6 }
       - id: release
         type: http-value
-        display: compact
+        density: compact
         url: https://status.example.com/version.json
         json_path: $.version
         refresh: 5m
@@ -42,7 +42,7 @@ boards:
 
 The board-level `refresh` is the default for panels that do not provide their own value. Refresh
 durations use values such as `60s` or `5m`. Panel IDs must be unique within a board and are stable,
-security-relevant proxy addresses; do not use a display rename to change one. `label` is optional,
+security-relevant proxy addresses; do not use a label rename to change one. `label` is optional,
 presentation-only text for the wall display and defaults to the id. Positions use a twelve-column
 grid: `x` and `y` locate the panel, while `w` and `h` define its size.
 
@@ -70,11 +70,12 @@ Each setting may be placed on the board or overridden on an individual panel. Pa
 precedence over board values, which take precedence over these product defaults. The completion
 window is deliberately bounded so a delayed run cannot keep the tighter cadence indefinitely.
 
-Use the optional `display` role to express how much attention a panel should receive. `primary`
-is for the most actionable signals, `supporting` is the default, and `compact` is for lower-priority
-context such as version values. The role changes presentation density and typography; `position`
-still controls the panel's grid footprint. Existing panels without a role retain the supporting
-presentation.
+`position` controls a panel's grid footprint and is the space control. The optional `density` setting
+controls its content budget: `auto` (the default) makes a bounded best effort, `comfortable` keeps
+secondary information readable longer, and `compact` condenses earlier. Density never changes the
+authored grid cell or affects neighboring panels. In especially narrow or vertical cells, panels
+may automatically become icon-led; this is an internal text-light presentation, not another board
+setting. Labels and statuses remain visible, and statuses always include a glyph and readable label.
 
 Sources are reusable named definitions. Current source and panel adapters determine which
 additional fields they accept; for example, `github-actions` uses `repo`, an optional `branch`,

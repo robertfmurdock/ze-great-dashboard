@@ -4,8 +4,13 @@
 .details > :global(.hint) {
   line-height: 1.1;
 }
+.activity,
+.duration {
+  overflow-wrap: anywhere;
+}
 @container panel (min-width: 48rem) {
-  :global([data-display="primary"][data-shallow="true"]) .details > * {
+  :global([data-density="comfortable"][data-shallow="true"]) .details > *,
+  :global([data-density="auto"][data-shallow="true"]) .details > * {
     margin: 0;
   }
 }

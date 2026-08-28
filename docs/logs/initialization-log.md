@@ -283,7 +283,8 @@ published-version rectangles in the final row. Update-health panels were removed
 not from the product: another board can still place and render them when that context earns screen
 space.
 
-The grid remains the sole board-layout API. Authors still choose only `position` and `display`; no
+The grid remains the sole board-layout API. Authors choose `position` for space and optional
+`density` for content budget; no
 sections, inferred groups, or board-name selectors were added. Panel components inspect their own
 allocated rectangle: shallow primary panels arrange their existing evidence into scan rows, while
 taller primary panels retain the card treatment and its room for active-run detail. Compact HTTP
@@ -291,6 +292,10 @@ value panels become inline facts when their own rectangle is wide enough, then s
 narrow screen. A first implementation used size containment on every panel; that changed intrinsic
 sizing for tall animation panels. The final implementation uses inline-size containment and derives
 the shallow treatment from the explicit two-row rectangle, preserving tall panel behavior.
+
+Text-light is deliberately not a fourth API setting: panels select that internal presentation from
+their available width and height plus density, keeping board authors focused on space and content
+budget rather than fragile thresholds.
 
 `label` was added as an optional presentation-only panel field so a wall can say “JSmints” without
 renaming the stable `jsmints-build` address. IDs remain required, unique, and the proxy/allowlist

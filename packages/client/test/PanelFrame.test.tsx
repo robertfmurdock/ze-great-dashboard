@@ -40,24 +40,20 @@ describe('PanelFrame', () => {
     )
   })
 
-  it('uses the panel display role as a semantic presentation class', () => {
+  it('defaults to auto density and preserves explicit density', () => {
     const rendered = render(
-      <PanelFrame panel={{ ...panel, display: 'compact' }}>
+      <PanelFrame panel={panel}>
         <p>Value</p>
       </PanelFrame>,
     ).container
 
-    expect(rendered.querySelector('[data-panel]')?.getAttribute('data-display')).toBe('compact')
-  })
-
-  it('falls back to supporting presentation for an unknown future role', () => {
-    const rendered = render(
-      <PanelFrame panel={{ ...panel, display: 'hero' }}>
+    expect(rendered.querySelector('[data-panel]')?.getAttribute('data-density')).toBe('auto')
+    const explicit = render(
+      <PanelFrame panel={{ ...panel, density: 'compact' }}>
         <p>Value</p>
       </PanelFrame>,
     ).container
-
-    expect(rendered.querySelector('[data-panel]')?.getAttribute('data-display')).toBe('supporting')
+    expect(explicit.querySelector('[data-panel]')?.getAttribute('data-density')).toBe('compact')
   })
 
   it('owns error styling and the accessible source action', () => {

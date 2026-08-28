@@ -2,12 +2,14 @@
   display: contents;
 }
 @container panel (min-width: 48rem) {
-  :global([data-display="compact"][data-shallow="true"]) .fact > * {
+  :global([data-density="compact"][data-shallow="true"]) .fact > *,
+  :global([data-density="auto"][data-shallow="true"]) .fact > * {
     margin: 0;
   }
 }
 @container panel (min-width: 12rem) {
-  :global([data-display="compact"][data-shallow="true"]) .fact > * {
+  :global([data-density="compact"][data-shallow="true"]) .fact > *,
+  :global([data-density="auto"][data-shallow="true"]) .fact > * {
     margin: 0;
   }
 }

@@ -98,6 +98,25 @@ describe('the GitHub Actions adapter', () => {
     )
   })
 
+  it('exposes the actual run branch when the source is not branch-filtered', async () => {
+    const result = await fetchGithubActionsPipeline({
+      panel,
+      source,
+      requestHeaders: new Headers(),
+      fetcher: upstreamRuns([
+        {
+          status: 'completed',
+          conclusion: 'success',
+          name: 'Build',
+          html_url: 'https://github.com/example-org/example-repo/actions/runs/1',
+          head_branch: 'feature/ship-it',
+        },
+      ]),
+    })
+
+    expect(result.envelope).toMatchObject({ signal: { branch: 'feature/ship-it' } })
+  })
+
   it('adds the configured token as an exact GitHub bearer header', () => {
     const [call] = permittedGithubActionsCalls(
       panel,

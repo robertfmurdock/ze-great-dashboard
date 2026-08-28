@@ -106,16 +106,32 @@ describe('the board config schema', () => {
     expect(panel).toMatchObject({ id: 'build-main', label: 'Build' })
   })
 
-  it('accepts named display roles and preserves unknown cosmetic roles for compatibility', () => {
+  it('accepts omitted and supported density values', () => {
     expect(
       boardConfigSchema.safeParse({
-        boards: { a: { panels: [{ id: 'primary', type: 'pipeline-status', display: 'primary' }] } },
+        boards: { a: { panels: [{ id: 'default', type: 'pipeline-status' }] } },
       }).success,
     ).toBe(true)
-    const futureRole = boardConfigSchema.parse({
-      boards: { a: { panels: [{ id: 'custom', type: 'http-value', display: 'hero' }] } },
-    })
-    expect(futureRole.boards.a?.panels[0]?.display).toBe('hero')
+    for (const density of ['auto', 'comfortable', 'compact'] as const) {
+      expect(
+        boardConfigSchema.parse({
+          boards: { a: { panels: [{ id: density, type: 'http-value', density }] } },
+        }).boards.a?.panels[0]?.density,
+      ).toBe(density)
+    }
+  })
+
+  it('rejects unknown density values and the removed display setting', () => {
+    expect(
+      boardConfigSchema.safeParse({
+        boards: { a: { panels: [{ id: 'x', type: 'pipeline-status', density: 'dense' }] } },
+      }).success,
+    ).toBe(false)
+    expect(
+      boardConfigSchema.safeParse({
+        boards: { a: { panels: [{ id: 'x', type: 'pipeline-status', display: 'primary' }] } },
+      }).success,
+    ).toBe(false)
   })
 
   it('rejects a malformed refresh instead of letting it become NaN later', () => {
@@ -197,7 +213,7 @@ describe('the board config schema', () => {
             {
               id: 'active-run-treatments',
               type: 'pipeline-animation-demo',
-              display: 'supporting',
+              density: 'auto',
               position: { x: 0, y: 6, w: 12, h: 6 },
             },
           ],
@@ -208,7 +224,7 @@ describe('the board config schema', () => {
     expect(result.boards.a?.panels[0]).toMatchObject({
       id: 'active-run-treatments',
       type: 'pipeline-animation-demo',
-      display: 'supporting',
+      density: 'auto',
       position: { x: 0, y: 6, w: 12, h: 6 },
     })
   })

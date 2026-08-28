@@ -1,64 +1,55 @@
 boards:
   animation-showcase:
     panels:
-      - display: supporting
-        id: showcase-telemetry-wide
+      - id: showcase-telemetry-wide
         label: Telemetry bloom · wide
         position: { h: 3, w: 8, x: 0, y: 0 }
         running_animation: telemetry-bloom
         type: pipeline-animation-demo
         demo_review_duration: 45s
-      - display: supporting
-        id: showcase-transit-narrow
+      - id: showcase-transit-narrow
         label: Release transit · narrow
         position: { h: 3, w: 4, x: 8, y: 0 }
         running_animation: release-transit
         type: pipeline-animation-demo
         demo_review_duration: 45s
-      - display: supporting
-        id: showcase-weather-wide
+      - id: showcase-weather-wide
         label: Status weather · wide
         position: { h: 3, w: 8, x: 0, y: 3 }
         running_animation: status-weather
         type: pipeline-animation-demo
         demo_review_duration: 45s
-      - display: supporting
-        id: showcase-falling-medium
+      - id: showcase-falling-medium
         label: Falling shapes · medium
         position: { h: 3, w: 4, x: 8, y: 3 }
         running_animation: falling-shapes
         type: pipeline-animation-demo
         demo_review_duration: 45s
-      - display: supporting
-        id: showcase-falling-compact
+      - id: showcase-falling-compact
         label: Falling shapes · compact
         position: { h: 3, w: 2, x: 0, y: 6 }
         running_animation: falling-shapes
         type: pipeline-animation-demo
         demo_review_duration: 45s
-      - display: supporting
-        id: showcase-runway
+      - id: showcase-runway
         label: Runway · contained
         position: { h: 3, w: 5, x: 2, y: 6 }
         running_animation: runway
         type: pipeline-animation-demo
         demo_review_duration: 45s
-      - display: supporting
-        id: showcase-signal-field
+      - id: showcase-signal-field
         label: Signal field · legacy
         position: { h: 3, w: 5, x: 7, y: 6 }
         running_animation: signal-field
         type: pipeline-animation-demo
         demo_review_duration: 45s
-      - display: supporting
-        id: showcase-radial
+      - id: showcase-radial
         label: Radial · legacy
         position: { h: 3, w: 6, x: 0, y: 9 }
         running_animation: radial
         type: pipeline-animation-demo
         demo_review_duration: 45s
-      - display: supporting
-        id: showcase-orbit
+      - id: showcase-orbit
         label: Orbit · legacy
         position: { h: 3, w: 6, x: 6, y: 9 }
         running_animation: orbit

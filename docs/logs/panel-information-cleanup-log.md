@@ -34,6 +34,11 @@ never becomes blank or an error. Activity formatting is isolated in a source-neu
 Animation selection, timing, fields, progress treatments, and decorative rendering were left
 unchanged.
 
+The GitHub adapter now includes the run's `head_branch` in the normalized signal when the source
+is not branch-filtered, while retaining the configured branch as a fallback for responses that do
+not provide one. This keeps branch metadata useful without adding another upstream request or
+letting source-specific fields cross into the client.
+
 ## Refactors completed in the same area
 
 - `pipelineActivitySchema` and `PipelineActivity` are named shared exports.

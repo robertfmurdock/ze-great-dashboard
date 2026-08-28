@@ -5,8 +5,39 @@ import { panelLayout } from './panel-layout.ts'
 
 type PanelStatusKind = 'passed' | 'failed' | 'running' | 'cancelled' | 'unknown'
 
-export function PanelHint({ children }: { children: ReactNode }) {
-  return <p className={styles.hint}>{children}</p>
+export function PanelHint({ children, className }: { children: ReactNode; className?: string }) {
+  return <p className={`${styles.hint} ${className ?? ''}`}>{children}</p>
+}
+
+/** A concise metadata row with one visible glyph and the full value retained in the DOM. */
+export function PanelMetadata({
+  glyph,
+  label,
+  value,
+  title,
+  observed = false,
+  stale = false,
+  className,
+}: {
+  glyph: string
+  label: string
+  value: ReactNode
+  title?: string
+  observed?: boolean
+  stale?: boolean
+  className?: string
+}) {
+  return (
+    <p
+      className={`${styles.hint} ${observed ? styles.observed : ''} ${stale ? styles.stale : ''} ${styles.meta} ${className ?? ''}`}
+      data-panel-meta
+    >
+      <span aria-hidden="true">{glyph}</span> <span className="screen-reader-only">{label}: </span>
+      <span className={styles.metaValue} title={title}>
+        {value}
+      </span>
+    </p>
+  )
 }
 
 export function PanelStatus({
@@ -17,26 +48,6 @@ export function PanelStatus({
   status?: PanelStatusKind
 }) {
   return <p className={`${styles.status} ${status ? styles[status] : ''}`}>{children}</p>
-}
-
-export function PanelBranch({ children, title }: { children: ReactNode; title: string }) {
-  return (
-    <span className={styles.branch} title={title}>
-      {children}
-    </span>
-  )
-}
-
-export function PanelObserved({
-  children,
-  stale = false,
-}: {
-  children: ReactNode
-  stale?: boolean
-}) {
-  return (
-    <p className={`${styles.hint} ${styles.observed} ${stale ? styles.stale : ''}`}>{children}</p>
-  )
 }
 
 export function PanelFrame({
@@ -53,14 +64,13 @@ export function PanelFrame({
   field?: ReactNode
   children: ReactNode
 }) {
-  const display =
-    panel.display === 'primary' || panel.display === 'compact' ? panel.display : 'supporting'
+  const density = panel.density ?? 'auto'
   const position = panel.position
   const shallow = position !== undefined && position.h <= 2
   const short = position !== undefined && position.h <= 3
   return (
     <section
-      className={`${styles.panel} ${styles[display]} ${shallow ? styles.shallow : ''} ${short ? styles.short : ''} ${error ? styles.error : ''}`}
+      className={`${styles.panel} ${styles[`density-${density}`]} ${shallow ? styles.shallow : ''} ${short ? styles.short : ''} ${error ? styles.error : ''}`}
       style={panelLayout(panel)}
       aria-busy={envelope ? undefined : true}
       data-panel
@@ -68,7 +78,7 @@ export function PanelFrame({
       data-panel-position={
         position ? `${position.x},${position.y},${position.w},${position.h}` : undefined
       }
-      data-display={display}
+      data-density={density}
       data-shallow={shallow}
       data-short={short}
       data-error={error || undefined}

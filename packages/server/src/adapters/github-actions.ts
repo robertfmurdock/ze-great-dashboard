@@ -47,6 +47,8 @@ const runSchema = z.object({
   conclusion: z.string().nullable(),
   name: z.string().min(1),
   html_url: z.url(),
+  /** The branch that produced this run; absent for some event types. */
+  head_branch: z.string().min(1).nullable().optional(),
   // Timestamp quality should only remove timing advice, never make an otherwise useful run unreadable.
   run_started_at: z.string().nullable().optional(),
   updated_at: z.string().optional(),
@@ -397,7 +399,9 @@ export async function fetchGithubActionsPipeline(args: {
       status: normalizeStatus(run.status, run.conclusion),
       rawStatus: run.conclusion ?? run.status,
       name: run.name,
-      branch: parsedSource.branch,
+      ...((run.head_branch ?? parsedSource.branch)
+        ? { branch: run.head_branch ?? parsedSource.branch }
+        : {}),
       ...(timestamp(run.updated_at) ? { sourceUpdatedAt: timestamp(run.updated_at) } : {}),
       ...(timestamp(run.run_started_at) ? { runStartedAt: timestamp(run.run_started_at) } : {}),
       ...(run.id !== undefined ? { sourceRunId: String(run.id) } : {}),

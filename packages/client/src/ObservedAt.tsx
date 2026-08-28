@@ -1,4 +1,4 @@
-import { PanelObserved } from './PanelFrame.tsx'
+import { PanelMetadata } from './PanelFrame.tsx'
 
 export function ObservedAt({ value, label = 'As of' }: { value: string; label?: string }) {
   return <TimeAge value={value} label={label} stale variant="clock" />
@@ -29,10 +29,14 @@ function TimeAge({
   const content =
     variant === 'clock' ? `${label} ${formatted} · ${formatAge(age)}` : `${label} ${formatAge(age)}`
   return (
-    <PanelObserved stale={stale}>
-      <span aria-hidden="true">◷</span> <span title={`${label} at ${formatted}`}>{content}</span>
-      {variant === 'age' && <span className="screen-reader-only"> ({formatted})</span>}
-    </PanelObserved>
+    <PanelMetadata
+      glyph="◷"
+      label={label}
+      value={content}
+      title={`${label} at ${formatted}`}
+      observed
+      stale={stale}
+    />
   )
 }
 

@@ -36,7 +36,7 @@ boards:
       - id: coupling-build
         label: Coupling
         type: pipeline-status
-        display: primary
+        density: comfortable
         source: coupling
         pipeline: main.yml
         position: { x: 0, y: 0, w: 12, h: 2 }
@@ -44,7 +44,7 @@ boards:
       - id: jsmints-build
         label: JSmints
         type: pipeline-status
-        display: primary
+        density: comfortable
         source: jsmints
         pipeline: main.yml
         position: { x: 0, y: 2, w: 12, h: 2 }
@@ -52,7 +52,7 @@ boards:
       - id: testmints-build
         label: Testmints
         type: pipeline-status
-        display: primary
+        density: comfortable
         source: testmints
         pipeline: main.yml
         position: { x: 0, y: 4, w: 12, h: 2 }
@@ -60,7 +60,7 @@ boards:
       - id: ze-great-tools-build
         label: Tools
         type: pipeline-status
-        display: primary
+        density: comfortable
         source: ze-great-tools
         pipeline: main.yml
         position: { x: 0, y: 6, w: 12, h: 2 }
@@ -68,7 +68,7 @@ boards:
       - id: ze-great-dashboard-build
         label: Dashboard
         type: pipeline-status
-        display: primary
+        density: comfortable
         source: ze-great-dashboard
         pipeline: main.yml
         position: { x: 0, y: 8, w: 12, h: 2 }
@@ -77,7 +77,7 @@ boards:
       - id: tagger-latest-version
         label: Tagger
         type: http-value
-        display: compact
+        density: compact
         url: https://registry.npmjs.org/@continuous-excellence%2Ftagger/latest
         json_path: $.version
         link: https://www.npmjs.com/package/@continuous-excellence/tagger
@@ -87,7 +87,7 @@ boards:
       - id: coupling-latest-version
         label: Coupling
         type: http-value
-        display: compact
+        density: compact
         url: https://registry.npmjs.org/@continuous-excellence%2Fcoupling-cli/latest
         json_path: $.version
         link: https://www.npmjs.com/package/@continuous-excellence/coupling-cli
@@ -97,7 +97,7 @@ boards:
       - id: jsmints-latest-version
         label: JSmints
         type: http-value
-        display: compact
+        density: compact
         url: 'https://search.maven.org/solrsearch/select?q=g%3A%22com.zegreatrob.jsmints%22%20AND%20a%3A%22plugins%22&rows=1&wt=json'
         json_path: $.response.docs[0].latestVersion
         link: https://central.sonatype.com/artifact/com.zegreatrob.jsmints/plugins
@@ -107,7 +107,7 @@ boards:
       - id: testmints-latest-version
         label: Testmints
         type: http-value
-        display: compact
+        density: compact
         url: 'https://search.maven.org/solrsearch/select?q=g%3A%22com.zegreatrob.testmints%22%20AND%20a%3A%22report%22&rows=1&wt=json'
         json_path: $.response.docs[0].latestVersion
         link: https://central.sonatype.com/artifact/com.zegreatrob.testmints/report

@@ -118,35 +118,35 @@ const singleScreenBoard = {
       id: 'coupling-build',
       label: 'Coupling',
       type: 'pipeline-status',
-      display: 'primary',
+      density: 'comfortable',
       position: { x: 0, y: 0, w: 12, h: 2 },
     },
     {
       id: 'jsmints-build',
       label: 'JSmints',
       type: 'pipeline-status',
-      display: 'primary',
+      density: 'comfortable',
       position: { x: 0, y: 2, w: 12, h: 2 },
     },
     {
       id: 'testmints-build',
       label: 'Testmints',
       type: 'pipeline-status',
-      display: 'primary',
+      density: 'comfortable',
       position: { x: 0, y: 4, w: 12, h: 2 },
     },
     {
       id: 'tools-build',
       label: 'Tools',
       type: 'pipeline-status',
-      display: 'primary',
+      density: 'comfortable',
       position: { x: 0, y: 6, w: 12, h: 2 },
     },
     {
       id: 'dashboard-build',
       label: 'Dashboard',
       type: 'pipeline-status',
-      display: 'primary',
+      density: 'comfortable',
       position: { x: 0, y: 8, w: 12, h: 2 },
     },
     {
@@ -154,28 +154,28 @@ const singleScreenBoard = {
       label: 'Tagger',
       type: 'http-value',
       position: { x: 0, y: 10, w: 3, h: 2 },
-      display: 'compact',
+      density: 'compact',
     },
     {
       id: 'coupling-version',
       label: 'Coupling',
       type: 'http-value',
       position: { x: 3, y: 10, w: 3, h: 2 },
-      display: 'compact',
+      density: 'compact',
     },
     {
       id: 'jsmints-version',
       label: 'JSmints',
       type: 'http-value',
       position: { x: 6, y: 10, w: 3, h: 2 },
-      display: 'compact',
+      density: 'compact',
     },
     {
       id: 'testmints-version',
       label: 'Testmints',
       type: 'http-value',
       position: { x: 9, y: 10, w: 3, h: 2 },
-      display: 'compact',
+      density: 'compact',
     },
   ],
 }
@@ -257,6 +257,87 @@ test('fits a positioned board inside the desktop viewport', async ({ page }) => 
   expect(layout.panels[0].left).toBeLessThan(layout.panels[1].left)
   expect(layout.panels[2].right - layout.panels[2].left).toBeGreaterThan(
     layout.panels[0].right - layout.panels[0].left,
+  )
+})
+
+test('adapts density independently across wide, square, narrow, and tall cells', async ({
+  page,
+}) => {
+  const densityBoard = {
+    panels: [
+      {
+        id: 'wide',
+        type: 'pipeline-status',
+        density: 'comfortable',
+        position: { x: 0, y: 0, w: 6, h: 4 },
+      },
+      {
+        id: 'compact-narrow',
+        type: 'pipeline-status',
+        density: 'compact',
+        position: { x: 6, y: 0, w: 1, h: 2 },
+      },
+      { id: 'auto-narrow', type: 'pipeline-status', position: { x: 7, y: 0, w: 1, h: 2 } },
+      { id: 'auto-tall', type: 'pipeline-status', position: { x: 8, y: 0, w: 1, h: 8 } },
+    ],
+  }
+  await page.setViewportSize({ width: 2400, height: 1200 })
+  await page.addInitScript(() => {
+    window.env = {
+      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+      proxyPath: '/api',
+      board: 'ze-great-team',
+      clientVersion: 'browser-test',
+    }
+  })
+  await page.route('**/api/boards/ze-great-team', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify(densityBoard) }),
+  )
+  await page.route('**/api/client', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+        clientVersion: 'browser-test',
+      }),
+    }),
+  )
+  await page.route('**/api/panel/**', (route) => {
+    const panelId = decodeURIComponent(
+      new URL(route.request().url()).pathname.split('/').at(-1) ?? '',
+    )
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(pipelineEnvelope(panelId)),
+    })
+  })
+
+  await page.goto('/')
+  await expect(page.locator('[data-panel]')).toHaveCount(densityBoard.panels.length)
+  const layout = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('[data-panel]')].map((panel) => {
+      const rect = panel.getBoundingClientRect()
+      const metadata = panel.querySelector<HTMLElement>('[data-panel-meta]')
+      return {
+        id: panel.dataset.panelId,
+        density: panel.dataset.density,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        fits: panel.scrollHeight <= panel.clientHeight,
+        metadataDisplay: metadata ? getComputedStyle(metadata).display : 'missing',
+      }
+    }),
+  )
+
+  expect(layout.find((panel) => panel.id === 'wide')?.metadataDisplay).toBe('block')
+  expect(layout.find((panel) => panel.id === 'compact-narrow')?.metadataDisplay).toBe('flex')
+  expect(layout.find((panel) => panel.id === 'auto-narrow')?.metadataDisplay).toBe('flex')
+  expect(layout.find((panel) => panel.id === 'auto-tall')?.metadataDisplay).toBe('flex')
+  expect(layout.every((panel) => panel.fits && panel.right <= 2400)).toBe(true)
+  expect(layout.every((panel, index) => index === 0 || panel.left >= layout[index - 1].right)).toBe(
+    true,
   )
 })
 
@@ -655,13 +736,13 @@ test('fits populated single-screen team layout without clipping required content
   expect(new Set(versionPanels.map((panel) => panel.top)).size).toBe(1)
   expect(
     await page
-      .locator('[data-panel][data-display="primary"] [data-panel-content]')
+      .locator('[data-panel][data-density="comfortable"] [data-panel-content]')
       .first()
       .evaluate((element) => getComputedStyle(element).flexDirection),
   ).toBe('row')
   expect(
     await page
-      .locator('[data-panel][data-display="compact"] [data-panel-content]')
+      .locator('[data-panel][data-density="compact"] [data-panel-content]')
       .first()
       .evaluate((element) => getComputedStyle(element).flexDirection),
   ).toBe('row')

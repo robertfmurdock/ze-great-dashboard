@@ -9,7 +9,7 @@ import {
 import { useRef, useState } from 'react'
 import { fallingSeed } from './falling-shapes.ts'
 import { CheckedAt, ObservedAt, RunAge } from './ObservedAt.tsx'
-import { PanelBranch, PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
+import { PanelFrame, PanelHint, PanelMetadata, PanelStatus } from './PanelFrame.tsx'
 import styles from './PipelinePanel.module.css'
 import { formatPipelineActivity } from './pipeline-activity.ts'
 import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
@@ -101,16 +101,21 @@ function PipelineSignalPanel({
           {presentation.glyph} {presentation.label}
         </PanelStatus>
         {signal.status === 'running' && (
-          <PanelHint>{formatPipelineActivity(signal.activity)}</PanelHint>
+          <PanelMetadata
+            glyph="⚙"
+            label="Activity"
+            value={formatPipelineActivity(signal.activity)}
+            title={`Activity: ${formatPipelineActivity(signal.activity)}`}
+            className={styles.activity}
+          />
         )}
         {signal.branch && (
-          <PanelHint>
-            <PanelBranch title={`Branch: ${signal.branch}`}>
-              <span aria-hidden="true">⎇ </span>
-              <span className="screen-reader-only">Branch: </span>
-              {signal.branch}
-            </PanelBranch>
-          </PanelHint>
+          <PanelMetadata
+            glyph="⎇"
+            label="Branch"
+            value={<span className={styles.branch}>{signal.branch}</span>}
+            title={`Branch: ${signal.branch}`}
+          />
         )}
         {usesField && (
           <RunningFieldTiming
@@ -121,7 +126,13 @@ function PipelineSignalPanel({
         )}
         {usesLegacyProgress && <RunningProgress animation={animation} timing={timing} />}
         {signal.status !== 'running' && signal.durationMs !== undefined && (
-          <PanelHint>Took {formatDuration(signal.durationMs)}</PanelHint>
+          <PanelMetadata
+            glyph="◷"
+            label="Duration"
+            value={`Took ${formatDuration(signal.durationMs)}`}
+            title={`Duration: Took ${formatDuration(signal.durationMs)}`}
+            className={styles.duration}
+          />
         )}
         {((signal.status === 'running' && signal.runStartedAt) || signal.sourceUpdatedAt) && (
           <RunAge

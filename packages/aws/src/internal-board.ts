@@ -14,23 +14,32 @@ const positionSchema = z.union([
   }),
   z.object({ x: z.literal(0), y: z.literal(0), w: z.literal(0), h: z.literal(0) }),
 ])
-const panelSchema = z.looseObject({
-  // Presentation-only; ids still address proxy calls and the generated allowlist.
-  label: z.string().min(1).optional(),
-  id: z.string().min(1),
-  type: z.string().min(1),
-  source: z.string().min(1).optional(),
-  // Cosmetic roles remain open so newer board files can safely fall back on older runtimes.
-  display: z.string().min(1).optional(),
-  position: positionSchema.optional(),
-  refresh: durationSchema.optional(),
-  link: z.url().optional(),
-  url: z.url().optional(),
-  json_path: z
-    .string()
-    .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/)
-    .optional(),
-})
+const panelSchema = z
+  .looseObject({
+    // Presentation-only; ids still address proxy calls and the generated allowlist.
+    label: z.string().min(1).optional(),
+    id: z.string().min(1),
+    type: z.string().min(1),
+    source: z.string().min(1).optional(),
+    density: z.enum(['auto', 'comfortable', 'compact']).optional(),
+    position: positionSchema.optional(),
+    refresh: durationSchema.optional(),
+    link: z.url().optional(),
+    url: z.url().optional(),
+    json_path: z
+      .string()
+      .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/)
+      .optional(),
+  })
+  .superRefine((panel, ctx) => {
+    if ('display' in panel) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['display'],
+        message: 'display was removed; use density',
+      })
+    }
+  })
 const sourceSchema = z.looseObject({
   type: z.string().min(1),
   token_env: z.string().min(1).optional(),

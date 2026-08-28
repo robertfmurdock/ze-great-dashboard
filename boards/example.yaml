@@ -19,8 +19,7 @@ boards:
           y: 0
         type: http-value
         url: https://example.com/version.json
-      - display: supporting
-        id: active-run-treatments
+      - id: active-run-treatments
         position:
           h: 3
           w: 10
@@ -29,8 +28,7 @@ boards:
         demo_run_duration: 20s
         demo_review_duration: 5m
         type: pipeline-animation-demo
-      - display: supporting
-        id: signal-field-motion-review
+      - id: signal-field-motion-review
         position:
           h: 3
           w: 10
@@ -38,8 +36,7 @@ boards:
           y: 6
         running_animation: signal-field
         type: pipeline-animation-demo
-      - display: supporting
-        id: falling-shapes-review
+      - id: falling-shapes-review
         position:
           h: 3
           w: 10
@@ -48,8 +45,7 @@ boards:
         running_animation: falling-shapes
         demo_review_duration: 1m
         type: pipeline-animation-demo
-      - display: supporting
-        id: falling-shapes-review-2
+      - id: falling-shapes-review-2
         position:
           h: 12
           w: 2
