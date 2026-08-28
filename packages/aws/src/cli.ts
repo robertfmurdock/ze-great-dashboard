@@ -32,6 +32,7 @@ import {
   requiredBootstrapParameters,
   resolveComputeMode,
   scaffoldBootstrapManifest,
+  upgradeBootstrapManifest,
   verifyBootstrap,
 } from './index.ts'
 
@@ -489,6 +490,13 @@ try {
         { output, manifest, remediation: (await bootstrapPlan(manifest)).remediation },
         `Wrote ${output}. Next: run bootstrap preflight, then bootstrap handoff.`,
       )
+    } else if (action === 'upgrade') {
+      const configPath = requiredOption('--config')
+      const result = await upgradeBootstrapManifest(configPath)
+      printBootstrap(
+        result,
+        `Updated desired-state metadata in ${configPath}.\nChanged: ${result.metadataChanges.length ? result.metadataChanges.map(({ path, before, after }) => `${path}: ${before ?? 'missing'} -> ${after}`).join(', ') : 'none (already current)'}.\nReview and commit this manifest before deployment.`,
+      )
     } else {
       const config = await bootstrapConfig()
       if (action === 'preflight') {
@@ -586,6 +594,20 @@ try {
         if (outputFormat() === 'text') {
           console.log('AWS bootstrap plan (read-only)')
           console.log(`Package version: ${plan.packageVersion}`)
+          console.log(
+            `Manifest desired state: ${plan.desiredState.manifest ? JSON.stringify(plan.desiredState.manifest) : 'missing'}`,
+          )
+          console.log(`Installed desired state: ${JSON.stringify(plan.desiredState.installed)}`)
+          console.log(
+            `Bootstrap template identity matches installed package: ${plan.desiredState.matches ? 'yes' : 'no'}`,
+          )
+          console.log(
+            `Package version provenance matches installed package: ${plan.desiredState.packageVersionMatches ? 'yes' : 'no (informational)'}`,
+          )
+          if (!plan.desiredState.matches)
+            console.log(
+              `Run: npm exec -- ze-great-dashboard-aws bootstrap upgrade --config ${requiredOption('--config')}`,
+            )
           for (const template of plan.packageTemplates) {
             console.log(`\n${template.kind}: ${template.path}`)
             console.log(`  contract: ${template.contractVersion}`)
@@ -603,7 +625,10 @@ try {
         requiredOption('--config')
         const result = await checkBootstrap(
           config,
-          { resourceDrift: args.includes('--resource-drift') },
+          {
+            resourceDrift: args.includes('--resource-drift'),
+            configPath: requiredOption('--config'),
+          },
           {
             execute: runner.execute,
           },
@@ -709,7 +734,7 @@ try {
         )
       } else {
         throw new Error(
-          'Usage: ze-great-dashboard-aws bootstrap init|preflight|plan|check|guide|handoff|verify --config manifest.json [options], or bootstrap template|parameters|change-set --kind core|github-oidc [options]',
+          'Usage: ze-great-dashboard-aws bootstrap init|upgrade|preflight|plan|check|guide|handoff|verify --config manifest.json [options], or bootstrap template|parameters|change-set --kind core|github-oidc [options]',
         )
       }
     }

@@ -272,6 +272,14 @@ jobs:
             "require('./.consumer-bootstrap-validation/node_modules/@continuous-excellence/ze-great-dashboard-aws/package.json').version")"
           test "$installed_version" = "$CANDIDATE_VERSION"
 
+      - name: Resolve candidate desired state for validation
+        run: |
+          validation_config="$RUNNER_TEMP/consumer-bootstrap-validation.json"
+          cp reference/consumer-bootstrap-validation.json "$validation_config"
+          .consumer-bootstrap-validation/node_modules/.bin/ze-great-dashboard-aws \
+            bootstrap upgrade --config "$validation_config" --format json > "$RUNNER_TEMP/bootstrap-upgrade.json"
+          echo "VALIDATION_CONFIG=$validation_config" >> "$GITHUB_ENV"
+
       - name: Require reviewed bootstrap outputs
         run: |
           test -n "$AWS_DEPLOY_ROLE_ARN"
@@ -283,32 +291,54 @@ jobs:
           role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Check live bootstrap consistency
+      - name: Validate bootstrap consistency (read-only)
+        id: bootstrap-validation
         run: |
           validation_cli=.consumer-bootstrap-validation/node_modules/.bin/ze-great-dashboard-aws
-          if check_output=$("$validation_cli" bootstrap check \
-            --config reference/consumer-bootstrap-validation.json \
-            --format text 2>&1); then
-            printf '%s\n' "$check_output"
+          report_dir="$RUNNER_TEMP/consumer-bootstrap-recovery"
+          mkdir -p "$report_dir"
+          if "$validation_cli" bootstrap check \
+            --config "$VALIDATION_CONFIG" \
+            --format text > "$report_dir/bootstrap-check.txt" 2>&1; then
+            cat "$report_dir/bootstrap-check.txt"
           else
             check_status=$?
-            printf '%s\n' "$check_output"
-            # Keep the machine-readable report beside the human-readable CI log output.
             "$validation_cli" bootstrap check \
-              --config reference/consumer-bootstrap-validation.json \
-              --format json > "$RUNNER_TEMP/consumer-bootstrap-check.json" || true
-            echo "Structured bootstrap report: $RUNNER_TEMP/consumer-bootstrap-check.json"
-            guide="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA/infra/README.md#repair-the-consumer-bootstrap-validation-stack"
-            echo "::error title=Consumer bootstrap requires administrator update::Bootstrap consistency failed. Review every reported mismatch, apply both affected stack updates, then rerun this action: $guide"
-            echo "Bootstrap upgrade instructions: $guide"
+              --config "$VALIDATION_CONFIG" \
+              --format json > "$report_dir/bootstrap-remediation.json" || true
+            cat "$report_dir/bootstrap-check.txt"
+            jq -r '.remediation.recoveryCommands[] | "\(.name): \(.command)"' \
+              "$report_dir/bootstrap-remediation.json" > "$report_dir/recovery-commands.txt"
+            guide="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA/docs/aws-bootstrap-upgrade.md"
+            {
+              echo '## Consumer bootstrap recovery'
+              echo
+              echo "Commit-pinned runbook: $guide"
+              echo
+              echo '```text'
+              cat "$report_dir/bootstrap-check.txt"
+              echo
+              echo 'Generated commands:'
+              cat "$report_dir/recovery-commands.txt"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Consumer bootstrap requires administrator update::Bootstrap consistency failed. Apply both affected stack updates only after review, using the recovery commands in the step summary and the commit-pinned runbook: $guide"
             exit "$check_status"
           fi
+
+      - name: Upload bootstrap recovery handoff
+        if: failure() && steps.bootstrap-validation.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: consumer-bootstrap-recovery-${{ github.run_id }}
+          path: ${{ runner.temp }}/consumer-bootstrap-recovery
+          if-no-files-found: error
 
       - name: Package and deploy the source-free reference board
         run: |
           validation_cli=.consumer-bootstrap-validation/node_modules/.bin/ze-great-dashboard-aws
           "$validation_cli" parameters \
-            --bootstrap-config reference/consumer-bootstrap-validation.json \
+            --bootstrap-config "$VALIDATION_CONFIG" \
             --output aws-dashboard-parameters.json
           "$validation_cli" package \
             --board-config reference/board.yaml \

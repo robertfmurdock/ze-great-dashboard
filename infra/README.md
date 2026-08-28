@@ -9,6 +9,14 @@ does not duplicate infrastructure names.
 
 ## One-time bootstrap
 
+Consumer bootstrap manifests are checked-in desired state. The approved consumer deployment
+process upgrades the pinned package first, runs `bootstrap upgrade --config dashboard-bootstrap.json`,
+reviews and commits that metadata, then generates/previews CloudFormation UPDATE change sets and
+executes approved changes. `bootstrap check` is rerun afterward. This package does not assume Git,
+CodePipeline, GitHub Actions, or any other version-control/deployment model; manual CLI commands
+are a portable fallback. AWS captures and generated parameter files are migration artifacts, not
+source configuration, and no credentials belong in the manifest.
+
 GitHub cannot create the AWS identity it needs to authenticate as. Before the first release, an AWS
 administrator must create `ZeGreatDashboardProvision` and allow GitHub OIDC tokens matching exactly:
 
@@ -87,6 +95,10 @@ workflow stops with an explicit bootstrap remediation message instead of attempt
 infrastructure update.
 
 ### Repair the consumer-bootstrap validation stack
+
+For the package-generic procedure and the exact review boundary, start with the
+[versioned AWS bootstrap upgrade runbook](../docs/aws-bootstrap-upgrade.md). The consumer-specific
+repair script below remains the quickest handoff for this repository's fixed validation stacks.
 
 This repository-owned release gate uses fixed core and GitHub OIDC consumer bootstrap stacks. The
 release gate is deliberately a three-step workflow: a pushed release first performs a read-only

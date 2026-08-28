@@ -89,6 +89,10 @@ jobs:
             --no-cli-pager
 ```
 
+If this read-only gate fails, use the [AWS bootstrap upgrade runbook](aws-bootstrap-upgrade.md).
+It explains how to preserve current parameters and review each UPDATE change set; the workflow must
+not execute bootstrap mutations automatically.
+
 The GitHub OIDC role can upload only to the configured artifact prefix, operate only the configured
 application stack, and pass only the reviewed core execution role.
 

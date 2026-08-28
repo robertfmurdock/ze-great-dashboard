@@ -227,3 +227,9 @@ for the endpoint permission requirement.
   integration and its scoped Lambda permission.
 - **A GitHub panel is unauthorized:** verify the fine-grained PAT's repository access and Actions
   permission, then confirm its map key matches `token_env`.
+Before application deployment, the consumer deployment process should consume the committed
+`dashboard-bootstrap.json` and pinned npm package. When upgrading that package, run
+`bootstrap upgrade --config dashboard-bootstrap.json`, review and commit the desired-state-only
+change, then generate and preview approved CloudFormation UPDATE change sets before execution.
+`bootstrap check` must pass afterward. The manifest is not an AWS-state capture; captures and
+generated parameter files are deployment artifacts, and must not contain credentials.

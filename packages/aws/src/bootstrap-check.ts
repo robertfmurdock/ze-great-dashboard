@@ -1,6 +1,7 @@
 import {
   type BootstrapConfig,
   type BootstrapConsistency,
+  type BootstrapDesiredStateComparison,
   type BootstrapKind,
   bootstrapConsistency,
   bootstrapPlan,
@@ -48,6 +49,7 @@ export type BootstrapCheck = {
   ok: boolean
   packageVersion: string
   stacks: BootstrapStackCheck[]
+  desiredState: BootstrapDesiredStateComparison
   remediation: BootstrapRemediation
 }
 
@@ -58,7 +60,17 @@ export type BootstrapCheckDependencies = {
 }
 
 export function formatBootstrapCheckText(result: BootstrapCheck): string {
-  const lines = [`AWS bootstrap consistency (${result.packageVersion})`]
+  const lines = [
+    `AWS bootstrap consistency (${result.packageVersion})`,
+    `Desired state: ${result.desiredState.ok ? 'PASS' : 'FAIL'}`,
+    `Package provenance: ${result.desiredState.packageVersionMatches ? 'matches installed package' : `manifest ${result.desiredState.manifest?.packageVersion ?? 'missing'}, installed ${result.desiredState.installed.packageVersion} (informational)`}`,
+    ...(result.desiredState.mismatches ?? []).map((mismatch) => `  mismatch: ${mismatch}`),
+    ...(result.remediation.desiredStateUpdateCommand
+      ? [
+          `Desired-state update command (review, commit, then deploy): ${result.remediation.desiredStateUpdateCommand}`,
+        ]
+      : []),
+  ]
   for (const stack of result.stacks) {
     lines.push(
       `${stack.consistency.ok && (!stack.resourceDrift || stack.resourceDrift.ok) ? 'PASS' : 'FAIL'} ${stack.kind}: ${stack.stackName} (${stack.stackStatus ?? 'unavailable'})`,
@@ -114,6 +126,23 @@ function outputs(stack: Record<string, unknown> | undefined): Record<string, str
       )
       .map(({ OutputKey, OutputValue }) => [OutputKey, OutputValue]),
   )
+}
+
+function desiredStateShape(value: unknown): value is NonNullable<BootstrapConfig['desiredState']> {
+  if (!value || typeof value !== 'object') return false
+  const state = value as Record<string, unknown>
+  const templates = state.templates
+  if (typeof state.packageVersion !== 'string' || !templates || typeof templates !== 'object')
+    return false
+  return (['core', 'githubOidc'] as const).every((kind) => {
+    const template = (templates as Record<string, unknown>)[kind]
+    return (
+      Boolean(template) &&
+      typeof template === 'object' &&
+      typeof (template as Record<string, unknown>).contractVersion === 'string' &&
+      typeof (template as Record<string, unknown>).templateRevision === 'string'
+    )
+  })
 }
 
 async function resourceDrift(
@@ -257,7 +286,7 @@ async function resourceDrift(
 /** Runs the explicitly named live bootstrap diagnostic; it never changes stack resources. */
 export async function checkBootstrap(
   config: BootstrapConfig,
-  options: { resourceDrift?: boolean },
+  options: { resourceDrift?: boolean; configPath?: string },
   dependencies: BootstrapCheckDependencies,
 ): Promise<BootstrapCheck> {
   const requiredManifestValues: Array<[string, string | undefined]> = [
@@ -280,6 +309,26 @@ export async function checkBootstrap(
     'github-oidc': config.githubOidc?.stackName,
   }
   const plan = await bootstrapPlan(config)
+  const desiredStateMismatches: string[] = []
+  const declared = config.desiredState
+  if (!desiredStateShape(declared))
+    desiredStateMismatches.push(
+      `manifest desiredState metadata is ${declared ? 'malformed' : 'missing'}; run the explicit bootstrap upgrade command`,
+    )
+  else {
+    for (const kind of ['core', 'githubOidc'] as const) {
+      const wanted = declared.templates[kind]
+      const installed = plan.desiredState.installed.templates[kind]
+      if (!wanted || wanted.contractVersion !== installed.contractVersion)
+        desiredStateMismatches.push(
+          `${kind} contract is ${wanted?.contractVersion ?? 'missing'}; installed package has ${installed.contractVersion}`,
+        )
+      if (!wanted || wanted.templateRevision !== installed.templateRevision)
+        desiredStateMismatches.push(
+          `${kind} template revision is ${wanted?.templateRevision ?? 'missing'}; installed package has ${installed.templateRevision}`,
+        )
+    }
+  }
   const responses = await Promise.all(
     (['core', 'github-oidc'] as BootstrapKind[]).map(async (kind) => {
       const stackName = stackNames[kind] as string
@@ -317,8 +366,12 @@ export async function checkBootstrap(
             kind,
             config,
             response,
-            template.contractVersion,
-            template.templateRevision,
+            (desiredStateShape(declared)
+              ? declared.templates[kind === 'core' ? 'core' : 'githubOidc'].contractVersion
+              : undefined) ?? template.contractVersion,
+            (desiredStateShape(declared)
+              ? declared.templates[kind === 'core' ? 'core' : 'githubOidc'].templateRevision
+              : undefined) ?? template.templateRevision,
             coreOutputValues,
           )
       const checked: BootstrapStackCheck = {
@@ -344,12 +397,25 @@ export async function checkBootstrap(
       !consistency.ok || Boolean(resourceDrift && !resourceDrift.ok),
   )
   return {
-    ok: stacks.every(
-      ({ consistency, resourceDrift: drift }) => consistency.ok && (!drift || drift.ok),
-    ),
+    ok:
+      desiredStateMismatches.length === 0 &&
+      stacks.every(
+        ({ consistency, resourceDrift: drift }) => consistency.ok && (!drift || drift.ok),
+      ),
     packageVersion: plan.packageVersion,
     stacks,
+    desiredState: {
+      ok: desiredStateMismatches.length === 0,
+      mismatches: desiredStateMismatches,
+      ...(desiredStateShape(declared) ? { manifest: declared } : {}),
+      installed: plan.desiredState.installed,
+      matches: desiredStateMismatches.length === 0,
+      packageVersionMatches:
+        declared?.packageVersion === plan.desiredState.installed.packageVersion,
+    },
     remediation: bootstrapRemediation(config, {
+      configPath: options.configPath,
+      desiredStateUpdateRequired: desiredStateMismatches.length > 0,
       summary: failed.length
         ? `Bootstrap validation failed for ${failed.length} stack${failed.length === 1 ? '' : 's'}.`
         : 'Bootstrap stacks are consistent and ready for the deployment check.',

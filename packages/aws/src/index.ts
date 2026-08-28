@@ -11,6 +11,8 @@ import { assembleRelease, sha256 } from './release.ts'
 export {
   type BootstrapConfig,
   type BootstrapConsistency,
+  type BootstrapDesiredState,
+  type BootstrapDesiredStateComparison,
   type BootstrapKind,
   type BootstrapPlan,
   type BootstrapTemplateInspection,
@@ -26,6 +28,7 @@ export {
   coreBootstrapOutputs,
   type DeployedBootstrapStack,
   deployedBootstrapStack,
+  installedBootstrapDesiredState,
   mergeBootstrapParameters,
   requireComputeMode,
   requiredBootstrapParameters,
@@ -45,12 +48,14 @@ export {
   type BootstrapCheckStatus,
   type BootstrapGuideReport,
   type BootstrapInitInput,
+  type BootstrapManifestUpgrade,
   type BootstrapPreflight,
   type BootstrapPreflightCheck,
   bootstrapGuide,
   bootstrapGuideReport,
   bootstrapPreflight,
   scaffoldBootstrapManifest,
+  upgradeBootstrapManifest,
 } from './guided.js'
 export {
   type BootstrapHandoff,
@@ -64,6 +69,7 @@ export {
 } from './handoff.js'
 export {
   type BootstrapAffectedStack,
+  type BootstrapRecoveryCommand,
   type BootstrapRemediation,
   type BootstrapRemediationInput,
   bootstrapRemediation,

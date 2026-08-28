@@ -53,14 +53,26 @@ describe('AWS bootstrap CLI output contract', () => {
     const text = await invoke('bootstrap', 'guide', '--config', config)
     expect(text.stdout).toContain('Phase: core')
     expect(text.stdout).toContain('Remediation:')
+    expect(text.stdout).toContain('Copy/paste recovery commands')
+    expect(text.stdout).toContain(`--config' '${config}`)
+    expect(text.stdout).toContain('--stack-name demo-bootstrap')
+    expect(text.stdout).toContain('docs/aws-bootstrap-upgrade.md')
 
     const json = await invoke('bootstrap', 'guide', '--config', config, '--format', 'json')
     const output = JSON.parse(json.stdout) as {
       guide: string
-      remediation: { failureSummary: string }
+      remediation: {
+        failureSummary: string
+        recoveryCommands: { command: string }[]
+        runbookTarget: string
+      }
     }
     expect(output.guide).toContain('Phase: core')
     expect(output.remediation.failureSummary).toContain('ready')
+    expect(
+      output.remediation.recoveryCommands.some(({ command }) => command.includes(config)),
+    ).toBe(true)
+    expect(output.remediation.runbookTarget).toBe('docs/aws-bootstrap-upgrade.md')
   })
 
   it('keeps --format-shell as a clean command-only administrator handoff', async () => {
@@ -83,5 +95,37 @@ describe('AWS bootstrap CLI output contract', () => {
     expect(result.stdout.trim()).toMatch(/^'aws' 'cloudformation' 'create-change-set'/)
     expect(result.stdout).not.toContain('Remediation:')
     expect(result.stdout).not.toContain('{')
+  })
+
+  it('updates only desired state through the explicit upgrade command', async () => {
+    const directory = await mkdtemp('/tmp/dashboard-cli-upgrade-')
+    const config = join(directory, 'manifest.json')
+    const original = {
+      mode: 'lambda',
+      region: 'us-east-1',
+      customConsumerField: { retained: true },
+      core: {
+        stackName: 'demo-bootstrap',
+        artifactBucketName: 'demo-artifacts',
+        applicationStackName: 'demo',
+        dashboardFunctionName: 'demo',
+      },
+      githubOidc: {
+        stackName: 'demo-github-bootstrap',
+        providerArn: 'arn:aws:iam::123:oidc-provider/token.actions.githubusercontent.com',
+        repository: 'owner/repo',
+        ownerId: '1',
+        repositoryId: '2',
+        environment: 'production',
+      },
+    }
+    await writeFile(config, JSON.stringify(original))
+    const result = await invoke('bootstrap', 'upgrade', '--config', config, '--format', 'text')
+    const updated = JSON.parse(await (await import('node:fs/promises')).readFile(config, 'utf8'))
+    expect(updated).toMatchObject({ ...original, desiredState: { packageVersion: '0.0.0-dev' } })
+    expect(updated.customConsumerField).toEqual(original.customConsumerField)
+    expect(result.stdout).toContain('Changed: packageVersion')
+    expect(result.stdout).toContain('templates.core.templateRevision')
+    expect(result.stdout).toContain('Review and commit')
   })
 })

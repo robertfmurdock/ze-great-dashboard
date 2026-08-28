@@ -95,8 +95,9 @@ try {
           stdio: 'pipe',
         }),
       (error) =>
-        String(error.stderr).includes('bootstrap init|preflight|plan|check|guide|handoff|verify') &&
-        !String(error.stderr).includes('parameters|status|change-set'),
+        String(error.stderr).includes(
+          'bootstrap init|upgrade|preflight|plan|check|guide|handoff|verify',
+        ) && !String(error.stderr).includes('parameters|status|change-set'),
     )
     execFileSync(
       process.execPath,

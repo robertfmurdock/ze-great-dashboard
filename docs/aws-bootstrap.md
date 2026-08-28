@@ -59,6 +59,8 @@ when possible. If discovery is unavailable, it tells you which of `--account-id`
 manifest.
 
 Review and commit `dashboard-bootstrap.json`. It contains names and IDs, never credentials.
+It also records the installed package version and both bootstrap template contract/revision
+identities. This is desired state, not a capture of current AWS values.
 
 If the deployment workflow must read one consumer-owned gateway stack, add
 `--consumer-gateway-stack gateway-stack-name`. This grants only
@@ -79,8 +81,18 @@ Preflight reads AWS and GitHub prerequisites when it can. `missing` and `mismatc
 resolved. `unverified` means a CLI, login, permission, or network was unavailable; it is not proof
 that the prerequisite exists.
 
-The plan is fully local. It shows each installed template's contract, revision, SHA-256, resources,
-and declared IAM actions without changing AWS.
+The plan is fully local. It shows the manifest desired state beside each installed template's
+contract, revision, SHA-256, resources, and declared IAM actions without changing AWS. If the
+installed package's bootstrap template identity differs, intentionally run and review the repository
+mutation:
+
+```sh
+npm exec -- ze-great-dashboard-aws bootstrap upgrade --config dashboard-bootstrap.json
+```
+
+Commit that change before an approved administrator deployment process consumes it. Do not copy
+values from AWS into desired state. An installed package version difference by itself is
+informational and does not require this command or a bootstrap redeploy.
 
 ## 4. Run the guided core phase
 
@@ -203,6 +215,10 @@ parameter artifacts and applying the resulting administrator-reviewed change set
 manifests without a mode remain Lambda for compatibility.
 
 ## Upgrading bootstrap
+
+For the complete administrator procedure, including captures, preserved parameters, change-set
+review, contract migrations, and recovery boundaries, use the
+[AWS bootstrap upgrade runbook](aws-bootstrap-upgrade.md).
 
 Contract versions change only for coordinated migrations. Template revisions identify compatible
 updates. When `bootstrap check` reports any mismatch, including a revision or newly required

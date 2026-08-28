@@ -22,6 +22,7 @@ export type DeployedBootstrapStack = {
 }
 
 export type BootstrapConfig = {
+  desiredState?: BootstrapDesiredState
   /** Omitted in older manifests; Lambda is the compatibility default. */
   mode?: ComputeMode
   region?: string
@@ -44,6 +45,14 @@ export type BootstrapConfig = {
   }
 }
 
+export type BootstrapDesiredState = {
+  packageVersion: string
+  templates: {
+    core: { contractVersion: string; templateRevision: string }
+    githubOidc: { contractVersion: string; templateRevision: string }
+  }
+}
+
 export type BootstrapTemplateInspection = {
   kind: BootstrapKind
   path: string
@@ -58,8 +67,18 @@ export type BootstrapPlan = {
   packageVersion: string
   packageTemplates: BootstrapTemplateInspection[]
   configuration: BootstrapConfig
+  desiredState: BootstrapDesiredStateComparison
   notes: string[]
   remediation: BootstrapRemediation
+}
+
+export type BootstrapDesiredStateComparison = {
+  manifest?: BootstrapDesiredState
+  installed: BootstrapDesiredState
+  matches: boolean
+  packageVersionMatches: boolean
+  ok: boolean
+  mismatches: string[]
 }
 
 export type BootstrapConsistency = { ok: boolean; mismatches: string[] }
@@ -95,6 +114,59 @@ export async function bootstrapTemplate(
   mode: ComputeMode = 'lambda',
 ): Promise<string> {
   return readFile(await bootstrapTemplatePath(kind, mode), 'utf8')
+}
+
+/** Resolves the package-owned identity intended for a manifest at the selected compute mode. */
+export async function installedBootstrapDesiredState(
+  config: Pick<BootstrapConfig, 'mode'> = {},
+): Promise<BootstrapDesiredState> {
+  const packageManifest = JSON.parse(
+    await readFile(new URL('../package.json', import.meta.url), 'utf8'),
+  ) as { version?: unknown }
+  return desiredStateFromTemplates(
+    packageVersion(packageManifest),
+    await installedTemplateInspections(computeMode(config)),
+  )
+}
+
+function packageVersion(packageManifest: { version?: unknown }): string {
+  return typeof packageManifest.version === 'string' ? packageManifest.version : 'unknown'
+}
+
+function desiredStateFromTemplates(
+  version: string,
+  packageTemplates: BootstrapTemplateInspection[],
+): BootstrapDesiredState {
+  const template = (kind: BootstrapKind) => packageTemplates.find((entry) => entry.kind === kind)
+  const core = template('core')
+  const githubOidc = template('github-oidc')
+  if (!core || !githubOidc) throw new Error('Installed package is missing a bootstrap template')
+  if (!core.templateRevision || !githubOidc.templateRevision)
+    throw new Error('Installed bootstrap template has no template revision')
+  return {
+    packageVersion: version,
+    templates: {
+      core: { contractVersion: core.contractVersion, templateRevision: core.templateRevision },
+      githubOidc: {
+        contractVersion: githubOidc.contractVersion,
+        templateRevision: githubOidc.templateRevision,
+      },
+    },
+  }
+}
+
+async function installedTemplateInspections(
+  mode: ComputeMode,
+): Promise<BootstrapTemplateInspection[]> {
+  return Promise.all(
+    (['core', 'github-oidc'] as BootstrapKind[]).map(async (kind) => {
+      const [path, template] = await Promise.all([
+        bootstrapTemplatePath(kind, mode),
+        bootstrapTemplate(kind, mode),
+      ])
+      return inspectTemplate(kind, path, template)
+    }),
+  )
 }
 
 export function bootstrapContractVersion(template: string): string {
@@ -142,27 +214,44 @@ export async function bootstrapPlan(config: BootstrapConfig): Promise<BootstrapP
   const packageManifest = JSON.parse(
     await readFile(new URL('../package.json', import.meta.url), 'utf8'),
   ) as { version?: unknown }
-  const packageTemplates = await Promise.all(
-    (['core', 'github-oidc'] as BootstrapKind[]).map(async (kind) => {
-      const mode = computeMode(config)
-      const [path, template] = await Promise.all([
-        bootstrapTemplatePath(kind, mode),
-        bootstrapTemplate(kind, mode),
-      ])
-      return inspectTemplate(kind, path, template)
-    }),
+  const packageTemplates = await installedTemplateInspections(computeMode(config))
+  const installedDesiredState = desiredStateFromTemplates(
+    packageVersion(packageManifest),
+    packageTemplates,
   )
+  const desiredStateMatches =
+    Boolean(config.desiredState) &&
+    (['core', 'githubOidc'] as const).every((kind) => {
+      const manifestTemplate = config.desiredState?.templates[kind]
+      const installedTemplate = installedDesiredState.templates[kind]
+      return (
+        manifestTemplate?.contractVersion === installedTemplate.contractVersion &&
+        manifestTemplate?.templateRevision === installedTemplate.templateRevision
+      )
+    })
+  const packageVersionMatches =
+    config.desiredState?.packageVersion === installedDesiredState.packageVersion
   return {
-    packageVersion:
-      typeof packageManifest.version === 'string' ? packageManifest.version : 'unknown',
+    packageVersion: installedDesiredState.packageVersion,
     packageTemplates,
     configuration: config,
+    desiredState: {
+      ...(config.desiredState ? { manifest: config.desiredState } : {}),
+      installed: installedDesiredState,
+      matches: desiredStateMatches,
+      packageVersionMatches,
+      ok: desiredStateMatches,
+      mismatches: desiredStateMatches
+        ? []
+        : ['manifest bootstrap template identity differs from installed package'],
+    },
     notes: [
       'Templates are owned by the installed npm package; package.json and package-lock.json pin the source version.',
       'Generated CloudFormation parameter files and describe-stacks captures are deployment artifacts, not source configuration.',
       'This plan performs no AWS or GitHub mutations.',
     ],
     remediation: bootstrapRemediation(config, {
+      desiredStateUpdateRequired: !desiredStateMatches,
       nextOperation:
         'Review the installed templates, then run bootstrap preflight before creating a change set.',
     }),

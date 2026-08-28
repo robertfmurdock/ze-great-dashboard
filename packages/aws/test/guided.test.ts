@@ -7,6 +7,13 @@ import {
 } from '../src/index.ts'
 
 const config: BootstrapConfig = {
+  desiredState: {
+    packageVersion: '0.0.0-dev',
+    templates: {
+      core: { contractVersion: '1', templateRevision: '1.3' },
+      githubOidc: { contractVersion: '2', templateRevision: '2.3' },
+    },
+  },
   region: 'us-east-1',
   core: {
     stackName: 'demo-bootstrap',

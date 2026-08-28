@@ -49,15 +49,14 @@ describe('consumer bootstrap deployment handoff', () => {
     expect(validationJob).toContain(
       '.consumer-bootstrap-validation/node_modules/.bin/ze-great-dashboard-aws',
     )
-    expect(validationJob).toContain('Check live bootstrap consistency')
+    expect(validationJob).toContain('Validate bootstrap consistency (read-only)')
     expect(validationJob).toContain('bootstrap check')
-    expect(validationJob).toContain('check_output=')
     expect(validationJob).toContain('Bootstrap consistency failed')
-    expect(validationJob).toContain('apply both affected stack updates')
+    expect(validationJob).toContain('Apply both affected stack updates')
     expect(validationJob).toContain('Consumer bootstrap requires administrator update')
-    expect(validationJob).toContain(
-      'infra/README.md#repair-the-consumer-bootstrap-validation-stack',
-    )
+    expect(validationJob).toContain('actions/upload-artifact@v7')
+    expect(validationJob).toContain('GITHUB_STEP_SUMMARY')
+    expect(validationJob).toContain('docs/aws-bootstrap-upgrade.md')
     expect(repairScript).toContain('Create both CloudFormation change sets?')
     expect(repairScript).toContain('Execute both reviewed CloudFormation updates?')
     expect(repairScript).toContain('aws cloudformation execute-change-set')
@@ -78,6 +77,7 @@ describe('consumer bootstrap deployment handoff', () => {
 
   it('keeps the CloudShell runbook at the explicit administrator review boundary', async () => {
     const runbook = await readFile(repositoryFile('docs/aws-bootstrap-cloudshell.md'), 'utf8')
+    const upgradeRunbook = await readFile(repositoryFile('docs/aws-bootstrap-upgrade.md'), 'utf8')
 
     expect(runbook).toContain('bootstrap guide')
     expect(runbook).toContain('bootstrap verify')
@@ -86,5 +86,7 @@ describe('consumer bootstrap deployment handoff', () => {
     expect(runbook).toContain('not an automation script')
     expect(runbook).toContain('immutable-subject-required')
     expect(runbook).toContain('private Lambda permission')
+    expect(upgradeRunbook).toContain('Create, inspect, and execute each change set')
+    expect(upgradeRunbook).toContain('Never delete')
   })
 })

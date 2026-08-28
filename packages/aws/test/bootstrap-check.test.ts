@@ -7,6 +7,13 @@ import {
 } from '../src/index.ts'
 
 const config: BootstrapConfig = {
+  desiredState: {
+    packageVersion: '0.0.0-dev',
+    templates: {
+      core: { contractVersion: '1', templateRevision: '1.3' },
+      githubOidc: { contractVersion: '2', templateRevision: '2.3' },
+    },
+  },
   region: 'us-east-1',
   core: {
     stackName: 'dashboard-bootstrap',
@@ -120,6 +127,67 @@ function dependencies(driftStatus: 'IN_SYNC' | 'DRIFTED' = 'IN_SYNC'): Bootstrap
 }
 
 describe('canonical bootstrap consistency check', () => {
+  it('fails old manifests without desired state and gives the explicit migration command', async () => {
+    const result = await checkBootstrap(
+      { ...config, desiredState: undefined },
+      { configPath: 'dashboard-bootstrap.json' },
+      dependencies(),
+    )
+    expect(result.ok).toBe(false)
+    expect(result.desiredState.ok).toBe(false)
+    expect(formatBootstrapCheckText(result)).toContain(
+      'bootstrap upgrade --config dashboard-bootstrap.json',
+    )
+  })
+
+  it('fails when a deployed revision differs from the manifest desired revision', async () => {
+    const base = dependencies()
+    const result = await checkBootstrap(
+      config,
+      {},
+      {
+        async execute(command, args) {
+          const raw = await base.execute(command, args)
+          if (args[1] === 'describe-stacks' && stackName(args) === config.core?.stackName) {
+            const value = JSON.parse(raw)
+            value.Stacks[0].Outputs.find(
+              (output: { OutputKey: string }) => output.OutputKey === 'BootstrapTemplateRevision',
+            ).OutputValue = 'old'
+            return JSON.stringify(value)
+          }
+          return raw
+        },
+      },
+    )
+    expect(result.ok).toBe(false)
+    expect(result.stacks[0]?.consistency.mismatches).toContain(
+      'template revision is old; expected 1.3',
+    )
+  })
+
+  it('does not fail or request a manifest update for a package-only version change', async () => {
+    const result = await checkBootstrap(
+      {
+        ...config,
+        desiredState: {
+          packageVersion: 'previous-package',
+          templates: {
+            core: { contractVersion: '1', templateRevision: '1.3' },
+            githubOidc: { contractVersion: '2', templateRevision: '2.3' },
+          },
+        },
+      },
+      { configPath: 'dashboard-bootstrap.json' },
+      dependencies(),
+    )
+    expect(result.ok).toBe(true)
+    expect(result.desiredState.ok).toBe(true)
+    expect(result.desiredState.packageVersionMatches).toBe(false)
+    expect(result.remediation.desiredStateUpdateCommand).toBeUndefined()
+    expect(formatBootstrapCheckText(result)).toContain('informational')
+    expect(formatBootstrapCheckText(result)).not.toContain('Desired-state update command')
+  })
+
   it('checks both live stacks without invoking resource drift by default', async () => {
     const calls: string[][] = []
     const base = dependencies()
@@ -145,6 +213,33 @@ describe('canonical bootstrap consistency check', () => {
     )
     expect(result.remediation.affectedStacks).toHaveLength(2)
     expect(result.remediation.revalidateCommand).toContain('bootstrap check --config manifest.json')
+    expect(result.remediation.recoveryCommands).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'capture-core-stack',
+          command: expect.stringContaining('--stack-name dashboard-bootstrap'),
+        }),
+        expect.objectContaining({
+          name: 'capture-github-oidc-stack',
+          command: expect.stringContaining('--stack-name dashboard-github-bootstrap'),
+        }),
+        expect.objectContaining({
+          name: 'preserve-github-oidc-parameters',
+          command: expect.stringContaining(
+            '--deployed-stack-json .bootstrap-work/github-oidc-deployed-stack.json',
+          ),
+        }),
+        expect.objectContaining({
+          name: 'generate-core-update-change-set',
+          command: expect.stringContaining('--change-set-type UPDATE'),
+        }),
+        expect.objectContaining({
+          name: 'revalidate-bootstrap',
+          command: expect.stringContaining('bootstrap check --config manifest.json'),
+        }),
+      ]),
+    )
+    expect(result.remediation.runbookTarget).toBe('docs/aws-bootstrap-upgrade.md')
     expect(formatBootstrapCheckText(result)).toContain('Safety: AWS mutations are emitted')
   })
 

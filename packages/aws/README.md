@@ -10,6 +10,15 @@ bootstrap initialization; routine packaging and diagnostics then select the matc
 An explicit mode fails if it disagrees with persisted configuration, so changing mode requires
 regenerating the reviewed bootstrap and parameter artifacts.
 
+`dashboard-bootstrap.json` is checked-in desired state, not a capture of AWS. If an intentionally
+upgraded package changes a bootstrap template contract or revision, run `bootstrap upgrade
+--config dashboard-bootstrap.json`, review and commit only that metadata change, then have the
+consumer's approved deployment automation preview and execute CloudFormation UPDATE change sets.
+Package upgrades that do not change bootstrap template identity do not require a manifest update or
+bootstrap redeploy. Captures and generated parameter files are disposable deployment artifacts;
+the package owns template contents and the manifest records the intended package/template identity.
+No credentials belong in the manifest.
+
 Consumer ECS deployments use the long-lived service template and provide their own subnets and
 security groups.
 

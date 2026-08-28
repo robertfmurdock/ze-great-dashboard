@@ -1,4 +1,10 @@
-import { type BootstrapConfig, bootstrapPlan, type ComputeMode } from './bootstrap.js'
+import { readFile, writeFile } from 'node:fs/promises'
+import {
+  type BootstrapConfig,
+  bootstrapPlan,
+  type ComputeMode,
+  installedBootstrapDesiredState,
+} from './bootstrap.js'
 import {
   type BootstrapProvider,
   bootstrapHandoff,
@@ -42,6 +48,13 @@ export type BootstrapInitInput = {
   repositoryId?: string
   consumerGatewayStackName?: string
   runner?: CommandRunner
+}
+
+export type BootstrapManifestUpgrade = {
+  manifest: BootstrapConfig
+  desiredState: NonNullable<BootstrapConfig['desiredState']>
+  changed: string[]
+  metadataChanges: { path: string; before?: string; after: string }[]
 }
 
 function value(input: unknown, label: string): string {
@@ -121,6 +134,7 @@ export async function scaffoldBootstrapManifest(
   if (!repositoryId)
     throw new Error('--github-repository-id is required when GitHub is unavailable')
   return {
+    desiredState: await installedBootstrapDesiredState({ mode: input.mode ?? 'lambda' }),
     region,
     core: {
       stackName: `${slug}-bootstrap`,
@@ -140,6 +154,64 @@ export async function scaffoldBootstrapManifest(
         : {}),
     },
   }
+}
+
+/** Explicitly updates only package-owned desired-state metadata; it never reads AWS. */
+export async function upgradeBootstrapManifest(path: string): Promise<BootstrapManifestUpgrade> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(await readFile(path, 'utf8'))
+  } catch (error) {
+    throw new Error(
+      `Unable to read bootstrap manifest ${path}: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    throw new Error(`Bootstrap manifest ${path} must contain a JSON object`)
+  const existing = parsed as BootstrapConfig & Record<string, unknown>
+  const missing = incomplete(existing)
+  if (missing.length) throw new Error(`Bootstrap manifest is incomplete: ${missing.join(', ')}`)
+  if (existing.mode && existing.mode !== 'lambda' && existing.mode !== 'ecs')
+    throw new Error('Bootstrap manifest has invalid mode; expected lambda or ecs')
+  const desiredState = await installedBootstrapDesiredState({ mode: existing.mode ?? 'lambda' })
+  const previous = existing.desiredState
+  const metadataChanges = [
+    ...(previous?.packageVersion !== desiredState.packageVersion
+      ? [
+          {
+            path: 'packageVersion',
+            before: previous?.packageVersion,
+            after: desiredState.packageVersion,
+          },
+        ]
+      : []),
+    ...(['core', 'githubOidc'] as const).flatMap((kind) => [
+      ...(previous?.templates?.[kind]?.contractVersion !==
+      desiredState.templates[kind].contractVersion
+        ? [
+            {
+              path: `templates.${kind}.contractVersion`,
+              before: previous?.templates?.[kind]?.contractVersion,
+              after: desiredState.templates[kind].contractVersion,
+            },
+          ]
+        : []),
+      ...(previous?.templates?.[kind]?.templateRevision !==
+      desiredState.templates[kind].templateRevision
+        ? [
+            {
+              path: `templates.${kind}.templateRevision`,
+              before: previous?.templates?.[kind]?.templateRevision,
+              after: desiredState.templates[kind].templateRevision,
+            },
+          ]
+        : []),
+    ]),
+  ]
+  const changed = metadataChanges.map(({ path }) => path)
+  const manifest = { ...existing, desiredState }
+  await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`)
+  return { manifest, desiredState, changed, metadataChanges }
 }
 
 function incomplete(config: BootstrapConfig): string[] {
