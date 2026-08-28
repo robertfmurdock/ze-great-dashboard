@@ -117,6 +117,7 @@ configuration change rather than a rebuild.
 ## Documentation
 
 - [Board configuration](docs/board-configuration.md) — panel and source YAML schema.
+- [1.0 commitment](docs/1.0-commitment.md) — the evidence required before calling the product 1.0.
 - [AWS deployment](docs/aws-setup.md) — deploy a private Lambda after administrator bootstrap.
 - [AWS bootstrap](docs/aws-bootstrap.md) — one-time setup for an AWS and GitHub administrator.
 - [Architecture and design rationale](docs/original-pitch.md) — the lens-not-ledger model and immutable application design.
