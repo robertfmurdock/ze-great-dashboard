@@ -43,10 +43,12 @@ export {
 } from './bootstrap-check.js'
 export {
   type BootstrapCheckStatus,
+  type BootstrapGuideReport,
   type BootstrapInitInput,
   type BootstrapPreflight,
   type BootstrapPreflightCheck,
   bootstrapGuide,
+  bootstrapGuideReport,
   bootstrapPreflight,
   scaffoldBootstrapManifest,
 } from './guided.js'

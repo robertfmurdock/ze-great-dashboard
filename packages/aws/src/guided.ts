@@ -24,6 +24,12 @@ export type BootstrapPreflight = {
   remediation: BootstrapRemediation
 }
 
+export type BootstrapGuideReport = {
+  handoff: Awaited<ReturnType<typeof bootstrapHandoff>>
+  plan: Awaited<ReturnType<typeof bootstrapPlan>>
+  guide: string
+}
+
 export type BootstrapInitInput = {
   mode?: ComputeMode
   slug: string
@@ -332,11 +338,10 @@ function quote(args: string[]): string {
   return args.map((arg) => `'${arg.replaceAll("'", "'\\\"'\\\"'")}'`).join(' ')
 }
 
-export async function bootstrapGuide(
+export async function bootstrapGuideReport(
   input: Parameters<typeof bootstrapHandoff>[0],
-): Promise<string> {
-  const handoff = await bootstrapHandoff(input)
-  const plan = await bootstrapPlan(input.config)
+): Promise<BootstrapGuideReport> {
+  const [handoff, plan] = await Promise.all([bootstrapHandoff(input), bootstrapPlan(input.config)])
   const lines = [
     `Phase: ${handoff.phase}`,
     `Package version: ${plan.packageVersion}`,
@@ -377,5 +382,11 @@ export async function bootstrapGuide(
     for (const command of verified.githubEnvironmentInstructions) lines.push(quote(command))
   }
   lines.push('', ...formatBootstrapRemediationText(plan.remediation))
-  return `${lines.join('\n')}\n`
+  return { handoff, plan, guide: `${lines.join('\n')}\n` }
+}
+
+export async function bootstrapGuide(
+  input: Parameters<typeof bootstrapHandoff>[0],
+): Promise<string> {
+  return (await bootstrapGuideReport(input)).guide
 }

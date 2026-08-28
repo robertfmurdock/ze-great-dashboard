@@ -1,12 +1,14 @@
 #!/usr/bin/env node
+import { execFile } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 import { parse } from 'yaml'
 import { runDoctor } from './doctor.ts'
 import {
   type BootstrapConfig,
   bootstrapContractVersion,
-  bootstrapGuide,
+  bootstrapGuideReport,
   bootstrapHandoff,
   bootstrapPlan,
   bootstrapPreflight,
@@ -34,6 +36,7 @@ import {
 } from './index.ts'
 
 const args = process.argv.slice(2)
+const runCommand = promisify(execFile)
 const option = (name: string, fallback?: string) => {
   const i = args.indexOf(name)
   return i >= 0 ? args[i + 1] : fallback
@@ -192,6 +195,27 @@ function printBootstrap(
     console.log(shell)
   } else if (format === 'text') console.log(text)
   else console.log(JSON.stringify(value))
+}
+
+const runner = {
+  async execute(command: string, commandArgs: string[]) {
+    return (await runCommand(command, commandArgs)).stdout.trim()
+  },
+}
+
+const preflightRunner = {
+  async execute(command: string, commandArgs: string[]) {
+    try {
+      return await runner.execute(command, commandArgs)
+    } catch (error) {
+      // Preflight distinguishes an observed 404 from an unavailable CLI/auth/network.
+      if (error && typeof error === 'object' && 'stderr' in error) {
+        const stderr = error.stderr
+        if (typeof stderr === 'string' && /not found|404|nosuchentity/i.test(stderr)) return stderr
+      }
+      throw error
+    }
+  },
 }
 
 async function templateParameters(mode: ComputeMode = 'lambda'): Promise<TemplateParameterData> {
@@ -356,11 +380,7 @@ try {
         githubOidcStackPath: option('--github-oidc-stack-json'),
       },
       {
-        async execute(command, commandArgs) {
-          const { execFile } = await import('node:child_process')
-          const { promisify } = await import('node:util')
-          return (await promisify(execFile)(command, commandArgs)).stdout.trim()
-        },
+        execute: runner.execute,
         async fetch(url) {
           return fetch(url)
         },
@@ -451,13 +471,6 @@ try {
         if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'))
           throw error
       }
-      const runner = {
-        async execute(command: string, commandArgs: string[]) {
-          const { execFile } = await import('node:child_process')
-          const { promisify } = await import('node:util')
-          return (await promisify(execFile)(command, commandArgs)).stdout.trim()
-        },
-      }
       const manifest = await scaffoldBootstrapManifest({
         slug: requiredOption('--slug'),
         repository: requiredOption('--repository'),
@@ -480,24 +493,7 @@ try {
       const config = await bootstrapConfig()
       if (action === 'preflight') {
         requiredOption('--config')
-        const runner = {
-          async execute(command: string, commandArgs: string[]) {
-            const { execFile } = await import('node:child_process')
-            const { promisify } = await import('node:util')
-            try {
-              return (await promisify(execFile)(command, commandArgs)).stdout.trim()
-            } catch (error) {
-              // Preflight distinguishes an observed 404 from an unavailable CLI/auth/network.
-              if (error && typeof error === 'object' && 'stderr' in error) {
-                const stderr = error.stderr
-                if (typeof stderr === 'string' && /not found|404|nosuchentity/i.test(stderr))
-                  return stderr
-              }
-              throw error
-            }
-          },
-        }
-        const result = await bootstrapPreflight({ config, runner })
+        const result = await bootstrapPreflight({ config, runner: preflightRunner })
         printBootstrap(
           result,
           [
@@ -513,26 +509,7 @@ try {
         const configPath = requiredOption('--config')
         const coreStackPath = option('--core-stack-json')
         const githubStackPath = option('--github-oidc-stack-json')
-        const runner = {
-          async execute(command: string, commandArgs: string[]) {
-            const { execFile } = await import('node:child_process')
-            const { promisify } = await import('node:util')
-            return (await promisify(execFile)(command, commandArgs)).stdout.trim()
-          },
-        }
-        const handoff = await bootstrapHandoff({
-          config,
-          configPath,
-          workDir: option('--work-dir'),
-          coreStack: coreStackPath ? JSON.parse(await readFile(coreStackPath, 'utf8')) : undefined,
-          coreStackPath,
-          githubOidcStack: githubStackPath
-            ? JSON.parse(await readFile(githubStackPath, 'utf8'))
-            : undefined,
-          githubOidcStackPath: githubStackPath,
-          runner,
-        })
-        const guide = await bootstrapGuide({
+        const report = await bootstrapGuideReport({
           config,
           configPath,
           workDir: option('--work-dir'),
@@ -545,8 +522,12 @@ try {
           runner,
         })
         printBootstrap(
-          { handoff, guide, remediation: handoff.remediation },
-          guide,
+          {
+            handoff: report.handoff,
+            guide: report.guide,
+            remediation: report.handoff.remediation,
+          },
+          report.guide,
           undefined,
           'text',
         )
@@ -554,13 +535,6 @@ try {
         const configPath = requiredOption('--config')
         const coreStackPath = option('--core-stack-json')
         const githubStackPath = option('--github-oidc-stack-json')
-        const runner = {
-          async execute(command: string, commandArgs: string[]) {
-            const { execFile } = await import('node:child_process')
-            const { promisify } = await import('node:util')
-            return (await promisify(execFile)(command, commandArgs)).stdout.trim()
-          },
-        }
         const handoff = await bootstrapHandoff({
           config,
           configPath,
@@ -627,15 +601,11 @@ try {
         } else console.log(JSON.stringify(plan))
       } else if (action === 'check') {
         requiredOption('--config')
-        const { execFile } = await import('node:child_process')
-        const { promisify } = await import('node:util')
         const result = await checkBootstrap(
           config,
           { resourceDrift: args.includes('--resource-drift') },
           {
-            async execute(command, commandArgs) {
-              return (await promisify(execFile)(command, commandArgs)).stdout.trim()
-            },
+            execute: runner.execute,
           },
         )
         if (outputFormat() === 'text') process.stdout.write(formatBootstrapCheckText(result))
@@ -682,14 +652,15 @@ try {
           parameters = mergeBootstrapParameters(supplied, stack.Parameters ?? [])
         }
         await writeFile(output, `${JSON.stringify(parameters, null, 2)}\n`)
+        const remediation = (await bootstrapPlan(config)).remediation
         printBootstrap(
           {
             output,
             kind,
             preservedDeployedValues: Boolean(deployedStackPath),
-            remediation: (await bootstrapPlan(config)).remediation,
+            remediation,
           },
-          `Wrote ${output}. Next: review and execute the generated ${kind} change set.\n${formatBootstrapRemediationText((await bootstrapPlan(config)).remediation).join('\n')}`,
+          `Wrote ${output}. Next: review and execute the generated ${kind} change set.\n${formatBootstrapRemediationText(remediation).join('\n')}`,
         )
       } else if (action === 'change-set') {
         const kind = bootstrapKind()
@@ -729,7 +700,7 @@ try {
           reviewRequired: true,
           awsCommand,
           shellCommand: args.includes('--format-shell') ? shellCommand(awsCommand) : undefined,
-          remediation: (await bootstrapPlan(config)).remediation,
+          remediation: plan.remediation,
         }
         printBootstrap(
           handoff,
