@@ -54,6 +54,16 @@ const runSchema = z.object({
 
 const runsSchema = z.object({ workflow_runs: z.array(runSchema) })
 
+const jobsSchema = z.object({
+  jobs: z.array(
+    z.object({
+      name: z.string().min(1),
+      status: z.string(),
+      steps: z.array(z.object({ name: z.string().min(1), status: z.string() })).optional(),
+    }),
+  ),
+})
+
 const pullRequestsSchema = z.array(
   z.object({
     number: z.number().int().positive(),
@@ -393,6 +403,16 @@ export async function fetchGithubActionsPipeline(args: {
       ...(run.id !== undefined ? { sourceRunId: String(run.id) } : {}),
       ...(run.status === 'completed' ? completedRunDuration(run) : {}),
     }
+    if (signal.status === 'running' && run.id !== undefined) {
+      const activity = await activeGithubActivity({
+        source: parsedSource,
+        runId: run.id,
+        requestHeaders: args.requestHeaders,
+        fetcher: args.fetcher,
+        credentials: args.credentials ?? environmentCredentials(),
+      })
+      if (activity) signal.activity = activity
+    }
     const envelope: Envelope = {
       panelId: args.panel.id,
       state: 'ok',
@@ -417,6 +437,42 @@ export async function fetchGithubActionsPipeline(args: {
       ),
     }
   }
+}
+
+async function activeGithubActivity(args: {
+  source: z.infer<typeof githubSourceSchema>
+  runId: number
+  requestHeaders: Headers
+  fetcher: typeof fetch
+  credentials: CredentialResolver
+}): Promise<PipelineStatus['activity']> {
+  const call = githubJobsCall(args.source, args.runId, args.credentials)
+  forwardValidators(args.requestHeaders, call.headers)
+  try {
+    const response = await args.fetcher(call.url, { headers: call.headers })
+    if (!response.ok) return undefined
+    const jobs = jobsSchema.parse(await response.json()).jobs
+    const job =
+      jobs.find((candidate) => candidate.status === 'in_progress') ??
+      jobs.find((candidate) => candidate.status === 'queued')
+    if (!job) return undefined
+    const step = job.steps?.find((candidate) => candidate.status === 'in_progress')
+    return step
+      ? { kind: 'step', name: step.name, parent: job.name }
+      : { kind: 'job', name: job.name }
+  } catch {
+    return undefined
+  }
+}
+
+function githubJobsCall(
+  source: z.infer<typeof githubSourceSchema>,
+  runId: number,
+  credentials: CredentialResolver = environmentCredentials(),
+): PermittedCall {
+  const url = new URL(`https://api.github.com/repos/${source.repo}/actions/runs/${runId}/jobs`)
+  url.searchParams.set('per_page', '100')
+  return { url: url.toString(), headers: githubHeaders(source, credentials) }
 }
 
 function completedRunDuration(run: z.infer<typeof runSchema>): Pick<PipelineStatus, 'durationMs'> {

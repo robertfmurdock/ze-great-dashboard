@@ -156,6 +156,63 @@ describe('pipeline-status refresh scheduling', () => {
     expect(requests.some((url) => url.endsWith('/build'))).toBe(true)
     expect(rendered.textContent).toContain('Took 2m 14s')
     expect(rendered.textContent).toContain('Run updated')
+    expect(rendered.textContent).toContain('Checked')
+  })
+
+  it('shows concise live activity only for in-progress runs', async () => {
+    setup(
+      { panels: [{ id: 'build', type: 'pipeline-status' }] },
+      {
+        build: [
+          new Response(
+            okEnvelope('build', 'running').replace(
+              '"sourceUpdatedAt":"2026-08-18T11:00:00.000Z"',
+              '"sourceUpdatedAt":"2026-08-18T11:00:00.000Z","activity":{"kind":"step","name":"integration tests","parent":"build"}',
+            ),
+          ),
+        ],
+      },
+    )
+    const rendered = render(<App env={env} />)
+    await settle()
+    expect(rendered.textContent).toContain('build › integration tests')
+    expect(rendered.textContent).not.toContain('in_progress')
+  })
+
+  it('uses check age as the only stale presentation', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-28T12:10:00.000Z'))
+    setup(
+      { panels: [{ id: 'build', type: 'pipeline-status' }] },
+      {
+        build: [
+          new Response(
+            JSON.stringify({
+              panelId: 'build',
+              state: 'ok',
+              observedAt: '2026-08-28T12:00:00.000Z',
+              link: null,
+              signal: {
+                type: 'pipeline-status',
+                status: 'passed',
+                rawStatus: 'success',
+                name: 'Build',
+                sourceUpdatedAt: '2026-08-28T11:00:00.000Z',
+              },
+            }),
+          ),
+        ],
+      },
+    )
+    const rendered = render(<App env={env} />)
+    await settle()
+    expect(rendered.textContent).toContain('Checked 10m ago')
+    expect(
+      Array.from(rendered.querySelectorAll('p')).filter((element) =>
+        element.className.includes('stale'),
+      ),
+    ).toHaveLength(1)
+    expect(rendered.textContent).toContain('Run updated 1h 10m ago')
   })
 
   it('does not show duration while a run is in progress', async () => {

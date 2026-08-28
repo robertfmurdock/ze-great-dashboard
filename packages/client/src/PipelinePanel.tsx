@@ -8,9 +8,10 @@ import {
 } from '@ze-great-dashboard/shared'
 import { useRef, useState } from 'react'
 import { fallingSeed } from './falling-shapes.ts'
-import { ObservedAt } from './ObservedAt.tsx'
+import { CheckedAt, ObservedAt, RunAge } from './ObservedAt.tsx'
 import { PanelBranch, PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
 import styles from './PipelinePanel.module.css'
+import { formatPipelineActivity } from './pipeline-activity.ts'
 import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
 import { RunningFieldTiming } from './RunningFieldTiming.tsx'
 import { isLegacyRunningAnimation, RunningProgress } from './RunningProgress.tsx'
@@ -99,16 +100,18 @@ function PipelineSignalPanel({
         <PanelStatus status={signal.status}>
           {presentation.glyph} {presentation.label}
         </PanelStatus>
-        <PanelHint>
-          {signal.name} · {signal.rawStatus}
-          {signal.branch && (
+        {signal.status === 'running' && (
+          <PanelHint>{formatPipelineActivity(signal.activity)}</PanelHint>
+        )}
+        {signal.branch && (
+          <PanelHint>
             <PanelBranch title={`Branch: ${signal.branch}`}>
-              <span aria-hidden="true"> · ⎇ </span>
+              <span aria-hidden="true">⎇ </span>
               <span className="screen-reader-only">Branch: </span>
               {signal.branch}
             </PanelBranch>
-          )}
-        </PanelHint>
+          </PanelHint>
+        )}
         {usesField && (
           <RunningFieldTiming
             elapsedMs={timing.elapsedMs}
@@ -120,10 +123,17 @@ function PipelineSignalPanel({
         {signal.status !== 'running' && signal.durationMs !== undefined && (
           <PanelHint>Took {formatDuration(signal.durationMs)}</PanelHint>
         )}
-        {signal.sourceUpdatedAt && (
-          <ObservedAt value={signal.sourceUpdatedAt} label="Run updated" />
+        {((signal.status === 'running' && signal.runStartedAt) || signal.sourceUpdatedAt) && (
+          <RunAge
+            value={
+              signal.status === 'running' && signal.runStartedAt
+                ? signal.runStartedAt
+                : (signal.sourceUpdatedAt ?? envelope.observedAt)
+            }
+            running={signal.status === 'running'}
+          />
         )}
-        <ObservedAt value={envelope.observedAt} />
+        <CheckedAt value={envelope.observedAt} />
       </div>
     </PanelFrame>
   )

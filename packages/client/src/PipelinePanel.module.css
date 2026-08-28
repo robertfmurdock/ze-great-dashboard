@@ -1,6 +1,9 @@
 .details {
   display: contents;
 }
+.details > :global(.hint) {
+  line-height: 1.1;
+}
 @container panel (min-width: 48rem) {
   :global([data-display="primary"][data-shallow="true"]) .details > * {
     margin: 0;

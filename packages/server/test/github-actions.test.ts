@@ -46,6 +46,16 @@ function upstreamRuns(runs: unknown[]): typeof fetch {
   ) as unknown as typeof fetch
 }
 
+function upstreamRunWithJobs(run: unknown, jobs: unknown[], jobsStatus = 200): typeof fetch {
+  return vi.fn(async (url: string) => {
+    if (url.includes('/actions/runs/'))
+      return new Response(JSON.stringify({ jobs }), { status: jobsStatus })
+    return new Response(JSON.stringify({ workflow_runs: [run] }), {
+      headers: { date: '2026-08-17T14:32:05Z' },
+    })
+  }) as unknown as typeof fetch
+}
+
 describe('the GitHub Actions adapter', () => {
   it.each([
     ['success', 'passed', 134_000],
@@ -146,6 +156,112 @@ describe('the GitHub Actions adapter', () => {
     expect(result.envelope?.state === 'ok' ? result.envelope.signal : undefined).not.toHaveProperty(
       'estimatedDurationMs',
     )
+  })
+
+  it('extracts the active job and step from one bounded jobs request', async () => {
+    const run = {
+      id: 42,
+      status: 'in_progress',
+      conclusion: null,
+      name: 'Build',
+      html_url: 'https://github.com/example-org/example-repo/actions/runs/42',
+      run_started_at: '2026-08-17T14:00:00Z',
+      updated_at: '2026-08-17T14:32:00Z',
+    }
+    const fetcher = upstreamRunWithJobs(run, [
+      { name: 'deploy', status: 'queued', steps: [] },
+      {
+        name: 'build',
+        status: 'in_progress',
+        steps: [
+          { name: 'checkout', status: 'completed' },
+          { name: 'integration tests', status: 'in_progress' },
+        ],
+      },
+    ])
+
+    const result = await fetchGithubActionsPipeline({
+      panel,
+      source,
+      requestHeaders: new Headers(),
+      fetcher,
+    })
+
+    expect(result.envelope).toMatchObject({
+      signal: {
+        status: 'running',
+        activity: { kind: 'step', name: 'integration tests', parent: 'build' },
+      },
+    })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://api.github.com/repos/example-org/example-repo/actions/runs/42/jobs?per_page=100',
+      expect.anything(),
+    )
+  })
+
+  it('falls back to a queued job or the job name when no step is active', async () => {
+    const run = {
+      id: 42,
+      status: 'in_progress',
+      conclusion: null,
+      name: 'Build',
+      html_url: 'https://github.com/example-org/example-repo/actions/runs/42',
+    }
+    const queued = await fetchGithubActionsPipeline({
+      panel,
+      source,
+      requestHeaders: new Headers(),
+      fetcher: upstreamRunWithJobs(run, [{ name: 'integration tests', status: 'queued' }]),
+    })
+    expect(queued.envelope).toMatchObject({
+      signal: { activity: { kind: 'job', name: 'integration tests' } },
+    })
+
+    const jobOnly = await fetchGithubActionsPipeline({
+      panel,
+      source,
+      requestHeaders: new Headers(),
+      fetcher: upstreamRunWithJobs(run, [
+        { name: 'build', status: 'in_progress', steps: [{ name: 'setup', status: 'completed' }] },
+      ]),
+    })
+    expect(jobOnly.envelope).toMatchObject({ signal: { activity: { kind: 'job', name: 'build' } } })
+  })
+
+  it('keeps the running signal when the jobs request fails', async () => {
+    const run = {
+      id: 42,
+      status: 'in_progress',
+      conclusion: null,
+      name: 'Build',
+      html_url: 'https://github.com/example-org/example-repo/actions/runs/42',
+    }
+    const result = await fetchGithubActionsPipeline({
+      panel,
+      source,
+      requestHeaders: new Headers(),
+      fetcher: upstreamRunWithJobs(run, [], 503),
+    })
+    expect(result.envelope).toMatchObject({ signal: { status: 'running' } })
+    expect(result.envelope?.state === 'ok' ? result.envelope.signal : undefined).not.toHaveProperty(
+      'activity',
+    )
+  })
+
+  it('does not request jobs for completed runs', async () => {
+    const fetcher = upstreamRunWithJobs(
+      {
+        id: 42,
+        status: 'completed',
+        conclusion: 'success',
+        name: 'Build',
+        html_url: 'https://github.com/example-org/example-repo/actions/runs/42',
+      },
+      [{ name: 'should not be read', status: 'in_progress' }],
+    )
+    await fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher })
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
   it('omits timing advice when completed history has missing or invalid timestamps', async () => {

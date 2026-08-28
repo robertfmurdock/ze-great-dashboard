@@ -59,6 +59,15 @@ export type Envelope = z.infer<typeof envelopeSchema>
 export type OkEnvelope = Extract<Envelope, { state: 'ok' }>
 export type ErrorEnvelope = Extract<Envelope, { state: 'error' }>
 
+/** Source-agnostic live work detail supplied by an adapter. */
+export const pipelineActivitySchema = z.object({
+  kind: z.enum(['job', 'stage', 'step']),
+  name: z.string().min(1),
+  parent: z.string().min(1).optional(),
+})
+
+export type PipelineActivity = z.infer<typeof pipelineActivitySchema>
+
 /** The normalized vocabulary used by every CI adapter. */
 export const pipelineStatusSchema = z.object({
   type: z.literal('pipeline-status'),
@@ -74,6 +83,8 @@ export const pipelineStatusSchema = z.object({
   runStartedAt: z.iso.datetime().optional(),
   /** Stable source-run identity, when the adapter provides one. */
   sourceRunId: z.string().min(1).optional(),
+  /** Best-effort live work detail; adapters may describe a job, stage, or step. */
+  activity: pipelineActivitySchema.optional(),
   /** Advisory duration from recent completed runs remembered by this browser. */
   estimatedDurationMs: z.number().int().positive().optional(),
   /** When this workflow run was last updated by its source, distinct from our observation time. */
