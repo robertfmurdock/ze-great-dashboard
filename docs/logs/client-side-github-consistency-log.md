@@ -21,9 +21,11 @@ Histories are keyed by board, panel id, source, workflow, and branch. This preve
 run from one panel or branch affecting another. The board endpoint supplies the configured branch
 as public metadata; credentials and source tokens remain server-only.
 
-Successful completed-run durations are retained for 14 days based on the source run's update time,
-not the time the dashboard happened to poll it. This makes the window meaningful across reloads
-and polling gaps. Failed, cancelled, running, malformed, and old runs do not become timing advice.
+Completed-run durations are retained for 14 days based on the source run's update time, not the
+time the dashboard happened to poll it. Any completed status (including failed, cancelled, and
+unknown) can provide a fallback estimate when no successful run has been observed. Once successful
+history exists, its median is authoritative. Running, malformed, and old runs do not become timing
+advice.
 
 Samples are keyed by the normalized source run id when available, with the source link as a
 compatibility fallback. Repeated polling therefore cannot overweight one run. A median is used
@@ -65,9 +67,10 @@ The adapter requests only `per_page=1` and optionally supplies GitHub's stable r
 now a browser presentation input.
 
 The branch and workflow identity needed for browser memory are represented in typed shared/client
-helpers. The pure `pipeline-reconciliation` module owns timestamp ordering, sample extraction, and
-estimate overlay; `usePanelSignals` remains responsible for polling, memory writes, diagnostics,
-and rendering. This separation makes the safety rule testable without React lifecycle machinery.
+helpers. The pure `pipeline-reconciliation` module owns timestamp ordering, completed-sample
+extraction, and estimate overlay; `usePanelSignals` remains responsible for polling, memory writes,
+diagnostics, and rendering. This separation makes the safety rule testable without React lifecycle
+machinery.
 
 Browser diagnostics and panel memory share guarded JSON storage helpers. Centralizing storage access
 keeps private-browsing failures non-fatal and makes the two persistent stores use the same failure

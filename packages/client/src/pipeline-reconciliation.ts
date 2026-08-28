@@ -3,7 +3,7 @@ import { pipelineStatusSchema } from '@ze-great-dashboard/shared'
 import type { AcceptedPipeline } from './panel-memory.ts'
 
 export type PipelineDurationSample = {
-  link: string
+  link: string | null
   sourceRunId?: string
   durationMs: number
   sourceUpdatedAt: string
@@ -49,10 +49,10 @@ export function reconcilePipelineResponse(args: {
     ? { sourceUpdatedAt: signal.sourceUpdatedAt, status: signal.status, link: args.envelope.link }
     : undefined
   const durationSample =
-    signal.status === 'passed' &&
+    signal.status !== 'running' &&
     signal.durationMs !== undefined &&
     signal.sourceUpdatedAt &&
-    args.envelope.link
+    Number.isFinite(Date.parse(signal.sourceUpdatedAt))
       ? {
           link: args.envelope.link,
           ...(signal.sourceRunId ? { sourceRunId: signal.sourceRunId } : {}),

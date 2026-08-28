@@ -102,7 +102,7 @@ export function usePanelSignals({
               const reconciliation = reconcilePipelineResponse({
                 envelope,
                 accepted,
-                estimatedDurationMs: memory.medianDuration(identity),
+                estimatedDurationMs: memory.resolveEstimatedDuration(identity),
               })
               if (reconciliation.kind === 'rejected' && accepted) {
                 const signal = reconciliation.signal
@@ -134,14 +134,15 @@ export function usePanelSignals({
                 if (reconciliation.accepted)
                   memory.rememberLatest(identity, reconciliation.accepted)
                 if (reconciliation.durationSample) {
-                  memory.recordSuccessfulRun(identity, {
+                  const sample = {
                     link: reconciliation.durationSample.link,
                     ...(reconciliation.durationSample.sourceRunId
                       ? { sourceRunId: reconciliation.durationSample.sourceRunId }
                       : {}),
                     durationMs: reconciliation.durationSample.durationMs,
                     sourceUpdatedAt: reconciliation.durationSample.sourceUpdatedAt,
-                  })
+                  }
+                  memory.recordRun(identity, sample, reconciliation.signal.status === 'passed')
                 }
               }
             }

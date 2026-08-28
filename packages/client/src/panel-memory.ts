@@ -19,13 +19,17 @@ export type AcceptedPipeline = {
   link: string | null
 }
 
-type DurationSample = {
-  link: string
+export type DurationSample = {
+  link: string | null
   sourceRunId?: string
   durationMs: number
   sourceUpdatedAt: string
 }
-type History = { latest?: AcceptedPipeline; durations: Record<string, DurationSample> }
+type History = {
+  latest?: AcceptedPipeline
+  durations: Record<string, DurationSample>
+  latestCompleted?: DurationSample
+}
 type StoredMemory = { schemaVersion: number; histories: Record<string, History> }
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>
 
@@ -51,11 +55,23 @@ export class BrowserPanelMemory {
     this.persist()
   }
 
-  recordSuccessfulRun(identity: PanelMemoryIdentity, sample: DurationSample) {
+  recordRun(identity: PanelMemoryIdentity, sample: DurationSample, successful = false) {
     const history = this.history(identity)
-    history.durations[sample.sourceRunId ?? sample.link] = sample
+    if (successful) history.durations[sampleKey(sample)] = sample
+    const previous = history.latestCompleted
+    if (!previous || isAtLeastAsRecent(sample.sourceUpdatedAt, previous.sourceUpdatedAt)) {
+      history.latestCompleted = sample
+    }
     this.pruneHistory(history)
     this.persist()
+  }
+
+  recordSuccessfulRun(identity: PanelMemoryIdentity, sample: DurationSample) {
+    this.recordRun(identity, sample, true)
+  }
+
+  recordCompletedRun(identity: PanelMemoryIdentity, sample: DurationSample) {
+    this.recordRun(identity, sample)
   }
 
   medianDuration(identity: PanelMemoryIdentity): number | undefined {
@@ -70,6 +86,15 @@ export class BrowserPanelMemory {
     const lower = durations[middle - 1]
     const upper = durations[middle]
     return lower === undefined || upper === undefined ? undefined : Math.floor((lower + upper) / 2)
+  }
+
+  resolveEstimatedDuration(identity: PanelMemoryIdentity): number | undefined {
+    const successful = this.medianDuration(identity)
+    if (successful !== undefined) return successful
+
+    const history = this.history(identity)
+    this.pruneHistory(history)
+    return history.latestCompleted?.durationMs
   }
 
   private history(identity: PanelMemoryIdentity) {
@@ -89,8 +114,17 @@ export class BrowserPanelMemory {
   private pruneHistory(history: History) {
     const cutoff = this.now().valueOf() - historyWindowMillis
     for (const [link, sample] of Object.entries(history.durations)) {
-      const at = new Date(sample.sourceUpdatedAt).valueOf()
-      if (!Number.isFinite(at) || at < cutoff) delete history.durations[link]
+      const at = sourceTimestamp(sample.sourceUpdatedAt)
+      if (at === undefined || at < cutoff) delete history.durations[link]
+    }
+    const latestCompletedAt = history.latestCompleted
+      ? sourceTimestamp(history.latestCompleted.sourceUpdatedAt)
+      : undefined
+    if (
+      history.latestCompleted &&
+      (latestCompletedAt === undefined || latestCompletedAt < cutoff)
+    ) {
+      delete history.latestCompleted
     }
   }
 
@@ -103,6 +137,21 @@ export class BrowserPanelMemory {
   private persist() {
     writeBrowserJson(this.storage, storageKey, { schemaVersion, histories: this.histories })
   }
+}
+
+function sampleKey(sample: DurationSample) {
+  return sample.sourceRunId ?? sample.link ?? sample.sourceUpdatedAt
+}
+
+function isAtLeastAsRecent(left: string, right: string) {
+  const leftAt = sourceTimestamp(left)
+  const rightAt = sourceTimestamp(right)
+  return leftAt !== undefined && (rightAt === undefined || leftAt >= rightAt)
+}
+
+function sourceTimestamp(value: string) {
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? timestamp : undefined
 }
 
 export function resolvePanelMemoryIdentity(board: string, panel: Panel): PanelMemoryIdentity {
@@ -129,10 +178,29 @@ function identityKey(identity: PanelMemoryIdentity) {
 }
 
 function isHistories(value: unknown): value is Record<string, History> {
-  if (!value || typeof value !== 'object') return false
-  return Object.values(value).every((history) => {
-    if (!history || typeof history !== 'object') return false
-    const candidate = history as Partial<History>
-    return !!candidate.durations && typeof candidate.durations === 'object'
-  })
+  if (!isRecord(value)) return false
+  return Object.values(value).every(isHistory)
+}
+
+function isHistory(value: unknown): value is History {
+  if (!isRecord(value) || !isRecord(value.durations)) return false
+  if (!Object.values(value.durations).every(isDurationSample)) return false
+  return value.latestCompleted === undefined || isDurationSample(value.latestCompleted)
+}
+
+function isDurationSample(value: unknown): value is DurationSample {
+  if (!isRecord(value)) return false
+  return (
+    (typeof value.link === 'string' || value.link === null) &&
+    (value.sourceRunId === undefined || typeof value.sourceRunId === 'string') &&
+    typeof value.durationMs === 'number' &&
+    Number.isInteger(value.durationMs) &&
+    value.durationMs >= 0 &&
+    typeof value.sourceUpdatedAt === 'string' &&
+    sourceTimestamp(value.sourceUpdatedAt) !== undefined
+  )
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

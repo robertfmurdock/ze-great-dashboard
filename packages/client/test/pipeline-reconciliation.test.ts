@@ -62,23 +62,29 @@ describe('pipeline reconciliation', () => {
     expect(result.kind).toBe('accepted')
   })
 
-  it('returns a successful run sample with explicit source identity and overlays estimates only on running runs', () => {
-    const completed = reconcilePipelineResponse({
-      envelope: envelope({
-        sourceUpdatedAt: '2026-08-28T11:00:00.000Z',
-        sourceRunId: '42',
-        durationMs: 120_000,
-      }),
-    })
-    expect(completed).toMatchObject({
-      kind: 'accepted',
-      durationSample: {
-        link: 'https://github.test/runs/2',
-        sourceRunId: '42',
-        durationMs: 120_000,
-      },
-    })
+  it.each(['failed', 'cancelled', 'unknown'] as const)(
+    'returns a %s completed run as a sample',
+    (status) => {
+      const completed = reconcilePipelineResponse({
+        envelope: envelope({
+          status,
+          sourceUpdatedAt: '2026-08-28T11:00:00.000Z',
+          sourceRunId: '42',
+          durationMs: 120_000,
+        }),
+      })
+      expect(completed).toMatchObject({
+        kind: 'accepted',
+        durationSample: {
+          link: 'https://github.test/runs/2',
+          sourceRunId: '42',
+          durationMs: 120_000,
+        },
+      })
+    },
+  )
 
+  it('overlays estimates only on running runs', () => {
     const running = reconcilePipelineResponse({
       envelope: envelope({ status: 'running', sourceUpdatedAt: '2026-08-28T11:30:00.000Z' }),
       estimatedDurationMs: 120_000,

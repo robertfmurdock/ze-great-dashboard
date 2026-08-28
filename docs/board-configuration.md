@@ -58,7 +58,9 @@ coordinates. Panels that cannot receive a legal cell retain all primary settings
 ### Adaptive pipeline polling
 
 `refresh` controls the normal cadence and defaults to `60s`. For panels whose latest
-`pipeline-status` signal is running, `running_refresh` defaults to `15s`. When the signal includes
+`pipeline-status` signal is running, `running_refresh` defaults to `15s`. The browser estimates
+completion from the median of recent successful runs; when none is available, the latest completed
+run of any status is used as a fallback. When the signal includes
 both `runStartedAt` and `estimatedDurationMs`, polling switches to `running_completion_refresh`
 (default `5s`) at the estimated completion time. It remains there only for
 `running_completion_window` (default `2m`), then returns to `running_refresh` if the run is still

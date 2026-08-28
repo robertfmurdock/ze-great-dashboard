@@ -74,7 +74,7 @@ export const pipelineStatusSchema = z.object({
   runStartedAt: z.iso.datetime().optional(),
   /** Stable source-run identity, when the adapter provides one. */
   sourceRunId: z.string().min(1).optional(),
-  /** Advisory median duration from recent completed runs remembered by this browser. */
+  /** Advisory duration from recent completed runs remembered by this browser. */
   estimatedDurationMs: z.number().int().positive().optional(),
   /** When this workflow run was last updated by its source, distinct from our observation time. */
   sourceUpdatedAt: z.iso.datetime().optional(),

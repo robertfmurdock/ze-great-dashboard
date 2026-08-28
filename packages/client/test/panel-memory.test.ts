@@ -59,4 +59,64 @@ describe('browser-local panel memory', () => {
     expect(reloaded.latest(identity)?.link).toBe('https://github.test/new')
     expect(reloaded.medianDuration(identity)).toBe(300)
   })
+
+  it.each([
+    ['failed', 'failed'],
+    ['cancelled', 'cancelled'],
+    ['unknown', 'unknown'],
+  ] as const)('uses a %s completed run as a fallback estimate', (_label, _status) => {
+    const memory = new BrowserPanelMemory(storage(), () => new Date('2026-08-28T12:00:00Z'))
+    memory.recordCompletedRun(identity, {
+      link: `https://github.test/${_status}`,
+      durationMs: 420,
+      sourceUpdatedAt: '2026-08-28T11:00:00Z',
+    })
+    expect(memory.resolveEstimatedDuration(identity)).toBe(420)
+  })
+
+  it('selects the latest completed sample, while successful history takes precedence', () => {
+    const memory = new BrowserPanelMemory(storage(), () => new Date('2026-08-28T12:00:00Z'))
+    memory.recordCompletedRun(identity, {
+      link: 'https://github.test/old',
+      durationMs: 300,
+      sourceUpdatedAt: '2026-08-28T10:00:00Z',
+    })
+    memory.recordCompletedRun(identity, {
+      link: 'https://github.test/new',
+      durationMs: 700,
+      sourceUpdatedAt: '2026-08-28T11:00:00Z',
+    })
+    expect(memory.resolveEstimatedDuration(identity)).toBe(700)
+
+    memory.recordSuccessfulRun(identity, {
+      link: 'https://github.test/pass',
+      durationMs: 500,
+      sourceUpdatedAt: '2026-08-28T09:00:00Z',
+    })
+    expect(memory.resolveEstimatedDuration(identity)).toBe(500)
+  })
+
+  it('ignores malformed persisted completed samples without throwing', () => {
+    const key = JSON.stringify([
+      identity.board,
+      identity.panelId,
+      identity.source,
+      identity.workflow,
+      identity.branch,
+    ])
+    const memory = new BrowserPanelMemory(
+      storage(
+        JSON.stringify({
+          schemaVersion: 1,
+          histories: {
+            [key]: {
+              durations: {},
+              latestCompleted: { durationMs: 'not-a-duration' },
+            },
+          },
+        }),
+      ),
+    )
+    expect(memory.resolveEstimatedDuration(identity)).toBeUndefined()
+  })
 })

@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react'
-import type { Board, ClientEnv } from '@ze-great-dashboard/shared'
+import type { Board, ClientEnv, Envelope } from '@ze-great-dashboard/shared'
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DiagnosticEventInput, DiagnosticSink } from '../src/diagnostics.ts'
@@ -25,15 +25,21 @@ const board: Board = {
 function Probe({
   diagnostics,
   currentBoard = board,
+  onSignals,
 }: {
   diagnostics: DiagnosticSink
   currentBoard?: Board
+  onSignals?: (signals: Record<string, Envelope | undefined>) => void
 }) {
-  usePanelSignals({ board: currentBoard, env, diagnostics })
+  const signals = usePanelSignals({ board: currentBoard, env, diagnostics })
+  onSignals?.(signals)
   return null
 }
 
-function envelope(status: 'passed' | 'failed' = 'passed') {
+function envelope(
+  status: 'passed' | 'failed' | 'running' = 'passed',
+  options: { durationMs?: number; sourceUpdatedAt?: string } = {},
+) {
   return JSON.stringify({
     panelId: 'build',
     state: 'ok',
@@ -44,6 +50,8 @@ function envelope(status: 'passed' | 'failed' = 'passed') {
       status,
       rawStatus: status,
       name: 'build',
+      ...(options.durationMs === undefined ? {} : { durationMs: options.durationMs }),
+      ...(options.sourceUpdatedAt ? { sourceUpdatedAt: options.sourceUpdatedAt } : {}),
     },
   })
 }
@@ -106,6 +114,34 @@ describe('usePanelSignals', () => {
       true,
     )
     expect(diagnostics.events.some((event) => event.kind === 'panel-fetch-failure')).toBe(false)
+  })
+
+  it('uses a completed fallback estimate for the next running response', async () => {
+    vi.useFakeTimers()
+    const diagnostics = recordingSink()
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          envelope('failed', { durationMs: 90_000, sourceUpdatedAt: '2026-08-28T11:00:00Z' }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(envelope('running', { sourceUpdatedAt: '2026-08-28T11:30:00Z' })),
+      )
+    vi.stubGlobal('fetch', fetcher)
+    let latestSignals: Record<string, Envelope | undefined> = {}
+
+    render(<Probe diagnostics={diagnostics} onSignals={(signals) => (latestSignals = signals)} />)
+    await act(async () => {})
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    const latest = latestSignals.build
+    expect(latest?.state).toBe('ok')
+    if (latest?.state === 'ok') {
+      expect(latest.signal).toMatchObject({ status: 'running', estimatedDurationMs: 90_000 })
+    }
   })
 
   it('cleans up polling and never overlaps a pending request', async () => {
