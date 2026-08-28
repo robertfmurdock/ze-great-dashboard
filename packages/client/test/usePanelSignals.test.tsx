@@ -26,13 +26,16 @@ function Probe({
   diagnostics,
   currentBoard = board,
   onSignals,
+  onCheckedAt,
 }: {
   diagnostics: DiagnosticSink
   currentBoard?: Board
   onSignals?: (signals: Record<string, Envelope | undefined>) => void
+  onCheckedAt?: (checkedAt: Record<string, string | undefined>) => void
 }) {
-  const signals = usePanelSignals({ board: currentBoard, env, diagnostics })
-  onSignals?.(signals)
+  const result = usePanelSignals({ board: currentBoard, env, diagnostics })
+  onSignals?.(result.signals)
+  onCheckedAt?.(result.checkedAt)
   return null
 }
 
@@ -142,6 +145,38 @@ describe('usePanelSignals', () => {
     if (latest?.state === 'ok') {
       expect(latest.signal).toMatchObject({ status: 'running', estimatedDurationMs: 90_000 })
     }
+  })
+
+  it('updates the checked time when the server returns not modified', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
+    const diagnostics = recordingSink()
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(envelope()))
+      .mockResolvedValueOnce(new Response(null, { status: 304 }))
+    vi.stubGlobal('fetch', fetcher)
+    const checkedTimes = new Set<string>()
+
+    render(
+      <Probe
+        diagnostics={diagnostics}
+        onCheckedAt={(value) => {
+          const checked = value.build
+          if (checked) checkedTimes.add(checked)
+        }}
+      />,
+    )
+    await act(async () => {})
+    await act(async () => {
+      vi.setSystemTime(new Date('2026-08-28T12:00:01.000Z'))
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    const times = [...checkedTimes].map((value) => Date.parse(value))
+    expect(times).toHaveLength(2)
+    expect(times[1]).toBeGreaterThan(times[0] as number)
   })
 
   it('cleans up polling and never overlaps a pending request', async () => {

@@ -1,9 +1,5 @@
 import { PanelMetadata } from './PanelFrame.tsx'
 
-export function ObservedAt({ value, label = 'As of' }: { value: string; label?: string }) {
-  return <TimeAge value={value} label={label} stale variant="clock" />
-}
-
 export function CheckedAt({ value }: { value: string }) {
   return <TimeAge value={value} stale label="Checked" variant="age" />
 }

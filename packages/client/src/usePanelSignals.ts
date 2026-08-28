@@ -25,6 +25,7 @@ export function usePanelSignals({
   memory?: BrowserPanelMemory
 }) {
   const [signals, setSignals] = useState<Record<string, Envelope | undefined>>({})
+  const [checkedAt, setCheckedAt] = useState<Record<string, string | undefined>>({})
   const signalsRef = useRef<Record<string, Envelope | undefined>>({})
   const memoryRef = useRef<BrowserPanelMemory | null>(null)
   if (!memoryRef.current) memoryRef.current = memory ?? new BrowserPanelMemory()
@@ -32,6 +33,7 @@ export function usePanelSignals({
   useEffect(() => {
     signalsRef.current = {}
     setSignals({})
+    setCheckedAt({})
     if (!board) return
 
     let cancelled = false
@@ -56,6 +58,12 @@ export function usePanelSignals({
         diagnostics.record({ kind: 'panel-fetch-start', panelId: panel.id, path })
         fetch(path)
           .then(async (response) => {
+            if (!cancelled) {
+              setCheckedAt((current) => ({
+                ...current,
+                [panel.id]: new Date().toISOString(),
+              }))
+            }
             const transport = {
               kind: 'panel-fetch-response' as const,
               panelId: panel.id,
@@ -193,7 +201,7 @@ export function usePanelSignals({
     }
   }, [board, diagnostics, env.board, env.proxyPath])
 
-  return signals
+  return { signals, checkedAt }
 }
 
 function errorMessage(error: unknown) {

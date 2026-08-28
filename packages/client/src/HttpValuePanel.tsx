@@ -1,16 +1,10 @@
-import type { Panel } from '@ze-great-dashboard/shared'
-import { type Envelope, httpValueSchema } from '@ze-great-dashboard/shared'
+import { httpValueSchema } from '@ze-great-dashboard/shared'
 import styles from './HttpValuePanel.module.css'
-import { ObservedAt } from './ObservedAt.tsx'
 import { PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
+import type { PanelProps } from './panel-props.ts'
+import { CheckedAt } from './TimeAge.tsx'
 
-export function HttpValuePanel({
-  panel,
-  envelope,
-}: {
-  panel: Panel
-  envelope: Envelope | undefined
-}) {
+export function HttpValuePanel({ panel, envelope, checkedAt }: PanelProps) {
   if (!envelope)
     return (
       <PanelFrame panel={panel}>
@@ -22,7 +16,7 @@ export function HttpValuePanel({
       <PanelFrame panel={panel} envelope={envelope} error>
         <PanelStatus>⚠ Unable to read</PanelStatus>
         <PanelHint>{envelope.error.message}</PanelHint>
-        <ObservedAt value={envelope.observedAt} />
+        {checkedAt && <CheckedAt value={checkedAt} />}
       </PanelFrame>
     )
   const signal = httpValueSchema.safeParse(envelope.signal)
@@ -30,14 +24,14 @@ export function HttpValuePanel({
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
         <PanelStatus>⚠ Invalid value</PanelStatus>
-        <ObservedAt value={envelope.observedAt} />
+        {checkedAt && <CheckedAt value={checkedAt} />}
       </PanelFrame>
     )
   return (
     <PanelFrame panel={panel} envelope={envelope}>
       <div className={styles.fact}>
         <PanelStatus>{String(signal.data.value)}</PanelStatus>
-        <ObservedAt value={envelope.observedAt} />
+        {checkedAt && <CheckedAt value={checkedAt} />}
       </div>
     </PanelFrame>
   )

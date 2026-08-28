@@ -314,6 +314,9 @@ test('adapts density independently across wide, square, narrow, and tall cells',
 
   await page.goto('/')
   await expect(page.locator('[data-panel]')).toHaveCount(densityBoard.panels.length)
+  await expect
+    .poll(() => page.locator('[data-panel-meta]').count())
+    .toBeGreaterThanOrEqual(densityBoard.panels.length)
   const layout = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>('[data-panel]')].map((panel) => {
       const rect = panel.getBoundingClientRect()

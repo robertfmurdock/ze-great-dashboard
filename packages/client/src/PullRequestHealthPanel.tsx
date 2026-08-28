@@ -1,14 +1,9 @@
-import { type Envelope, type Panel, pullRequestHealthSchema } from '@ze-great-dashboard/shared'
-import { ObservedAt } from './ObservedAt.tsx'
+import { pullRequestHealthSchema } from '@ze-great-dashboard/shared'
 import { PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
+import type { PanelProps } from './panel-props.ts'
+import { CheckedAt } from './TimeAge.tsx'
 
-export function PullRequestHealthPanel({
-  panel,
-  envelope,
-}: {
-  panel: Panel
-  envelope: Envelope | undefined
-}) {
+export function PullRequestHealthPanel({ panel, envelope, checkedAt }: PanelProps) {
   if (!envelope)
     return (
       <PanelFrame panel={panel}>
@@ -20,7 +15,7 @@ export function PullRequestHealthPanel({
       <PanelFrame panel={panel} envelope={envelope} error>
         <PanelStatus>⚠ Unable to read</PanelStatus>
         <PanelHint>{envelope.error.message}</PanelHint>
-        <ObservedAt value={envelope.observedAt} />
+        {checkedAt && <CheckedAt value={checkedAt} />}
       </PanelFrame>
     )
   const signal = pullRequestHealthSchema.safeParse(envelope.signal)
@@ -37,7 +32,7 @@ export function PullRequestHealthPanel({
         {presentation.glyph} {presentation.label}
       </PanelStatus>
       <PanelHint>{signal.data.summary}</PanelHint>
-      <ObservedAt value={envelope.observedAt} />
+      {checkedAt && <CheckedAt value={checkedAt} />}
     </PanelFrame>
   )
 }

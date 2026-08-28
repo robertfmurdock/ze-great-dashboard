@@ -1,15 +1,12 @@
-import type { Envelope, Panel } from '@ze-great-dashboard/shared'
 import type { ComponentType } from 'react'
 import { HttpValuePanel } from './HttpValuePanel.tsx'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PipelineAnimationDemoPanel } from './PipelineAnimationDemoPanel.tsx'
 import { PipelinePanel } from './PipelinePanel.tsx'
 import { PullRequestHealthPanel } from './PullRequestHealthPanel.tsx'
+import type { PanelProps } from './panel-props.ts'
 
-type PanelRendererProps = {
-  panel: Panel
-  envelope: Envelope | undefined
-}
+type PanelRendererProps = PanelProps
 
 /** The one client-side dispatch point for panel types. */
 export const panelRenderers: Record<string, ComponentType<PanelRendererProps>> = {
@@ -19,10 +16,10 @@ export const panelRenderers: Record<string, ComponentType<PanelRendererProps>> =
   'pipeline-animation-demo': PipelineAnimationDemoPanel,
 }
 
-export function PanelRenderer({ panel, envelope }: PanelRendererProps) {
+export function PanelRenderer({ panel, envelope, checkedAt }: PanelRendererProps) {
   const Renderer = panelRenderers[panel.type]
   return Renderer ? (
-    <Renderer panel={panel} envelope={envelope} />
+    <Renderer panel={panel} envelope={envelope} checkedAt={checkedAt} />
   ) : (
     <PanelPlaceholder label={panel.type} hint="Not wired yet" wide />
   )

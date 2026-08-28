@@ -8,22 +8,17 @@ import {
 } from '@ze-great-dashboard/shared'
 import { useRef, useState } from 'react'
 import { fallingSeed } from './falling-shapes.ts'
-import { CheckedAt, ObservedAt, RunAge } from './ObservedAt.tsx'
 import { PanelFrame, PanelHint, PanelMetadata, PanelStatus } from './PanelFrame.tsx'
 import styles from './PipelinePanel.module.css'
+import type { PanelProps } from './panel-props.ts'
 import { formatPipelineActivity } from './pipeline-activity.ts'
 import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
 import { RunningFieldTiming } from './RunningFieldTiming.tsx'
 import { isLegacyRunningAnimation, RunningProgress } from './RunningProgress.tsx'
 import { useRunningTiming } from './running-timing.ts'
+import { CheckedAt, RunAge } from './TimeAge.tsx'
 
-export function PipelinePanel({
-  panel,
-  envelope,
-}: {
-  panel: Panel
-  envelope: Envelope | undefined
-}) {
+export function PipelinePanel({ panel, envelope, checkedAt }: PanelProps) {
   if (!envelope)
     return (
       <PanelFrame panel={panel}>
@@ -37,7 +32,7 @@ export function PipelinePanel({
           ⚠ {envelope.error.kind === 'no-runs' ? 'No workflow runs' : 'Unable to read'}
         </PanelStatus>
         <PanelHint>{envelope.error.message}</PanelHint>
-        <ObservedAt value={envelope.observedAt} />
+        {checkedAt && <CheckedAt value={checkedAt} />}
       </PanelFrame>
     )
   }
@@ -47,20 +42,29 @@ export function PipelinePanel({
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
         <PanelStatus>⚠ Invalid signal</PanelStatus>
-        <ObservedAt value={envelope.observedAt} />
+        {checkedAt && <CheckedAt value={checkedAt} />}
       </PanelFrame>
     )
-  return <PipelineSignalPanel panel={panel} envelope={envelope} signal={signal.data} />
+  return (
+    <PipelineSignalPanel
+      panel={panel}
+      envelope={envelope}
+      signal={signal.data}
+      checkedAt={checkedAt}
+    />
+  )
 }
 
 function PipelineSignalPanel({
   panel,
   envelope,
   signal,
+  checkedAt,
 }: {
   panel: Panel
   envelope: Envelope
   signal: PipelineStatus
+  checkedAt?: string
 }) {
   const presentation = statusPresentation(signal.status)
   const [defaultAnimation, setDefaultAnimation] = useState<RunningAnimation | undefined>(() =>
@@ -144,7 +148,7 @@ function PipelineSignalPanel({
             running={signal.status === 'running'}
           />
         )}
-        <CheckedAt value={envelope.observedAt} />
+        {checkedAt && <CheckedAt value={checkedAt} />}
       </div>
     </PanelFrame>
   )

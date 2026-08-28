@@ -187,7 +187,7 @@ describe('pipeline-status refresh scheduling', () => {
     expect(rendered.textContent).not.toContain('in_progress')
   })
 
-  it('uses check age as the only stale presentation', async () => {
+  it('does not treat an old upstream timestamp as a stale check', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-28T12:10:00.000Z'))
     setup(
@@ -214,7 +214,7 @@ describe('pipeline-status refresh scheduling', () => {
     )
     const rendered = render(<App env={env} />)
     await settle()
-    expect(rendered.textContent).toContain('Checked 10m ago')
+    expect(rendered.textContent).toContain('Checked just now')
     expect(
       Array.from(rendered.querySelectorAll('p')).filter((element) =>
         element.className.includes('stale'),

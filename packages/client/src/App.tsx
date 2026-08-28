@@ -28,7 +28,7 @@ export function App({ env }: { env: ClientEnv }) {
   if (!diagnosticsRef.current) diagnosticsRef.current = new BrowserDiagnosticStore(env)
   const diagnostics = diagnosticsRef.current
   useClientUpdate({ env, diagnostics })
-  const signals = usePanelSignals({
+  const { signals, checkedAt } = usePanelSignals({
     board: loadedBoardName === env.board ? board : undefined,
     env,
     diagnostics,
@@ -111,7 +111,12 @@ export function App({ env }: { env: ClientEnv }) {
         {board?.panels
           .filter((panel) => !isZeroPosition(panel.position))
           .map((panel) => (
-            <PanelRenderer key={panel.id} panel={panel} envelope={signals[panel.id]} />
+            <PanelRenderer
+              key={panel.id}
+              panel={panel}
+              envelope={signals[panel.id]}
+              checkedAt={checkedAt[panel.id]}
+            />
           ))}
       </main>
 
