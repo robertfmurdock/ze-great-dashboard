@@ -16,3 +16,5 @@ evidence behind the current documentation without interrupting the task-oriented
   review findings, falling-shapes geometry, and animation-demo timing configuration.
 - [Layout resolution log](layout-resolution-log.md) — layout warnings, legal normalized downloads,
   and the example board's corrected coordinates.
+- [Client-side GitHub consistency log](client-side-github-consistency-log.md) — stale-response
+  protection, browser runtime history, durable incidents, and the follow-up refactors.

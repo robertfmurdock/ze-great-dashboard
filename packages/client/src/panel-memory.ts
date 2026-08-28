@@ -19,7 +19,12 @@ export type AcceptedPipeline = {
   link: string | null
 }
 
-type DurationSample = { durationMs: number; sourceUpdatedAt: string }
+type DurationSample = {
+  link: string
+  sourceRunId?: string
+  durationMs: number
+  sourceUpdatedAt: string
+}
 type History = { latest?: AcceptedPipeline; durations: Record<string, DurationSample> }
 type StoredMemory = { schemaVersion: number; histories: Record<string, History> }
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>
@@ -46,9 +51,9 @@ export class BrowserPanelMemory {
     this.persist()
   }
 
-  recordSuccessfulRun(identity: PanelMemoryIdentity, link: string, sample: DurationSample) {
+  recordSuccessfulRun(identity: PanelMemoryIdentity, sample: DurationSample) {
     const history = this.history(identity)
-    history.durations[link] = sample
+    history.durations[sample.sourceRunId ?? sample.link] = sample
     this.pruneHistory(history)
     this.persist()
   }

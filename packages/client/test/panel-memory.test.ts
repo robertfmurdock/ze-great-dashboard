@@ -26,7 +26,7 @@ describe('browser-local panel memory', () => {
     const now = () => new Date('2026-08-28T12:00:00Z')
     const memory = new BrowserPanelMemory(store, now)
     const sample = (link: string, durationMs: number, sourceUpdatedAt = '2026-08-28T10:00:00Z') =>
-      memory.recordSuccessfulRun(identity, link, { durationMs, sourceUpdatedAt })
+      memory.recordSuccessfulRun(identity, { link, durationMs, sourceUpdatedAt })
 
     sample('https://github.test/1', 100)
     sample('https://github.test/1', 900)
@@ -44,11 +44,13 @@ describe('browser-local panel memory', () => {
       status: 'failed',
       link: 'https://github.test/new',
     })
-    memory.recordSuccessfulRun(identity, 'https://github.test/old', {
+    memory.recordSuccessfulRun(identity, {
+      link: 'https://github.test/old',
       durationMs: 100,
       sourceUpdatedAt: '2026-08-13T11:59:59Z',
     })
-    memory.recordSuccessfulRun(identity, 'https://github.test/recent', {
+    memory.recordSuccessfulRun(identity, {
+      link: 'https://github.test/recent',
       durationMs: 300,
       sourceUpdatedAt: '2026-08-14T12:00:00Z',
     })

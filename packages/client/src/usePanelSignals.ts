@@ -106,7 +106,7 @@ export function usePanelSignals({
               })
               if (reconciliation.kind === 'rejected' && accepted) {
                 const signal = reconciliation.signal
-                diagnostics.recordGithubConsistencyIncident?.({
+                diagnostics.recordGithubConsistencyIncident({
                   panelId: panel.id,
                   endpoint: path,
                   identity: {
@@ -134,7 +134,11 @@ export function usePanelSignals({
                 if (reconciliation.accepted)
                   memory.rememberLatest(identity, reconciliation.accepted)
                 if (reconciliation.durationSample) {
-                  memory.recordSuccessfulRun(identity, reconciliation.durationSample.link, {
+                  memory.recordSuccessfulRun(identity, {
+                    link: reconciliation.durationSample.link,
+                    ...(reconciliation.durationSample.sourceRunId
+                      ? { sourceRunId: reconciliation.durationSample.sourceRunId }
+                      : {}),
                     durationMs: reconciliation.durationSample.durationMs,
                     sourceUpdatedAt: reconciliation.durationSample.sourceUpdatedAt,
                   })

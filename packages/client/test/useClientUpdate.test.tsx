@@ -27,7 +27,11 @@ function Probe({
 
 function recordingSink() {
   const events: DiagnosticEventInput[] = []
-  return { events, record: (event: DiagnosticEventInput) => events.push(event) }
+  return {
+    events,
+    record: (event: DiagnosticEventInput) => events.push(event),
+    recordGithubConsistencyIncident: vi.fn(),
+  }
 }
 
 function identity(overrides: Partial<ClientEnv> = {}) {

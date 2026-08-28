@@ -67,6 +67,7 @@ describe('the GitHub Actions adapter', () => {
       signal: {
         type: 'pipeline-status',
         status: expected,
+        ...(name === 'success' ? { sourceRunId: expect.any(String) } : {}),
         sourceUpdatedAt: expect.any(String),
         ...(durationMs === undefined ? {} : { durationMs }),
       },
@@ -76,14 +77,14 @@ describe('the GitHub Actions adapter', () => {
   it('uses the configured workflow without filtering when no branch is configured', () => {
     const [call] = permittedGithubActionsCalls(panel, source)
     expect(call?.url).toBe(
-      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?per_page=5',
+      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?per_page=1',
     )
   })
 
   it('filters workflow runs to the configured branch', () => {
     const [call] = permittedGithubActionsCalls(panel, { ...source, branch: 'trunk' })
     expect(call?.url).toBe(
-      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?branch=trunk&per_page=5',
+      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?branch=trunk&per_page=1',
     )
   })
 

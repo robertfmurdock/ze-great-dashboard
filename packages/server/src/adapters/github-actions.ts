@@ -42,6 +42,7 @@ const pullRequestHealthPanelSchema = z.object({
 })
 
 const runSchema = z.object({
+  id: z.number().int().positive().optional(),
   status: z.string(),
   conclusion: z.string().nullable(),
   name: z.string().min(1),
@@ -75,8 +76,8 @@ export function permittedGithubActionsCalls(
     `https://api.github.com/repos/${parsedSource.repo}/actions/workflows/${encodeURIComponent(parsedPanel.pipeline)}/runs`,
   )
   if (parsedSource.branch) url.searchParams.set('branch', parsedSource.branch)
-  // One bounded request supplies the current run and a small timing sample for active-run UI.
-  url.searchParams.set('per_page', '5')
+  // The browser collects duration history; the adapter only needs GitHub's first run.
+  url.searchParams.set('per_page', '1')
 
   const headers = new Headers({ accept: 'application/vnd.github+json' })
   const token = parsedSource.token_env ? credentials.get(parsedSource.token_env) : undefined
@@ -389,6 +390,7 @@ export async function fetchGithubActionsPipeline(args: {
       branch: parsedSource.branch,
       ...(timestamp(run.updated_at) ? { sourceUpdatedAt: timestamp(run.updated_at) } : {}),
       ...(timestamp(run.run_started_at) ? { runStartedAt: timestamp(run.run_started_at) } : {}),
+      ...(run.id !== undefined ? { sourceRunId: String(run.id) } : {}),
       ...(run.status === 'completed' ? completedRunDuration(run) : {}),
     }
     const envelope: Envelope = {

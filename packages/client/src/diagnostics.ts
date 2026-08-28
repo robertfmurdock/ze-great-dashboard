@@ -105,7 +105,7 @@ export type DiagnosticEvent = DiagnosticEventInput extends infer Event
 /** The only interface client features need in order to emit browser diagnostics. */
 export interface DiagnosticSink {
   record(event: DiagnosticEventInput): void
-  recordGithubConsistencyIncident?(incident: Omit<GithubConsistencyIncident, 'at' | 'board'>): void
+  recordGithubConsistencyIncident(incident: Omit<GithubConsistencyIncident, 'at' | 'board'>): void
 }
 
 type PersistedDiagnosticEvent = Omit<DiagnosticEvent, 'schemaVersion'> & { schemaVersion?: number }

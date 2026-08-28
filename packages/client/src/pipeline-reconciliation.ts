@@ -2,7 +2,12 @@ import type { Envelope, PipelineStatus } from '@ze-great-dashboard/shared'
 import { pipelineStatusSchema } from '@ze-great-dashboard/shared'
 import type { AcceptedPipeline } from './panel-memory.ts'
 
-export type PipelineDurationSample = { link: string; durationMs: number; sourceUpdatedAt: string }
+export type PipelineDurationSample = {
+  link: string
+  sourceRunId?: string
+  durationMs: number
+  sourceUpdatedAt: string
+}
 
 export type PipelineReconciliation =
   | { kind: 'not-pipeline'; envelope: Envelope }
@@ -50,6 +55,7 @@ export function reconcilePipelineResponse(args: {
     args.envelope.link
       ? {
           link: args.envelope.link,
+          ...(signal.sourceRunId ? { sourceRunId: signal.sourceRunId } : {}),
           durationMs: signal.durationMs,
           sourceUpdatedAt: signal.sourceUpdatedAt,
         }
