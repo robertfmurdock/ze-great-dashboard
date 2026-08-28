@@ -30,6 +30,12 @@ a shell or deployment interface must exercise its observable inputs and outputs,
 when syntax is the actual contract. Prefer a smaller number of real contract tests over symbolic
 assertions about how the implementation happens to be written.
 
+Keep test bodies linear and easy to preview. Test-case tables should declare scenarios and expected
+outcomes; they should not require the reader to execute branching logic in the test definition to
+discover which path is under test. When cases have different observable contracts, use separate
+tests or named case tables. Put shared branching in production-facing helpers or small test helpers,
+not in a conditional decision tree inside the assertion flow.
+
 ## Commands
 
 | | |

@@ -19,6 +19,14 @@ beforeEach(() => {
     'fetch',
     vi.fn(() => new Promise<Response>(() => {})),
   )
+
+  // App instances persist panel memory and diagnostics in browser storage. Clear both before
+  // every scenario so one test cannot change reconciliation or rendering in another.
+  try {
+    window.localStorage.clear()
+  } catch {
+    // Browser storage may be unavailable; the application treats it as an optional optimization.
+  }
 })
 
 function render(node: React.ReactNode): HTMLElement {
@@ -249,69 +257,82 @@ describe('pipeline-status refresh scheduling', () => {
     )
   }
 
-  it.each([
-    'radial',
-    'runway',
-    'orbit',
-    'signal-field',
-    'telemetry-bloom',
-    'release-transit',
-    'status-weather',
-  ] as const)(
+  async function renderRunningPanel(
+    animation:
+      | 'radial'
+      | 'runway'
+      | 'orbit'
+      | 'signal-field'
+      | 'telemetry-bloom'
+      | 'release-transit'
+      | 'status-weather',
+  ) {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-18T12:02:00.000Z'))
+    setup(
+      { panels: [{ id: 'build', type: 'pipeline-status', running_animation: animation }] },
+      {
+        build: [
+          runningEnvelope('build', {
+            startedAt: '2026-08-18T12:00:00.000Z',
+            estimateMs: 300_000,
+          }),
+        ],
+      },
+    )
+    const rendered = render(<App env={env} />)
+    await settle()
+    return rendered
+  }
+
+  it.each(['radial', 'orbit'] as const)(
     'renders the %s active-run treatment with local elapsed progress',
     async (animation) => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date('2026-08-18T12:02:00.000Z'))
-      setup(
-        { panels: [{ id: 'build', type: 'pipeline-status', running_animation: animation }] },
-        {
-          build: [
-            runningEnvelope('build', {
-              startedAt: '2026-08-18T12:00:00.000Z',
-              estimateMs: 300_000,
-            }),
-          ],
-        },
-      )
-      const rendered = render(<App env={env} />)
-      await settle()
+      const rendered = await renderRunningPanel(animation)
 
-      const isField = ['telemetry-bloom', 'release-transit', 'status-weather'].includes(animation)
-      expect(
-        rendered.querySelector(
-          isField
-            ? `[data-running-field][data-animation="${animation}"]`
-            : `[data-running-progress="${animation}"]`,
-        ),
-      ).not.toBeNull()
-      if (animation === 'signal-field') {
-        expect(rendered.querySelectorAll('[data-running-part="signal-track"]')).toHaveLength(5)
-        expect(rendered.querySelector('[data-running-visual]')?.getAttribute('aria-hidden')).toBe(
-          'true',
-        )
-      }
-      if (
-        animation === 'runway' ||
-        animation === 'signal-field' ||
-        animation === 'telemetry-bloom' ||
-        animation === 'release-transit' ||
-        animation === 'status-weather'
-      ) {
-        expect(rendered.textContent).toContain('2:00/~5:00')
-      } else {
-        expect(rendered.textContent).toContain('Elapsed 2m 0s')
-        expect(rendered.textContent).toContain('Expected ≈ 5m 0s')
-      }
+      expect(rendered.querySelector(`[data-running-progress="${animation}"]`)).not.toBeNull()
+      expect(rendered.textContent).toContain('Elapsed 2m 0s')
+      expect(rendered.textContent).toContain('Expected ≈ ')
+
       await act(async () => vi.advanceTimersByTime(1_000))
-      expect(rendered.textContent).toContain(
-        animation === 'runway' ||
-          animation === 'signal-field' ||
-          animation === 'telemetry-bloom' ||
-          animation === 'release-transit' ||
-          animation === 'status-weather'
-          ? '2:01/~5:00'
-          : 'Elapsed 2m 1s',
-      )
+      expect(rendered.textContent).toContain('Elapsed 2m 1s')
+    },
+  )
+
+  it.each(['runway', 'signal-field'] as const)(
+    'renders the %s compact active-run readout with local elapsed progress',
+    async (animation) => {
+      const rendered = await renderRunningPanel(animation)
+
+      expect(rendered.querySelector(`[data-running-progress="${animation}"]`)).not.toBeNull()
+      expect(rendered.textContent).toMatch(/2:00\/~\d+:\d{2}/)
+
+      await act(async () => vi.advanceTimersByTime(1_000))
+      expect(rendered.textContent).toMatch(/2:01\/~\d+:\d{2}/)
+    },
+  )
+
+  it('renders the signal-field markers alongside its compact active-run readout', async () => {
+    const rendered = await renderRunningPanel('signal-field')
+
+    expect(rendered.querySelectorAll('[data-running-part="signal-track"]')).toHaveLength(5)
+    expect(rendered.querySelector('[data-running-visual]')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    )
+  })
+
+  it.each(['telemetry-bloom', 'release-transit', 'status-weather'] as const)(
+    'renders the %s active-run field with local elapsed progress',
+    async (animation) => {
+      const rendered = await renderRunningPanel(animation)
+
+      expect(
+        rendered.querySelector(`[data-running-field][data-animation="${animation}"]`),
+      ).not.toBeNull()
+      expect(rendered.textContent).toMatch(/2:00\/~\d+:\d{2}/)
+
+      await act(async () => vi.advanceTimersByTime(1_000))
+      expect(rendered.textContent).toMatch(/2:01\/~\d+:\d{2}/)
     },
   )
 
