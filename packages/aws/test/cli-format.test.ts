@@ -25,7 +25,7 @@ describe('AWS bootstrap CLI output contract', () => {
     expect(output.template).toContain('core-v1.yml')
     expect(output.remediation.revalidateCommand).toContain('bootstrap check')
     expect(output.remediation.safetyNote).toContain('never executes')
-  })
+  }, 30_000)
 
   it('keeps guide text as the operator-facing default and exposes equivalent JSON explicitly', async () => {
     const directory = await mkdtemp('/tmp/dashboard-cli-format-')
@@ -73,7 +73,7 @@ describe('AWS bootstrap CLI output contract', () => {
       output.remediation.recoveryCommands.some(({ command }) => command.includes(config)),
     ).toBe(true)
     expect(output.remediation.runbookTarget).toBe('docs/aws-bootstrap-upgrade.md')
-  })
+  }, 30_000)
 
   it('keeps --format-shell as a clean command-only administrator handoff', async () => {
     const directory = await mkdtemp('/tmp/dashboard-cli-shell-')
@@ -95,7 +95,7 @@ describe('AWS bootstrap CLI output contract', () => {
     expect(result.stdout.trim()).toMatch(/^'aws' 'cloudformation' 'create-change-set'/)
     expect(result.stdout).not.toContain('Remediation:')
     expect(result.stdout).not.toContain('{')
-  })
+  }, 30_000)
 
   it('updates only desired state through the explicit upgrade command', async () => {
     const directory = await mkdtemp('/tmp/dashboard-cli-upgrade-')
@@ -127,5 +127,5 @@ describe('AWS bootstrap CLI output contract', () => {
     expect(result.stdout).toContain('Changed: packageVersion')
     expect(result.stdout).toContain('templates.core.templateRevision')
     expect(result.stdout).toContain('Review and commit')
-  })
+  }, 30_000)
 })

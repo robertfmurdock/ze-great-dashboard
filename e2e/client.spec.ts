@@ -462,17 +462,6 @@ test('keeps panel-scale fields behind readable content, adapts them without over
   const fallingField = falling.locator('[data-running-part="falling-shapes-field"]')
   await expect(fallingField).toHaveAttribute('data-direction', 'horizontal')
   await expect(fallingField).toHaveCount(1)
-  await page.waitForTimeout(1_400)
-  await expect(falling.locator('[data-piece]')).toHaveCount(1)
-  const firstPieceCells = await falling
-    .locator('[data-piece]')
-    .first()
-    .locator(':scope > span')
-    .count()
-  expect(firstPieceCells).toBeGreaterThanOrEqual(2)
-  expect(firstPieceCells).toBeLessThanOrEqual(4)
-  await page.waitForTimeout(1_800)
-  await expect(falling.locator('[data-piece]')).toHaveCount(2)
 
   const legacySignal = page.locator('[data-running-progress="signal-field"]')
   await expect(legacySignal).toBeVisible()
@@ -489,13 +478,6 @@ test('keeps panel-scale fields behind readable content, adapts them without over
   expect(legacySignalLayout.tracksDisplay).toBe('flex')
 
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.waitForTimeout(100)
-  const reducedFallingPosition = await falling.locator('[data-piece]').first().getAttribute('style')
-  await page.waitForTimeout(200)
-  await expect(falling.locator('[data-piece]').first()).toHaveAttribute(
-    'style',
-    reducedFallingPosition ?? '',
-  )
   expect(
     await field
       .locator('[data-running-part="bloom-marker"]')

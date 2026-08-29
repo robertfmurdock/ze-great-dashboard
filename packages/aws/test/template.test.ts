@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process'
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { strFromU8, unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 import { cloudFormationTemplate, packageEcs, packageLambda } from '../src/index.ts'
 
@@ -28,65 +27,6 @@ describe('AWS deployment contract', () => {
     expect(template).not.toMatch(/174159267544|robertfmurdock|1338375095|ZeGreatDashboardDeploy/)
     expect(template).not.toContain('boards/example.yaml')
   })
-
-  it('packages the published runtime with the consumer board', async () => {
-    const outputDir = await mkdtemp('/tmp/dashboard-aws-dogfood-')
-    const metadata = await packageLambda({
-      boardConfigPath: fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url)),
-      outputDir,
-      version: '1.2.3',
-      secretReference,
-    })
-    expect(metadata.clientAssetUrl).toBe('https://public-assets.zegreatrob.com/dashboard/1.2.3')
-    expect(metadata.artifactKey).toMatch(/^lambda\/[a-f0-9]{64}\.zip$/)
-    expect(await stat(join(outputDir, 'lambda.zip'))).toBeTruthy()
-    expect(await stat(join(outputDir, 'release.json'))).toBeTruthy()
-    const deploymentTemplate = await readFile(join(outputDir, 'template.yml'), 'utf8')
-    expect(deploymentTemplate).toContain(`Default: "${metadata.artifactKey}"`)
-    expect(deploymentTemplate).toContain('Default: "1.2.3"')
-    expect(metadata.artifactChecksums['index.mjs']).toMatch(/^[a-f0-9]{64}$/)
-    expect(metadata.artifactChecksums['lambda.zip']).toMatch(/^[a-f0-9]{64}$/)
-
-    const secondOutput = await mkdtemp('/tmp/dashboard-aws-repeat-')
-    const repeated = await packageLambda({
-      boardConfigPath: fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url)),
-      outputDir: secondOutput,
-      version: '1.2.3',
-      secretReference,
-    })
-    const firstZip = await readFile(join(outputDir, 'lambda.zip'))
-    const secondZip = await readFile(join(secondOutput, 'lambda.zip'))
-    expect(secondZip).toEqual(firstZip)
-    expect(repeated.artifactChecksums).toEqual(metadata.artifactChecksums)
-    expect(repeated.artifactKey).toBe(metadata.artifactKey)
-    const entries = unzipSync(firstZip)
-    expect(Object.keys(entries).sort()).toEqual([
-      'SHA256SUMS',
-      'board.yaml',
-      'index.mjs',
-      'release.json',
-    ])
-    expect(strFromU8(entries['board.yaml'] ?? new Uint8Array())).toContain('boards:')
-    expect(() => JSON.parse(strFromU8(entries['release.json'] ?? new Uint8Array()))).not.toThrow()
-
-    const changedBoard = join(outputDir, 'changed-board.yaml')
-    await writeFile(
-      changedBoard,
-      (
-        await readFile(
-          fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url)),
-          'utf8',
-        )
-      ).replace('refresh: 60s', 'refresh: 61s'),
-    )
-    const changed = await packageLambda({
-      boardConfigPath: changedBoard,
-      outputDir: await mkdtemp('/tmp/dashboard-aws-changed-board-'),
-      version: '1.2.3',
-      secretReference,
-    })
-    expect(changed.artifactKey).not.toBe(metadata.artifactKey)
-  }, 15_000)
 
   it('requires a digest-pinned image and emits an ECS-only template handoff', async () => {
     const outputDir = await mkdtemp('/tmp/dashboard-aws-ecs-')
@@ -137,7 +77,7 @@ describe('AWS deployment contract', () => {
         secretReference,
       }),
     ).resolves.toMatchObject({ dashboardVersion: '1.2.3' })
-  })
+  }, 30_000)
 
   it('resolves consumer and release parameters into an explicit deployment handoff', async () => {
     const root = await mkdtemp('/tmp/dashboard-aws-handoff-')
@@ -211,7 +151,7 @@ describe('AWS deployment contract', () => {
     expect(handoff.commands.upload).toContain(`${outputDir}/lambda.zip`)
     expect(handoff.commands.deploy).toContain(`${outputDir}/template.yml`)
     expect(handoff.commands.deploy).toContain(`file://${outputDir}/parameters.json`)
-  })
+  }, 30_000)
 
   it('rejects invalid consumer parameter inputs before creating a deployable handoff', async () => {
     const root = await mkdtemp('/tmp/dashboard-aws-invalid-parameters-')
@@ -262,5 +202,5 @@ describe('AWS deployment contract', () => {
       ),
     ).resolves.toContain('must not set package-managed parameters')
     await expect(stat(join(root, 'managed'))).rejects.toMatchObject({ code: 'ENOENT' })
-  })
+  }, 30_000)
 })

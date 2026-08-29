@@ -30,6 +30,17 @@ a shell or deployment interface must exercise its observable inputs and outputs,
 when syntax is the actual contract. Prefer a smaller number of real contract tests over symbolic
 assertions about how the implementation happens to be written.
 
+**A test case is an input scenario plus one execution of the subject and its observable outputs.**
+Assertions about different aspects of the same output belong together; splitting them into separate
+tests does not add coverage if each test repeats the same setup and subject execution. Organize
+those assertions into named sections or small assertion helpers when that improves legibility.
+Execute the subject again only when the input scenario is intentionally different, or when repeated
+execution is itself the behavior under test (for example, proving deterministic output). When one
+input supports several requested output formats, exercise each intentional request once and compare
+the results as one scenario where practical. Avoid wall-clock sleeps and repeated expensive setup;
+use fake or controlled time for timing behavior and reserve browser tests for behavior that requires
+a real browser.
+
 Keep test bodies linear and easy to preview. Test-case tables should declare scenarios and expected
 outcomes; they should not require the reader to execute branching logic in the test definition to
 discover which path is under test. When cases have different observable contracts, use separate
