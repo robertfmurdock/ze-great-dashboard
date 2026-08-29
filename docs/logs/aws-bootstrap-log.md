@@ -198,6 +198,10 @@ GitHub OIDC `2.2` template updates in the validation account before the new live
 pass. No successful live `bootstrap check` workflow run is recorded yet, and the package never
 performs the bootstrap update itself.
 
+> Historical checkpoint: this was true on 2026-08-24 and is superseded by the successful release
+> evidence recorded later in this log. The original claim is retained because it describes the
+> deployment state and uncertainty at that point in the rollout.
+
 ## Coupling credential-path validation — 2026-08-26
 
 The Coupling integration appears to have proven that a minimally scoped GitHub fine-grained PAT is

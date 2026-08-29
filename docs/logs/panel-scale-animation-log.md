@@ -13,11 +13,12 @@ treatments:
   progress frontier.
 - `status-weather` — ambient haze, pressure bands, and several independently drifting points.
 
-When `running_animation` is omitted, the client chooses one of the seven visible treatments at
+**Historical seven-treatment phase (2026-08-25; superseded when falling-shapes was added).** When
+`running_animation` was omitted, the client chose one of the seven visible treatments at
 random when the panel mounts and retains it for that panel lifetime. Explicit `radial`, `runway`,
 `orbit`, and `signal-field` values remain supported. `off` still suppresses an active-run treatment.
 
-The local `pipeline-animation-demo` rotates all seven visible treatments, in this order: radial,
+At that point, the local `pipeline-animation-demo` rotated all seven visible treatments, in this order: radial,
 runway, orbit, signal-field, telemetry-bloom, release-transit, status-weather. Each run lasts 20
 seconds and becomes overdue after its 15-second estimate.
 

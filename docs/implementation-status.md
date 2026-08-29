@@ -11,8 +11,7 @@ status.
 
 Detailed dated slices are recorded in [the Stage 4 HTTP value log](logs/stage4-http-value-log.md),
 the earlier [Stage 2 GitHub Actions log](logs/stage2-github-actions-log.md), and the [dashboard
-package and deployment log](logs/dashboard-package-log.md). See the full
-[implementation-log index](logs/README.md) for all records. The current layout-resolution decisions
+package and deployment log](logs/dashboard-package-log.md). The current layout-resolution decisions
 and verification are recorded in the [layout resolution log](logs/layout-resolution-log.md).
 
 ## Deployment status

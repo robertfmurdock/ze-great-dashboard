@@ -11,6 +11,12 @@ Currently at **Stage 1**: the immutable shell renders, with no data behind it. N
 the handful of things that look like bugs and are not. Read it before "fixing" something odd, and
 before the first deploy: it is explicit about what has never been executed.
 
+After a substantial work slice reaches a meaningful completion point, record the reasoning and
+discoveries before context is lost, even if nobody separately asks for it. Consult
+[`docs/logging-guidance.md`](docs/logging-guidance.md) for the lightweight prompts. Routine fixes and
+routine passing checks do not require log entries; do not gather extensive historical context first
+or turn verification into a test-results transcript.
+
 ## The two rules
 
 **1. `npm run check` before declaring anything done.** Lint, typecheck, and tests; about 1.5 seconds.
