@@ -163,8 +163,8 @@ describe('pipeline-status refresh scheduling', () => {
 
     expect(requests.some((url) => url.endsWith('/build'))).toBe(true)
     expect(rendered.textContent).toContain('Took 2m 14s')
-    expect(rendered.textContent).toContain('Run updated')
-    expect(rendered.textContent).toContain('Checked')
+    expect(rendered.textContent).toContain('Last update')
+    expect(rendered.textContent).not.toContain('Checked')
   })
 
   it('shows concise live activity only for in-progress runs', async () => {
@@ -187,7 +187,7 @@ describe('pipeline-status refresh scheduling', () => {
     expect(rendered.textContent).not.toContain('in_progress')
   })
 
-  it('does not treat an old upstream timestamp as a stale check', async () => {
+  it('shows the source update age instead of browser poll evidence', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-28T12:10:00.000Z'))
     setup(
@@ -214,13 +214,8 @@ describe('pipeline-status refresh scheduling', () => {
     )
     const rendered = render(<App env={env} />)
     await settle()
-    expect(rendered.textContent).toContain('Checked just now')
-    expect(
-      Array.from(rendered.querySelectorAll('p')).filter((element) =>
-        element.className.includes('stale'),
-      ),
-    ).toHaveLength(1)
-    expect(rendered.textContent).toContain('Run updated 1h 10m ago')
+    expect(rendered.textContent).not.toContain('Checked')
+    expect(rendered.textContent).toContain('Last update 1h 10m ago')
   })
 
   it('does not show duration while a run is in progress', async () => {
@@ -473,6 +468,46 @@ describe('pipeline-status refresh scheduling', () => {
     expect(saved.events.some((event: { status?: number }) => event.status === 304)).toBe(true)
   })
 
+  it('keeps the last signal visible while missed updates escalate and clear on recovery', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
+    const offline = () => {
+      const failure = Promise.reject(new Error('offline'))
+      failure.catch(() => undefined)
+      return failure
+    }
+    setup(
+      { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
+      {
+        build: [
+          new Response(okEnvelope('build', 'passed')),
+          offline(),
+          offline(),
+          offline(),
+          new Response(okEnvelope('build', 'passed')),
+        ],
+      },
+    )
+
+    const rendered = render(<App env={env} />)
+    await settle()
+    expect(rendered.textContent).toContain('✓ Passed')
+    expect(rendered.textContent).not.toContain('Updates delayed')
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(rendered.textContent).toContain('✓ Passed')
+    expect(rendered.textContent).toContain('Updates delayed · offline')
+    expect(rendered.textContent).toContain('Last confirmed just now')
+
+    await act(async () => vi.advanceTimersByTimeAsync(2_000))
+    expect(rendered.textContent).toContain('Updates unavailable · offline')
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(rendered.textContent).not.toContain('Updates delayed')
+    expect(rendered.textContent).not.toContain('Updates unavailable')
+    expect(rendered.textContent).not.toContain('Last confirmed')
+  })
+
   it('makes an empty workflow result clear on the panel', async () => {
     setup(
       { panels: [{ id: 'build', type: 'pipeline-status' }] },
@@ -504,6 +539,32 @@ describe('pipeline-status refresh scheduling', () => {
     expect(link?.getAttribute('href')).toBe(
       'https://github.com/example-org/example-repo/actions/workflows/build.yml',
     )
+  })
+
+  it('makes source access problems explicit without inventing an incident time', async () => {
+    setup(
+      { panels: [{ id: 'build', type: 'pipeline-status' }] },
+      {
+        build: [
+          new Response(
+            JSON.stringify({
+              panelId: 'build',
+              state: 'error',
+              observedAt: '2026-08-18T12:00:00.000Z',
+              link: 'https://github.com/example-org/example-repo/actions/workflows/build.yml',
+              error: { kind: 'unauthorized', message: 'Token no longer grants workflow access.' },
+            }),
+          ),
+        ],
+      },
+    )
+
+    const rendered = render(<App env={env} />)
+    await settle()
+    expect(rendered.textContent).toContain('Access denied')
+    expect(rendered.textContent).toContain('Token no longer grants workflow access.')
+    expect(rendered.textContent).not.toContain('Observed')
+    expect(rendered.textContent).not.toContain('Checked')
   })
 
   it('keeps the source link when a pipeline signal is invalid', async () => {
@@ -629,7 +690,7 @@ describe('http-value panels', () => {
 
     const rendered = render(<App env={env} />)
     await act(async () => {})
-    expect(rendered.textContent).toContain('Unable to read')
+    expect(rendered.textContent).toContain('Source unavailable')
     expect(rendered.querySelector('[data-panel-link]')?.getAttribute('href')).toBe(
       'https://service.example.com/status',
     )

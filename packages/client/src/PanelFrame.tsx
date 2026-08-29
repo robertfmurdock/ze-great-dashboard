@@ -28,7 +28,7 @@ export function PanelMetadata({
   value,
   title,
   observed = false,
-  stale = false,
+  emphasis,
   className,
 }: {
   glyph: string
@@ -36,12 +36,12 @@ export function PanelMetadata({
   value: ReactNode
   title?: string
   observed?: boolean
-  stale?: boolean
+  emphasis?: 'warning' | 'serious'
   className?: string
 }) {
   return (
     <p
-      className={`${styles.hint} ${observed ? styles.observed : ''} ${stale ? styles.stale : ''} ${styles.meta} ${className ?? ''}`}
+      className={`${styles.hint} ${observed ? styles.observed : ''} ${emphasis ? styles[emphasis] : ''} ${styles.meta} ${className ?? ''}`}
       data-panel-meta
     >
       <span aria-hidden="true">{glyph}</span> <span className="screen-reader-only">{label}: </span>
@@ -55,11 +55,19 @@ export function PanelMetadata({
 export function PanelStatus({
   children,
   status,
+  emphasis,
 }: {
   children: ReactNode
   status?: PanelStatusKind
+  emphasis?: 'warning' | 'serious'
 }) {
-  return <p className={`${styles.status} ${status ? styles[status] : ''}`}>{children}</p>
+  return (
+    <p
+      className={`${styles.status} ${status ? styles[status] : ''} ${emphasis ? styles[emphasis] : ''}`}
+    >
+      {children}
+    </p>
+  )
 }
 
 export function PanelFrame({

@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cacheMetadata, type DiagnosticSink } from './diagnostics.ts'
 import { panelDiagnosticChanged, projectPanelDiagnostic } from './panel-diagnostics.ts'
 import { BrowserPanelMemory, resolvePanelMemoryIdentity } from './panel-memory.ts'
+import type { PanelUpdateHealth } from './panel-props.ts'
 import { reconcilePipelineResponse } from './pipeline-reconciliation.ts'
 import { nextPollDelayMillis } from './polling-schedule.ts'
 
@@ -25,7 +26,9 @@ export function usePanelSignals({
   memory?: BrowserPanelMemory
 }) {
   const [signals, setSignals] = useState<Record<string, Envelope | undefined>>({})
-  const [checkedAt, setCheckedAt] = useState<Record<string, string | undefined>>({})
+  const [updateHealth, setUpdateHealth] = useState<Record<string, PanelUpdateHealth | undefined>>(
+    {},
+  )
   const signalsRef = useRef<Record<string, Envelope | undefined>>({})
   const memoryRef = useRef<BrowserPanelMemory | null>(null)
   if (!memoryRef.current) memoryRef.current = memory ?? new BrowserPanelMemory()
@@ -33,7 +36,7 @@ export function usePanelSignals({
   useEffect(() => {
     signalsRef.current = {}
     setSignals({})
-    setCheckedAt({})
+    setUpdateHealth({})
     if (!board) return
 
     let cancelled = false
@@ -52,18 +55,39 @@ export function usePanelSignals({
       const settings = resolvePollingSettings(board, panel)
       const path = `${env.proxyPath}/panel/${encodeURIComponent(env.board)}/${encodeURIComponent(panel.id)}`
       let lastEnvelope: Envelope | undefined
+      let lastConfirmedAt: string | undefined
+      const recordConfirmedUpdate = () => {
+        lastConfirmedAt = new Date().toISOString()
+        if (!cancelled)
+          setUpdateHealth((current) => {
+            if (!current[panel.id]) return current
+            const next = { ...current }
+            delete next[panel.id]
+            return next
+          })
+      }
+      const recordUpdateFailure = (error: unknown) => {
+        const confirmedAt = lastConfirmedAt
+        if (cancelled || !confirmedAt) return
+        const message = errorMessage(error)
+        setUpdateHealth((current) => {
+          const previous = current[panel.id]
+          return {
+            ...current,
+            [panel.id]: {
+              consecutiveFailures: (previous?.consecutiveFailures ?? 0) + 1,
+              message,
+              lastConfirmedAt: confirmedAt,
+            },
+          }
+        })
+      }
       const refresh = () => {
         if (cancelled || inFlight) return
         inFlight = true
         diagnostics.record({ kind: 'panel-fetch-start', panelId: panel.id, path })
         fetch(path)
           .then(async (response) => {
-            if (!cancelled) {
-              setCheckedAt((current) => ({
-                ...current,
-                [panel.id]: new Date().toISOString(),
-              }))
-            }
             const transport = {
               kind: 'panel-fetch-response' as const,
               panelId: panel.id,
@@ -73,6 +97,7 @@ export function usePanelSignals({
             }
             if (response.status === 304) {
               diagnostics.record(transport)
+              recordConfirmedUpdate()
               return undefined
             }
             try {
@@ -86,9 +111,11 @@ export function usePanelSignals({
                   path,
                   message: 'Response was not a valid signal envelope.',
                 })
+                recordUpdateFailure('Response was not a valid signal envelope.')
                 return undefined
               }
               diagnostics.record({ ...transport, envelope })
+              recordConfirmedUpdate()
               return { envelope, cache: transport.cache, status: response.status }
             } catch (error) {
               diagnostics.record(transport)
@@ -170,6 +197,7 @@ export function usePanelSignals({
             }
           })
           .catch((error) => {
+            recordUpdateFailure(error)
             if (!(error instanceof DiagnosticParseFailure)) {
               diagnostics.record({
                 kind: 'panel-fetch-failure',
@@ -201,7 +229,7 @@ export function usePanelSignals({
     }
   }, [board, diagnostics, env.board, env.proxyPath])
 
-  return { signals, checkedAt }
+  return { signals, updateHealth }
 }
 
 function errorMessage(error: unknown) {

@@ -287,6 +287,7 @@ test('adapts density independently across wide, square, narrow, and tall cells',
       },
       {
         id: 'compact-narrow',
+        label: 'Coupling Updates',
         type: 'pipeline-status',
         density: 'compact',
         position: { x: 6, y: 0, w: 1, h: 2 },
@@ -354,6 +355,25 @@ test('adapts density independently across wide, square, narrow, and tall cells',
   expect(layout.every((panel, index) => index === 0 || panel.left >= layout[index - 1].right)).toBe(
     true,
   )
+
+  const sourceCorner = await page.locator('[data-panel-id="compact-narrow"]').evaluate((panel) => {
+    const action = panel.querySelector<HTMLElement>('[data-panel-link]')
+    const label = panel.querySelector('h2')
+    if (!action || !label) return { textOverlapsAction: true }
+    const range = document.createRange()
+    range.selectNodeContents(label)
+    const actionRect = action.getBoundingClientRect()
+    return {
+      textOverlapsAction: [...range.getClientRects()].some(
+        (rect) =>
+          rect.left < actionRect.right &&
+          rect.right > actionRect.left &&
+          rect.top < actionRect.bottom &&
+          rect.bottom > actionRect.top,
+      ),
+    }
+  })
+  expect(sourceCorner.textOverlapsAction).toBe(false)
 })
 
 test('uses compact pull-request facts only in narrow compact panels', async ({ page }) => {

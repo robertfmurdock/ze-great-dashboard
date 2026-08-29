@@ -349,3 +349,44 @@ changed the healthcheck to the explicit Node path and reproduced a healthy conta
    `.github/workflows/main.yml` against `terraform output`.
 5. Stage 2 begins with **Stage 0** — capturing real upstream fixtures. `fixtures/README.md` lists
    what must be captured and why nothing there may be invented.
+
+---
+
+## Intentional panel breathing room (2026-08-29)
+
+Populated boards showed that vertically centering a compact evidence stack made tall panels read as
+accidentally empty. Panels now share an upper-edge reading anchor: label, primary signal, and
+supporting facts form a compact stack, while remaining space sits below it as deliberate breathing
+room. The fixed grid and its `position`/`density` contract remain the only layout API.
+
+The source link continues to occupy the upper-right corner, but its corner is now reserved from
+panel content so label text cannot appear beneath it. A browser test measures the rendered label
+line boxes against the control, rather than treating a CSS declaration as the contract.
+
+“Checked just now” was previously styled with the warning color because the shared timestamp helper
+unconditionally marked every successful check as stale. A completed check is evidence, not a
+warning, so routine freshness disclosure is muted. Yellow remains reserved for a future overdue
+policy; no threshold was guessed in this visual cleanup.
+
+---
+
+## Actionable panel freshness (2026-08-29)
+
+The ordinary browser poll timestamp was removed from panel content. It answered only that this
+particular browser made a request, while the useful operational question is whether the source has
+changed: completed pipelines now say “Last update”, active ones say “Started”, and panels without a
+source-update timestamp say “Observed”. Source-reported errors deliberately have no timestamp,
+because the envelope records when the dashboard received an error, not when that source incident
+began.
+
+Browser-side update failures are a separate condition from source-reported errors. They preserve
+the last valid source result and attach a glyph-and-label update-health warning with the failure
+reason and the last successful local confirmation. The warning escalates from “Updates delayed” to
+“Updates unavailable” after the third consecutive missed scheduled refresh, then clears on the
+next valid response or 304. This keeps a transient refresh interruption visible without replacing
+the actual signal, while preventing an indefinitely green panel from concealing a broken update
+path.
+
+Source errors now use actionable headings — for example, “Access denied” and “Source unavailable”
+— with the adapter’s detailed message and the source link retained. No API, config, persistence,
+or dependency change was needed.

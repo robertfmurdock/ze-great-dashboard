@@ -1,29 +1,52 @@
 import { PanelMetadata } from './PanelFrame.tsx'
+import type { PanelUpdateHealth } from './panel-props.ts'
 
-export function CheckedAt({ value }: { value: string }) {
-  return <TimeAge value={value} stale label="Checked" variant="age" />
+export function ObservedAt({ value }: { value: string }) {
+  return <TimeAge value={value} label="Observed" />
 }
 
-export function RunAge({ value, running }: { value: string; running: boolean }) {
-  return <TimeAge value={value} label={running ? 'Started' : 'Run updated'} variant="age" />
-}
-
-function TimeAge({
-  value,
-  label,
-  stale = false,
-  variant,
+export function PipelineAge({
+  sourceUpdatedAt,
+  observedAt,
+  running,
+  runStartedAt,
 }: {
-  value: string
-  label: string
-  stale?: boolean
-  variant: 'clock' | 'age'
+  sourceUpdatedAt?: string
+  observedAt: string
+  running: boolean
+  runStartedAt?: string
 }) {
+  if (running && runStartedAt) return <TimeAge value={runStartedAt} label="Started" />
+  return (
+    <TimeAge
+      value={sourceUpdatedAt ?? observedAt}
+      label={sourceUpdatedAt ? 'Last update' : 'Observed'}
+    />
+  )
+}
+
+export function UpdateHealth({ health }: { health: PanelUpdateHealth }) {
+  const unavailable = health.consecutiveFailures >= 3
+  const label = unavailable ? 'Updates unavailable' : 'Updates delayed'
+  return (
+    <>
+      <PanelMetadata
+        glyph="⚠"
+        label={label}
+        value={`${label} · ${health.message}`}
+        title={health.message}
+        emphasis={unavailable ? 'serious' : 'warning'}
+      />
+      <TimeAge value={health.lastConfirmedAt} label="Last confirmed" />
+    </>
+  )
+}
+
+function TimeAge({ value, label }: { value: string; label: string }) {
   const observed = new Date(value)
   const formatted = observed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const age = Date.now() - observed.getTime()
-  const content =
-    variant === 'clock' ? `${label} ${formatted} · ${formatAge(age)}` : `${label} ${formatAge(age)}`
+  const content = `${label} ${formatAge(age)}`
   return (
     <PanelMetadata
       glyph="◷"
@@ -31,7 +54,6 @@ function TimeAge({
       value={content}
       title={`${label} at ${formatted}`}
       observed
-      stale={stale}
     />
   )
 }

@@ -31,9 +31,7 @@ afterEach(cleanup)
 
 describe('PullRequestHealthPanel', () => {
   it('renders the aggregate status, compact facts, and full summary together', () => {
-    const rendered = render(
-      <PullRequestHealthPanel panel={panel} envelope={envelope} checkedAt={envelope.observedAt} />,
-    ).container
+    const rendered = render(<PullRequestHealthPanel panel={panel} envelope={envelope} />).container
 
     expect(rendered.textContent).toContain('✓ Healthy')
     expect(rendered.querySelector('[data-compact-facts]')?.textContent).toContain('1 workflow')

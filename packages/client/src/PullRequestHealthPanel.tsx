@@ -1,26 +1,28 @@
 import { pullRequestHealthSchema } from '@ze-great-dashboard/shared'
+import { errorPresentation } from './error-presentation.ts'
 import { PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
 import styles from './PullRequestHealthPanel.module.css'
 import type { PanelProps } from './panel-props.ts'
 import { statusPresentation } from './panel-status.ts'
 import { compactPullRequestHealthFacts } from './pull-request-health.ts'
-import { CheckedAt } from './TimeAge.tsx'
+import { ObservedAt, UpdateHealth } from './TimeAge.tsx'
 
-export function PullRequestHealthPanel({ panel, envelope, checkedAt }: PanelProps) {
+export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelProps) {
   if (!envelope)
     return (
       <PanelFrame panel={panel}>
         <PanelHint>Loading…</PanelHint>
       </PanelFrame>
     )
-  if (envelope.state === 'error')
+  if (envelope.state === 'error') {
+    const presentation = errorPresentation(envelope.error.kind)
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <PanelStatus>⚠ Unable to read</PanelStatus>
+        <PanelStatus emphasis={presentation.emphasis}>⚠ {presentation.label}</PanelStatus>
         <PanelHint>{envelope.error.message}</PanelHint>
-        {checkedAt && <CheckedAt value={checkedAt} />}
       </PanelFrame>
     )
+  }
   const signal = pullRequestHealthSchema.safeParse(envelope.signal)
   if (!signal.success)
     return (
@@ -49,7 +51,8 @@ export function PullRequestHealthPanel({ panel, envelope, checkedAt }: PanelProp
           {compactFacts.secondary}
         </p>
       </div>
-      {checkedAt && <CheckedAt value={checkedAt} />}
+      <ObservedAt value={envelope.observedAt} />
+      {updateHealth && <UpdateHealth health={updateHealth} />}
     </PanelFrame>
   )
 }

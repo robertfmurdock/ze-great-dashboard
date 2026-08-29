@@ -3,7 +3,8 @@
   grid-row: var(--panel-row, auto);
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* A panel reads from its upper edge; the remaining lower area is deliberate breathing room. */
+  justify-content: flex-start;
   gap: 0.15em;
   min-width: 0;
   min-height: 0;
@@ -24,11 +25,15 @@
   display: flex;
   flex: 0 1 auto;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.1em;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+/* The source link owns its corner, so the label and evidence never render beneath it. */
+.panel:has(.sourceAction) .content {
+  padding-inline-end: 2.25em;
 }
 .content > *,
 .details > * {
@@ -96,8 +101,11 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.stale {
+.warning {
   color: var(--status-warning);
+}
+.serious {
+  color: var(--status-serious);
 }
 .status {
   margin: 0;

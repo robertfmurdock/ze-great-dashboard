@@ -3,6 +3,7 @@ import type { Board, ClientEnv, Envelope } from '@ze-great-dashboard/shared'
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DiagnosticEventInput, DiagnosticSink } from '../src/diagnostics.ts'
+import type { PanelUpdateHealth } from '../src/panel-props.ts'
 import { usePanelSignals } from '../src/usePanelSignals.ts'
 
 const env: ClientEnv = {
@@ -26,16 +27,16 @@ function Probe({
   diagnostics,
   currentBoard = board,
   onSignals,
-  onCheckedAt,
+  onUpdateHealth,
 }: {
   diagnostics: DiagnosticSink
   currentBoard?: Board
   onSignals?: (signals: Record<string, Envelope | undefined>) => void
-  onCheckedAt?: (checkedAt: Record<string, string | undefined>) => void
+  onUpdateHealth?: (updateHealth: Record<string, PanelUpdateHealth | undefined>) => void
 }) {
   const result = usePanelSignals({ board: currentBoard, env, diagnostics })
   onSignals?.(result.signals)
-  onCheckedAt?.(result.checkedAt)
+  onUpdateHealth?.(result.updateHealth)
   return null
 }
 
@@ -147,36 +148,40 @@ describe('usePanelSignals', () => {
     }
   })
 
-  it('updates the checked time when the server returns not modified', async () => {
+  it('surfaces missed updates and clears them when the server returns not modified', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
     const diagnostics = recordingSink()
+    const offline = Promise.reject(new Error('offline'))
+    offline.catch(() => undefined)
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(new Response(envelope()))
+      .mockReturnValueOnce(offline)
       .mockResolvedValueOnce(new Response(null, { status: 304 }))
     vi.stubGlobal('fetch', fetcher)
-    const checkedTimes = new Set<string>()
+    const healthSnapshots: Array<Record<string, PanelUpdateHealth | undefined>> = []
 
     render(
-      <Probe
-        diagnostics={diagnostics}
-        onCheckedAt={(value) => {
-          const checked = value.build
-          if (checked) checkedTimes.add(checked)
-        }}
-      />,
+      <Probe diagnostics={diagnostics} onUpdateHealth={(value) => healthSnapshots.push(value)} />,
     )
     await act(async () => {})
     await act(async () => {
       vi.setSystemTime(new Date('2026-08-28T12:00:01.000Z'))
       await vi.advanceTimersByTimeAsync(1_000)
     })
+    expect(healthSnapshots.at(-1)?.build).toMatchObject({
+      consecutiveFailures: 1,
+      message: 'offline',
+      lastConfirmedAt: '2026-08-28T12:00:00.000Z',
+    })
+    await act(async () => {
+      vi.setSystemTime(new Date('2026-08-28T12:00:02.000Z'))
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
 
-    expect(fetcher).toHaveBeenCalledTimes(2)
-    const times = [...checkedTimes].map((value) => Date.parse(value))
-    expect(times).toHaveLength(2)
-    expect(times[1]).toBeGreaterThan(times[0] as number)
+    expect(fetcher).toHaveBeenCalledTimes(3)
+    expect(healthSnapshots.at(-1)?.build).toBeUndefined()
   })
 
   it('cleans up polling and never overlaps a pending request', async () => {
