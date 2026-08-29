@@ -10,34 +10,31 @@ signals from their authorities: a lens, not a system of record.
 
 ![README panel-state gallery](docs/assets/readme-panel-states.png)
 
-This fixture-driven gallery shows the six states a dashboard needs to communicate honestly: passed,
-running, failed, cancelled, unknown, and a source error. Status is never color alone; each state is
-paired with a glyph and a readable label.
+The dashboard communicates six states honestly: passed, running, failed, cancelled, unknown, and a
+source error. Status is never color alone; each state is paired with a glyph and a readable label.
 
 ![Animated Ze Great Dashboard preview](docs/assets/readme-demo.gif)
 
-This preview shows the read-only animation showcase using fixture data.
-
-The two README visuals are source-free and safe to regenerate locally. Run
-`npm run capture:readme:states` for the static gallery or `npm run capture:readme` for the animated
-preview. The capture details and inspection commands are in
-[`docs/capture-readme-demo.md`](docs/capture-readme-demo.md).
+This preview shows the active pipeline treatments available on running pipeline panels.
 
 It is for teams that want a big, visible answer to “are the things we rely on working now?” It is
 not a metrics warehouse, historical analytics product, hosted SaaS, or a replacement for the systems
 that own the underlying facts.
 
-## What works today
+## What it can show
 
-The current release supports GitHub Actions `pipeline-status` panels and source-agnostic
-`http-value` panels. Azure DevOps and additional adapters are deferred; historical analytics and
-persistence are intentionally outside the product boundary.
+You can configure GitHub Actions `pipeline-status` panels and source-agnostic `http-value` panels
+for scalar text or small JSON-path lookups. Panels poll independently, show when their reading was
+observed, and report upstream failures instead of appearing healthy or blank.
 
-## Choose a path
+The dashboard does not yet include Azure DevOps or other CI adapters. Historical analytics,
+hosted-SaaS operation, and server-side persistence are intentionally outside its scope.
 
-### Run it locally
+## Get started
 
-Clone this repository, install its dependencies, and start the dashboard:
+### Try it locally
+
+Clone the repository, install its dependencies, and start the dashboard:
 
 ```sh
 git clone https://github.com/robertfmurdock/ze-great-dashboard.git
@@ -54,7 +51,7 @@ To use a local board other than the example, point the server at its YAML file:
 BOARD_CONFIG_URL="$PWD/boards/ze-great-team.yaml" npm run dev
 ```
 
-### Run the published Docker image
+### Run it with Docker
 
 With a `board.yaml` in the current directory, run the published image directly:
 
@@ -84,15 +81,14 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
 ### Deploy on AWS
 
 The published [`@continuous-excellence/ze-great-dashboard-aws`](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
-package contains the Lambda runtime, CLI, compatible client, and CloudFormation template. Its
-[AWS deployment guide](https://github.com/robertfmurdock/ze-great-dashboard/blob/main/packages/aws/README.md)
-walks a consumer-managed deployment from bootstrap through a protected gateway.
+package contains the Lambda runtime, CLI, compatible client, and CloudFormation template. The
+[AWS deployment guide](docs/aws-setup.md) walks a consumer-managed deployment from bootstrap
+through a protected gateway.
 
 ## How it works
 
-The browser receives an immutable client build, while a small stateless server supplies the current
-entrypoint and safely reads named signals through a same-origin proxy. Board YAML describes what to
-show; it is not where credentials live.
+The browser loads a versioned client, while a small stateless server reads named signals through a
+same-origin proxy. Board YAML describes what to show; it is not where credentials live.
 
 ```text
 browser ──► stateless server ──► current signal authorities
@@ -101,14 +97,13 @@ browser ──► stateless server ──► current signal authorities
    └── immutable, versioned client assets from CDN
 ```
 
-The client contains no environment values. At request time, the server fetches the selected client
-version’s `index.html`, injects public configuration, and serves that document without caching; the
-hashed client assets remain immutable. This makes promotion or rollback of a client version a server
-configuration change rather than a rebuild.
+The client assets are immutable and contain no environment-specific values. The server supplies the
+entrypoint and public configuration at request time, so changing the selected client version does
+not require rebuilding it.
 
 ## Trust and security principles
 
-- No persistence: the dashboard renders what the authority says now and keeps no server-side ledger. A bounded diagnostic record is the narrow exception: it remains only in each viewer's browser, is never uploaded, and can be exported or cleared by that viewer.
+- No server-side persistence: the dashboard renders what the authority says now and keeps no ledger. A bounded diagnostic record remains only in each viewer's browser, is never uploaded, and can be exported or cleared by that viewer.
 - Board YAML names credential environment variables; token values belong in runtime secret handling,
   never in YAML or source control.
 - Browser-visible configuration is public-only. Secrets remain server-side.
@@ -117,11 +112,8 @@ configuration change rather than a rebuild.
 ## Documentation
 
 - [Board configuration](docs/board-configuration.md) — panel and source YAML schema.
-- [1.0 commitment](docs/1.0-commitment.md) — the evidence required before calling the product 1.0.
 - [AWS deployment](docs/aws-setup.md) — deploy a private Lambda after administrator bootstrap.
 - [AWS bootstrap](docs/aws-bootstrap.md) — one-time setup for an AWS and GitHub administrator.
-- [Architecture and design rationale](docs/original-pitch.md) — the lens-not-ledger model and immutable application design.
-- [Infrastructure notes](infra/README.md) — repository-owned AWS setup.
 
 ## Contributing
 

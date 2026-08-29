@@ -29,6 +29,28 @@ packages. Say what it buys and what it costs in the change that adds it. This is
 `app.request()` covers it), no husky (`core.hooksPath` covers it), and no separate formatter (Biome
 does both).
 
+## Consumer-facing documentation
+
+README files and setup, deployment, and configuration guides are for people deciding whether to use
+the dashboard or trying to use it—not for contributors reconstructing the repository. Before
+editing one, name its audience and the decision or task the reader needs to complete. Review the
+result as a first-time consumer with no repository context:
+
+- Does it say what the product does, what is supported, what is out of scope, and what the reader
+  should do next?
+- Do every command, link, version, default, and configuration example match the current product and
+  work for the audience being addressed?
+- Does each section help the reader evaluate, install, configure, deploy, or safely operate the
+  product? If it mainly explains implementation history, test mechanics, release internals, or
+  contributor workflow, move it to contributor or architecture documentation.
+- Can a consumer understand security boundaries and required ownership without knowing package
+  names, internal stages, or the repository's development history?
+
+Keep the top-level README especially short and consumer-oriented. Do a final pass looking for
+contributor vocabulary such as “the repository currently,” implementation status, test commands,
+capture scripts, internal roadmaps, or design archaeology; remove it unless it directly helps a
+consumer succeed.
+
 **Tests justify themselves by running the code they test through its real interface.** A test that
 only checks source text or repeats an implementation detail has no meaningful behavioral value. For
 example, tests of SQL must execute the SQL against the database engine that interprets it; tests of
