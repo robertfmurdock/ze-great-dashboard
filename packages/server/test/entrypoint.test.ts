@@ -1,5 +1,5 @@
 import { type BoardConfig, clientEnvSchema } from '@ze-great-dashboard/shared'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { createApp } from '../src/app.ts'
 import { loadConfig } from '../src/config.ts'
@@ -86,11 +86,17 @@ describe('the entrypoint document', () => {
 
   it('refuses a template with nowhere to put configuration', async () => {
     const app = appWith({}, '<html><body>no head here</body></html>')
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     // Reserving 5xx for the proxy's own breakage is deliberate: a template with no <head> is the
     // proxy being unable to do its job, not a report about an upstream. (Startup catches this
     // first in practice — see startup.test.ts — so this path is the belt to that suspenders.)
-    const response = await app.request('/')
+    let response: Response
+    try {
+      response = await app.request('/')
+    } finally {
+      error.mockRestore()
+    }
     expect(response.status).toBe(500)
   })
 

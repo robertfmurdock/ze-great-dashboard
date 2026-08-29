@@ -39,6 +39,16 @@ function run(command, args, env = process.env) {
   })
 }
 
+function browserTestEnvironment(environment) {
+  if (environment.NO_COLOR === undefined) return environment
+
+  // Playwright forces color in its worker processes. Node warns when that conflicts with the
+  // caller's NO_COLOR preference, so remove the conflicting variable and explicitly preserve
+  // plain reporter output.
+  const { NO_COLOR: _noColor, ...withoutNoColor } = environment
+  return { ...withoutNoColor, DEBUG_COLORS: '0' }
+}
+
 let exitCode = 0
 let composeAttempted = false
 
@@ -62,7 +72,7 @@ try {
   }
 
   if (exitCode === 0 && !interruptedBy) {
-    exitCode = await run(npmCommand, npmArgs, testEnvironment)
+    exitCode = await run(npmCommand, npmArgs, browserTestEnvironment(testEnvironment))
   }
 } catch (error) {
   console.error(error)

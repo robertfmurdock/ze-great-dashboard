@@ -19,6 +19,7 @@ const panel = {
   pipeline: 'build.yml',
 } as const
 const source = { type: 'github-actions', repo: 'example-org/example-repo' } as const
+const TEMPLATE = '<!doctype html><html><head></head><body></body></html>'
 const githubCredentials: CredentialResolver = {
   get: (name) => (name === 'GITHUB_TOKEN' ? 'secret-token' : undefined),
 }
@@ -386,6 +387,10 @@ describe('the panel route', () => {
   })
 
   it('keeps a resolved token server-only', async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      if (url === 'https://assets.example.com/1.0.0/index.html') return new Response(TEMPLATE)
+      return new Response(JSON.stringify({ workflow_runs: [fixture('success')] }))
+    }) as unknown as typeof fetch
     const app = createApp({
       config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
       boardConfig: {
@@ -393,7 +398,7 @@ describe('the panel route', () => {
         boards: { 'ze-great-team': { panels: [panel] } },
       },
       credentials: githubCredentials,
-      fetcher: upstream('success'),
+      fetcher,
     })
     const panelResponse = await app.request('/api/panel/ze-great-team/web-build')
     const html = await (await app.request('/')).text()
