@@ -60,7 +60,7 @@ describe('AWS deployment contract', () => {
     const board = join(await mkdtemp('/tmp/dashboard-aws-private-board-'), 'board.yaml')
     await writeFile(
       board,
-      `# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.0.0/board-config.schema.json\nsources:\n  github:\n    type: github-actions\n    token_env: GITHUB_TOKEN\nboards:\n  team:\n    panels:\n      - id: build\n        type: pipeline-status\n        source: github\n`,
+      `# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/0.18.0/board-config.schema.json\nsources:\n  github:\n    type: github-actions\n    token_env: GITHUB_TOKEN\nboards:\n  team:\n    panels:\n      - id: build\n        type: pipeline-status\n        source: github\n`,
     )
     await expect(
       packageLambda({

@@ -15,7 +15,7 @@ export async function loadBoardConfig(
   const text = isUrl(location)
     ? await fetchBoardConfig(location, fetcher)
     : await readFile(location, 'utf-8')
-  const authoredSchemaUrl = readBoardSchemaModeline(text)
+  const authoredSchemaUrl = readBoardSchemaModeline(text, expectedSchemaUrl)
   const result = boardConfigSchema.safeParse(parseYaml(text))
   if (!result.success) {
     const stale =

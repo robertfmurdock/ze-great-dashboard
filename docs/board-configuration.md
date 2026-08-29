@@ -140,7 +140,14 @@ Set `BOARD` in the runtime environment when deploying a multi-board configuratio
 ## Validation
 
 The configuration is validated before it is loaded. Invalid files should report the schema error
-instead of starting the dashboard. In particular, check that:
+instead of starting the dashboard. Start every board file with a schema modeline:
+
+```yaml
+# yaml-language-server: $schema=https://your-asset-host/dashboard/your-release-version/board-config.schema.json
+```
+
+Replace both URL placeholders with the asset host and release version you publish. The release
+packager rewrites it to that exact release URL automatically. In particular, check that:
 
 - `boards` is a map containing at least one board.
 - Each board contains at least one panel.

@@ -19,7 +19,7 @@ describe('consumer release contract', () => {
     const boardPath = join(root, 'board.yaml')
     await writeFile(
       boardPath,
-      '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.0.0/board-config.schema.json\nboards: {demo: {panels: []}}\nsources: {}\n',
+      '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/0.18.0/board-config.schema.json\nboards: {demo: {panels: []}}\nsources: {}\n',
     )
     await expect(validateBoardConfig(boardPath)).rejects.toThrow(/Invalid board configuration/)
   })
@@ -29,7 +29,7 @@ describe('consumer release contract', () => {
     const boardPath = join(root, 'board.yaml')
     await writeFile(
       boardPath,
-      '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.0.0/board-config.schema.json\nboards: {demo: {panels: [{id: p, type: x}]}}\nsources: {}\n',
+      '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/0.18.0/board-config.schema.json\nboards: {demo: {panels: [{id: p, type: x}]}}\nsources: {}\n',
     )
     const one = await assembleRelease({
       boardConfigPath: boardPath,
@@ -50,7 +50,7 @@ describe('consumer release contract', () => {
     const boardPath = join(root, 'board.yaml')
     await writeFile(
       boardPath,
-      '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.0.0/board-config.schema.json\nboards: {demo: {panels: [{id: build, type: pipeline-status, density: comfortable}, {id: future, type: http-value, density: compact}]}}\nsources: {}\n',
+      '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/0.18.0/board-config.schema.json\nboards: {demo: {panels: [{id: build, type: pipeline-status, density: comfortable}, {id: future, type: http-value, density: compact}]}}\nsources: {}\n',
     )
 
     const result = await validateBoardConfig(boardPath)
@@ -100,8 +100,18 @@ describe('consumer release contract', () => {
   it('requires a valid schema modeline', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dashboard-schema-modeline-'))
     const boardPath = join(root, 'board.yaml')
-    await writeFile(boardPath, 'boards: {demo: {panels: [{id: p, type: x}]}}\n')
-    await expect(validateBoardConfig(boardPath)).rejects.toThrow(/modeline/)
+    await writeFile(
+      boardPath,
+      'boards: {demo: {panels: [{id: p, type: x}]}}\n# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.2.3/board-config.schema.json\n',
+    )
+    await expect(
+      validateBoardConfig(
+        boardPath,
+        'https://public-assets.zegreatrob.com/dashboard/1.2.3/board-config.schema.json',
+      ),
+    ).rejects.toThrow(
+      'Add this as the first line:\n# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.2.3/board-config.schema.json',
+    )
     await writeFile(boardPath, '# yaml-language-server: $schema=not-a-url\nboards: {}\n')
     await expect(validateBoardConfig(boardPath)).rejects.toThrow(/Malformed board schema modeline/)
   })

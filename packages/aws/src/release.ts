@@ -37,7 +37,7 @@ async function validateBoardConfig(
   usesCredentials: boolean
 }> {
   const source = await readFile(resolve(path), 'utf8')
-  const authoredSchemaUrl = readBoardSchemaModeline(source)
+  const authoredSchemaUrl = readBoardSchemaModeline(source, expectedSchemaUrl)
   const result = boardConfigSchema.safeParse(parse(source))
   if (!result.success) {
     const stale =

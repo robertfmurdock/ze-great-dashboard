@@ -37,7 +37,7 @@ export async function validateBoardConfig(
   expectedSchemaUrl?: string,
 ): Promise<ValidatedBoard> {
   const source = await readFile(resolve(path), 'utf8')
-  const schemaUrl = readBoardSchemaModeline(source)
+  const schemaUrl = readBoardSchemaModeline(source, expectedSchemaUrl)
   const result = boardConfigSchema.safeParse(parse(source))
   if (!result.success) {
     const stale =

@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.0.0/board-config.schema.json
+# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/0.18.0/board-config.schema.json
 # This board deliberately has no upstream source or credential. The release reference verifies the
 # public package/deployment contract, while panel availability belongs to each consumer's setup.
 sources: {}

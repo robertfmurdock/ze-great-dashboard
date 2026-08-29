@@ -5,9 +5,12 @@ export function schemaUrlForAssetPath(assetPath: string): string {
   return `${assetPath.replace(/\/+$/, '')}/${SCHEMA_FILE}`
 }
 
-export function readBoardSchemaModeline(source: string): string {
-  const line = source.split(/\r?\n/).find((candidate) => candidate.includes('yaml-language-server'))
-  if (!line) throw new Error(`Board configuration must include a ${SCHEMA_FILE} modeline`)
+export function readBoardSchemaModeline(source: string, expectedSchemaUrl?: string): string {
+  const line = source.split(/\r?\n/)[0]
+  if (!line?.includes('yaml-language-server'))
+    throw new Error(
+      `Board configuration must include a ${SCHEMA_FILE} modeline. Add this as the first line:\n# yaml-language-server: $schema=${expectedSchemaUrl ?? `https://<asset-host>/dashboard/<release-version>/${SCHEMA_FILE}`}`,
+    )
   const match = MODEL_LINE.exec(line)
   if (!match?.[1]) {
     throw new Error(
