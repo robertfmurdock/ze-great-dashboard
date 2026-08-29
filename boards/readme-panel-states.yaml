@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.0.0/board-config.schema.json
 # Source-free board used for the README's deterministic panel-state gallery. The capture script
 # supplies the signal envelopes in the browser, so this never calls a live authority.
 boards:

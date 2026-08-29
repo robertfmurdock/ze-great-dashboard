@@ -1,6 +1,13 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { cdnExternalization } from './vite-cdn.ts'
+
+const boardSchema = readFileSync(
+  fileURLToPath(new URL('../shared/board-config.schema.json', import.meta.url)),
+  'utf8',
+)
 
 /**
  * The `base` is a sentinel, not a URL, and it is set unconditionally — in dev as well as in the
@@ -17,7 +24,16 @@ import { cdnExternalization } from './vite-cdn.ts'
  */
 export default defineConfig({
   base: '/__ASSET_PATH__/',
-  plugins: [cdnExternalization(), react()],
+  plugins: [
+    cdnExternalization(),
+    react(),
+    {
+      name: 'emit-board-config-schema',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'board-config.schema.json', source: boardSchema })
+      },
+    },
+  ],
   server: {
     port: 5173,
     strictPort: true,

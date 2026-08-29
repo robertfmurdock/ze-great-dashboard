@@ -20,6 +20,12 @@ export {
   visibleRunningAnimations,
 } from './board-config.ts'
 export {
+  boardSchemaFileName,
+  boardSchemaModeline,
+  readBoardSchemaModeline,
+  schemaUrlForAssetPath,
+} from './board-config-modeline.ts'
+export {
   type ClientEnv,
   type ClientIdentity,
   clientEnvSchema,

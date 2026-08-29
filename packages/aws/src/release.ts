@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import {
+  boardSchemaFileName,
+  boardSchemaModeline,
+  readBoardSchemaModeline,
+} from '@ze-great-dashboard/shared'
 import { parse, stringify } from 'yaml'
 import { z } from 'zod'
 import { boardConfigSchema } from './internal-board.ts'
@@ -23,16 +28,25 @@ function clientAssetUrl(version: string, domain = CANONICAL_ASSET_DOMAIN): strin
   return `${domain.replace(/\/+$/, '')}/dashboard/${version}`
 }
 
-async function validateBoardConfig(path: string): Promise<{
+async function validateBoardConfig(
+  path: string,
+  expectedSchemaUrl: string,
+): Promise<{
   yaml: string
   sha256: string
   usesCredentials: boolean
 }> {
   const source = await readFile(resolve(path), 'utf8')
+  const authoredSchemaUrl = readBoardSchemaModeline(source)
   const result = boardConfigSchema.safeParse(parse(source))
-  if (!result.success)
-    throw new Error(`Invalid board configuration:\n${z.prettifyError(result.error)}`)
-  const yaml = stringify(result.data, { sortMapEntries: true })
+  if (!result.success) {
+    const stale =
+      authoredSchemaUrl !== expectedSchemaUrl
+        ? `\nStale schema modeline: expected ${expectedSchemaUrl}`
+        : ''
+    throw new Error(`Invalid board configuration:\n${z.prettifyError(result.error)}${stale}`)
+  }
+  const yaml = `${boardSchemaModeline(expectedSchemaUrl)}\n${stringify(result.data, { sortMapEntries: true })}`
   return {
     yaml,
     sha256: sha256(yaml),
@@ -48,7 +62,11 @@ export async function assembleRelease(input: {
   assetDomain?: string
   secretReference?: string
 }): Promise<{ metadata: ReleaseMetadata; files: Record<string, string> }> {
-  const board = await validateBoardConfig(input.boardConfigPath)
+  const assetUrl = clientAssetUrl(input.version, input.assetDomain)
+  const board = await validateBoardConfig(
+    input.boardConfigPath,
+    `${assetUrl}/${boardSchemaFileName}`,
+  )
   if (board.usesCredentials && !input.secretReference)
     throw new Error(
       'Board config uses token_env; SecretReference must name a Secrets Manager credential-map or Parameter Store SecureString ARN',
@@ -58,7 +76,7 @@ export async function assembleRelease(input: {
   await writeFile(join(outputDir, 'board.yaml'), board.yaml)
   const metadata: ReleaseMetadata = {
     dashboardVersion: input.version,
-    clientAssetUrl: clientAssetUrl(input.version, input.assetDomain),
+    clientAssetUrl: assetUrl,
     serverRuntimeVersion: CORE_RUNTIME_VERSION,
     supportedProviders: input.providers ?? ['aws-lambda'],
     artifactChecksums: { 'board.yaml': board.sha256 },

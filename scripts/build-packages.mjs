@@ -17,6 +17,7 @@ await Promise.all(
   ),
 )
 await rm(join(directories.aws, 'client'), { recursive: true, force: true })
+await rm(join(directories.aws, 'board-config.schema.json'), { force: true })
 
 await build({
   entryPoints: [join(directories.shared, 'src/index.ts')],
@@ -51,6 +52,10 @@ execFileSync('npm', ['run', 'build', '--workspace', '@ze-great-dashboard/client'
   stdio: 'inherit',
 })
 await cp(join(root, 'packages/client/dist'), join(directories.aws, 'client'), { recursive: true })
+await cp(
+  join(root, 'packages/client/dist/board-config.schema.json'),
+  join(directories.aws, 'board-config.schema.json'),
+)
 
 await build({
   entryPoints: [join(root, 'packages/server/src/lambda.ts')],

@@ -1,8 +1,10 @@
 import {
   type BoardConfig,
+  boardSchemaModeline,
   type ClientEnv,
   type ClientIdentity,
   normalizeBoardLayout,
+  schemaUrlForAssetPath,
 } from '@ze-great-dashboard/shared'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
@@ -100,12 +102,15 @@ export function createApp(deps: AppDependencies): Hono {
     }
 
     const filenameBoard = safeDownloadFilename(boardName)
-    return new Response(stringifyYaml(outputConfig, { sortMapEntries: true }), {
-      headers: {
-        'content-type': 'text/yaml; charset=utf-8',
-        'content-disposition': `attachment; filename="${filenameBoard}-layout-${mode}.yaml"`,
+    return new Response(
+      `${boardSchemaModeline(schemaUrlForAssetPath(config.assetPath))}\n${stringifyYaml(outputConfig, { sortMapEntries: true })}`,
+      {
+        headers: {
+          'content-type': 'text/yaml; charset=utf-8',
+          'content-disposition': `attachment; filename="${filenameBoard}-layout-${mode}.yaml"`,
+        },
       },
-    })
+    )
   }
   app.get('/api/boards/:board/rendered', (c) => layoutDownload(c, 'rendered'))
   app.get('/api/boards/:board/authored', (c) => layoutDownload(c, 'authored'))

@@ -1,7 +1,13 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { type BoardConfig, boardConfigSchema } from '@ze-great-dashboard/shared'
+import {
+  type BoardConfig,
+  boardConfigSchema,
+  boardSchemaFileName,
+  boardSchemaModeline,
+  readBoardSchemaModeline,
+} from '@ze-great-dashboard/shared'
 import { parse, stringify } from 'yaml'
 import { z } from 'zod'
 
@@ -26,13 +32,22 @@ export function clientAssetUrl(version: string, domain = CANONICAL_ASSET_DOMAIN)
   return `${domain.replace(/\/+$/, '')}/dashboard/${version}`
 }
 
-export async function validateBoardConfig(path: string): Promise<ValidatedBoard> {
+export async function validateBoardConfig(
+  path: string,
+  expectedSchemaUrl?: string,
+): Promise<ValidatedBoard> {
   const source = await readFile(resolve(path), 'utf8')
+  const schemaUrl = readBoardSchemaModeline(source)
   const result = boardConfigSchema.safeParse(parse(source))
-  if (!result.success)
-    throw new Error(`Invalid board configuration:\n${z.prettifyError(result.error)}`)
+  if (!result.success) {
+    const stale =
+      expectedSchemaUrl && schemaUrl !== expectedSchemaUrl
+        ? `\nStale schema modeline: expected ${expectedSchemaUrl}`
+        : ''
+    throw new Error(`Invalid board configuration:\n${z.prettifyError(result.error)}${stale}`)
+  }
   // YAML emitted from the parsed value makes equivalent input produce identical artifacts.
-  const yaml = stringify(result.data, { sortMapEntries: true })
+  const yaml = `${boardSchemaModeline(expectedSchemaUrl ?? schemaUrl)}\n${stringify(result.data, { sortMapEntries: true })}`
   return { config: result.data, yaml, sha256: sha256(yaml) }
 }
 
@@ -43,7 +58,11 @@ export async function assembleRelease(input: {
   providers?: string[]
   assetDomain?: string
 }): Promise<{ metadata: ReleaseMetadata; files: Record<string, string> }> {
-  const board = await validateBoardConfig(input.boardConfigPath)
+  const metadataUrl = clientAssetUrl(input.version, input.assetDomain)
+  const board = await validateBoardConfig(
+    input.boardConfigPath,
+    `${metadataUrl}/${boardSchemaFileName}`,
+  )
   const outputDir = resolve(input.outputDir)
   await mkdir(outputDir, { recursive: true })
   const boardPath = join(outputDir, 'board.yaml')

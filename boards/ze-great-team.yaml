@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.0.0/board-config.schema.json
 # The real team radiator configuration. This is intentionally separate from example.yaml so
 # changes made for visual use do not become part of the smallest schema/demo fixture.
 

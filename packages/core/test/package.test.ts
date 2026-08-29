@@ -17,14 +17,20 @@ describe('consumer release contract', () => {
   it('rejects invalid consumer board configuration', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dashboard-invalid-'))
     const boardPath = join(root, 'board.yaml')
-    await writeFile(boardPath, 'boards: {demo: {panels: []}}\nsources: {}\n')
+    await writeFile(
+      boardPath,
+      '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.0.0/board-config.schema.json\nboards: {demo: {panels: []}}\nsources: {}\n',
+    )
     await expect(validateBoardConfig(boardPath)).rejects.toThrow(/Invalid board configuration/)
   })
 
   it('assembles equivalent YAML deterministically without secrets', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dashboard-release-'))
     const boardPath = join(root, 'board.yaml')
-    await writeFile(boardPath, 'boards: {demo: {panels: [{id: p, type: x}]}}\nsources: {}\n')
+    await writeFile(
+      boardPath,
+      '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.0.0/board-config.schema.json\nboards: {demo: {panels: [{id: p, type: x}]}}\nsources: {}\n',
+    )
     const one = await assembleRelease({
       boardConfigPath: boardPath,
       outputDir: join(root, 'one'),
@@ -44,7 +50,7 @@ describe('consumer release contract', () => {
     const boardPath = join(root, 'board.yaml')
     await writeFile(
       boardPath,
-      'boards: {demo: {panels: [{id: build, type: pipeline-status, density: comfortable}, {id: future, type: http-value, density: compact}]}}\nsources: {}\n',
+      '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.0.0/board-config.schema.json\nboards: {demo: {panels: [{id: build, type: pipeline-status, density: comfortable}, {id: future, type: http-value, density: compact}]}}\nsources: {}\n',
     )
 
     const result = await validateBoardConfig(boardPath)
@@ -55,5 +61,48 @@ describe('consumer release contract', () => {
     ])
     expect(result.yaml).toContain('density: comfortable')
     expect(result.yaml).toContain('density: compact')
+  })
+
+  it('canonicalizes an older schema modeline for a valid release', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dashboard-schema-version-'))
+    const boardPath = join(root, 'board.yaml')
+    await writeFile(
+      boardPath,
+      '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/0.9.0/board-config.schema.json\nboards: {demo: {panels: [{id: p, type: x}]}}\n',
+    )
+
+    const result = await validateBoardConfig(
+      boardPath,
+      'https://public-assets.zegreatrob.com/dashboard/1.2.3/board-config.schema.json',
+    )
+
+    expect(result.yaml).toContain(
+      '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/1.2.3/board-config.schema.json',
+    )
+  })
+
+  it('reports configuration and stale-schema errors together', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dashboard-schema-invalid-'))
+    const boardPath = join(root, 'board.yaml')
+    await writeFile(
+      boardPath,
+      '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/0.9.0/board-config.schema.json\nboards: {demo: {panels: []}}\n',
+    )
+
+    await expect(
+      validateBoardConfig(
+        boardPath,
+        'https://public-assets.zegreatrob.com/dashboard/1.2.3/board-config.schema.json',
+      ),
+    ).rejects.toThrow(/Invalid board configuration[\s\S]*panels[\s\S]*Stale schema modeline/)
+  })
+
+  it('requires a valid schema modeline', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dashboard-schema-modeline-'))
+    const boardPath = join(root, 'board.yaml')
+    await writeFile(boardPath, 'boards: {demo: {panels: [{id: p, type: x}]}}\n')
+    await expect(validateBoardConfig(boardPath)).rejects.toThrow(/modeline/)
+    await writeFile(boardPath, '# yaml-language-server: $schema=not-a-url\nboards: {}\n')
+    await expect(validateBoardConfig(boardPath)).rejects.toThrow(/Malformed board schema modeline/)
   })
 })

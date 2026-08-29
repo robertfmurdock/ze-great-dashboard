@@ -29,6 +29,7 @@
   "files": [
     "dist",
     "client",
+    "board-config.schema.json",
     "bootstrap",
     "template.yml",
     "template-ecs.yml",

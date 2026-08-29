@@ -1,17 +1,29 @@
 import { readFile } from 'node:fs/promises'
-import { type BoardConfig, boardConfigSchema } from '@ze-great-dashboard/shared'
+import {
+  type BoardConfig,
+  boardConfigSchema,
+  readBoardSchemaModeline,
+} from '@ze-great-dashboard/shared'
 import { parse as parseYaml } from 'yaml'
 
 /** Reads config once at boot, so the config and its derived allowlist can never drift apart. */
 export async function loadBoardConfig(
   location: string,
   fetcher: typeof fetch = globalThis.fetch,
+  expectedSchemaUrl?: string,
 ): Promise<BoardConfig> {
   const text = isUrl(location)
     ? await fetchBoardConfig(location, fetcher)
     : await readFile(location, 'utf-8')
+  const authoredSchemaUrl = readBoardSchemaModeline(text)
   const result = boardConfigSchema.safeParse(parseYaml(text))
-  if (!result.success) throw new Error(`Invalid board configuration:\n${result.error.message}`)
+  if (!result.success) {
+    const stale =
+      expectedSchemaUrl && authoredSchemaUrl !== expectedSchemaUrl
+        ? `\nStale schema modeline: expected ${expectedSchemaUrl}`
+        : ''
+    throw new Error(`Invalid board configuration:\n${result.error.message}${stale}`)
+  }
   return result.data
 }
 

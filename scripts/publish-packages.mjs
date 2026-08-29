@@ -62,6 +62,8 @@ async function stagePackage(packageSpec, destinationDirectory) {
   const sourceDirectory = join(root, packageSpec.directory)
   for (const file of packageSpec.publishFiles)
     await cp(join(sourceDirectory, file), join(destinationDirectory, file), { recursive: true })
+  if (packageSpec.id === 'aws')
+    await verifyBoardSchemaArtifacts(sourceDirectory, destinationDirectory)
   await cp(join(root, 'LICENSE'), join(destinationDirectory, 'LICENSE'))
   await cp(join(sourceDirectory, 'README.md'), join(destinationDirectory, 'README.md'))
   const manifest = JSON.parse(await readFile(join(sourceDirectory, 'package.json'), 'utf8'))
@@ -71,6 +73,20 @@ async function stagePackage(packageSpec, destinationDirectory) {
     join(destinationDirectory, 'package.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
   )
+}
+
+async function verifyBoardSchemaArtifacts(sourceDirectory, destinationDirectory) {
+  const rootSchema = await readFile(join(sourceDirectory, 'board-config.schema.json'))
+  const clientSchema = await readFile(join(sourceDirectory, 'client', 'board-config.schema.json'))
+  if (!rootSchema.equals(clientSchema))
+    throw new Error('AWS package schema artifacts differ between the package root and client/')
+
+  const stagedRootSchema = await readFile(join(destinationDirectory, 'board-config.schema.json'))
+  const stagedClientSchema = await readFile(
+    join(destinationDirectory, 'client', 'board-config.schema.json'),
+  )
+  if (!rootSchema.equals(stagedRootSchema) || !rootSchema.equals(stagedClientSchema))
+    throw new Error('AWS package staging did not preserve both board schema artifacts')
 }
 
 async function packPackage(stagedDirectory, requestedPath) {

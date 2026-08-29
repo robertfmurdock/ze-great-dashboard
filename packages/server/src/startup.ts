@@ -1,4 +1,5 @@
 import type { BoardConfig } from '@ze-great-dashboard/shared'
+import { schemaUrlForAssetPath } from '@ze-great-dashboard/shared'
 import type { Hono } from 'hono'
 import { createApp } from './app.ts'
 import { loadBoardConfig } from './board-config.ts'
@@ -26,7 +27,13 @@ export async function startup(options: { fetcher?: Fetcher } = {}): Promise<Star
   // client template fetch. Startup still completes only after both have succeeded.
   const [, boardConfig] = await Promise.all([
     waitForTemplate(config, fetcher),
-    loadBoardConfig(config.boardConfigUrl, fetcher),
+    loadBoardConfig(
+      config.boardConfigUrl,
+      fetcher,
+      config.assetPath.includes('__ASSET_PATH__')
+        ? undefined
+        : schemaUrlForAssetPath(config.assetPath),
+    ),
   ])
   const board = selectBoard(config.board, boardConfig)
   const resolvedConfig = { ...config, board }

@@ -1,6 +1,7 @@
 node_modules/
 dist/
 packages/aws/client/
+packages/aws/board-config.schema.json
 coverage/
 test-results/
 playwright-report/
