@@ -117,13 +117,13 @@ describe('the GitHub Actions adapter', () => {
     expect(result.envelope).toMatchObject({ signal: { branch: 'feature/ship-it' } })
   })
 
-  it('adds the configured token as an exact GitHub bearer header', () => {
+  it('keeps credentials out of the pure permitted-call declaration', () => {
     const [call] = permittedGithubActionsCalls(
       panel,
       { ...source, token_env: 'GITHUB_TOKEN' },
       githubCredentials,
     )
-    expect(call?.headers.get('authorization')).toBe('Bearer secret-token')
+    expect(call?.headers.get('authorization')).toBeNull()
   })
 
   it('forwards validators upstream', async () => {

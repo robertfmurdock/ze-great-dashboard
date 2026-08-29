@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
-import { boardConfigSchema } from '../src/board-config.ts'
+import { boardConfigSchema, credentialEnvironmentNames } from '../src/board-config.ts'
 import { parseDuration } from '../src/duration.ts'
 import { resolvePollingSettings } from '../src/polling-policy.ts'
 
@@ -38,6 +38,50 @@ describe('the board config schema', () => {
       },
     },
   }
+
+  it('rejects configuring a token and GitHub App on the same source', () => {
+    const result = boardConfigSchema.safeParse({
+      sources: {
+        github: {
+          type: 'github-actions',
+          token_env: 'GITHUB_TOKEN',
+          github_app: {
+            app_id_env: 'GITHUB_APP_ID',
+            private_key_env: 'GITHUB_APP_PRIVATE_KEY',
+            installation_id_env: 'GITHUB_APP_INSTALLATION_ID',
+          },
+        },
+      },
+      boards: { board: { panels: [{ id: 'build', type: 'pipeline-status' }] } },
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.message).toContain('token_env or github_app')
+  })
+
+  it('permits mixed source modes and reports only their declared credential names', () => {
+    const result = boardConfigSchema.parse({
+      sources: {
+        pat: { type: 'github-actions', token_env: 'GITHUB_TOKEN' },
+        app: {
+          type: 'github-actions',
+          github_app: {
+            app_id_env: 'GITHUB_APP_ID',
+            private_key_env: 'GITHUB_APP_PRIVATE_KEY',
+            installation_id_env: 'GITHUB_APP_INSTALLATION_ID',
+          },
+        },
+      },
+      boards: { board: { panels: [{ id: 'build', type: 'pipeline-status' }] } },
+    })
+
+    expect(Object.values(result.sources).flatMap(credentialEnvironmentNames)).toEqual([
+      'GITHUB_TOKEN',
+      'GITHUB_APP_ID',
+      'GITHUB_APP_PRIVATE_KEY',
+      'GITHUB_APP_INSTALLATION_ID',
+    ])
+  })
 
   it('rejects duplicate panel ids loudly rather than picking one', () => {
     const result = boardConfigSchema.safeParse({

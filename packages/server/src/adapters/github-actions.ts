@@ -1,21 +1,16 @@
 import type {
   Envelope,
   ErrorKind,
+  GithubActionsSource,
   Panel,
   PipelineStatus,
   PullRequestHealth,
   Source,
 } from '@ze-great-dashboard/shared'
+import { githubActionsSourceSchema } from '@ze-great-dashboard/shared'
 import { z } from 'zod'
 import { type CredentialResolver, environmentCredentials } from '../credentials.ts'
-
-const githubSourceSchema = z.object({
-  type: z.literal('github-actions'),
-  repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/, 'must be an owner/repository pair'),
-  /** The branch whose workflow health the dashboard represents. */
-  branch: z.string().min(1).optional(),
-  token_env: z.string().min(1).optional(),
-})
+import { createGithubClient, GithubAuthenticationError, type GithubClient } from '../github-auth.ts'
 
 const pipelinePanelSchema = z.object({
   id: z.string().min(1),
@@ -80,10 +75,10 @@ export type PermittedCall = { url: string; headers: Headers }
 export function permittedGithubActionsCalls(
   panel: Panel,
   source: Source,
-  credentials: CredentialResolver = environmentCredentials(),
+  _credentials?: CredentialResolver,
 ): PermittedCall[] {
   const parsedPanel = pipelinePanelSchema.parse(panel)
-  const parsedSource = githubSourceSchema.parse(source)
+  const parsedSource = githubActionsSourceSchema.parse(source)
   const url = new URL(
     `https://api.github.com/repos/${parsedSource.repo}/actions/workflows/${encodeURIComponent(parsedPanel.pipeline)}/runs`,
   )
@@ -91,25 +86,20 @@ export function permittedGithubActionsCalls(
   // The browser collects duration history; the adapter only needs GitHub's first run.
   url.searchParams.set('per_page', '1')
 
-  const headers = new Headers({ accept: 'application/vnd.github+json' })
-  const token = parsedSource.token_env ? credentials.get(parsedSource.token_env) : undefined
-  if (token) headers.set('authorization', `Bearer ${token}`)
-  return [{ url: url.toString(), headers }]
+  return [{ url: url.toString(), headers: new Headers() }]
 }
 
 export function permittedGithubActionsPullRequestHealthCalls(
   panel: Panel,
   source: Source,
-  credentials: CredentialResolver = environmentCredentials(),
 ): PermittedCall[] {
   const parsedPanel = pullRequestHealthPanelSchema.parse(panel)
-  const parsedSource = githubSourceSchema.parse(source)
+  const parsedSource = githubActionsSourceSchema.parse(source)
   const calls = parsedPanel.update_workflows.map(({ workflow }) =>
-    githubRunsCall(parsedSource, workflow, undefined, undefined, credentials),
+    githubRunsCall(parsedSource, workflow),
   )
   calls.push({
-    url: pullRequestsCall(parsedSource, parsedPanel.base_branch, 1, credentials).url,
-    headers: githubHeaders(parsedSource, credentials),
+    ...pullRequestsCall(parsedSource, parsedPanel.base_branch, 1),
   })
   // PR build calls are derived only from head refs returned by the bounded pull request query.
   // The adapter, rather than the browser, owns that dynamic URL construction.
@@ -121,10 +111,11 @@ export async function fetchGithubActionsPullRequestHealth(args: {
   source: Source
   requestHeaders: Headers
   fetcher: typeof fetch
+  githubClient?: GithubClient
   credentials?: CredentialResolver
 }): Promise<{ envelope?: Envelope; response: Response }> {
   const panel = pullRequestHealthPanelSchema.parse(args.panel)
-  const source = githubSourceSchema.parse(args.source)
+  const source = githubActionsSourceSchema.parse(args.source)
   try {
     const workflowResults = await Promise.all(
       panel.update_workflows.map(async ({ workflow }) => ({
@@ -134,7 +125,7 @@ export async function fetchGithubActionsPullRequestHealth(args: {
           workflow,
           requestHeaders: args.requestHeaders,
           fetcher: args.fetcher,
-          credentials: args.credentials ?? environmentCredentials(),
+          githubClient: githubClientFor(args),
         }),
       })),
     )
@@ -143,7 +134,7 @@ export async function fetchGithubActionsPullRequestHealth(args: {
       baseBranch: panel.base_branch,
       requestHeaders: args.requestHeaders,
       fetcher: args.fetcher,
-      credentials: args.credentials ?? environmentCredentials(),
+      githubClient: githubClientFor(args),
     })
     const matching = pullRequests.filter((pullRequest) =>
       panel.update_workflows.some(({ branch_prefixes }) =>
@@ -160,7 +151,7 @@ export async function fetchGithubActionsPullRequestHealth(args: {
           event: 'pull_request',
           requestHeaders: args.requestHeaders,
           fetcher: args.fetcher,
-          credentials: args.credentials ?? environmentCredentials(),
+          githubClient: githubClientFor(args),
         }),
       })),
     )
@@ -192,7 +183,12 @@ export async function fetchGithubActionsPullRequestHealth(args: {
     return {
       response: new Response(
         JSON.stringify(
-          errorEnvelope(panel.id, 'upstream-error', error, sourceLinkForRepository(source)),
+          errorEnvelope(
+            panel.id,
+            error instanceof GithubAuthenticationError ? 'unauthorized' : 'upstream-error',
+            error,
+            sourceLinkForRepository(source),
+          ),
         ),
         { status: 200 },
       ),
@@ -201,34 +197,32 @@ export async function fetchGithubActionsPullRequestHealth(args: {
 }
 
 async function latestRun(args: {
-  source: z.infer<typeof githubSourceSchema>
+  source: GithubActionsSource
   workflow: string
   branch?: string
   event?: string
   requestHeaders: Headers
   fetcher: typeof fetch
-  credentials: CredentialResolver
+  githubClient: GithubClient
 }) {
-  const call = githubRunsCall(args.source, args.workflow, args.branch, args.event, args.credentials)
-  forwardValidators(args.requestHeaders, call.headers)
-  const response = await args.fetcher(call.url, { headers: call.headers })
+  const call = githubRunsCall(args.source, args.workflow, args.branch, args.event)
+  const response = await githubFetch(call, args)
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
   const runs = runsSchema.parse(await response.json()).workflow_runs
   return runs[0]
 }
 
 async function openPullRequests(args: {
-  source: z.infer<typeof githubSourceSchema>
+  source: GithubActionsSource
   baseBranch: string
   requestHeaders: Headers
   fetcher: typeof fetch
-  credentials: CredentialResolver
+  githubClient: GithubClient
 }) {
   const result = []
   for (let page = 1; ; page += 1) {
-    const call = pullRequestsCall(args.source, args.baseBranch, page, args.credentials)
-    forwardValidators(args.requestHeaders, call.headers)
-    const response = await args.fetcher(call.url, { headers: call.headers })
+    const call = pullRequestsCall(args.source, args.baseBranch, page)
+    const response = await githubFetch(call, args)
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
     const pageResults = pullRequestsSchema.parse(await response.json())
     result.push(...pageResults)
@@ -237,35 +231,23 @@ async function openPullRequests(args: {
 }
 
 function pullRequestsCall(
-  source: z.infer<typeof githubSourceSchema>,
+  source: GithubActionsSource,
   baseBranch: string,
   page: number,
-  credentials: CredentialResolver = environmentCredentials(),
 ): PermittedCall {
   const url = new URL(`https://api.github.com/repos/${source.repo}/pulls`)
   url.searchParams.set('state', 'open')
   url.searchParams.set('base', baseBranch)
   url.searchParams.set('per_page', '100')
   url.searchParams.set('page', String(page))
-  return { url: url.toString(), headers: githubHeaders(source, credentials) }
-}
-
-function githubHeaders(
-  source: z.infer<typeof githubSourceSchema>,
-  credentials: CredentialResolver,
-) {
-  const headers = new Headers({ accept: 'application/vnd.github+json' })
-  const token = source.token_env ? credentials.get(source.token_env) : undefined
-  if (token) headers.set('authorization', `Bearer ${token}`)
-  return headers
+  return { url: url.toString(), headers: new Headers() }
 }
 
 function githubRunsCall(
-  source: z.infer<typeof githubSourceSchema>,
+  source: GithubActionsSource,
   workflow: string,
   branch?: string,
   event?: string,
-  credentials: CredentialResolver = environmentCredentials(),
 ): PermittedCall {
   const url = new URL(
     `https://api.github.com/repos/${source.repo}/actions/workflows/${encodeURIComponent(workflow)}/runs`,
@@ -273,14 +255,7 @@ function githubRunsCall(
   if (branch) url.searchParams.set('branch', branch)
   if (event) url.searchParams.set('event', event)
   url.searchParams.set('per_page', '1')
-  return { url: url.toString(), headers: githubHeaders(source, credentials) }
-}
-
-function forwardValidators(requestHeaders: Headers, target: Headers) {
-  for (const name of ['if-none-match', 'if-modified-since']) {
-    const value = requestHeaders.get(name)
-    if (value) target.set(name, value)
-  }
+  return { url: url.toString(), headers: new Headers() }
 }
 
 function healthItem(
@@ -317,7 +292,7 @@ function summarize(
     : `${workflows.length} update workflow${workflows.length === 1 ? '' : 's'} · ${pullRequests.length} open update PR${pullRequests.length === 1 ? '' : 's'}`
 }
 
-function sourceLinkForRepository(source: z.infer<typeof githubSourceSchema>) {
+function sourceLinkForRepository(source: GithubActionsSource) {
   return `https://github.com/${source.repo}`
 }
 
@@ -326,29 +301,31 @@ export async function fetchGithubActionsPipeline(args: {
   source: Source
   requestHeaders: Headers
   fetcher: typeof fetch
+  githubClient?: GithubClient
   credentials?: CredentialResolver
 }): Promise<{ envelope?: Envelope; response: Response }> {
-  const parsedSource = githubSourceSchema.parse(args.source)
-  const call = permittedGithubActionsCalls(
-    args.panel,
-    args.source,
-    args.credentials ?? environmentCredentials(),
-  )[0]
+  const parsedSource = githubActionsSourceSchema.parse(args.source)
+  const call = permittedGithubActionsCalls(args.panel, args.source)[0]
   if (!call) throw new Error('GitHub Actions adapter declared no permitted call')
-
-  for (const name of ['if-none-match', 'if-modified-since']) {
-    const value = args.requestHeaders.get(name)
-    if (value) call.headers.set(name, value)
-  }
 
   let upstream: Response
   try {
-    upstream = await args.fetcher(call.url, { headers: call.headers })
+    upstream = await githubFetch(call, {
+      requestHeaders: args.requestHeaders,
+      fetcher: args.fetcher,
+      source: parsedSource,
+      githubClient: githubClientFor(args),
+    })
   } catch (error) {
     return {
       response: new Response(
         JSON.stringify(
-          errorEnvelope(args.panel.id, 'unreachable', error, sourceLink(args.panel, args.source)),
+          errorEnvelope(
+            args.panel.id,
+            error instanceof GithubAuthenticationError ? 'unauthorized' : 'unreachable',
+            error,
+            sourceLink(args.panel, args.source),
+          ),
         ),
         { status: 200 },
       ),
@@ -413,7 +390,7 @@ export async function fetchGithubActionsPipeline(args: {
         runId: run.id,
         requestHeaders: args.requestHeaders,
         fetcher: args.fetcher,
-        credentials: args.credentials ?? environmentCredentials(),
+        githubClient: githubClientFor(args),
       })
       if (activity) signal.activity = activity
     }
@@ -444,16 +421,15 @@ export async function fetchGithubActionsPipeline(args: {
 }
 
 async function activeGithubActivity(args: {
-  source: z.infer<typeof githubSourceSchema>
+  source: GithubActionsSource
   runId: number
   requestHeaders: Headers
   fetcher: typeof fetch
-  credentials: CredentialResolver
+  githubClient: GithubClient
 }): Promise<PipelineStatus['activity']> {
-  const call = githubJobsCall(args.source, args.runId, args.credentials)
-  forwardValidators(args.requestHeaders, call.headers)
+  const call = githubJobsCall(args.source, args.runId)
   try {
-    const response = await args.fetcher(call.url, { headers: call.headers })
+    const response = await githubFetch(call, args)
     if (!response.ok) return undefined
     const jobs = jobsSchema.parse(await response.json()).jobs
     const job =
@@ -469,14 +445,31 @@ async function activeGithubActivity(args: {
   }
 }
 
-function githubJobsCall(
-  source: z.infer<typeof githubSourceSchema>,
-  runId: number,
-  credentials: CredentialResolver = environmentCredentials(),
-): PermittedCall {
+async function githubFetch(
+  call: PermittedCall,
+  args: {
+    source: GithubActionsSource
+    requestHeaders: Headers
+    fetcher: typeof fetch
+    githubClient: GithubClient
+  },
+): Promise<Response> {
+  return args.githubClient.get({
+    source: args.source,
+    url: call.url,
+    requestHeaders: args.requestHeaders,
+    fetcher: args.fetcher,
+  })
+}
+
+function githubClientFor(args: { githubClient?: GithubClient; credentials?: CredentialResolver }) {
+  return args.githubClient ?? createGithubClient(args.credentials ?? environmentCredentials())
+}
+
+function githubJobsCall(source: GithubActionsSource, runId: number): PermittedCall {
   const url = new URL(`https://api.github.com/repos/${source.repo}/actions/runs/${runId}/jobs`)
   url.searchParams.set('per_page', '100')
-  return { url: url.toString(), headers: githubHeaders(source, credentials) }
+  return { url: url.toString(), headers: new Headers() }
 }
 
 function completedRunDuration(run: z.infer<typeof runSchema>): Pick<PipelineStatus, 'durationMs'> {
@@ -526,7 +519,7 @@ function errorEnvelope(
 
 function sourceLink(panel: Panel, source: Source): string {
   const parsedPanel = pipelinePanelSchema.parse(panel)
-  const parsedSource = githubSourceSchema.parse(source)
+  const parsedSource = githubActionsSourceSchema.parse(source)
   return `https://github.com/${parsedSource.repo}/actions/workflows/${encodeURIComponent(parsedPanel.pipeline)}`
 }
 

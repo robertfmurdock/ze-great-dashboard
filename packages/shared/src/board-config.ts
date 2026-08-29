@@ -95,13 +95,57 @@ export const panelSchema = z
 
 export type Panel = z.infer<typeof panelSchema>
 
-export const sourceSchema = z.looseObject({
-  type: z.string().min(1),
-  /** Credentials are never in the config — only the name of the env var holding one. */
-  token_env: z.string().min(1).optional(),
+export const githubAppSchema = z.object({
+  app_id_env: z.string().min(1),
+  private_key_env: z.string().min(1),
+  installation_id_env: z.string().min(1),
 })
 
+const sourceAuthenticationSchema = {
+  /** Credentials are never in the config — only the name of the env var holding one. */
+  token_env: z.string().min(1).optional(),
+  github_app: githubAppSchema.optional(),
+}
+
+function exactlyOneGithubAuthenticationMode(
+  source: { token_env?: string; github_app?: unknown },
+  ctx: z.RefinementCtx,
+) {
+  if (source.token_env && source.github_app)
+    ctx.addIssue({ code: 'custom', message: 'configure token_env or github_app, not both' })
+}
+
+export const githubActionsSourceSchema = z
+  .looseObject({
+    type: z.literal('github-actions'),
+    repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/, 'must be an owner/repository pair'),
+    /** The branch whose workflow health the dashboard represents. */
+    branch: z.string().min(1).optional(),
+    ...sourceAuthenticationSchema,
+  })
+  .superRefine(exactlyOneGithubAuthenticationMode)
+
+export type GithubActionsSource = z.infer<typeof githubActionsSourceSchema>
+
+export const sourceSchema = z
+  .looseObject({ type: z.string().min(1), ...sourceAuthenticationSchema })
+  .superRefine(exactlyOneGithubAuthenticationMode)
+
 export type Source = z.infer<typeof sourceSchema>
+
+/** Every credential name declared by a source, with no credential values exposed. */
+export function credentialEnvironmentNames(source: Source): string[] {
+  return [
+    ...(source.token_env ? [source.token_env] : []),
+    ...(source.github_app
+      ? [
+          source.github_app.app_id_env,
+          source.github_app.private_key_env,
+          source.github_app.installation_id_env,
+        ]
+      : []),
+  ]
+}
 
 export const boardSchema = z.object({
   refresh: durationSchema.optional(),

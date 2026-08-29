@@ -68,7 +68,7 @@ describe('AWS deployment contract', () => {
         outputDir: await mkdtemp('/tmp/dashboard-aws-private-'),
         version: '1.2.3',
       }),
-    ).rejects.toThrow(/token_env; SecretReference/)
+    ).rejects.toThrow(/credentials; SecretReference/)
     await expect(
       packageLambda({
         boardConfigPath: board,

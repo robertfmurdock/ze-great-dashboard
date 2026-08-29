@@ -1,5 +1,8 @@
-import type { BoardConfig } from '@ze-great-dashboard/shared'
-import { schemaUrlForAssetPath } from '@ze-great-dashboard/shared'
+import {
+  type BoardConfig,
+  credentialEnvironmentNames,
+  schemaUrlForAssetPath,
+} from '@ze-great-dashboard/shared'
 import type { Hono } from 'hono'
 import { createApp } from './app.ts'
 import { loadBoardConfig } from './board-config.ts'
@@ -37,9 +40,7 @@ export async function startup(options: { fetcher?: Fetcher } = {}): Promise<Star
   ])
   const board = selectBoard(config.board, boardConfig)
   const resolvedConfig = { ...config, board }
-  const credentialNames = Object.values(boardConfig.sources)
-    .map((source) => source.token_env)
-    .filter((name): name is string => Boolean(name))
+  const credentialNames = Object.values(boardConfig.sources).flatMap(credentialEnvironmentNames)
   const credentials = await createCredentialResolver({
     secretReference: config.secretReference,
     credentialNames,

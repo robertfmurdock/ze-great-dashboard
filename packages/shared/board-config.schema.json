@@ -99,7 +99,16 @@
       "additionalProperties": true,
       "properties": {
         "type": { "type": "string", "minLength": 1 },
-        "token_env": { "type": "string", "minLength": 1 }
+        "token_env": { "type": "string", "minLength": 1 },
+        "github_app": {
+          "type": "object",
+          "required": ["app_id_env", "private_key_env", "installation_id_env"],
+          "properties": {
+            "app_id_env": { "type": "string", "minLength": 1 },
+            "private_key_env": { "type": "string", "minLength": 1 },
+            "installation_id_env": { "type": "string", "minLength": 1 }
+          }
+        }
       }
     },
     "auth": {

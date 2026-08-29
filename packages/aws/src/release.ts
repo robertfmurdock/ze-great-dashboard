@@ -8,7 +8,7 @@ import {
 } from '@ze-great-dashboard/shared'
 import { parse, stringify } from 'yaml'
 import { z } from 'zod'
-import { boardConfigSchema } from './internal-board.ts'
+import { boardConfigSchema, credentialEnvironmentNames } from './internal-board.ts'
 
 export const CORE_RUNTIME_VERSION = '1.0.0'
 const CANONICAL_ASSET_DOMAIN = 'https://public-assets.zegreatrob.com'
@@ -50,7 +50,9 @@ async function validateBoardConfig(
   return {
     yaml,
     sha256: sha256(yaml),
-    usesCredentials: Object.values(result.data.sources).some((source) => Boolean(source.token_env)),
+    usesCredentials: Object.values(result.data.sources).some(
+      (source) => credentialEnvironmentNames(source).length > 0,
+    ),
   }
 }
 
@@ -69,7 +71,7 @@ export async function assembleRelease(input: {
   )
   if (board.usesCredentials && !input.secretReference)
     throw new Error(
-      'Board config uses token_env; SecretReference must name a Secrets Manager credential-map or Parameter Store SecureString ARN',
+      'Board config uses token_env or github_app credentials; SecretReference must name a Secrets Manager credential-map or Parameter Store SecureString ARN',
     )
   const outputDir = resolve(input.outputDir)
   await mkdir(outputDir, { recursive: true })

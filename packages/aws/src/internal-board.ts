@@ -40,10 +40,22 @@ const panelSchema = z
       })
     }
   })
-const sourceSchema = z.looseObject({
-  type: z.string().min(1),
-  token_env: z.string().min(1).optional(),
-})
+const sourceSchema = z
+  .looseObject({
+    type: z.string().min(1),
+    token_env: z.string().min(1).optional(),
+    github_app: z
+      .object({
+        app_id_env: z.string().min(1),
+        private_key_env: z.string().min(1),
+        installation_id_env: z.string().min(1),
+      })
+      .optional(),
+  })
+  .superRefine((source, ctx) => {
+    if (source.token_env && source.github_app)
+      ctx.addIssue({ code: 'custom', message: 'configure token_env or github_app, not both' })
+  })
 const boardSchema = z.object({
   refresh: durationSchema.optional(),
   panels: z
@@ -80,3 +92,17 @@ export const boardConfigSchema = z.object({
     })
     .optional(),
 })
+
+/** Mirrors the shared credential-name contract without making this published package depend on a private workspace. */
+export function credentialEnvironmentNames(source: z.infer<typeof sourceSchema>): string[] {
+  return [
+    ...(source.token_env ? [source.token_env] : []),
+    ...(source.github_app
+      ? [
+          source.github_app.app_id_env,
+          source.github_app.private_key_env,
+          source.github_app.installation_id_env,
+        ]
+      : []),
+  ]
+}
