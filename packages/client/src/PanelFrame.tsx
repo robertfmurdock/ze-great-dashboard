@@ -5,8 +5,20 @@ import { panelLayout } from './panel-layout.ts'
 
 type PanelStatusKind = 'passed' | 'failed' | 'running' | 'cancelled' | 'unknown'
 
-export function PanelHint({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={`${styles.hint} ${className ?? ''}`}>{children}</p>
+export function PanelHint({
+  children,
+  className,
+  title,
+}: {
+  children: ReactNode
+  className?: string
+  title?: string
+}) {
+  return (
+    <p className={`${styles.hint} ${className ?? ''}`} title={title}>
+      {children}
+    </p>
+  )
 }
 
 /** A concise metadata row with one visible glyph and the full value retained in the DOM. */

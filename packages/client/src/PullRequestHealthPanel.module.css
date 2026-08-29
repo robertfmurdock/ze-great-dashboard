@@ -1,0 +1,50 @@
+.compactFacts {
+  display: none;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.1em;
+  overflow: hidden;
+}
+
+.compactFact {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compactPrimary {
+  color: var(--ink-primary);
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.compactSecondary {
+  color: var(--ink-muted);
+  font-size: 0.7em;
+}
+
+@container panel (max-width: 13rem) {
+  :global([data-density="compact"]) .compactFacts {
+    display: flex;
+  }
+
+  :global([data-density="compact"]) .fullSummary {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+@container panel (max-width: 13rem) and (max-height: 10rem) {
+  :global([data-density="compact"]) .compactFacts ~ :global([data-panel-meta]) {
+    display: none;
+  }
+}

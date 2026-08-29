@@ -1,6 +1,9 @@
 import { pullRequestHealthSchema } from '@ze-great-dashboard/shared'
 import { PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
+import styles from './PullRequestHealthPanel.module.css'
 import type { PanelProps } from './panel-props.ts'
+import { statusPresentation } from './panel-status.ts'
+import { compactPullRequestHealthFacts } from './pull-request-health.ts'
 import { CheckedAt } from './TimeAge.tsx'
 
 export function PullRequestHealthPanel({ panel, envelope, checkedAt }: PanelProps) {
@@ -25,29 +28,28 @@ export function PullRequestHealthPanel({ panel, envelope, checkedAt }: PanelProp
         <PanelStatus>⚠ Invalid signal</PanelStatus>
       </PanelFrame>
     )
-  const presentation = statusPresentation(signal.data.status)
+  const presentation = statusPresentation(signal.data.status, 'Healthy')
+  const compactFacts = compactPullRequestHealthFacts(signal.data)
   return (
     <PanelFrame panel={panel} envelope={envelope}>
       <PanelStatus status={signal.data.status}>
         {presentation.glyph} {presentation.label}
       </PanelStatus>
-      <PanelHint>{signal.data.summary}</PanelHint>
+      <PanelHint className={styles.fullSummary} title={signal.data.summary}>
+        {signal.data.summary}
+      </PanelHint>
+      <div className={styles.compactFacts} title={compactFacts.title} data-compact-facts>
+        <p
+          className={`${styles.compactFact} ${styles.compactPrimary}`}
+          title={compactFacts.primaryDetail}
+        >
+          {compactFacts.primary}
+        </p>
+        <p className={`${styles.compactFact} ${styles.compactSecondary}`}>
+          {compactFacts.secondary}
+        </p>
+      </div>
       {checkedAt && <CheckedAt value={checkedAt} />}
     </PanelFrame>
   )
-}
-
-function statusPresentation(status: 'passed' | 'failed' | 'running' | 'cancelled' | 'unknown') {
-  switch (status) {
-    case 'passed':
-      return { glyph: '✓', label: 'Healthy' }
-    case 'failed':
-      return { glyph: '✕', label: 'Failed' }
-    case 'running':
-      return { glyph: '↻', label: 'Running' }
-    case 'cancelled':
-      return { glyph: '⊘', label: 'Cancelled' }
-    case 'unknown':
-      return { glyph: '?', label: 'Unknown' }
-  }
 }

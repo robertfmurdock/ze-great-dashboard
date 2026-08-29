@@ -204,6 +204,20 @@ const valueEnvelope = (panelId: string) => ({
   signal: { type: 'http-value', value: '1.2.3' },
 })
 
+const pullRequestHealthEnvelope = (panelId: string) => ({
+  panelId,
+  state: 'ok',
+  observedAt: '2026-08-24T14:00:00.000Z',
+  link: 'https://github.com/example/example/pulls',
+  signal: {
+    type: 'pull-request-health',
+    status: 'passed',
+    summary: '1 update workflow · No open update PRs',
+    workflows: [{ label: 'dependabot', status: 'passed', detail: 'Passed', link: null }],
+    pullRequests: [],
+  },
+})
+
 function stubBoard(page: import('@playwright/test').Page) {
   return Promise.all([
     page.addInitScript(() => {
@@ -340,6 +354,81 @@ test('adapts density independently across wide, square, narrow, and tall cells',
   expect(layout.every((panel, index) => index === 0 || panel.left >= layout[index - 1].right)).toBe(
     true,
   )
+})
+
+test('uses compact pull-request facts only in narrow compact panels', async ({ page }) => {
+  const board = {
+    panels: [
+      {
+        id: 'updates-narrow',
+        type: 'pull-request-health',
+        density: 'compact',
+        position: { x: 0, y: 0, w: 1, h: 3 },
+      },
+      {
+        id: 'updates-wide',
+        type: 'pull-request-health',
+        density: 'compact',
+        position: { x: 1, y: 0, w: 6, h: 3 },
+      },
+    ],
+  }
+  await page.setViewportSize({ width: 2400, height: 1200 })
+  await page.addInitScript(() => {
+    window.env = {
+      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+      proxyPath: '/api',
+      board: 'ze-great-team',
+      clientVersion: 'browser-test',
+    }
+  })
+  await page.route('**/api/boards/ze-great-team', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify(board) }),
+  )
+  await page.route('**/api/client', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+        clientVersion: 'browser-test',
+      }),
+    }),
+  )
+  await page.route('**/api/panel/**', (route) => {
+    const panelId = decodeURIComponent(
+      new URL(route.request().url()).pathname.split('/').at(-1) ?? '',
+    )
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(pullRequestHealthEnvelope(panelId)),
+    })
+  })
+
+  await page.goto('/')
+  await expect(page.locator('[data-panel]')).toHaveCount(2)
+  await expect(page.locator('[data-panel][aria-busy="true"]')).toHaveCount(0)
+
+  const presentation = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('[data-panel]')].map((panel) => ({
+      id: panel.dataset.panelId,
+      facts: getComputedStyle(panel.querySelector('[data-compact-facts]') as Element).display,
+      summary: getComputedStyle(
+        panel.querySelector('[data-compact-facts]')?.previousElementSibling as Element,
+      ).position,
+      fits: panel.scrollHeight <= panel.clientHeight,
+    })),
+  )
+
+  expect(presentation.find((panel) => panel.id === 'updates-narrow')).toMatchObject({
+    facts: 'flex',
+    summary: 'absolute',
+    fits: true,
+  })
+  expect(presentation.find((panel) => panel.id === 'updates-wide')).toMatchObject({
+    facts: 'none',
+    summary: 'static',
+    fits: true,
+  })
 })
 
 test('stacks panels readably on a narrow viewport', async ({ page }) => {

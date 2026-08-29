@@ -11,6 +11,7 @@ import { fallingSeed } from './falling-shapes.ts'
 import { PanelFrame, PanelHint, PanelMetadata, PanelStatus } from './PanelFrame.tsx'
 import styles from './PipelinePanel.module.css'
 import type { PanelProps } from './panel-props.ts'
+import { statusPresentation } from './panel-status.ts'
 import { formatPipelineActivity } from './pipeline-activity.ts'
 import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
 import { RunningFieldTiming } from './RunningFieldTiming.tsx'
@@ -168,19 +169,4 @@ function formatDuration(durationMs: number) {
   if (hours > 0) return `${hours}h ${minutes}m`
   if (minutes > 0) return `${minutes}m ${seconds}s`
   return `${seconds}s`
-}
-
-function statusPresentation(status: 'passed' | 'failed' | 'running' | 'cancelled' | 'unknown') {
-  switch (status) {
-    case 'passed':
-      return { glyph: '✓', label: 'Passed' }
-    case 'failed':
-      return { glyph: '✕', label: 'Failed' }
-    case 'running':
-      return { glyph: '↻', label: 'Running' }
-    case 'cancelled':
-      return { glyph: '⊘', label: 'Cancelled' }
-    case 'unknown':
-      return { glyph: '?', label: 'Unknown' }
-  }
 }
