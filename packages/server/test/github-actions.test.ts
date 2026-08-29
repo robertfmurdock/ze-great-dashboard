@@ -438,6 +438,7 @@ describe('pull-request-health', () => {
     conclusion: 'success',
     name: 'Build',
     html_url: 'https://github.com/example-org/example-repo/actions/runs/1',
+    head_branch: 'cpr-gradle-update/create-update-branch/42',
   }
 
   it('rolls up update workflow and matching PR build health', async () => {
@@ -526,6 +527,41 @@ describe('pull-request-health', () => {
       state: 'ok',
       signal: { status: 'passed', summary: '1 update workflow · No open update PRs' },
     })
+  })
+
+  it('uses an update workflow run only when its branch matches that workflow prefix', async () => {
+    const fetcher = vi.fn(async (url: string) =>
+      url.includes('/pulls?')
+        ? new Response(JSON.stringify([]))
+        : new Response(
+            JSON.stringify({
+              workflow_runs: [
+                { ...successfulRun, conclusion: 'failure', head_branch: 'master' },
+                {
+                  ...successfulRun,
+                  html_url: 'https://github.com/example-org/example-repo/actions/runs/2',
+                  head_branch: 'cpr-gradle-update/create-update-branch/42',
+                },
+              ],
+            }),
+          ),
+    ) as unknown as typeof fetch
+
+    const result = await fetchGithubActionsPullRequestHealth({
+      panel: healthPanel,
+      source: healthSource,
+      requestHeaders: new Headers(),
+      fetcher,
+    })
+
+    expect(result.envelope).toMatchObject({
+      state: 'ok',
+      signal: { status: 'passed', workflows: [{ status: 'passed' }] },
+    })
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('dependency-update.yml/runs?per_page=100'),
+      expect.anything(),
+    )
   })
 
   it('rolls up a failing PR build as failed', async () => {

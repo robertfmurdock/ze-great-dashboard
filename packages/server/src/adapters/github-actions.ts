@@ -118,11 +118,12 @@ export async function fetchGithubActionsPullRequestHealth(args: {
   const source = githubActionsSourceSchema.parse(args.source)
   try {
     const workflowResults = await Promise.all(
-      panel.update_workflows.map(async ({ workflow }) => ({
+      panel.update_workflows.map(async ({ workflow, branch_prefixes }) => ({
         workflow,
         run: await latestRun({
           source,
           workflow,
+          branchPrefixes: branch_prefixes,
           requestHeaders: args.requestHeaders,
           fetcher: args.fetcher,
           githubClient: githubClientFor(args),
@@ -200,16 +201,32 @@ async function latestRun(args: {
   source: GithubActionsSource
   workflow: string
   branch?: string
+  branchPrefixes?: string[]
   event?: string
   requestHeaders: Headers
   fetcher: typeof fetch
   githubClient: GithubClient
 }) {
-  const call = githubRunsCall(args.source, args.workflow, args.branch, args.event)
+  const call = githubRunsCall(
+    args.source,
+    args.workflow,
+    args.branch,
+    args.event,
+    args.branchPrefixes ? 100 : 1,
+  )
   const response = await githubFetch(call, args)
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
   const runs = runsSchema.parse(await response.json()).workflow_runs
-  return runs[0]
+  const branchPrefixes = args.branchPrefixes
+  if (!branchPrefixes) return runs[0]
+  return runs.find((run) => {
+    const headBranch = run.head_branch
+    return (
+      headBranch !== undefined &&
+      headBranch !== null &&
+      branchPrefixes.some((prefix) => headBranch.startsWith(prefix))
+    )
+  })
 }
 
 async function openPullRequests(args: {
@@ -248,13 +265,14 @@ function githubRunsCall(
   workflow: string,
   branch?: string,
   event?: string,
+  perPage = 1,
 ): PermittedCall {
   const url = new URL(
     `https://api.github.com/repos/${source.repo}/actions/workflows/${encodeURIComponent(workflow)}/runs`,
   )
   if (branch) url.searchParams.set('branch', branch)
   if (event) url.searchParams.set('event', event)
-  url.searchParams.set('per_page', '1')
+  url.searchParams.set('per_page', String(perPage))
   return { url: url.toString(), headers: new Headers() }
 }
 
