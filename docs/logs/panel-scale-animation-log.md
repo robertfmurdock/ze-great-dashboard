@@ -177,3 +177,24 @@ phase. The regular treatments remain unchanged by these additions.
 No dependencies or schema changes were introduced. Final verification passed with `npm run check`:
 259 unit tests, 9 browser tests including responsive and reduced-motion coverage, Docker healthcheck,
 board validation, and published-package smoke testing.
+
+## Test-boundary cleanup (2026-08-29)
+
+Decorative structure assertions were moved to the component tests that own those contracts. The
+telemetry bloom and release transit structures are tested through direct `RunningField` renders;
+legacy signal-field tracks and phased markers are tested through a direct `RunningProgress` render.
+`PipelinePanel` coverage remains responsible for the composition contract: the decorative field is
+an inert sibling of readable timing content and the source link. The demo integration test likewise
+keeps its accessibility assertion without repeating the legacy track count.
+
+Playwright no longer counts decorative lanes, packets, tracks, or markers as standalone structure
+checks. It continues to test browser-only behavior: rendered geometry, layering, clipping, compact
+container-query treatment, computed animation styles, reduced motion, and continuity across a CSS
+animation iteration. The continuity test synchronizes on `requestAnimationFrame` and the browser's
+`animationiteration` event instead of fixed sleeps.
+
+This clarified the testing rule: test a presentational component directly when its input contract is
+simple and stable; test its parent for the relationship the parent owns; reserve browser tests for
+behavior whose evidence depends on a real browser. Verification passed with `npm run check`: 301
+unit tests, 10 browser tests, Docker healthcheck, board validation, and published-package smoke
+testing.

@@ -41,6 +41,12 @@ the results as one scenario where practical. Avoid wall-clock sleeps and repeate
 use fake or controlled time for timing behavior and reserve browser tests for behavior that requires
 a real browser.
 
+Test a component at its narrowest meaningful interface when that interface is stable: a presentational
+component with simple inputs should be tested directly, while its parent should retain tests for the
+composition relationship it owns. Do not repeat a child component's structural invariants in parent
+or browser tests. Browser tests that observe animation should synchronize on browser frames or
+animation events; fixed-duration sleeps are not a reliable substitute for the event being tested.
+
 Keep test bodies linear and easy to preview. Test-case tables should declare scenarios and expected
 outcomes; they should not require the reader to execute branching logic in the test definition to
 discover which path is under test. When cases have different observable contracts, use separate
