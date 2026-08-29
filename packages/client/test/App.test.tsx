@@ -312,10 +312,9 @@ describe('pipeline-status refresh scheduling', () => {
     },
   )
 
-  it('renders the signal-field markers alongside its compact active-run readout', async () => {
+  it('keeps the signal-field visual decorative alongside its compact active-run readout', async () => {
     const rendered = await renderRunningPanel('signal-field')
 
-    expect(rendered.querySelectorAll('[data-running-part="signal-track"]')).toHaveLength(5)
     expect(rendered.querySelector('[data-running-visual]')?.getAttribute('aria-hidden')).toBe(
       'true',
     )

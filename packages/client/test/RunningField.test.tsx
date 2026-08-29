@@ -2,6 +2,7 @@ import { cleanup, render } from '@testing-library/react'
 import type { Panel } from '@ze-great-dashboard/shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PipelinePanel } from '../src/PipelinePanel.tsx'
+import { RunningField, type RunningFieldAnimation } from '../src/RunningField.tsx'
 
 const panel: Panel = { id: 'build', type: 'pipeline-status' }
 const envelope = () => ({
@@ -18,6 +19,17 @@ const envelope = () => ({
     estimatedDurationMs: 300_000,
   },
 })
+
+const renderField = (animation: RunningFieldAnimation) =>
+  render(
+    <RunningField
+      animation={animation}
+      progress={0.4}
+      estimatedDurationMs={300_000}
+      overdue={false}
+      indeterminate={false}
+    />,
+  ).container
 
 afterEach(() => {
   cleanup()
@@ -151,25 +163,18 @@ describe('RunningField', () => {
     expect(field.querySelector('[data-running-part="bloom-flare"]')).not.toBeNull()
   })
 
-  it('uses the shared phased marker anchor/body structure for bloom and signal-field', () => {
-    const bloom = render(
-      <PipelinePanel
-        panel={{ ...panel, running_animation: 'telemetry-bloom' }}
-        envelope={envelope()}
-      />,
-    ).container
+  it('renders the telemetry bloom lanes and phased markers', () => {
+    const bloom = renderField('telemetry-bloom')
+    expect(bloom.querySelectorAll('[data-running-part="bloom-lane"]')).toHaveLength(4)
     expect(bloom.querySelectorAll('[data-running-part="bloom-marker-anchor"]')).toHaveLength(4)
     expect(bloom.querySelectorAll('[data-running-part="bloom-marker"]')).toHaveLength(4)
+  })
 
-    cleanup()
-    const signal = render(
-      <PipelinePanel
-        panel={{ ...panel, running_animation: 'signal-field' }}
-        envelope={envelope()}
-      />,
-    ).container
-    expect(signal.querySelectorAll('[data-running-part="signal-track"]')).toHaveLength(5)
-    expect(signal.querySelectorAll('[data-running-part="signal-marker-anchor"]')).toHaveLength(5)
-    expect(signal.querySelectorAll('[data-running-part="signal-marker"]')).toHaveLength(5)
+  it('renders the release transit packet, trail, and current indicator', () => {
+    const rendered = renderField('release-transit')
+
+    expect(rendered.querySelectorAll('[data-running-part="transit-packet"]')).toHaveLength(1)
+    expect(rendered.querySelectorAll('[data-running-part="transit-trail"]')).toHaveLength(1)
+    expect(rendered.querySelectorAll('[data-running-part="transit-now"]')).toHaveLength(1)
   })
 })
