@@ -1,5 +1,13 @@
-import type { Envelope, HttpValue, Panel } from '@ze-great-dashboard/shared'
+import type { HttpValue, Panel } from '@ze-great-dashboard/shared'
 import { z } from 'zod'
+import {
+  type AdapterResult,
+  forwardValidators,
+  observedAt,
+  upstreamErrorEnvelope,
+  upstreamErrorKind,
+  upstreamErrorResponse,
+} from '../upstream.ts'
 import type { PermittedCall } from './github-actions.ts'
 
 const httpValuePanelSchema = z.object({
@@ -26,32 +34,26 @@ export async function fetchHttpValue(args: {
   panel: Panel
   requestHeaders: Headers
   fetcher: typeof fetch
-}): Promise<{ envelope?: Envelope; response: Response }> {
+}): Promise<AdapterResult> {
   const panel = httpValuePanelSchema.parse(args.panel)
   const [call] = permittedHttpValueCalls(args.panel)
   if (!call) throw new Error('http-value adapter declared no permitted call')
-  for (const name of ['if-none-match', 'if-modified-since']) {
-    const value = args.requestHeaders.get(name)
-    if (value) call.headers.set(name, value)
-  }
+  forwardValidators(args.requestHeaders, call.headers)
 
   let upstream: Response
   try {
     upstream = await args.fetcher(call.url, { headers: call.headers })
   } catch (error) {
-    return { response: errorResponse(errorEnvelope(panel.id, 'unreachable', error, panel)) }
+    return { response: errorResponse('unreachable', error, panel) }
   }
   if (upstream.status === 304) return { response: upstream }
   if (!upstream.ok) {
-    const kind =
-      upstream.status === 401 || upstream.status === 403
-        ? 'unauthorized'
-        : upstream.status === 404
-          ? 'not-found'
-          : 'upstream-error'
     return {
       response: errorResponse(
-        errorEnvelope(panel.id, kind, `${upstream.status} ${upstream.statusText}`, panel, upstream),
+        upstreamErrorKind(upstream.status),
+        `${upstream.status} ${upstream.statusText}`,
+        panel,
+        upstream,
       ),
     }
   }
@@ -74,7 +76,7 @@ export async function fetchHttpValue(args: {
     }
   } catch (error) {
     return {
-      response: errorResponse(errorEnvelope(panel.id, 'upstream-error', error, panel, upstream)),
+      response: errorResponse('upstream-error', error, panel, upstream),
     }
   }
 }
@@ -111,27 +113,19 @@ function extractJsonPath(value: unknown, path: string): string | number | boolea
   return current
 }
 
-function errorResponse(envelope: Envelope): Response {
-  return new Response(JSON.stringify(envelope), { status: 200 })
-}
-
-function errorEnvelope(
-  panelId: string,
+function errorResponse(
   kind: 'unreachable' | 'unauthorized' | 'not-found' | 'upstream-error',
   error: unknown,
   panel: z.infer<typeof httpValuePanelSchema>,
   response?: Response,
-): Envelope {
-  return {
-    panelId,
-    state: 'error',
-    observedAt: observedAt(response?.headers.get('date') ?? null),
-    link: panel.link ?? panel.url,
-    error: { kind, message: error instanceof Error ? error.message : String(error) },
-  }
-}
-
-function observedAt(value: string | null): string {
-  const parsed = value ? new Date(value) : undefined
-  return parsed && !Number.isNaN(parsed.valueOf()) ? parsed.toISOString() : new Date().toISOString()
+): Response {
+  return upstreamErrorResponse(
+    upstreamErrorEnvelope({
+      panelId: panel.id,
+      kind,
+      error,
+      link: panel.link ?? panel.url,
+      upstreamDate: response?.headers.get('date'),
+    }),
+  )
 }

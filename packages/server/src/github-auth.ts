@@ -1,6 +1,7 @@
 import { createSign } from 'node:crypto'
 import type { GithubActionsSource } from '@ze-great-dashboard/shared'
 import type { CredentialResolver } from './credentials.ts'
+import { forwardValidators } from './upstream.ts'
 
 type GithubTokenResponse = { token: string; expires_at: string }
 
@@ -84,10 +85,7 @@ export function createGithubClient(
 
 function githubHeaders(requestHeaders: Headers): Headers {
   const headers = new Headers({ accept: 'application/vnd.github+json' })
-  for (const name of ['if-none-match', 'if-modified-since']) {
-    const value = requestHeaders.get(name)
-    if (value) headers.set(name, value)
-  }
+  forwardValidators(requestHeaders, headers)
   return headers
 }
 

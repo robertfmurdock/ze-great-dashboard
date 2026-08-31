@@ -59,6 +59,33 @@ describe('the board config schema', () => {
     expect(result.error?.issues[0]?.message).toContain('token_env or github_app')
   })
 
+  it('requires Azure DevOps pipeline panels to name a numeric definition and read credential', () => {
+    const base = {
+      sources: {
+        ado: {
+          type: 'azure-devops',
+          organization: 'example-org',
+          project: 'Example Project',
+          token_env: 'ADO_PAT',
+        },
+      },
+      boards: { board: { panels: [{ id: 'build', type: 'pipeline-status', source: 'ado' }] } },
+    }
+    expect(boardConfigSchema.safeParse(base).success).toBe(false)
+    expect(
+      boardConfigSchema.safeParse({
+        ...base,
+        boards: { board: { panels: [{ ...base.boards.board.panels[0], pipeline: 42 }] } },
+      }).success,
+    ).toBe(true)
+    expect(
+      boardConfigSchema.safeParse({
+        ...base,
+        sources: { ado: { ...base.sources.ado, token_env: undefined } },
+      }).success,
+    ).toBe(false)
+  })
+
   it('permits mixed source modes and reports only their declared credential names', () => {
     const result = boardConfigSchema.parse({
       sources: {

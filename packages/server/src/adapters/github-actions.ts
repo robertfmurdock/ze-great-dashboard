@@ -11,6 +11,12 @@ import { githubActionsSourceSchema } from '@ze-great-dashboard/shared'
 import { z } from 'zod'
 import { type CredentialResolver, environmentCredentials } from '../credentials.ts'
 import { createGithubClient, GithubAuthenticationError, type GithubClient } from '../github-auth.ts'
+import {
+  type AdapterResult,
+  upstreamErrorEnvelope,
+  upstreamErrorKind,
+  observedAt as upstreamObservedAt,
+} from '../upstream.ts'
 
 const pipelinePanelSchema = z.object({
   id: z.string().min(1),
@@ -113,7 +119,7 @@ export async function fetchGithubActionsPullRequestHealth(args: {
   fetcher: typeof fetch
   githubClient?: GithubClient
   credentials?: CredentialResolver
-}): Promise<{ envelope?: Envelope; response: Response }> {
+}): Promise<AdapterResult> {
   const panel = pullRequestHealthPanelSchema.parse(args.panel)
   const source = githubActionsSourceSchema.parse(args.source)
   try {
@@ -321,7 +327,7 @@ export async function fetchGithubActionsPipeline(args: {
   fetcher: typeof fetch
   githubClient?: GithubClient
   credentials?: CredentialResolver
-}): Promise<{ envelope?: Envelope; response: Response }> {
+}): Promise<AdapterResult> {
   const parsedSource = githubActionsSourceSchema.parse(args.source)
   const call = permittedGithubActionsCalls(args.panel, args.source)[0]
   if (!call) throw new Error('GitHub Actions adapter declared no permitted call')
@@ -514,9 +520,7 @@ function normalizeStatus(status: string, conclusion: string | null): PipelineSta
 function errorKind(
   status: number,
 ): Extract<ErrorKind, 'unauthorized' | 'not-found' | 'upstream-error'> {
-  if (status === 401 || status === 403) return 'unauthorized'
-  if (status === 404) return 'not-found'
-  return 'upstream-error'
+  return upstreamErrorKind(status)
 }
 
 function errorEnvelope(
@@ -526,13 +530,7 @@ function errorEnvelope(
   link: string,
   observedAt = new Date().toISOString(),
 ): Envelope {
-  return {
-    panelId,
-    state: 'error',
-    observedAt,
-    link,
-    error: { kind, message: error instanceof Error ? error.message : String(error) },
-  }
+  return upstreamErrorEnvelope({ panelId, kind, error, link, upstreamDate: observedAt })
 }
 
 function sourceLink(panel: Panel, source: Source): string {
@@ -542,6 +540,5 @@ function sourceLink(panel: Panel, source: Source): string {
 }
 
 function observedAt(value: string | null): string {
-  const parsed = value ? new Date(value) : undefined
-  return parsed && !Number.isNaN(parsed.valueOf()) ? parsed.toISOString() : new Date().toISOString()
+  return upstreamObservedAt(value)
 }

@@ -83,6 +83,36 @@ and a workflow `pipeline`. When configured, the branch is sent to GitHub when fi
 run, so feature-branch runs do not replace the primary-branch status. When absent, GitHub returns
 runs from all branches. `http-value` uses `url` and an optional `json_path` such as `$.version`.
 
+An Azure DevOps `pipeline-status` source names an organization, project, and a runtime-only PAT.
+Its panel's `pipeline` must be the numeric pipeline definition ID. The optional branch is shown on
+the board and is sent to Azure DevOps as `refs/heads/<branch>` when it is not already a ref:
+
+> **Incubating:** Azure DevOps support is still being validated against redacted responses from a
+> legitimate read-scoped project. Use it at your own risk until that fixture-backed validation is
+> complete.
+
+```yaml
+sources:
+  ado:
+    type: azure-devops
+    organization: your-organization
+    project: Your Project
+    branch: main
+    token_env: ADO_PAT
+
+boards:
+  operations:
+    panels:
+      - id: service-build
+        type: pipeline-status
+        source: ado
+        pipeline: 42
+```
+
+Create `ADO_PAT` separately with only Azure DevOps **Build (read)** scope for the project. The
+dashboard uses it only on the server to read the newest matching build and its active timeline;
+the token is never returned to browsers.
+
 ## Active pipeline treatments
 
 `pipeline-status` panels may set `running_animation` to `off`, or to one of `radial`, `runway`,

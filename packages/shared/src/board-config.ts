@@ -127,6 +127,19 @@ export const githubActionsSourceSchema = z
 
 export type GithubActionsSource = z.infer<typeof githubActionsSourceSchema>
 
+export const azureDevOpsSourceSchema = z.looseObject({
+  type: z.literal('azure-devops'),
+  /** Azure DevOps organization name, used as one URL path segment. */
+  organization: z.string().regex(/^[^/\s]+$/, 'must be an organization name'),
+  project: z.string().min(1),
+  /** The branch whose build health the dashboard represents. */
+  branch: z.string().min(1).optional(),
+  /** Azure DevOps Build API access is authenticated with a read-scoped PAT. */
+  token_env: z.string().min(1),
+})
+
+export type AzureDevOpsSource = z.infer<typeof azureDevOpsSourceSchema>
+
 export const sourceSchema = z
   .looseObject({ type: z.string().min(1), ...sourceAuthenticationSchema })
   .superRefine(exactlyOneGithubAuthenticationMode)
@@ -135,13 +148,14 @@ export type Source = z.infer<typeof sourceSchema>
 
 /** Every credential name declared by a source, with no credential values exposed. */
 export function credentialEnvironmentNames(source: Source): string[] {
+  const githubApp = githubAppSchema.safeParse(source.github_app)
   return [
     ...(source.token_env ? [source.token_env] : []),
-    ...(source.github_app
+    ...(githubApp.success
       ? [
-          source.github_app.app_id_env,
-          source.github_app.private_key_env,
-          source.github_app.installation_id_env,
+          githubApp.data.app_id_env,
+          githubApp.data.private_key_env,
+          githubApp.data.installation_id_env,
         ]
       : []),
   ]
@@ -190,11 +204,45 @@ export const authSchema = z.object({
 
 export type Auth = z.infer<typeof authSchema>
 
-export const boardConfigSchema = z.object({
-  sources: z.record(z.string().min(1), sourceSchema).default({}),
-  boards: z.record(z.string().min(1), boardSchema),
-  auth: authSchema.optional(),
-})
+export const boardConfigSchema = z
+  .object({
+    sources: z.record(z.string().min(1), sourceSchema).default({}),
+    boards: z.record(z.string().min(1), boardSchema),
+    auth: authSchema.optional(),
+  })
+  .superRefine((config, ctx) => {
+    for (const [sourceName, source] of Object.entries(config.sources)) {
+      if (source.type !== 'azure-devops') continue
+      const parsedSource = azureDevOpsSourceSchema.safeParse(source)
+      if (!parsedSource.success) {
+        for (const issue of parsedSource.error.issues) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['sources', sourceName, ...issue.path],
+            message: issue.message,
+          })
+        }
+      }
+    }
+    for (const [boardName, board] of Object.entries(config.boards)) {
+      board.panels.forEach((panel, panelIndex) => {
+        const source = panel.source ? config.sources[panel.source] : undefined
+        if (panel.type !== 'pipeline-status' || source?.type !== 'azure-devops') return
+        if (
+          typeof panel.pipeline !== 'number' ||
+          !Number.isInteger(panel.pipeline) ||
+          panel.pipeline <= 0
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['boards', boardName, 'panels', panelIndex, 'pipeline'],
+            message:
+              'Azure DevOps pipeline-status panels require a positive numeric pipeline definition id',
+          })
+        }
+      })
+    }
+  })
 
 export type BoardConfig = z.infer<typeof boardConfigSchema>
 

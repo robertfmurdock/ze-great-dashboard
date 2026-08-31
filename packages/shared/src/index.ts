@@ -1,6 +1,8 @@
 export {
   type Auth,
+  type AzureDevOpsSource,
   authSchema,
+  azureDevOpsSourceSchema,
   type Board,
   type BoardConfig,
   boardConfigSchema,

@@ -9,6 +9,7 @@ import {
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { stringify as stringifyYaml } from 'yaml'
+import { fetchAzureDevOpsPipeline } from './adapters/azure-devops.ts'
 import {
   fetchGithubActionsPipeline,
   fetchGithubActionsPullRequestHealth,
@@ -20,6 +21,7 @@ import { type CredentialResolver, environmentCredentials } from './credentials.t
 import { createGithubClient } from './github-auth.ts'
 import { renderIndexHtml } from './render.ts'
 import { ASSET_PATH_SENTINEL, type Fetcher, TemplateCache } from './template.ts'
+import { adapterRouteResponse } from './upstream.ts'
 
 export type AppDependencies = {
   config: ServerConfig
@@ -137,11 +139,17 @@ export function createApp(deps: AppDependencies): Hono {
         fetcher: deps.fetcher ?? globalThis.fetch,
         githubClient,
       })
-      const headers = passthroughHeaders(result.response.headers)
-      if (result.response.status === 304) return new Response(null, { status: 304, headers })
-      const envelope = result.envelope ?? JSON.parse(await result.response.text())
-      headers.set('content-type', 'application/json; charset=utf-8')
-      return new Response(JSON.stringify(envelope), { status: 200, headers })
+      return adapterRouteResponse(result)
+    }
+    if (panel.type === 'pipeline-status' && source?.type === 'azure-devops' && source) {
+      const result = await fetchAzureDevOpsPipeline({
+        panel,
+        source,
+        requestHeaders: c.req.raw.headers,
+        fetcher: deps.fetcher ?? globalThis.fetch,
+        credentials,
+      })
+      return adapterRouteResponse(result)
     }
     if (panel.type === 'pull-request-health' && source?.type === 'github-actions' && source) {
       const result = await fetchGithubActionsPullRequestHealth({
@@ -151,10 +159,7 @@ export function createApp(deps: AppDependencies): Hono {
         fetcher: deps.fetcher ?? globalThis.fetch,
         githubClient,
       })
-      const headers = passthroughHeaders(result.response.headers)
-      const envelope = result.envelope ?? JSON.parse(await result.response.text())
-      headers.set('content-type', 'application/json; charset=utf-8')
-      return new Response(JSON.stringify(envelope), { status: 200, headers })
+      return adapterRouteResponse(result)
     }
     if (panel.type === 'http-value') {
       const result = await fetchHttpValue({
@@ -162,11 +167,7 @@ export function createApp(deps: AppDependencies): Hono {
         requestHeaders: c.req.raw.headers,
         fetcher: deps.fetcher ?? globalThis.fetch,
       })
-      const headers = passthroughHeaders(result.response.headers)
-      if (result.response.status === 304) return new Response(null, { status: 304, headers })
-      const envelope = result.envelope ?? JSON.parse(await result.response.text())
-      headers.set('content-type', 'application/json; charset=utf-8')
-      return new Response(JSON.stringify(envelope), { status: 200, headers })
+      return adapterRouteResponse(result)
     }
     return c.notFound()
   })
@@ -196,15 +197,6 @@ export function createApp(deps: AppDependencies): Hono {
 function safeDownloadFilename(value: string): string {
   const sanitized = value.replace(/[\\/\r\n"%*:|<>?]/g, '_').trim()
   return sanitized || 'board'
-}
-
-function passthroughHeaders(upstream: Headers): Headers {
-  const headers = new Headers()
-  for (const name of ['cache-control', 'etag', 'last-modified', 'date', 'vary']) {
-    const value = upstream.get(name)
-    if (value) headers.set(name, value)
-  }
-  return headers
 }
 
 /**

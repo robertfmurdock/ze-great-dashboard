@@ -1,4 +1,5 @@
 import type { BoardConfig, Panel, Source } from '@ze-great-dashboard/shared'
+import { permittedAzureDevOpsCalls } from './adapters/azure-devops.ts'
 import {
   type PermittedCall,
   permittedGithubActionsCalls,
@@ -25,6 +26,9 @@ export function deriveAllowlist(config: BoardConfig): Map<string, PermittedCall[
 function callsFor(panel: Panel, source: Source | undefined): PermittedCall[] | undefined {
   if (panel.type === 'pipeline-status' && source?.type === 'github-actions') {
     return permittedGithubActionsCalls(panel, source)
+  }
+  if (panel.type === 'pipeline-status' && source?.type === 'azure-devops') {
+    return permittedAzureDevOpsCalls(panel, source)
   }
   if (panel.type === 'pull-request-health' && source?.type === 'github-actions') {
     return permittedGithubActionsPullRequestHealthCalls(panel, source)
