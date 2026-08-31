@@ -2,6 +2,8 @@ import type { PullRequestHealth } from '@ze-great-dashboard/shared'
 import { formatCount } from './panel-formatting.ts'
 
 export type PullRequestHealthCompactFacts = {
+  workflow: string
+  pullRequests: string
   primary: string
   secondary: string
   primaryDetail?: string
@@ -21,6 +23,8 @@ export function compactPullRequestHealthFacts(
 
   if (failedItem) {
     return {
+      workflow: formatCount(signal.workflows.length, 'workflow'),
+      pullRequests: formatCount(signal.pullRequests.length, 'open PR'),
       primary: `${failedItem.label} failed`,
       secondary: `${formatCount(signal.workflows.length, 'workflow')} · ${formatCount(signal.pullRequests.length, 'open PR')}`,
       primaryDetail: failedItem.detail,
@@ -29,6 +33,8 @@ export function compactPullRequestHealthFacts(
   }
 
   return {
+    workflow: formatCount(signal.workflows.length, 'workflow'),
+    pullRequests: formatCount(signal.pullRequests.length, 'open PR'),
     primary: formatCount(signal.workflows.length, 'workflow'),
     secondary: formatCount(signal.pullRequests.length, 'open PR'),
     title: signal.summary,

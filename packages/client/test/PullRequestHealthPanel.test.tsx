@@ -30,17 +30,30 @@ const envelope: Envelope = {
 afterEach(cleanup)
 
 describe('PullRequestHealthPanel', () => {
-  it('renders the aggregate status, compact facts, and full summary together', () => {
+  it('renders status, workflow and pull-request evidence, the full summary, and freshness together', () => {
     const rendered = render(<PullRequestHealthPanel panel={panel} envelope={envelope} />).container
 
     expect(rendered.textContent).toContain('✓ Healthy')
+    expect(rendered.querySelector('[data-panel-layout]')?.getAttribute('data-panel-layout')).toBe(
+      'three-anchor',
+    )
     expect(rendered.querySelector('[data-compact-facts]')?.textContent).toContain('1 workflow')
     expect(rendered.querySelector('[data-compact-facts]')?.textContent).toContain('0 open PRs')
+    expect(rendered.textContent).toContain('Observed')
     expect(
       rendered.querySelector('[title="1 update workflow · No open update PRs"]')?.textContent,
     ).toContain('No open update PRs')
     expect(rendered.querySelector('[data-compact-facts]')?.getAttribute('title')).toBe(
       '1 update workflow · No open update PRs',
+    )
+    expect(rendered.querySelector('[data-panel-link]')?.getAttribute('aria-label')).toBe(
+      'View source for updates (opens in a new tab)',
+    )
+    expect(rendered.querySelector('[data-compact-facts]')?.textContent).toContain(
+      'Update workflows:',
+    )
+    expect(rendered.querySelector('[data-compact-facts]')?.textContent).toContain(
+      'Open update pull requests:',
     )
   })
 
@@ -66,5 +79,8 @@ describe('PullRequestHealthPanel', () => {
     expect(
       rendered.querySelector('[data-compact-facts]')?.querySelector('p')?.getAttribute('title'),
     ).toBe('Checks failed')
+    expect(rendered.querySelector('[data-compact-facts]')?.textContent).toContain(
+      'Detail: Checks failed',
+    )
   })
 })

@@ -17,6 +17,8 @@ describe('compactPullRequestHealthFacts', () => {
     expect(compactPullRequestHealthFacts(signal())).toMatchObject({
       primary: '1 workflow',
       secondary: '0 open PRs',
+      workflow: '1 workflow',
+      pullRequests: '0 open PRs',
       title: '1 update workflow · No open update PRs',
     })
   })
@@ -33,7 +35,12 @@ describe('compactPullRequestHealthFacts', () => {
           pullRequests: [{ label: 'PR #42', status: 'passed', detail: 'Open', link: null }],
         }),
       ),
-    ).toMatchObject({ primary: '2 workflows', secondary: '1 open PR' })
+    ).toMatchObject({
+      primary: '2 workflows',
+      secondary: '1 open PR',
+      workflow: '2 workflows',
+      pullRequests: '1 open PR',
+    })
   })
 
   it('keeps the failing item actionable and retains its detail in the title', () => {
@@ -50,6 +57,8 @@ describe('compactPullRequestHealthFacts', () => {
     ).toMatchObject({
       primary: 'PR #42 failed',
       secondary: '1 workflow · 1 open PR',
+      workflow: '1 workflow',
+      pullRequests: '1 open PR',
       primaryDetail: 'Checks failed',
       title: '1 update workflow · 1 open update PR — PR #42: Checks failed',
     })

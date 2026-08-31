@@ -44,6 +44,10 @@
 .content:has([data-running-progress="signal-field"]) {
   flex: 1 1 0;
 }
+.threeAnchor > [data-panel-anchor="status"],
+.threeAnchor > [data-panel-anchor="evidence"] {
+  min-width: 0;
+}
 .error {
   border-color: var(--status-serious);
 }
@@ -276,6 +280,25 @@
   .content {
     --panel-meta-display: flex;
     gap: 0.05em;
+  }
+
+  /* Opt-in status tiles use the available height as three repeatable scan anchors. */
+  .threeAnchor {
+    display: grid;
+    flex: 1 1 0;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 0;
+  }
+  .threeAnchor .label {
+    grid-row: 1;
+  }
+  .threeAnchor > [data-panel-anchor="status"] {
+    grid-row: 2;
+    align-self: center;
+  }
+  .threeAnchor > [data-panel-anchor="evidence"] {
+    grid-row: 3;
+    align-self: end;
   }
 }
 @container panel (max-height: 4rem) {

@@ -56,6 +56,18 @@ describe('PanelFrame', () => {
     expect(explicit.querySelector('[data-panel]')?.getAttribute('data-density')).toBe('compact')
   })
 
+  it('exposes the opt-in three-anchor layout hook without changing default panels', () => {
+    const rendered = render(
+      <PanelFrame panel={panel} layout="three-anchor">
+        <p>Value</p>
+      </PanelFrame>,
+    ).container
+
+    expect(rendered.querySelector('[data-panel-content]')?.getAttribute('data-panel-layout')).toBe(
+      'three-anchor',
+    )
+  })
+
   it('owns error styling and the accessible source action', () => {
     const envelope: Envelope = {
       panelId: 'build',

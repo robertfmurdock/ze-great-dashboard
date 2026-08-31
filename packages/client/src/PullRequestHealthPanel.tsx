@@ -1,6 +1,6 @@
 import { pullRequestHealthSchema } from '@ze-great-dashboard/shared'
 import { errorPresentation } from './error-presentation.ts'
-import { PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
+import { PanelFrame, PanelHint, PanelMetadata, PanelStatus } from './PanelFrame.tsx'
 import styles from './PullRequestHealthPanel.module.css'
 import type { PanelProps } from './panel-props.ts'
 import { statusPresentation } from './panel-status.ts'
@@ -33,26 +33,45 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
   const presentation = statusPresentation(signal.data.status, 'Healthy')
   const compactFacts = compactPullRequestHealthFacts(signal.data)
   return (
-    <PanelFrame panel={panel} envelope={envelope}>
-      <PanelStatus status={signal.data.status}>
-        {presentation.glyph} {presentation.label}
-      </PanelStatus>
-      <PanelHint className={styles.fullSummary} title={signal.data.summary}>
-        {signal.data.summary}
-      </PanelHint>
-      <div className={styles.compactFacts} title={compactFacts.title} data-compact-facts>
-        <p
-          className={`${styles.compactFact} ${styles.compactPrimary}`}
-          title={compactFacts.primaryDetail}
-        >
-          {compactFacts.primary}
-        </p>
-        <p className={`${styles.compactFact} ${styles.compactSecondary}`}>
-          {compactFacts.secondary}
-        </p>
+    <PanelFrame panel={panel} envelope={envelope} layout="three-anchor">
+      <div className={styles.statusAnchor} data-panel-anchor="status">
+        <PanelStatus status={signal.data.status}>
+          {presentation.glyph} {presentation.label}
+        </PanelStatus>
       </div>
-      <ObservedAt value={envelope.observedAt} />
-      {updateHealth && <UpdateHealth health={updateHealth} />}
+      <div className={styles.evidence} data-panel-anchor="evidence">
+        <PanelHint className={styles.fullSummary} title={signal.data.summary}>
+          {signal.data.summary}
+        </PanelHint>
+        <div className={styles.compactFacts} title={compactFacts.title} data-compact-facts>
+          {compactFacts.primaryDetail && (
+            <p className={styles.failedItem} title={compactFacts.primaryDetail}>
+              <span aria-hidden="true">⚠</span>{' '}
+              <span className="screen-reader-only">Failed item: </span>
+              {compactFacts.primary}
+              <span className="screen-reader-only">. Detail: {compactFacts.primaryDetail}</span>
+            </p>
+          )}
+          <PanelMetadata
+            glyph="⚙"
+            label="Update workflows"
+            value={compactFacts.workflow}
+            title={`Update workflows: ${compactFacts.workflow}`}
+            className={styles.compactFact}
+          />
+          <PanelMetadata
+            glyph="⎇"
+            label="Open update pull requests"
+            value={compactFacts.pullRequests}
+            title={`Open update pull requests: ${compactFacts.pullRequests}`}
+            className={styles.compactFact}
+          />
+        </div>
+        <div className={styles.freshness}>
+          <ObservedAt value={envelope.observedAt} />
+          {updateHealth && <UpdateHealth health={updateHealth} />}
+        </div>
+      </div>
     </PanelFrame>
   )
 }

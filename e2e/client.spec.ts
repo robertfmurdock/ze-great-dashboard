@@ -376,20 +376,27 @@ test('adapts density independently across wide, square, narrow, and tall cells',
   expect(sourceCorner.textOverlapsAction).toBe(false)
 })
 
-test('uses compact pull-request facts only in narrow compact panels', async ({ page }) => {
+test('centers pull-request status in a narrow tall tile while retaining normal and wide cards', async ({
+  page,
+}) => {
   const board = {
     panels: [
       {
-        id: 'updates-narrow',
+        id: 'updates-tall',
+        type: 'pull-request-health',
+        position: { x: 0, y: 0, w: 1, h: 12 },
+      },
+      {
+        id: 'updates-normal',
         type: 'pull-request-health',
         density: 'compact',
-        position: { x: 0, y: 0, w: 1, h: 3 },
+        position: { x: 1, y: 0, w: 3, h: 3 },
       },
       {
         id: 'updates-wide',
         type: 'pull-request-health',
         density: 'compact',
-        position: { x: 1, y: 0, w: 6, h: 3 },
+        position: { x: 4, y: 0, w: 8, h: 3 },
       },
     ],
   }
@@ -425,23 +432,46 @@ test('uses compact pull-request facts only in narrow compact panels', async ({ p
   })
 
   await page.goto('/')
-  await expect(page.locator('[data-panel]')).toHaveCount(2)
+  await expect(page.locator('[data-panel]')).toHaveCount(3)
   await expect(page.locator('[data-panel][aria-busy="true"]')).toHaveCount(0)
 
   const presentation = await page.evaluate(() =>
-    [...document.querySelectorAll<HTMLElement>('[data-panel]')].map((panel) => ({
-      id: panel.dataset.panelId,
-      facts: getComputedStyle(panel.querySelector('[data-compact-facts]') as Element).display,
-      summary: getComputedStyle(
-        panel.querySelector('[data-compact-facts]')?.previousElementSibling as Element,
-      ).position,
-      fits: panel.scrollHeight <= panel.clientHeight,
-    })),
+    [...document.querySelectorAll<HTMLElement>('[data-panel]')].map((panel) => {
+      const rect = (selector: string) =>
+        panel.querySelector<HTMLElement>(selector)?.getBoundingClientRect()
+      const label = rect('h2')
+      const status = rect('[data-panel-anchor="status"]')
+      const evidence = rect('[data-panel-anchor="evidence"]')
+      return {
+        id: panel.dataset.panelId,
+        facts: getComputedStyle(panel.querySelector('[data-compact-facts]') as Element).display,
+        summary: getComputedStyle(
+          panel.querySelector('[data-compact-facts]')?.previousElementSibling as Element,
+        ).position,
+        fits: panel.scrollHeight <= panel.clientHeight,
+        anchors:
+          label && status && evidence
+            ? { labelBottom: label.bottom, statusTop: status.top, evidenceTop: evidence.top }
+            : undefined,
+      }
+    }),
   )
 
-  expect(presentation.find((panel) => panel.id === 'updates-narrow')).toMatchObject({
+  expect(presentation.find((panel) => panel.id === 'updates-tall')).toMatchObject({
     facts: 'flex',
     summary: 'absolute',
+    fits: true,
+  })
+  const tallAnchors = presentation.find((panel) => panel.id === 'updates-tall')?.anchors
+  expect(tallAnchors?.statusTop).toBeGreaterThan(
+    tallAnchors?.labelBottom ?? Number.POSITIVE_INFINITY,
+  )
+  expect(tallAnchors?.evidenceTop).toBeGreaterThan(
+    tallAnchors?.statusTop ?? Number.POSITIVE_INFINITY,
+  )
+  expect(presentation.find((panel) => panel.id === 'updates-normal')).toMatchObject({
+    facts: 'none',
+    summary: 'static',
     fits: true,
   })
   expect(presentation.find((panel) => panel.id === 'updates-wide')).toMatchObject({

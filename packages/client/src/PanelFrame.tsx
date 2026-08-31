@@ -75,6 +75,7 @@ export function PanelFrame({
   envelope,
   error = false,
   field,
+  layout,
   children,
 }: {
   panel: Panel
@@ -82,6 +83,8 @@ export function PanelFrame({
   error?: boolean
   /** Decorative active-run layer. It is intentionally a sibling of readable panel content. */
   field?: ReactNode
+  /** Opt-in slots for a panel with identity, status, and evidence anchors. */
+  layout?: 'three-anchor'
   children: ReactNode
 }) {
   const density = panel.density ?? 'auto'
@@ -105,7 +108,11 @@ export function PanelFrame({
     >
       {field}
       <PanelSourceLink panelId={panel.id} link={envelope?.link} />
-      <div className={styles.content} data-panel-content>
+      <div
+        className={`${styles.content} ${layout === 'three-anchor' ? styles.threeAnchor : ''}`}
+        data-panel-content
+        data-panel-layout={layout}
+      >
         <h2 className={styles.label}>{panel.label ?? panel.id}</h2>
         {children}
       </div>
