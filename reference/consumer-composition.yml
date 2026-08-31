@@ -9,9 +9,7 @@ Parameters:
     Type: String
   LambdaArtifactKey:
     Type: String
-  DashboardVersion:
-    Type: String
-  AssetBaseUrl:
+  AssetPath:
     Type: String
   BoardConfigPath:
     Type: String
@@ -35,8 +33,7 @@ Resources:
         Name: !Ref SecretsName
         LambdaArtifactBucket: !Ref LambdaArtifactBucket
         LambdaArtifactKey: !Ref LambdaArtifactKey
-        DashboardVersion: !Ref DashboardVersion
-        AssetBaseUrl: !Ref AssetBaseUrl
+        AssetPath: !Ref AssetPath
         BoardConfigPath: !Ref BoardConfigPath
         SecretReference: !Ref SecretsReference
 
@@ -48,14 +45,13 @@ Resources:
         Name: !Ref ParameterName
         LambdaArtifactBucket: !Ref LambdaArtifactBucket
         LambdaArtifactKey: !Ref LambdaArtifactKey
-        DashboardVersion: !Ref DashboardVersion
-        AssetBaseUrl: !Ref AssetBaseUrl
+        AssetPath: !Ref AssetPath
         BoardConfigPath: !Ref BoardConfigPath
         SecretReference: !Ref ParameterReference
 
 Outputs:
   AssetPath:
-    Value: !Sub '${AssetBaseUrl}/dashboard/${DashboardVersion}'
+    Value: !Ref AssetPath
   LambdaArtifactKey:
     Value: !Ref LambdaArtifactKey
   SecretsFunctionArn:

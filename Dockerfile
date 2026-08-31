@@ -39,11 +39,10 @@ FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:4ac45c93b6c4b23048765691
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Stable release builds pass this value from the release workflow. The client remains outside the
-# image; this is only the default location of the immutable client published for this same release.
-# Operators may still override ASSET_PATH to deliberately select another client version.
-ARG RELEASE_VERSION
-ENV ASSET_PATH=https://public-assets.zegreatrob.com/dashboard/${RELEASE_VERSION}
+# The client remains outside the image. This explicit build argument selects only the default
+# immutable client; operators may still override ASSET_PATH at runtime.
+ARG ASSET_PATH
+ENV ASSET_PATH=${ASSET_PATH}
 
 # Keep the container default independent of the bundled source location. Compose and operators can
 # still override BOARD_CONFIG_URL with another mounted file or a remote configuration URL.

@@ -5,4 +5,4 @@ services:
       context: .
       # Local source builds are not releases. Set ASSET_PATH explicitly when using this overlay.
       args:
-        RELEASE_VERSION: local
+        ASSET_PATH: ${ASSET_PATH:?Set ASSET_PATH in .env before building the local image.}

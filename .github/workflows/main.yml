@@ -91,7 +91,7 @@ jobs:
           tags: ${{ steps.candidate-docker-meta.outputs.tags }}
           labels: ${{ steps.candidate-docker-meta.outputs.labels }}
           build-args: |
-            RELEASE_VERSION=${{ steps.version.outputs.version }}
+            ASSET_PATH=https://public-assets.zegreatrob.com/dashboard/${{ steps.version.outputs.version }}
 
       - name: AWS provisioning credentials
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
@@ -155,8 +155,6 @@ jobs:
           REFERENCE_RELEASE_DIR: .reference-consumer/aws-dashboard-release
           REFERENCE_ARTIFACT_BUCKET: ${{ steps.infrastructure.outputs.reference_artifact_bucket }}
           REFERENCE_EXECUTION_ROLE_ARN: ${{ steps.infrastructure.outputs.reference_execution_role_arn }}
-          REFERENCE_VERSION: ${{ steps.version.outputs.version }}
-          REFERENCE_ASSET_BASE_URL: ${{ steps.infrastructure.outputs.assets_base_url }}
           REFERENCE_SECRET_ARN: ${{ steps.infrastructure.outputs.reference_credential_smoke_secret_arn }}
           REFERENCE_PARAMETER_ARN: ${{ steps.infrastructure.outputs.reference_credential_smoke_parameter_arn }}
         run: |

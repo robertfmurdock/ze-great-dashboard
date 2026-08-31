@@ -2,15 +2,14 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Ze Great Dashboard private Lambda application (integrate through a customer-managed gateway)
 
 Metadata:
-  PackageManagedParameters: [ComputeMode, LambdaArtifactKey, DashboardVersion]
+  PackageManagedParameters: [ComputeMode, LambdaArtifactKey, AssetPath]
 
 Parameters:
   ComputeMode: { Type: String, Default: lambda, AllowedValues: [lambda] }
   Name: { Type: String, Default: dashboard }
   LambdaArtifactBucket: { Type: String }
   LambdaArtifactKey: { Type: String }
-  DashboardVersion: { Type: String }
-  AssetBaseUrl: { Type: String, Default: https://public-assets.zegreatrob.com }
+  AssetPath: { Type: String }
   BoardConfigPath: { Type: String, Default: ./board.yaml }
   MemorySize: { Type: Number, Default: 256, MinValue: 128 }
   Timeout: { Type: Number, Default: 10, MinValue: 1, MaxValue: 900 }
@@ -84,11 +83,11 @@ Resources:
       Code: { S3Bucket: !Ref LambdaArtifactBucket, S3Key: !Ref LambdaArtifactKey }
       Environment:
         Variables:
-          ASSET_PATH: !Sub '${AssetBaseUrl}/dashboard/${DashboardVersion}'
+          ASSET_PATH: !Ref AssetPath
           BOARD_CONFIG_URL: !Ref BoardConfigPath
           HOST: 0.0.0.0
           SECRET_REFERENCE: !If [HasSecretReference, !Ref SecretReference, !Ref AWS::NoValue]
 Outputs:
   ServerFunctionName: { Value: !Ref ServerFunction }
   ServerFunctionArn: { Value: !GetAtt ServerFunction.Arn }
-  AssetPath: { Value: !Sub '${AssetBaseUrl}/dashboard/${DashboardVersion}' }
+  AssetPath: { Value: !Ref AssetPath }

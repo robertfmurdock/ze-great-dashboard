@@ -9,7 +9,6 @@ const env: ClientEnv = {
   assetPath: 'https://assets.example.com/dashboard/1.0.7',
   proxyPath: '/api',
   board: 'ze-great-team',
-  clientVersion: '1.0.7',
 }
 
 beforeEach(() => {
@@ -48,7 +47,7 @@ describe('the board shell', () => {
     const rendered = render(<App env={env} />)
     fireEvent.click(rendered.querySelector('button') as HTMLButtonElement)
     const text = rendered.textContent
-    expect(text).toContain('1.0.7')
+    expect(text).toContain('dev')
     expect(text).toContain('https://assets.example.com/dashboard/1.0.7')
   })
 

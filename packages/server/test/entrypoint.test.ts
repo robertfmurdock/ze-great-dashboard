@@ -43,7 +43,6 @@ describe('the entrypoint document', () => {
       assetPath: 'https://assets.example.com/dashboard/1.0.7',
       proxyPath: '/api',
       board: 'ze-great-team',
-      clientVersion: '1.0.7',
     })
   })
 
@@ -100,14 +99,12 @@ describe('the entrypoint document', () => {
     expect(response.status).toBe(500)
   })
 
-  it('labels a local dev asset path as "dev" rather than as the sentinel', async () => {
+  it('does not infer a client version from a local dev asset path', async () => {
     const app = appWith({ ASSET_PATH: 'http://localhost:5173/__ASSET_PATH__' })
 
     const html = await (await app.request('/')).text()
 
-    // Purely cosmetic, but the version label is on screen during all the cosmetic work, and
-    // "__ASSET_PATH__" reads as a bug.
-    expect(extractClientEnv(html)).toMatchObject({ clientVersion: 'dev' })
+    expect(extractClientEnv(html)).not.toHaveProperty('clientVersion')
   })
 
   it('answers health checks without touching the template', async () => {
@@ -124,7 +121,6 @@ describe('the entrypoint document', () => {
     expect(response.headers.get('cache-control')).toBe('no-store')
     await expect(response.json()).resolves.toEqual({
       assetPath: 'https://assets.example.com/dashboard/1.0.7',
-      clientVersion: '1.0.7',
     })
   })
 })

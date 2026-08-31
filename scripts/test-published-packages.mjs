@@ -60,6 +60,11 @@ try {
     }
   }
   await collect(join(stagingRoot, 'aws'))
+  const clientBundles = publishedFiles.filter(
+    (file) => file.includes('/client/assets/') && file.endsWith('.js'),
+  )
+  assert.equal(clientBundles.length, 1)
+  assert.match(await readFile(clientBundles[0], 'utf8'), /9\.8\.7/)
   assert.ok(publishedFiles.every((file) => !file.endsWith('.ts') || file.endsWith('.d.ts')))
   for (const file of publishedFiles.filter(
     (file) => file.endsWith('.js') || file.endsWith('.d.ts'),
@@ -137,8 +142,9 @@ try {
     const releaseParameters = JSON.parse(
       await readFile(join(releasePath, 'parameters.json'), 'utf8'),
     )
-    assert.equal(releaseParameters.length, 11)
+    assert.equal(releaseParameters.length, 10)
     assert.equal(releaseParameters[2].ParameterValue, metadata.artifactKey)
+    assert.equal(releaseParameters[3].ParameterValue, metadata.assetPath)
     const deployment = JSON.parse(await readFile(join(releasePath, 'deployment.json'), 'utf8'))
     assert.equal(deployment.parameters, 'parameters.json')
     assert.ok(deployment.commands.deploy.includes(`file://${releasePath}/parameters.json`))

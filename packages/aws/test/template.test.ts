@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { strFromU8, unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 import { cloudFormationTemplate, packageEcs, packageLambda } from '../src/index.ts'
 
@@ -12,10 +13,9 @@ describe('AWS deployment contract', () => {
     const template = await cloudFormationTemplate()
     expect(template).toContain('LambdaArtifactBucket')
     expect(template).toContain('BoardConfigPath')
-    expect(template).toContain('DashboardVersion')
-    expect(template).toContain(
-      'AssetBaseUrl: { Type: String, Default: https://public-assets.zegreatrob.com }',
-    )
+    expect(template).toContain('AssetPath')
+    expect(template).not.toContain('DashboardVersion')
+    expect(template).not.toContain('AssetBaseUrl')
     expect(template).not.toContain('AWS::Lambda::Url')
     expect(template).not.toContain("Principal: '*'")
     expect(template).not.toContain('AuthType: NONE')
@@ -126,8 +126,10 @@ describe('AWS deployment contract', () => {
       { ParameterKey: 'Name', ParameterValue: 'consumer-dashboard' },
       { ParameterKey: 'LambdaArtifactBucket', ParameterValue: 'consumer-artifacts' },
       { ParameterKey: 'LambdaArtifactKey', ParameterValue: release.artifactKey },
-      { ParameterKey: 'DashboardVersion', ParameterValue: '1.2.3' },
-      { ParameterKey: 'AssetBaseUrl', ParameterValue: 'https://public-assets.zegreatrob.com' },
+      {
+        ParameterKey: 'AssetPath',
+        ParameterValue: 'https://public-assets.zegreatrob.com/dashboard/1.2.3',
+      },
       { ParameterKey: 'BoardConfigPath', ParameterValue: './board.yaml' },
       { ParameterKey: 'MemorySize', ParameterValue: '256' },
       { ParameterKey: 'Timeout', ParameterValue: '10' },
@@ -152,6 +154,75 @@ describe('AWS deployment contract', () => {
     expect(handoff.commands.deploy).toContain(`${outputDir}/template.yml`)
     expect(handoff.commands.deploy).toContain(`file://${outputDir}/parameters.json`)
   }, 30_000)
+
+  it('binds an arbitrary immutable asset path into release metadata, schema, and deployment', async () => {
+    const root = await mkdtemp('/tmp/dashboard-aws-asset-path-')
+    const outputDir = join(root, 'release')
+    const assetPath = 'https://cdn.jsdelivr.net/npm/@scope/dashboard@1.2.3/client'
+    const release = await packageLambda({
+      boardConfigPath: fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url)),
+      outputDir,
+      version: '1.2.3',
+      assetPath,
+      secretReference,
+    })
+    expect(release.assetPath).toBe(assetPath)
+    const packagedBoard = unzipSync(await readFile(join(outputDir, 'lambda.zip')))['board.yaml']
+    expect(packagedBoard).toBeDefined()
+    expect(
+      strFromU8(packagedBoard as Uint8Array).startsWith(
+        `# yaml-language-server: $schema=${assetPath}/board-config.schema.json`,
+      ),
+    ).toBe(true)
+    expect(await readFile(join(outputDir, 'template.yml'), 'utf8')).toContain(
+      `Default: "${assetPath}"`,
+    )
+  })
+
+  it('retains the legacy asset-domain shorthand but rejects conflicting selectors', async () => {
+    const boardConfigPath = fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url))
+    await expect(
+      packageLambda({
+        boardConfigPath,
+        outputDir: await mkdtemp('/tmp/dashboard-aws-asset-domain-'),
+        version: '1.2.3',
+        assetDomain: 'https://assets.example.test/',
+        secretReference,
+      }),
+    ).resolves.toMatchObject({ assetPath: 'https://assets.example.test/dashboard/1.2.3' })
+    await expect(
+      packageLambda({
+        boardConfigPath,
+        outputDir: await mkdtemp('/tmp/dashboard-aws-asset-conflict-'),
+        version: '1.2.3',
+        assetPath: 'https://cdn.example.test/client',
+        assetDomain: 'https://assets.example.test',
+        secretReference,
+      }),
+    ).rejects.toThrow('--asset-path and --asset-domain cannot be used together')
+  })
+
+  it('rejects malformed or non-path asset selectors before writing a release', async () => {
+    const boardConfigPath = fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url))
+    await expect(
+      packageLambda({
+        boardConfigPath,
+        outputDir: await mkdtemp('/tmp/dashboard-aws-invalid-asset-path-'),
+        version: '1.2.3',
+        assetPath: 'not-a-url',
+        secretReference,
+      }),
+    ).rejects.toThrow('absolute HTTP(S) URL')
+    await expect(
+      packageLambda({
+        boardConfigPath,
+        outputDir: await mkdtemp('/tmp/dashboard-aws-invalid-asset-path-'),
+        version: '1.2.3',
+        assetPath: 'https://assets.example.test/client?release=1.2.3',
+        secretReference,
+      }),
+    ).rejects.toThrow('without credentials, query, or fragment')
+  })
 
   it('rejects invalid consumer parameter inputs before creating a deployable handoff', async () => {
     const root = await mkdtemp('/tmp/dashboard-aws-invalid-parameters-')
@@ -198,7 +269,7 @@ describe('AWS deployment contract', () => {
     await expect(
       failure(
         'managed',
-        '[{"ParameterKey":"LambdaArtifactBucket","ParameterValue":"bucket"},{"ParameterKey":"DashboardVersion","ParameterValue":"old"}]',
+        '[{"ParameterKey":"LambdaArtifactBucket","ParameterValue":"bucket"},{"ParameterKey":"AssetPath","ParameterValue":"old"}]',
       ),
     ).resolves.toContain('must not set package-managed parameters')
     await expect(stat(join(root, 'managed'))).rejects.toMatchObject({ code: 'ENOENT' })

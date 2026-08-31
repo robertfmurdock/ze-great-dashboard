@@ -11,7 +11,6 @@ const env: ClientEnv = {
   assetPath: 'https://assets.example.com/dashboard/1.0.7',
   proxyPath: '/api',
   board: 'ze-great-team',
-  clientVersion: '1.0.7',
 }
 
 function memory(initial?: string) {
@@ -40,7 +39,7 @@ describe('browser-local diagnostics', () => {
 
     expect(log.export()).toMatchObject({
       schemaVersion: diagnosticsSchemaVersion,
-      client: { version: '1.0.7', board: 'ze-great-team' },
+      client: { version: 'dev', board: 'ze-great-team' },
       summary: { retained: { eventCount: 2, evidenceMayBeIncomplete: false } },
       events: expect.arrayContaining([expect.objectContaining({ panelId: 'build' })]),
     })

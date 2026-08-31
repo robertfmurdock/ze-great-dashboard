@@ -15,8 +15,6 @@ export const clientEnvSchema = z.object({
   proxyPath: z.string().min(1),
   /** Which board this is, resolved server-side so the client parses no URLs. */
   board: z.string().min(1),
-  /** The client version being served, so two published versions are visibly distinguishable. */
-  clientVersion: z.string().min(1),
   /** Omitted entirely when unauthenticated — presence is what turns auth on. */
   auth: z
     .object({
@@ -29,7 +27,7 @@ export const clientEnvSchema = z.object({
 export type ClientEnv = z.infer<typeof clientEnvSchema>
 
 /** The public identity of the client currently selected by the server. */
-export const clientIdentitySchema = clientEnvSchema.pick({ assetPath: true, clientVersion: true })
+export const clientIdentitySchema = clientEnvSchema.pick({ assetPath: true })
 
 export type ClientIdentity = z.infer<typeof clientIdentitySchema>
 

@@ -99,7 +99,7 @@ try {
   const releaseRoot = join(consumerRoot, 'aws-dashboard-release')
   const release = JSON.parse(await readFile(join(releaseRoot, 'release.json'), 'utf8'))
   assert.equal(release.dashboardVersion, version)
-  assert.equal(release.clientAssetUrl, `https://public-assets.zegreatrob.com/dashboard/${version}`)
+  assert.equal(release.assetPath, `https://public-assets.zegreatrob.com/dashboard/${version}`)
   assert.match(release.artifactKey, /^lambda\/[a-f0-9]{64}\.zip$/)
   const archive = unzipSync(await readFile(join(releaseRoot, 'lambda.zip')))
   assert.deepEqual(Object.keys(archive).sort(), [
@@ -110,7 +110,7 @@ try {
   ])
   assert.match(strFromU8(archive['board.yaml']), /boards:/)
   const template = await readFile(join(releaseRoot, 'template.yml'), 'utf8')
-  assert.match(template, new RegExp(`DashboardVersion: \\{[^\\n]+Default: "${version}"`))
+  assert.match(template, new RegExp(`AssetPath: \\{[^\\n]+Default: "${release.assetPath}"`))
   assert.ok(template.includes(`Default: "${release.artifactKey}"`))
   const releaseParameters = JSON.parse(await readFile(join(releaseRoot, 'parameters.json'), 'utf8'))
   assert.equal(releaseParameters.length, 11)
@@ -127,7 +127,7 @@ try {
   assert.ok(deployment.commands.deploy.includes('file://aws-dashboard-release/parameters.json'))
 
   if (!process.argv.includes('--skip-client')) {
-    const assetResponse = await fetch(`${release.clientAssetUrl}/index.html`)
+    const assetResponse = await fetch(`${release.assetPath}/index.html`)
     assert.equal(
       assetResponse.status,
       200,

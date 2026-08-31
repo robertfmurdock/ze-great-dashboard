@@ -4,9 +4,20 @@ const image = `ze-great-dashboard:check-${process.pid}`
 let container
 
 try {
-  execFileSync('docker', ['build', '--tag', image, '--build-arg', 'RELEASE_VERSION=0.1.13', '.'], {
-    stdio: 'inherit',
-  })
+  execFileSync(
+    'docker',
+    [
+      'build',
+      '--tag',
+      image,
+      '--build-arg',
+      'ASSET_PATH=https://public-assets.zegreatrob.com/dashboard/0.1.13',
+      '.',
+    ],
+    {
+      stdio: 'inherit',
+    },
+  )
   container = execFileSync(
     'docker',
     [

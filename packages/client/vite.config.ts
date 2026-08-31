@@ -23,6 +23,9 @@ const boardSchema = readFileSync(
  * what lets one build serve any environment.
  */
 export default defineConfig({
+  define: {
+    'import.meta.env.RELEASE_VERSION': JSON.stringify(process.env.RELEASE_VERSION ?? 'dev'),
+  },
   base: '/__ASSET_PATH__/',
   plugins: [
     cdnExternalization(),

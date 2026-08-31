@@ -7,6 +7,7 @@ import {
   writeBrowserJson,
 } from './browser-storage.ts'
 import { type DiagnosticsSummary, summarizeDiagnostics } from './diagnostics-summary.ts'
+import { clientReleaseVersion } from './release-version.ts'
 
 const storageKey = 'ze-great-dashboard.diagnostics.v1'
 export const diagnosticsSchemaVersion = 1
@@ -64,8 +65,8 @@ export type DiagnosticEventInput =
   | {
       kind: 'client-update-detected'
       path: string
-      current: { assetPath: string; clientVersion: string }
-      next: { assetPath: string; clientVersion: string }
+      current: { assetPath: string }
+      next: { assetPath: string }
     }
   | { kind: 'board-fetch-start'; path: string }
   | {
@@ -178,7 +179,7 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
     return this.events.length
   }
 
-  clientVersion = () => this.env.clientVersion
+  clientVersion = () => clientReleaseVersion
 
   assetPath = () => this.env.assetPath
 
@@ -208,7 +209,7 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
       schemaVersion: diagnosticsSchemaVersion,
       exportedAt: this.now().toISOString(),
       client: {
-        version: this.env.clientVersion,
+        version: clientReleaseVersion,
         assetPath: this.env.assetPath,
         board: this.env.board,
         sessionId: this.sessionId,

@@ -97,6 +97,22 @@ npm exec -- ze-great-dashboard-aws package \
   --output aws-dashboard-release
 ```
 
+The package selects the immutable browser client with its default public asset path. To use an
+exact release already hosted on jsDelivr, an internal CDN, or S3, provide the complete URL instead:
+
+```sh
+npm exec -- ze-great-dashboard-aws package \
+  --board-config board.yaml \
+  --parameters aws-dashboard-parameters.json \
+  --asset-path https://cdn.jsdelivr.net/npm/@your-scope/dashboard@1.2.3/client \
+  --output aws-dashboard-release
+```
+
+That URL must contain the matching `index.html` and `board-config.schema.json`; it is recorded in
+the board modeline and deployed as `ASSET_PATH`. `--asset-domain` remains a deprecated shorthand
+for the package's legacy public S3 layout. `publish-assets` is provider-specific and still uses the
+package version to choose its S3 upload destination.
+
 This validates the board and writes:
 
 - `lambda.zip` — the private Lambda application.

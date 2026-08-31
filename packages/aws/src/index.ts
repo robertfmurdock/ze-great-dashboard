@@ -81,7 +81,7 @@ const run = promisify(execFile)
 export type ReleaseMetadata = {
   computeMode: ComputeMode
   dashboardVersion: string
-  clientAssetUrl: string
+  assetPath: string
   serverRuntimeVersion: string
   supportedProviders: string[]
   artifactChecksums: Record<string, string>
@@ -94,6 +94,8 @@ export type LambdaPackageOptions = {
   boardConfigPath: string
   outputDir: string
   version: string
+  assetPath?: string
+  /** @deprecated Use assetPath. */
   assetDomain?: string
   /** ARN of the consumer-owned JSON credential-map secret, never a secret value. */
   secretReference?: string
@@ -159,6 +161,7 @@ export async function packageLambda(options: LambdaPackageOptions): Promise<Pack
     outputDir: runtimeDir,
     version: options.version,
     providers: ['aws-lambda'],
+    assetPath: options.assetPath,
     assetDomain: options.assetDomain,
     secretReference: options.secretReference,
   })
@@ -203,7 +206,7 @@ export async function packageLambda(options: LambdaPackageOptions): Promise<Pack
     deploymentTemplate(await cloudFormationTemplate('lambda'), {
       ComputeMode: 'lambda',
       LambdaArtifactKey: packagedRelease.artifactKey,
-      DashboardVersion: packagedRelease.dashboardVersion,
+      AssetPath: packagedRelease.assetPath,
     }),
   )
   return packagedRelease
@@ -219,6 +222,7 @@ export async function packageEcs(options: EcsPackageOptions): Promise<PackagedRe
     outputDir,
     version: options.version,
     providers: ['aws-ecs-fargate'],
+    assetPath: options.assetPath,
     assetDomain: options.assetDomain,
     secretReference: options.secretReference,
   })
@@ -234,7 +238,7 @@ export async function packageEcs(options: EcsPackageOptions): Promise<PackagedRe
     deploymentTemplate(await cloudFormationTemplate('ecs'), {
       ComputeMode: 'ecs',
       Image: imageReference,
-      DashboardVersion: packagedRelease.dashboardVersion,
+      AssetPath: packagedRelease.assetPath,
     }),
   )
   await writeFile(

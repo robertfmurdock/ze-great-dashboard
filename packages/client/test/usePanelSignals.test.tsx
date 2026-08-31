@@ -10,7 +10,6 @@ const env: ClientEnv = {
   assetPath: 'https://assets.example.com/dashboard/1.0.7',
   proxyPath: '/api',
   board: 'ze-great-team',
-  clientVersion: '1.0.7',
 }
 
 const board: Board = {

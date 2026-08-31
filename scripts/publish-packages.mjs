@@ -16,6 +16,13 @@ if (publishIndex >= 0) {
   const tarball = resolve(requiredArgument(publishIndex, '--publish-tarball'))
   await publishTarball(tarball)
 } else {
+  // The browser's displayed release is part of its immutable artifact, so rebuild it for the
+  // exact npm release before staging the package.
+  execFileSync('node', ['scripts/build-packages.mjs'], {
+    cwd: root,
+    stdio: 'inherit',
+    env: { ...process.env, RELEASE_VERSION: releaseVersion },
+  })
   const stagingRoot = process.env.PUBLISH_STAGING_DIR
     ? resolve(process.env.PUBLISH_STAGING_DIR)
     : await mkdtemp(join(tmpdir(), 'ze-great-dashboard-publish-'))

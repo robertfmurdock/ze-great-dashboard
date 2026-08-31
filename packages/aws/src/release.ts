@@ -15,17 +15,39 @@ const CANONICAL_ASSET_DOMAIN = 'https://public-assets.zegreatrob.com'
 
 export type ReleaseMetadata = {
   dashboardVersion: string
-  clientAssetUrl: string
+  assetPath: string
   serverRuntimeVersion: string
   supportedProviders: string[]
   artifactChecksums: Record<string, string>
   runtimeCompatibility: { node: string }
 }
 
-function clientAssetUrl(version: string, domain = CANONICAL_ASSET_DOMAIN): string {
+function legacyAssetPath(version: string, domain = CANONICAL_ASSET_DOMAIN): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(version))
     throw new Error(`Invalid dashboard version: ${version}`)
   return `${domain.replace(/\/+$/, '')}/dashboard/${version}`
+}
+
+function normalizeAssetPath(value: string): string {
+  const assetPath = value.replace(/\/+$/, '')
+  let url: URL
+  try {
+    url = new URL(assetPath)
+  } catch {
+    throw new Error('--asset-path must be an absolute HTTP(S) URL')
+  }
+  if (
+    !['http:', 'https:'].includes(url.protocol) ||
+    !url.hostname ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  )
+    throw new Error(
+      '--asset-path must be an absolute HTTP(S) URL without credentials, query, or fragment',
+    )
+  return assetPath
 }
 
 async function validateBoardConfig(
@@ -61,13 +83,19 @@ export async function assembleRelease(input: {
   outputDir: string
   version: string
   providers?: string[]
+  assetPath?: string
+  /** @deprecated Use assetPath to select an arbitrary immutable client URL. */
   assetDomain?: string
   secretReference?: string
 }): Promise<{ metadata: ReleaseMetadata; files: Record<string, string> }> {
-  const assetUrl = clientAssetUrl(input.version, input.assetDomain)
+  if (input.assetPath && input.assetDomain)
+    throw new Error('--asset-path and --asset-domain cannot be used together')
+  const assetPath = normalizeAssetPath(
+    input.assetPath ?? legacyAssetPath(input.version, input.assetDomain),
+  )
   const board = await validateBoardConfig(
     input.boardConfigPath,
-    `${assetUrl}/${boardSchemaFileName}`,
+    `${assetPath}/${boardSchemaFileName}`,
   )
   if (board.usesCredentials && !input.secretReference)
     throw new Error(
@@ -78,7 +106,7 @@ export async function assembleRelease(input: {
   await writeFile(join(outputDir, 'board.yaml'), board.yaml)
   const metadata: ReleaseMetadata = {
     dashboardVersion: input.version,
-    clientAssetUrl: assetUrl,
+    assetPath,
     serverRuntimeVersion: CORE_RUNTIME_VERSION,
     supportedProviders: input.providers ?? ['aws-lambda'],
     artifactChecksums: { 'board.yaml': board.sha256 },

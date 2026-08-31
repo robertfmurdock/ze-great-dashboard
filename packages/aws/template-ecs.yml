@@ -2,14 +2,13 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Ze Great Dashboard ECS/Fargate application (consumer-owned network and ingress)
 
 Metadata:
-  PackageManagedParameters: [ComputeMode, Image, DashboardVersion]
+  PackageManagedParameters: [ComputeMode, Image, AssetPath]
 
 Parameters:
   ComputeMode: { Type: String, Default: ecs, AllowedValues: [ecs] }
   Image: { Type: String }
-  DashboardVersion: { Type: String }
+  AssetPath: { Type: String }
   Name: { Type: String, Default: dashboard }
-  AssetBaseUrl: { Type: String, Default: https://public-assets.zegreatrob.com }
   BoardConfigPath: { Type: String, Default: /app/boards/example.yaml }
   Subnets: { Type: List<AWS::EC2::Subnet::Id> }
   SecurityGroups: { Type: List<AWS::EC2::SecurityGroup::Id> }
@@ -75,7 +74,7 @@ Resources:
           Essential: true
           PortMappings: [{ ContainerPort: !Ref ContainerPort, Protocol: tcp }]
           Environment:
-            - { Name: ASSET_PATH, Value: !Sub '${AssetBaseUrl}/dashboard/${DashboardVersion}' }
+            - { Name: ASSET_PATH, Value: !Ref AssetPath }
             - { Name: BOARD_CONFIG_URL, Value: !Ref BoardConfigPath }
             - { Name: HOST, Value: 0.0.0.0 }
             - { Name: PORT, Value: '3000' }
@@ -98,4 +97,4 @@ Outputs:
   ServiceName: { Value: !Ref Service }
   ClusterName: { Value: !Ref Cluster }
   Image: { Value: !Ref Image }
-  AssetPath: { Value: !Sub '${AssetBaseUrl}/dashboard/${DashboardVersion}' }
+  AssetPath: { Value: !Ref AssetPath }

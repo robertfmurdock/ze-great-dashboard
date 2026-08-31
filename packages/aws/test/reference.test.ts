@@ -39,7 +39,7 @@ describe('persistent consumer reference', () => {
     expect(template).toContain('Name: { Type: String, Default: dashboard }')
     expect(template).toContain('LambdaArtifactBucket: { Type: String }')
     expect(template).toContain(`Default: "${release.artifactKey}"`)
-    expect(template).toContain('Default: "1.2.3"')
+    expect(template).toContain(`Default: "${release.assetPath}"`)
   })
 
   it('keeps the reference composition consumer-owned and forwards both credential paths', async () => {
@@ -60,8 +60,7 @@ describe('persistent consumer reference', () => {
     const sharedParameters = {
       LambdaArtifactBucket: { Ref: 'LambdaArtifactBucket' },
       LambdaArtifactKey: { Ref: 'LambdaArtifactKey' },
-      DashboardVersion: { Ref: 'DashboardVersion' },
-      AssetBaseUrl: { Ref: 'AssetBaseUrl' },
+      AssetPath: { Ref: 'AssetPath' },
       BoardConfigPath: { Ref: 'BoardConfigPath' },
     }
     expect(composition.Resources.SecretsApplication).toEqual({
@@ -89,7 +88,7 @@ describe('persistent consumer reference', () => {
     expect(composition.Outputs).toMatchObject({
       AssetPath: {
         Value: {
-          Sub: `${String.fromCharCode(36)}{AssetBaseUrl}/dashboard/${String.fromCharCode(36)}{DashboardVersion}`,
+          Ref: 'AssetPath',
         },
       },
       LambdaArtifactKey: { Value: { Ref: 'LambdaArtifactKey' } },
@@ -186,7 +185,9 @@ describe('persistent consumer reference', () => {
     expect(workflow).toContain('retrying in 10 seconds')
     expect(workflow).toContain('failed after 3 attempts')
     expect(workflow).toContain('build-args:')
-    expect(workflow).toContain('RELEASE_VERSION=')
+    expect(workflow).toContain(
+      `ASSET_PATH=https://public-assets.zegreatrob.com/dashboard/${String.fromCharCode(36)}{{ steps.version.outputs.version }}`,
+    )
     expect(workflow).toContain('run: bash scripts/check-provider-bootstrap.sh')
     expect(workflow.indexOf('Check provider bootstrap before provisioning')).toBeLessThan(
       workflow.indexOf('Provision AWS infrastructure'),

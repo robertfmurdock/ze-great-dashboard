@@ -750,6 +750,8 @@ try {
     if (!boardConfig) throw new Error('--board-config is required')
     if (!version)
       throw new Error('Unable to determine the package version; pass --version explicitly')
+    if (option('--asset-domain'))
+      console.warn('--asset-domain is deprecated; use --asset-path with the complete asset URL')
     const outputDir = option('--output', 'aws-dashboard-release') ?? 'aws-dashboard-release'
     const parametersPath =
       option('--parameters', 'aws-dashboard-parameters.json') ?? 'aws-dashboard-parameters.json'
@@ -769,6 +771,7 @@ try {
             boardConfigPath: boardConfig,
             outputDir,
             version,
+            assetPath: option('--asset-path'),
             assetDomain: option('--asset-domain'),
             secretReference,
           })
@@ -776,6 +779,7 @@ try {
             boardConfigPath: boardConfig,
             outputDir,
             version,
+            assetPath: option('--asset-path'),
             assetDomain: option('--asset-domain'),
             secretReference,
             imageReference: option('--image'),
@@ -784,7 +788,7 @@ try {
       ComputeMode: mode,
       LambdaArtifactKey: metadata.artifactKey,
       Image: metadata.image ?? '',
-      DashboardVersion: metadata.dashboardVersion,
+      AssetPath: metadata.assetPath,
     })
     // Parameter files created before mode persistence remain valid and stay byte-compatible;
     // newly generated files include ComputeMode and make the choice reviewable.

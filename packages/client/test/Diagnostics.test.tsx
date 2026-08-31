@@ -9,7 +9,6 @@ const env: ClientEnv = {
   assetPath: 'https://assets.example.com/dashboard/1.0.7',
   proxyPath: '/api',
   board: 'ze-great-team',
-  clientVersion: '1.0.7',
 }
 
 function log() {
@@ -40,9 +39,7 @@ describe('Diagnostics control', () => {
     expect(screen.queryByRole('button', { name: 'Download' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Diagnostics/ }))
     expect(screen.getByRole('button', { name: 'Download' })).not.toBeNull()
-    expect(
-      screen.getByText(/Client 1\.0\.7 · assets https:\/\/assets\.example\.com/),
-    ).not.toBeNull()
+    expect(screen.getByText(/Client dev · assets https:\/\/assets\.example\.com/)).not.toBeNull()
     expect(screen.getByText(/Update failures: 0; board fetch failures: 0/)).not.toBeNull()
     act(() => {
       diagnosticLog.record({

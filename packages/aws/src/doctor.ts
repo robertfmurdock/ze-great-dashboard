@@ -177,10 +177,8 @@ export async function runDoctor(
   })
 
   await check('Hosted client', async () => {
-    const baseUrl = parameterData?.definitions.AssetBaseUrl?.Default
-    if (typeof baseUrl !== 'string') throw new Error('template has no AssetBaseUrl default')
     if (!dependencies.packageVersion) throw new Error('installed package version is unavailable')
-    const url = `${baseUrl.replace(/\/+$/, '')}/dashboard/${dependencies.packageVersion}/index.html`
+    const url = `https://public-assets.zegreatrob.com/dashboard/${dependencies.packageVersion}/index.html`
     const response = await dependencies.fetch(url)
     if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`)
     return `${url} returned HTTP ${response.status}`

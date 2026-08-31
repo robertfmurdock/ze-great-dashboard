@@ -39,13 +39,11 @@ export function useClientUpdate({
         const parsed = clientIdentitySchema.safeParse(await response.json())
         if (!parsed.success) throw new Error('Client identity response was invalid')
         if (cancelled) return
-        // assetPath is the server's immutable deployment selector. clientVersion is a label and
-        // can change independently without changing the code the browser should load.
         if (parsed.data.assetPath !== env.assetPath) {
           diagnostics.record({
             kind: 'client-update-detected',
             path,
-            current: { assetPath: env.assetPath, clientVersion: env.clientVersion },
+            current: { assetPath: env.assetPath },
             next: parsed.data,
           })
           reload()
@@ -71,5 +69,5 @@ export function useClientUpdate({
       cancelled = true
       activeController?.abort()
     }
-  }, [diagnostics, env.assetPath, env.clientVersion, env.proxyPath, fetcher, reload])
+  }, [diagnostics, env.assetPath, env.proxyPath, fetcher, reload])
 }

@@ -189,6 +189,13 @@ The version label is the last path segment of `ASSET_PATH`. Locally that segment
 itself, so the board rendered `__ASSET_PATH__` as its version number — which reads as a bug on the
 exact screen you stare at during cosmetic work. There is an explicit special case, and a test.
 
+### Clarification, 2026-08-31: client version is now compiled, not inferred
+
+The asset-path routing change removed this server-side special case. `window.env` and `/api/client`
+now carry only `assetPath`; the client build embeds its release version, with `dev` as the local
+build value. This preserves the distinction between the immutable client artifact's identity and
+the server's independently selected asset location.
+
 ### `TEMPLATE_WAIT_MS` exists for exactly one race, and defaults to 0
 
 `npm run dev` starts this server and the Vite dev server simultaneously; the server fetches the

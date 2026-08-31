@@ -4,8 +4,6 @@ set -euo pipefail
 : "${REFERENCE_RELEASE_DIR:?REFERENCE_RELEASE_DIR is required}"
 : "${REFERENCE_ARTIFACT_BUCKET:?REFERENCE_ARTIFACT_BUCKET is required}"
 : "${REFERENCE_EXECUTION_ROLE_ARN:?REFERENCE_EXECUTION_ROLE_ARN is required}"
-: "${REFERENCE_VERSION:?REFERENCE_VERSION is required}"
-: "${REFERENCE_ASSET_BASE_URL:?REFERENCE_ASSET_BASE_URL is required}"
 : "${REFERENCE_SECRET_ARN:?REFERENCE_SECRET_ARN is required}"
 : "${REFERENCE_PARAMETER_ARN:?REFERENCE_PARAMETER_ARN is required}"
 
@@ -36,8 +34,7 @@ jq -n \
   --arg template_url "https://${REFERENCE_ARTIFACT_BUCKET}.s3.amazonaws.com/${template_key}" \
   --arg artifact_bucket "${REFERENCE_ARTIFACT_BUCKET}" \
   --arg artifact_key "${artifact_key}" \
-  --arg dashboard_version "${REFERENCE_VERSION}" \
-  --arg asset_base_url "${REFERENCE_ASSET_BASE_URL}" \
+  --arg asset_path "$(jq -er '.assetPath' "${REFERENCE_RELEASE_DIR}/release.json")" \
   --arg board_path './board.yaml' \
   --arg secrets_name 'ze-great-dashboard-reference-secrets' \
   --arg parameter_name 'ze-great-dashboard-reference-parameter' \
@@ -47,8 +44,7 @@ jq -n \
     {"ParameterKey":"ApplicationTemplateUrl","ParameterValue":$template_url},
     {"ParameterKey":"LambdaArtifactBucket","ParameterValue":$artifact_bucket},
     {"ParameterKey":"LambdaArtifactKey","ParameterValue":$artifact_key},
-    {"ParameterKey":"DashboardVersion","ParameterValue":$dashboard_version},
-    {"ParameterKey":"AssetBaseUrl","ParameterValue":$asset_base_url},
+    {"ParameterKey":"AssetPath","ParameterValue":$asset_path},
     {"ParameterKey":"BoardConfigPath","ParameterValue":$board_path},
     {"ParameterKey":"SecretsName","ParameterValue":$secrets_name},
     {"ParameterKey":"ParameterName","ParameterValue":$parameter_name},
@@ -62,8 +58,8 @@ if ! composition_parameter_count="$(jq -r 'if type == "array" then length else e
   echo "Unable to read composition parameters as a JSON array: ${composition_parameters_file}" >&2
   exit 1
 fi
-if [ "${composition_parameter_count}" -ne 10 ]; then
-  echo "Expected 10 composition parameters, found ${composition_parameter_count}" >&2
+if [ "${composition_parameter_count}" -ne 9 ]; then
+  echo "Expected 9 composition parameters, found ${composition_parameter_count}" >&2
   exit 1
 fi
 if ! empty_composition_parameters="$(jq -r '
@@ -102,7 +98,7 @@ if ! aws cloudformation deploy \
   exit 1
 fi
 
-expected_asset_path="$(jq -er '.clientAssetUrl' "${REFERENCE_RELEASE_DIR}/release.json")"
+expected_asset_path="$(jq -er '.assetPath' "${REFERENCE_RELEASE_DIR}/release.json")"
 deployed_asset_path="$(aws cloudformation describe-stacks \
   --stack-name "${stack_name}" --region "${region}" \
   --query "Stacks[0].Outputs[?OutputKey=='AssetPath'].OutputValue" --output text)"

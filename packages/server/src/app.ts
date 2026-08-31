@@ -20,7 +20,7 @@ import type { ServerConfig } from './config.ts'
 import { type CredentialResolver, environmentCredentials } from './credentials.ts'
 import { createGithubClient } from './github-auth.ts'
 import { renderIndexHtml } from './render.ts'
-import { ASSET_PATH_SENTINEL, type Fetcher, TemplateCache } from './template.ts'
+import { type Fetcher, TemplateCache } from './template.ts'
 import { adapterRouteResponse } from './upstream.ts'
 
 export type AppDependencies = {
@@ -30,8 +30,6 @@ export type AppDependencies = {
    * network. The same reasoning applies to adapters in Stage 2.
    */
   fetcher?: Fetcher
-  /** Surfaced in `window.env` so two published versions are visibly distinguishable. */
-  clientVersion?: string
   boardConfig?: BoardConfig
   /** Resolved at boot, never serialized into HTML or API payloads. */
   credentials?: CredentialResolver
@@ -40,7 +38,6 @@ export type AppDependencies = {
 export function createApp(deps: AppDependencies): Hono {
   const { config } = deps
   const templates = new TemplateCache(deps.fetcher ?? globalThis.fetch)
-  const clientVersion = deps.clientVersion ?? deriveVersionLabel(config.assetPath)
   const selectedBoard =
     config.board ?? Object.keys(deps.boardConfig?.boards ?? {})[0] ?? 'ze-great-team'
   const allowlist = deps.boardConfig ? deriveAllowlist(deps.boardConfig) : new Map()
@@ -57,7 +54,7 @@ export function createApp(deps: AppDependencies): Hono {
   app.use('/api/*', async (_c, next) => next())
 
   app.get(`${config.proxyPath}/client`, (c) => {
-    const identity: ClientIdentity = { assetPath: config.assetPath, clientVersion }
+    const identity: ClientIdentity = { assetPath: config.assetPath }
     return c.json(identity, 200, { 'cache-control': 'no-store' })
   })
 
@@ -178,7 +175,6 @@ export function createApp(deps: AppDependencies): Hono {
       assetPath: config.assetPath,
       proxyPath: config.proxyPath,
       board,
-      clientVersion,
     }
 
     return new Response(renderIndexHtml(template, env), {
@@ -197,18 +193,4 @@ export function createApp(deps: AppDependencies): Hono {
 function safeDownloadFilename(value: string): string {
   const sanitized = value.replace(/[\\/\r\n"%*:|<>?]/g, '_').trim()
   return sanitized || 'board'
-}
-
-/**
- * The last path segment of a versioned asset path is the version (`.../dashboard/1.0.7`). This is
- * a display label only — nothing branches on it.
- *
- * Locally the last segment is the sentinel itself, since ASSET_PATH points at the Vite dev server.
- * Rendering "__ASSET_PATH__" as a version number would just look like a bug on screen.
- */
-function deriveVersionLabel(assetPath: string): string {
-  const segments = assetPath.split('/').filter((segment) => segment !== '')
-  const last = segments.at(-1)
-  if (last === undefined) return 'unknown'
-  return last === ASSET_PATH_SENTINEL.replace('/', '') ? 'dev' : last
 }
