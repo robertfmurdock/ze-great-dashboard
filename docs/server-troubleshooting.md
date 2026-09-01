@@ -4,6 +4,7 @@ This guide is for an engineer investigating a dashboard that cannot start, load 
 
 | Symptom | Event | Safe next action |
 | --- | --- | --- |
+| Confirm which server image is running | `server.ready` | Compare `serverRelease` with the exact image tag or digest selected for the deployment. It is independent of the selected client asset path. |
 | Server does not start | `server.startup_failed` | Check the event category, then validate the asset path, board configuration, and required credentials. |
 | Instance is publicly reachable without access control | `server.no_auth_warning` | Put the instance behind the intended gateway or configure the planned authentication boundary. |
 | A panel says access is denied | `panel.observation_failed` with `errorKind: "unauthorized"` | Confirm the source credential exists and has read access; never paste a credential into logs or board YAML. |
@@ -17,6 +18,8 @@ The browser shows an opaque **support reference** for failed observations. It is
 ## Event fields
 
 - `event`: fixed event name.
+- `serverRelease`: immutable server image identifier supplied at image build time; it is diagnostic
+  evidence only and is never compared with `ASSET_PATH`.
 - `requestId`: opaque server-generated support reference for an API request.
 - `boardId`, `panelId`, `operation`: configured object and permitted operation being observed.
 - `sourceName`, `sourceType`: configured source identity, when applicable.

@@ -49,6 +49,8 @@ locally. The current implementation includes:
 - A bounded panel endpoint; the browser supplies a board and panel id, never an arbitrary URL.
 - GitHub Actions `pipeline-status` panels with normalized status, source links, timestamps, cache
   validator forwarding, and explicit upstream error envelopes.
+- Azure DevOps `pipeline-status` panels with the same bounded server contract. This remains an
+  incubating adapter until it is validated against redacted read-scoped fixtures.
 - Independent client polling with panel/board/default refresh precedence, adaptive active-run
   cadence, no overlapping requests, 304 preservation, and lifecycle cleanup.
 - Server-authoritative client update checks: the browser polls the no-store client identity endpoint
@@ -107,8 +109,9 @@ older than five minutes as stale while retaining the exact observation time.
 The pitch chose Azure DevOps first because it was the immediate need and the harder adapter. In
 practice, a legitimate read-scoped ADO fixture source and token were not available, while GitHub
 Actions provided real public responses suitable for capture and replay. GitHub therefore became the
-first source adapter. Azure DevOps remains the next source adapter when real fixtures and credentials
-are available; its behavior will not be declared verified from invented responses.
+first source adapter. Azure DevOps `pipeline-status` is now supported by the released server image,
+but remains incubating until real redacted fixtures replace its controlled response scenarios; its
+behavior is not declared fixture-verified from invented responses.
 
 ### `http-value` is now implemented
 
@@ -124,7 +127,7 @@ The original pitch's stages remain unchanged. This repository's practical sequen
 2. GitHub Actions pipeline status.
 3. Independent live polling.
 4. HTTP value panels.
-5. Azure DevOps pipeline status, contingent on real fixtures and credentials.
+5. Fixture-backed Azure DevOps pipeline-status validation.
 6. Radiator polish: layout, staleness emphasis, and TV-distance legibility.
 
 Authentication, custom widgets, shared caching, trends, test counts, and multi-user credentials are

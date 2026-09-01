@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://assets.example.com/client-2.0.0/board-config.schema.json
+sources:
+  ado:
+    type: azure-devops
+    organization: example-org
+    project: Example Project
+    token_env: ADO_PAT
+boards:
+  operations:
+    panels:
+      - id: service-build
+        type: pipeline-status
+        source: ado
+        pipeline: 42

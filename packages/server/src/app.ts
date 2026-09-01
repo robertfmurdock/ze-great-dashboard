@@ -35,6 +35,8 @@ export type AppDependencies = {
    */
   fetcher?: Fetcher
   boardConfig?: BoardConfig
+  /** Derived atomically with board admission at production startup. */
+  allowlist?: Map<string, Set<PanelOperation>>
   /** Resolved at boot, never serialized into HTML or API payloads. */
   credentials?: CredentialResolver
   logger?: ServerLogger
@@ -55,7 +57,8 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
   const templates = new TemplateCache(deps.fetcher ?? globalThis.fetch)
   const selectedBoard =
     config.board ?? Object.keys(deps.boardConfig?.boards ?? {})[0] ?? 'ze-great-team'
-  const allowlist = deps.boardConfig ? deriveAllowlist(deps.boardConfig) : new Map()
+  const allowlist =
+    deps.allowlist ?? (deps.boardConfig ? deriveAllowlist(deps.boardConfig) : new Map())
   const credentials = deps.credentials ?? environmentCredentials()
   const githubClient = createGithubClient(credentials)
   const logger = deps.logger ?? consoleLogger

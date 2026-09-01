@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://assets.example.com/client-2.0.0/board-config.schema.json
+sources:
+  mystery:
+    type: unsupported-source
+    token_env: SHOULD_NOT_BE_READ
+boards:
+  operations:
+    panels:
+      - id: unavailable
+        type: pipeline-status
+        source: mystery
+        pipeline: 42

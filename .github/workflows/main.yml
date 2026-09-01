@@ -92,6 +92,7 @@ jobs:
           labels: ${{ steps.candidate-docker-meta.outputs.labels }}
           build-args: |
             ASSET_PATH=https://public-assets.zegreatrob.com/dashboard/${{ steps.version.outputs.version }}
+            SERVER_RELEASE=${{ steps.version.outputs.version }}
 
       - name: AWS provisioning credentials
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
@@ -467,6 +468,9 @@ jobs:
           docker buildx imagetools create \
             --tag "ghcr.io/${{ github.repository }}:latest" \
             "ghcr.io/${{ github.repository }}:${{ needs.check.outputs.version }}"
+          candidate_digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "ghcr.io/${{ github.repository }}:${{ needs.check.outputs.version }}")"
+          latest_digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "ghcr.io/${{ github.repository }}:latest")"
+          test "$candidate_digest" = "$latest_digest"
 
       - name: Tag verified release
         if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true

@@ -30,6 +30,8 @@ const configSchema = z.object({
   board: z.string().min(1).optional(),
   /** Optional ARN of the one Secrets Manager JSON credential map for this Lambda. */
   secretReference: z.string().min(1).optional(),
+  /** Immutable server image identifier, supplied by the image build and emitted only in startup logs. */
+  serverRelease: z.string().min(1).default('development'),
   port: z.coerce.number().int().min(1).max(65535).default(3000),
   host: z.string().min(1).default('localhost'),
   /**
@@ -52,6 +54,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     boardConfigUrl: env.BOARD_CONFIG_URL,
     board: env.BOARD,
     secretReference: env.SECRET_REFERENCE,
+    serverRelease: env.SERVER_RELEASE,
     port: env.PORT,
     host: env.HOST,
     templateWaitMillis: env.TEMPLATE_WAIT_MS,

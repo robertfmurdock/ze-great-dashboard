@@ -12,6 +12,8 @@ try {
       image,
       '--build-arg',
       'ASSET_PATH=https://public-assets.zegreatrob.com/dashboard/0.1.13',
+      '--build-arg',
+      'SERVER_RELEASE=check',
       '.',
     ],
     {

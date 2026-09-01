@@ -44,6 +44,11 @@ ENV NODE_ENV=production
 ARG ASSET_PATH
 ENV ASSET_PATH=${ASSET_PATH}
 
+# This is server-image evidence only. It is intentionally unrelated to ASSET_PATH, which may
+# select any valid immutable client at runtime.
+ARG SERVER_RELEASE=development
+ENV SERVER_RELEASE=${SERVER_RELEASE}
+
 # Keep the container default independent of the bundled source location. Compose and operators can
 # still override BOARD_CONFIG_URL with another mounted file or a remote configuration URL.
 ENV BOARD_CONFIG_URL=/app/boards/example.yaml

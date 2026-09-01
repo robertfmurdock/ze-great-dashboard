@@ -3,7 +3,7 @@ import type { ErrorKind } from '@ze-great-dashboard/shared'
 /** The complete production log vocabulary. Values are deliberately public-safe metadata only. */
 export type ServerLogEvent =
   | { event: 'server.starting' }
-  | { event: 'server.ready'; board: string; host: string; port: number }
+  | { event: 'server.ready'; board: string; host: string; port: number; serverRelease: string }
   | {
       event: 'server.startup_failed'
       category: 'configuration' | 'template' | 'board-config' | 'credentials' | 'unknown'
@@ -34,6 +34,16 @@ export type ServerLogEvent =
 
 export interface ServerLogger {
   log(event: ServerLogEvent): void
+}
+
+/** Keeps the immutable server-image identity in the startup event without coupling it to assets. */
+export function serverReadyEvent(args: {
+  board: string
+  host: string
+  port: number
+  serverRelease: string
+}): ServerLogEvent {
+  return { event: 'server.ready', ...args }
 }
 
 /** JSON Lines lets local output and CloudWatch use the exact same safe event contract. */

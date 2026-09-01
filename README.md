@@ -55,9 +55,10 @@ BOARD_CONFIG_URL="$PWD/boards/ze-great-team.yaml" npm run dev
 
 ### Run it with Docker
 
-With a `board.yaml` in the current directory, run the published image directly:
+With a `board.yaml` in the current directory, first pull the mutable evaluation tag, then run it:
 
 ```sh
+docker pull ghcr.io/robertfmurdock/ze-great-dashboard:latest
 docker run --rm -p 3000:3000 --mount type=bind,src="$PWD/board.yaml",dst=/app/boards/board.yaml,readonly -e BOARD_CONFIG_URL=/app/boards/board.yaml ghcr.io/robertfmurdock/ze-great-dashboard:latest
 ```
 
@@ -71,9 +72,11 @@ docker compose pull && docker compose up
 ```
 
 Compose uses `ghcr.io/robertfmurdock/ze-great-dashboard:latest` for evaluation. For an ongoing
-deployment, set `DASHBOARD_IMAGE` to a reviewed exact release tag; the image selects its matching
-immutable client by default. See the [AWS deployment guide](docs/aws-setup.md) when you need to
-select a different client host or version. Local source builds are covered by the
+deployment, set `DASHBOARD_IMAGE` to a reviewed exact release tag. `latest` is mutable, so pull it
+explicitly before each evaluation. The selected immutable client remains independent of the server
+image; override `ASSET_PATH` only when you intentionally select another valid client version. See
+the [AWS deployment guide](docs/aws-setup.md) when you need to select a different client host or
+version. Local source builds are covered by the
 [contributor guide](docs/contributing.md).
 
 ### Deploy on AWS

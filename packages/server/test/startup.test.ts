@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { loadConfig } from '../src/config.ts'
-import { selectBoard } from '../src/startup.ts'
+import { serverReadyEvent } from '../src/logger.ts'
+import { selectBoard, startup } from '../src/startup.ts'
 import { fetchTemplate, TemplateCache } from '../src/template.ts'
 
 /**
@@ -57,6 +58,65 @@ describe('startup refuses to proceed without a template', () => {
     await expect(fetchTemplate('https://assets.example.com/1.0.0', fetcher)).rejects.toThrow(
       /no <head> element/,
     )
+  })
+})
+
+describe('configured panel admission', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  function withStartupEnvironment(boardConfigUrl: string) {
+    vi.stubEnv('ASSET_PATH', 'https://assets.example.com/client-2.0.0')
+    vi.stubEnv('BOARD_CONFIG_URL', boardConfigUrl)
+  }
+
+  it('admits an Azure DevOps pipeline-status panel before resolving credentials or reading Azure', async () => {
+    withStartupEnvironment('packages/server/test/fixtures/ado-pipeline-board.yaml')
+    const fetcher = vi.fn(
+      async () => new Response('<html><head></head><body></body></html>'),
+    ) as unknown as typeof fetch
+
+    const result = await startup({ fetcher })
+
+    expect(result.config.board).toBe('operations')
+    // Startup fetches only the immutable client template. Its configured ADO operation is not
+    // executed until the browser requests the panel (covered by the adapter route contract).
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a syntactically valid unsupported panel before credential or upstream access', async () => {
+    withStartupEnvironment('packages/server/test/fixtures/unsupported-panel-board.yaml')
+    const fetcher = vi.fn(
+      async () => new Response('<html><head></head><body></body></html>'),
+    ) as unknown as typeof fetch
+
+    await expect(startup({ fetcher })).rejects.toThrow(
+      /board "operations", panel "unavailable", source "mystery" \(unsupported-source\), signal "pipeline-status"/,
+    )
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('server identity logging', () => {
+  it('records the image build identifier without requiring a matching client asset version', () => {
+    const config = loadConfig({
+      ASSET_PATH: 'https://assets.example.com/dashboard/client-2.0.0',
+      SERVER_RELEASE: 'server-1.4.0',
+    })
+
+    expect(
+      serverReadyEvent({
+        board: 'operations',
+        host: 'localhost',
+        port: 3000,
+        serverRelease: config.serverRelease,
+      }),
+    ).toEqual({
+      event: 'server.ready',
+      board: 'operations',
+      host: 'localhost',
+      port: 3000,
+      serverRelease: 'server-1.4.0',
+    })
   })
 })
 

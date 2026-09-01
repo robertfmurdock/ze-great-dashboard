@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server'
-import { consoleLogger } from './logger.ts'
+import { consoleLogger, serverReadyEvent } from './logger.ts'
 import { startup } from './startup.ts'
 
 /**
@@ -10,10 +10,12 @@ const { app, config } = await startup().catch((_error: unknown) => {
 })
 
 serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
-  consoleLogger.log({
-    event: 'server.ready',
-    board: config.board ?? 'unknown',
-    host: config.host,
-    port: info.port,
-  })
+  consoleLogger.log(
+    serverReadyEvent({
+      board: config.board ?? 'unknown',
+      host: config.host,
+      port: info.port,
+      serverRelease: config.serverRelease,
+    }),
+  )
 })

@@ -4,6 +4,7 @@ import {
   schemaUrlForAssetPath,
 } from '@ze-great-dashboard/shared'
 import type { Hono } from 'hono'
+import { deriveValidatedAllowlist } from './allowlist.ts'
 import { type AppEnvironment, createApp } from './app.ts'
 import { loadBoardConfig } from './board-config.ts'
 import { isLocalHost, loadConfig, type ServerConfig } from './config.ts'
@@ -46,6 +47,9 @@ export async function startup(
     ])
     const board = selectBoard(config.board, boardConfig)
     const resolvedConfig = { ...config, board }
+    // Admission precedes credentials and all upstream access. The map is passed unchanged to the
+    // app, so its immutable board config and its proxy capabilities are derived atomically.
+    const allowlist = deriveValidatedAllowlist(boardConfig)
     const credentialNames = Object.values(boardConfig.sources).flatMap(credentialEnvironmentNames)
     const credentials = await createCredentialResolver({
       secretReference: config.secretReference,
@@ -55,7 +59,14 @@ export async function startup(
     warnAboutMissingAuth(resolvedConfig, logger)
 
     return {
-      app: createApp({ config: resolvedConfig, fetcher, boardConfig, credentials, logger }),
+      app: createApp({
+        config: resolvedConfig,
+        fetcher,
+        boardConfig,
+        allowlist,
+        credentials,
+        logger,
+      }),
       config: resolvedConfig,
     }
   } catch (error) {

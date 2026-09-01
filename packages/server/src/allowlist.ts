@@ -1,6 +1,9 @@
 import type { BoardConfig, Panel, Source } from '@ze-great-dashboard/shared'
 import { permittedAzureDevOpsCalls } from './adapters/azure-devops.ts'
-import { permittedGithubActionsCalls } from './adapters/github-actions.ts'
+import {
+  permittedGithubActionsCalls,
+  pullRequestHealthCapabilities,
+} from './adapters/github-actions.ts'
 import { permittedHttpValueCalls } from './adapters/http-value.ts'
 
 /**
@@ -14,21 +17,44 @@ export const panelOperations = [
   'pull-request-build',
 ] as const
 export type PanelOperation = (typeof panelOperations)[number]
+type PanelCapability =
+  | { kind: 'server'; operations: readonly PanelOperation[] }
+  | { kind: 'client-only' }
+  | { kind: 'unsupported' }
 
+/**
+ * Builds the production allowlist while proving every panel is either explicitly client-only or
+ * maps to bounded server operations. This stays beside the allowlist because an adapter that
+ * cannot declare a bounded call must not become a browser-addressable panel.
+ */
+export function deriveValidatedAllowlist(config: BoardConfig): Map<string, Set<PanelOperation>> {
+  return derive(config, true)
+}
+
+/**
+ * Lightweight construction for isolated app tests. Production uses `deriveValidatedAllowlist` at
+ * startup; this fallback preserves tests that intentionally render presentation-only panel types.
+ */
 export function deriveAllowlist(config: BoardConfig): Map<string, Set<PanelOperation>> {
+  return derive(config, false)
+}
+
+function derive(config: BoardConfig, rejectUnsupported: boolean): Map<string, Set<PanelOperation>> {
   const allowed = new Map<string, Set<PanelOperation>>()
   for (const [boardName, board] of Object.entries(config.boards)) {
     for (const panel of board.panels) {
       const source = panel.source ? config.sources[panel.source] : undefined
-      const calls = callsFor(panel, source)
-      if (calls) allowed.set(`${boardName}/${panel.id}`, new Set(['read']))
-      if (panel.type === 'pull-request-health' && source?.type === 'github-actions') {
-        // Named operations, not an aggregate declaration: the dynamic build branch is validated
-        // at the route boundary against this configured panel's prefixes.
-        allowed.set(
-          `${boardName}/${panel.id}`,
-          new Set(['pull-requests', 'update-workflow', 'pull-request-build']),
-        )
+      try {
+        const capability = panelCapability(panel, source)
+        if (capability.kind === 'unsupported') {
+          if (rejectUnsupported) throw new Error('no bounded operations')
+          continue
+        }
+        if (capability.kind === 'server')
+          allowed.set(`${boardName}/${panel.id}`, new Set(capability.operations))
+      } catch (error) {
+        if (rejectUnsupported) throw unsupportedPanelOperation(boardName, panel, source, error)
+        throw error
       }
     }
   }
@@ -44,13 +70,44 @@ export function permitsPanelOperation(
   return allowlist.get(`${board}/${panel}`)?.has(operation) ?? false
 }
 
-function callsFor(panel: Panel, source: Source | undefined) {
+function panelCapability(panel: Panel, source: Source | undefined): PanelCapability {
   if (panel.type === 'pipeline-status' && source?.type === 'github-actions') {
-    return permittedGithubActionsCalls(panel, source)
+    permittedGithubActionsCalls(panel, source)
+    return { kind: 'server', operations: ['read'] }
   }
   if (panel.type === 'pipeline-status' && source?.type === 'azure-devops') {
-    return permittedAzureDevOpsCalls(panel, source)
+    permittedAzureDevOpsCalls(panel, source)
+    return { kind: 'server', operations: ['read'] }
   }
-  if (panel.type === 'http-value') return permittedHttpValueCalls(panel)
-  return undefined
+  if (panel.type === 'http-value') {
+    permittedHttpValueCalls(panel)
+    return { kind: 'server', operations: ['read'] }
+  }
+  if (panel.type === 'pull-request-health' && source?.type === 'github-actions') {
+    // Parsing here proves this panel's dynamic request capabilities are bounded before startup.
+    pullRequestHealthCapabilities(panel)
+    return {
+      kind: 'server',
+      operations: ['pull-requests', 'update-workflow', 'pull-request-build'],
+    }
+  }
+  // This visualization aid makes no proxy request; keeping it explicit prevents it becoming an
+  // accidental exemption for future unknown panels.
+  if (panel.type === 'pipeline-animation-demo') return { kind: 'client-only' }
+  return { kind: 'unsupported' }
+}
+
+function unsupportedPanelOperation(
+  boardName: string,
+  panel: Panel,
+  source: Source | undefined,
+  error: unknown,
+): Error {
+  const sourceName = panel.source ?? '(none)'
+  const sourceType = source?.type ?? '(none)'
+  const detail =
+    error instanceof Error && error.message !== 'no bounded operations' ? ` ${error.message}` : ''
+  return new Error(
+    `Unsupported configured panel operation: board "${boardName}", panel "${panel.id}", source "${sourceName}" (${sourceType}), signal "${panel.type}".${detail}`,
+  )
 }

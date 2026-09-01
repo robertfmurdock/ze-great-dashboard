@@ -87,9 +87,9 @@ An Azure DevOps `pipeline-status` source names an organization, project, and a r
 Its panel's `pipeline` must be the numeric pipeline definition ID. The optional branch is shown on
 the board and is sent to Azure DevOps as `refs/heads/<branch>` when it is not already a ref:
 
-> **Incubating:** Azure DevOps support is still being validated against redacted responses from a
-> legitimate read-scoped project. Use it at your own risk until that fixture-backed validation is
-> complete.
+> **Supported, but incubating:** released server images support Azure DevOps `pipeline-status`.
+> It remains incubating until fixture-backed validation against redacted responses from a legitimate
+> read-scoped project is complete; use it with that limitation in mind.
 
 ```yaml
 sources:
