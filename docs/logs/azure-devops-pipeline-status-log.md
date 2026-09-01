@@ -62,3 +62,13 @@ The first release candidate after strict admission exposed a CI-only board that 
 type was correctly rejected at Lambda cold start. The smoke board now declares a bounded GitHub
 `pipeline-status` operation, which remains uncalled by the health probe, and startup coverage uses
 that actual board to prevent the deployment-only regression from returning.
+
+The follow-up release candidate completed build and consumer validation, but its promotion step
+revealed that `docker buildx imagetools create` wraps a single-image manifest in a new manifest
+list by default. That changes the top-level digest even though the runnable image is the same.
+Promotion now uses `--prefer-index=false`, preserving the candidate manifest digest so the exact-tag
+and `latest` verification compares like with like. The failed attempt had already published its
+candidate packages and image before this final assertion, so release recovery must explicitly
+reconcile that published version with a Git tag before another version is calculated.
+The release workflow now checks both publishable npm packages before creating any new candidate,
+and stops with a recovery instruction if its calculated version is already published.

@@ -197,6 +197,10 @@ describe('persistent consumer reference', () => {
     expect(workflow).toContain('retrying in 10 seconds')
     expect(workflow).toContain('failed after 3 attempts')
     expect(workflow).toContain('build-args:')
+    expect(workflow).toContain('--prefer-index=false')
+    expect(workflow).toContain('{{.Manifest.Digest}}')
+    expect(workflow).toContain('Refuse partially published release version')
+    expect(workflow).toContain('Reconcile the Git tag or choose a new version before retrying.')
     expect(workflow).toContain(
       `ASSET_PATH=https://public-assets.zegreatrob.com/dashboard/${String.fromCharCode(36)}{{ steps.version.outputs.version }}`,
     )
