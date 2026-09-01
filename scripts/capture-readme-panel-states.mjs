@@ -83,15 +83,15 @@ try {
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify(envelope) })
   })
 
-  await page.goto(`http://127.0.0.1:${serverPort}/`, { waitUntil: 'networkidle' })
-  await page.locator('[data-panel]').nth(5).waitFor()
+  await page.goto(`http://127.0.0.1:${serverPort}/`, { waitUntil: 'domcontentloaded' })
+  await page.locator('[data-panel]').nth(6).waitFor()
   await page.screenshot({ path: output })
 
   if (unexpectedRequests.length > 0) {
     throw new Error(`Capture made unexpected external requests: ${unexpectedRequests.join(', ')}`)
   }
   const labels = await page.locator('[data-panel] h2').allTextContents()
-  if (labels.length !== 6) throw new Error(`Expected six panels, captured ${labels.length}`)
+  if (labels.length !== 7) throw new Error(`Expected seven panels, captured ${labels.length}`)
   console.log(`Captured ${labels.join(', ')}`)
 } catch (error) {
   console.error(serverOutput)

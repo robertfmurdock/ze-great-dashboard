@@ -62,7 +62,7 @@ describe('the Azure DevOps pipeline adapter', () => {
     ['succeeded', 'completed', 'passed'],
     ['failed', 'completed', 'failed'],
     ['canceled', 'completed', 'cancelled'],
-    ['partiallySucceeded', 'completed', 'unknown'],
+    ['partiallySucceeded', 'completed', 'warning'],
     [null, 'inProgress', 'running'],
     ['unrecognised', 'completed', 'unknown'],
   ] as const)('normalizes ADO result %s and status %s as %s', async (result, status, expected) => {

@@ -38,6 +38,28 @@ afterEach(() => {
 })
 
 describe('RunningField', () => {
+  it('renders a completed warning with its amber label, duration, and source link', () => {
+    const rendered = render(
+      <PipelinePanel
+        panel={panel}
+        envelope={{
+          ...envelope(),
+          signal: {
+            ...envelope().signal,
+            status: 'warning',
+            rawStatus: 'partiallySucceeded',
+            durationMs: 207_000,
+          },
+        }}
+      />,
+    ).container
+
+    expect(rendered.textContent).toContain('⚠ Warning')
+    expect(rendered.textContent).toContain('Took 3m 27s')
+    expect(rendered.querySelector('[data-panel-link]')).not.toBeNull()
+    expect(rendered.querySelector('[data-running-field]')).toBeNull()
+  })
+
   it.each([
     ['telemetry-bloom', 'bloom-lane'],
     ['release-transit', 'transit-packet'],

@@ -125,6 +125,7 @@
 .failed {
   color: var(--status-critical);
 }
+.warning,
 .running {
   color: var(--status-warning);
 }

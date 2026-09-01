@@ -3,7 +3,7 @@
 ## Static panel-state gallery
 
 `docs/assets/readme-panel-states.png` is a checked-in 1440 × 900 screenshot of the
-`readme-panel-states` board. It shows passed, running, failed, cancelled, unknown, and source-error
+`readme-panel-states` board. It shows passed, warning, running, failed, cancelled, unknown, and source-error
 states using deterministic fixture envelopes. The board and fixtures contain no credentials, and
 the Playwright capture intercepts every board and panel API response, so no GitHub or other live
 authority is contacted.
@@ -15,7 +15,7 @@ npm run capture:readme:states
 ```
 
 The command uses the normal Vite and application-server development path, disables motion, writes
-`docs/assets/readme-panel-states.png`, checks that all six labels rendered, and cleans up its local
+`docs/assets/readme-panel-states.png`, checks that all seven labels rendered, and cleans up its local
 server processes. Inspect it with:
 
 ```sh

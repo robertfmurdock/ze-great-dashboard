@@ -7,28 +7,32 @@ boards:
       - id: api-build
         label: API Build
         type: pipeline-status
-        position: { h: 4, w: 6, x: 0, y: 0 }
+        position: { h: 4, w: 3, x: 0, y: 0 }
       - id: unit-tests
         label: Unit Tests
         type: pipeline-status
         running_animation: off
-        position: { h: 4, w: 6, x: 6, y: 0 }
+        position: { h: 4, w: 3, x: 3, y: 0 }
       - id: deploy-staging
         label: Deploy to Staging
         type: pipeline-status
-        position: { h: 4, w: 6, x: 0, y: 4 }
+        position: { h: 4, w: 3, x: 6, y: 0 }
       - id: release
         label: Release
         type: pipeline-status
-        position: { h: 4, w: 6, x: 6, y: 4 }
+        position: { h: 4, w: 3, x: 9, y: 0 }
       - id: dependency-audit
         label: Dependency Audit
         type: pipeline-status
-        position: { h: 4, w: 6, x: 0, y: 8 }
+        position: { h: 4, w: 3, x: 0, y: 4 }
+      - id: integration-checks
+        label: Integration Checks
+        type: pipeline-status
+        position: { h: 4, w: 3, x: 3, y: 4 }
       - id: docs-preview
         label: Docs Preview
         type: http-value
         url: https://docs.example.invalid/preview
-        position: { h: 4, w: 6, x: 6, y: 8 }
+        position: { h: 4, w: 3, x: 6, y: 4 }
 
 sources: {}

@@ -12,8 +12,9 @@ signals from their authorities: a lens, not a system of record.
 
 ![README panel-state gallery](docs/assets/readme-panel-states.png)
 
-The dashboard communicates six states honestly: passed, running, failed, cancelled, unknown, and a
-source error. Status is never color alone; each state is paired with a glyph and a readable label.
+The dashboard communicates seven states honestly: passed, warning, running, failed, cancelled,
+unknown, and a source error. Status is never color alone; each state is paired with a glyph and a
+readable label.
 
 ![Animated Ze Great Dashboard preview](docs/assets/readme-demo.gif)
 
@@ -29,8 +30,9 @@ You can configure GitHub Actions `pipeline-status` panels and source-agnostic `h
 for scalar text or small JSON-path lookups. Panels poll independently, show when their reading was
 observed, and report upstream failures instead of appearing healthy or blank.
 
-The dashboard does not yet include Azure DevOps or other CI adapters. Historical analytics,
-hosted-SaaS operation, and server-side persistence are intentionally outside its scope.
+GitHub Actions is supported, and Azure DevOps `pipeline-status` is supported but incubating.
+Historical analytics, hosted-SaaS operation, and server-side persistence are intentionally outside
+its scope.
 
 ## Get started
 

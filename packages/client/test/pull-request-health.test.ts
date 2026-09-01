@@ -1,4 +1,4 @@
-import type { PullRequestHealth } from '@ze-great-dashboard/shared'
+import type { PipelineStatus, PullRequestHealth } from '@ze-great-dashboard/shared'
 import { describe, expect, it } from 'vitest'
 import { formatCount } from '../src/panel-formatting.ts'
 import { compactPullRequestHealthFacts } from '../src/pull-request-health.ts'
@@ -62,6 +62,24 @@ describe('compactPullRequestHealthFacts', () => {
       pullRequests: '1 open PR',
       primaryDetail: 'Checks failed',
       title: '1 update workflow · 1 open update PR — PR #42: Checks failed',
+    })
+  })
+
+  it('identifies a warning item as needing attention without calling it failed', () => {
+    expect(
+      compactPullRequestHealthFacts(
+        signal({
+          status: 'warning',
+          summary: 'Dependency update needs attention',
+          pullRequests: [
+            { label: 'PR #42', status: 'warning', detail: 'Checks had warnings', link: null },
+          ],
+        }),
+      ),
+    ).toMatchObject({
+      primary: 'PR #42 warning',
+      primaryKind: 'warning',
+      primaryDetail: 'Checks had warnings',
     })
   })
 })
@@ -136,5 +154,73 @@ describe('rollupPullRequestHealth', () => {
     expect(result).toMatchObject({
       signal: { incompleteObservations: [{ label: 'Open update PR candidates' }] },
     })
+  })
+
+  it('ranks warning above running, unknown, cancelled, and passed', () => {
+    const workflow = (status: PipelineStatus['status']) => ({
+      panelId: 'updates',
+      state: 'ok' as const,
+      observedAt: '2026-08-29T12:00:00.000Z',
+      link: null,
+      signal: {
+        type: 'pull-request-workflow' as const,
+        workflow: `${status}.yml`,
+        item: { label: `${status}.yml`, status, detail: status, link: null },
+      },
+    })
+    const result = rollupPullRequestHealth({
+      panelId: 'updates',
+      link: null,
+      workflows: [
+        { workflow: 'warning.yml', observation: { envelope: workflow('warning') } },
+        { workflow: 'running.yml', observation: { envelope: workflow('running') } },
+        { workflow: 'unknown.yml', observation: { envelope: workflow('unknown') } },
+        { workflow: 'cancelled.yml', observation: { envelope: workflow('cancelled') } },
+      ],
+      candidates: {
+        envelope: {
+          panelId: 'updates',
+          state: 'ok',
+          observedAt: '2026-08-29T12:00:00.000Z',
+          link: null,
+          signal: { type: 'pull-request-candidates', pullRequests: [] },
+        },
+      },
+      builds: new Map(),
+    })
+    expect(result).toMatchObject({ signal: { status: 'warning', summary: 'warning.yml: warning' } })
+  })
+
+  it('ranks a failure above a warning', () => {
+    const observation = (status: 'failed' | 'warning') => ({
+      panelId: 'updates',
+      state: 'ok' as const,
+      observedAt: '2026-08-29T12:00:00.000Z',
+      link: null,
+      signal: {
+        type: 'pull-request-workflow' as const,
+        workflow: `${status}.yml`,
+        item: { label: `${status}.yml`, status, detail: status, link: null },
+      },
+    })
+    const result = rollupPullRequestHealth({
+      panelId: 'updates',
+      link: null,
+      workflows: [
+        { workflow: 'failed.yml', observation: { envelope: observation('failed') } },
+        { workflow: 'warning.yml', observation: { envelope: observation('warning') } },
+      ],
+      candidates: {
+        envelope: {
+          panelId: 'updates',
+          state: 'ok',
+          observedAt: '2026-08-29T12:00:00.000Z',
+          link: null,
+          signal: { type: 'pull-request-candidates', pullRequests: [] },
+        },
+      },
+      builds: new Map(),
+    })
+    expect(result).toMatchObject({ signal: { status: 'failed', summary: 'failed.yml: failed' } })
   })
 })

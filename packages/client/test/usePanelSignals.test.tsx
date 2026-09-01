@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react'
-import type { Board, ClientEnv, Envelope } from '@ze-great-dashboard/shared'
+import type { Board, ClientEnv, Envelope, PipelineStatus } from '@ze-great-dashboard/shared'
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DiagnosticEventInput, DiagnosticSink } from '../src/diagnostics.ts'
@@ -51,7 +51,7 @@ function Probe({
 }
 
 function envelope(
-  status: 'passed' | 'failed' | 'running' = 'passed',
+  status: PipelineStatus['status'] = 'passed',
   options: { durationMs?: number; sourceUpdatedAt?: string } = {},
 ) {
   return JSON.stringify({

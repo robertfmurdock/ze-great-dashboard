@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { pipelineStatusSchema } from '../src/envelope.ts'
+import {
+  type PipelineStatus,
+  pipelineStatusPriority,
+  pipelineStatusSchema,
+} from '../src/envelope.ts'
 
 describe('pipeline signal activity', () => {
   const base = {
@@ -27,5 +31,17 @@ describe('pipeline signal activity', () => {
     expect(
       pipelineStatusSchema.safeParse({ ...base, activity: { kind: 'job', name: '' } }).success,
     ).toBe(false)
+  })
+
+  it('accepts warning as a normalized completed status', () => {
+    expect(pipelineStatusSchema.safeParse({ ...base, status: 'warning' }).success).toBe(true)
+  })
+
+  it('orders compact pipeline evidence from passed to failed', () => {
+    expect(
+      ['passed', 'cancelled', 'unknown', 'running', 'warning', 'failed'].map((status) =>
+        pipelineStatusPriority(status as PipelineStatus['status']),
+      ),
+    ).toEqual([0, 1, 2, 3, 4, 5])
   })
 })

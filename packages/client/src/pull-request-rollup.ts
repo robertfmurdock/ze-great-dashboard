@@ -5,6 +5,7 @@ import type {
   PullRequestHealth,
 } from '@ze-great-dashboard/shared'
 import {
+  pipelineStatusPriority,
   pullRequestBuildObservationSchema,
   pullRequestCandidatesSchema,
   pullRequestWorkflowObservationSchema,
@@ -91,10 +92,10 @@ function buildEnvelope(
   dates: string[],
 ) {
   const status = aggregateStatus([...workflows, ...pullRequests].map((item) => item.status))
-  const failed = [...workflows, ...pullRequests].find((item) => item.status === status)
+  const attentionItem = [...workflows, ...pullRequests].find((item) => item.status === status)
   const summary =
-    status !== 'passed' && failed
-      ? `${failed.label}: ${failed.detail}`
+    status !== 'passed' && attentionItem
+      ? `${attentionItem.label}: ${attentionItem.detail}`
       : pullRequests.length === 0
         ? `${workflows.length} update workflow${workflows.length === 1 ? '' : 's'} · No open update PRs`
         : `${workflows.length} update workflow${workflows.length === 1 ? '' : 's'} · ${pullRequests.length} open update PR${pullRequests.length === 1 ? '' : 's'}`
@@ -141,9 +142,9 @@ function observationDates(observations: Observation[]) {
   )
 }
 function aggregateStatus(statuses: PipelineStatus['status'][]): PipelineStatus['status'] {
-  if (statuses.some((status) => status === 'failed')) return 'failed'
-  if (statuses.some((status) => status === 'running')) return 'running'
-  if (statuses.some((status) => status === 'unknown')) return 'unknown'
-  if (statuses.some((status) => status === 'cancelled')) return 'cancelled'
-  return 'passed'
+  return statuses.reduce(
+    (mostUrgent, status) =>
+      pipelineStatusPriority(status) > pipelineStatusPriority(mostUrgent) ? status : mostUrgent,
+    'passed' as const,
+  )
 }

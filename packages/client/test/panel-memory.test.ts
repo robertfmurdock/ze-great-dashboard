@@ -62,6 +62,7 @@ describe('browser-local panel memory', () => {
 
   it.each([
     ['failed', 'failed'],
+    ['warning', 'warning'],
     ['cancelled', 'cancelled'],
     ['unknown', 'unknown'],
   ] as const)('uses a %s completed run as a fallback estimate', (_label, _status) => {

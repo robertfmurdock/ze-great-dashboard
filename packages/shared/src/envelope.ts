@@ -71,7 +71,7 @@ export type PipelineActivity = z.infer<typeof pipelineActivitySchema>
 /** The normalized vocabulary used by every CI adapter. */
 export const pipelineStatusSchema = z.object({
   type: z.literal('pipeline-status'),
-  status: z.enum(['passed', 'failed', 'running', 'cancelled', 'unknown']),
+  status: z.enum(['passed', 'failed', 'warning', 'running', 'cancelled', 'unknown']),
   /** The source's unmodified status/result vocabulary, for an honest display. */
   rawStatus: z.string(),
   name: z.string().min(1),
@@ -92,6 +92,20 @@ export const pipelineStatusSchema = z.object({
 })
 
 export type PipelineStatus = z.infer<typeof pipelineStatusSchema>
+
+/** Higher values need more immediate attention in a compact aggregate. */
+const pipelineStatusPriorities: Record<PipelineStatus['status'], number> = {
+  passed: 0,
+  cancelled: 1,
+  unknown: 2,
+  running: 3,
+  warning: 4,
+  failed: 5,
+}
+
+export function pipelineStatusPriority(status: PipelineStatus['status']): number {
+  return pipelineStatusPriorities[status]
+}
 
 export const pullRequestHealthItemSchema = z.object({
   label: z.string().min(1),

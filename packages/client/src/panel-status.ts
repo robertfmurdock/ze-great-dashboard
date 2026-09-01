@@ -8,6 +8,8 @@ export function statusPresentation(status: PanelStatusKind, passedLabel = 'Passe
       return { glyph: '✓', label: passedLabel }
     case 'failed':
       return { glyph: '✕', label: 'Failed' }
+    case 'warning':
+      return { glyph: '⚠', label: 'Warning' }
     case 'running':
       return { glyph: '↻', label: 'Running' }
     case 'cancelled':

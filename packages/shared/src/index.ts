@@ -56,6 +56,7 @@ export {
   type PullRequestHealth,
   type PullRequestWorkflowObservation,
   pipelineActivitySchema,
+  pipelineStatusPriority,
   pipelineStatusSchema,
   pullRequestBuildObservationSchema,
   pullRequestCandidateSchema,

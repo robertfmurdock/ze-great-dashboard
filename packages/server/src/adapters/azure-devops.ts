@@ -256,6 +256,7 @@ function normalizeStatus(
   if (status !== 'completed') return 'unknown'
   if (result === 'succeeded') return 'passed'
   if (result === 'failed') return 'failed'
+  if (result === 'partiallySucceeded') return 'warning'
   if (result === 'canceled') return 'cancelled'
   return 'unknown'
 }

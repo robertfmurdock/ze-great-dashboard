@@ -1,14 +1,20 @@
 export const readmePanelStatesBoard = {
   panels: [
-    panel('api-build', 'API Build', 'pipeline-status', { x: 0, y: 0, w: 6, h: 4 }),
+    panel('api-build', 'API Build', 'pipeline-status', { x: 0, y: 0, w: 3, h: 4 }),
     {
-      ...panel('unit-tests', 'Unit Tests', 'pipeline-status', { x: 6, y: 0, w: 6, h: 4 }),
+      ...panel('unit-tests', 'Unit Tests', 'pipeline-status', { x: 3, y: 0, w: 3, h: 4 }),
       running_animation: 'off',
     },
-    panel('deploy-staging', 'Deploy to Staging', 'pipeline-status', { x: 0, y: 4, w: 6, h: 4 }),
-    panel('release', 'Release', 'pipeline-status', { x: 6, y: 4, w: 6, h: 4 }),
-    panel('dependency-audit', 'Dependency Audit', 'pipeline-status', { x: 0, y: 8, w: 6, h: 4 }),
-    panel('docs-preview', 'Docs Preview', 'http-value', { x: 6, y: 8, w: 6, h: 4 }),
+    panel('deploy-staging', 'Deploy to Staging', 'pipeline-status', { x: 6, y: 0, w: 3, h: 4 }),
+    panel('release', 'Release', 'pipeline-status', { x: 9, y: 0, w: 3, h: 4 }),
+    panel('dependency-audit', 'Dependency Audit', 'pipeline-status', { x: 0, y: 4, w: 3, h: 4 }),
+    panel('integration-checks', 'Integration Checks', 'pipeline-status', {
+      x: 3,
+      y: 4,
+      w: 3,
+      h: 4,
+    }),
+    panel('docs-preview', 'Docs Preview', 'http-value', { x: 6, y: 4, w: 3, h: 4 }),
   ],
 }
 
@@ -35,6 +41,14 @@ export const readmePanelStateEnvelopes = {
   ),
   release: pipeline('release', 'cancelled', 'cancelled', 'Release', 'main', 51_000),
   'dependency-audit': pipeline('dependency-audit', 'unknown', 'queued', 'Dependency Audit', 'main'),
+  'integration-checks': pipeline(
+    'integration-checks',
+    'warning',
+    'partiallySucceeded',
+    'Integration Checks',
+    'main',
+    207_000,
+  ),
   'docs-preview': {
     panelId: 'docs-preview',
     state: 'error',

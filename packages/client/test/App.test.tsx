@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render as rtlRender } from '@testing-library/react'
-import type { ClientEnv } from '@ze-great-dashboard/shared'
+import type { ClientEnv, PipelineStatus } from '@ze-great-dashboard/shared'
 import { act, StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../src/App.tsx'
@@ -74,11 +74,7 @@ describe('when configuration never arrived', () => {
 })
 
 describe('pipeline-status refresh scheduling', () => {
-  const okEnvelope = (
-    panelId: string,
-    status: 'passed' | 'failed' | 'running',
-    durationMs?: number,
-  ) =>
+  const okEnvelope = (panelId: string, status: PipelineStatus['status'], durationMs?: number) =>
     JSON.stringify({
       panelId,
       state: 'ok',

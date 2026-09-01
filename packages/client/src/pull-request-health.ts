@@ -7,6 +7,7 @@ export type PullRequestHealthCompactFacts = {
   primary: string
   secondary: string
   primaryDetail?: string
+  primaryKind?: 'failed' | 'warning'
   title: string
 }
 
@@ -17,18 +18,19 @@ export type PullRequestHealthCompactFacts = {
 export function compactPullRequestHealthFacts(
   signal: PullRequestHealth,
 ): PullRequestHealthCompactFacts {
-  const failedItem = [...signal.workflows, ...signal.pullRequests].find(
-    (item) => item.status === 'failed',
+  const attentionItem = [...signal.workflows, ...signal.pullRequests].find(
+    (item) => item.status === 'failed' || item.status === 'warning',
   )
 
-  if (failedItem) {
+  if (attentionItem) {
     return {
       workflow: formatCount(signal.workflows.length, 'workflow'),
       pullRequests: formatCount(signal.pullRequests.length, 'open PR'),
-      primary: `${failedItem.label} failed`,
+      primary: `${attentionItem.label} ${attentionItem.status}`,
       secondary: `${formatCount(signal.workflows.length, 'workflow')} · ${formatCount(signal.pullRequests.length, 'open PR')}`,
-      primaryDetail: failedItem.detail,
-      title: `${signal.summary} — ${failedItem.label}: ${failedItem.detail}`,
+      primaryDetail: attentionItem.detail,
+      primaryKind: attentionItem.status === 'warning' ? 'warning' : 'failed',
+      title: `${signal.summary} — ${attentionItem.label}: ${attentionItem.detail}`,
     }
   }
 

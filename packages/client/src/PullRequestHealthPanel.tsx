@@ -47,7 +47,9 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
           {compactFacts.primaryDetail && (
             <p className={styles.failedItem} title={compactFacts.primaryDetail}>
               <span aria-hidden="true">⚠</span>{' '}
-              <span className="screen-reader-only">Failed item: </span>
+              <span className="screen-reader-only">
+                {compactFacts.primaryKind === 'warning' ? 'Warning' : 'Failed'} item:{' '}
+              </span>
               {compactFacts.primary}
               <span className="screen-reader-only">. Detail: {compactFacts.primaryDetail}</span>
             </p>

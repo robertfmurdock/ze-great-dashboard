@@ -83,4 +83,27 @@ describe('PullRequestHealthPanel', () => {
       'Detail: Checks failed',
     )
   })
+
+  it('visibly presents warning evidence as a warning', () => {
+    const rendered = render(
+      <PullRequestHealthPanel
+        panel={panel}
+        envelope={{
+          ...envelope,
+          signal: {
+            ...healthySignal,
+            status: 'warning',
+            summary: 'PR #42: Checks had warnings',
+            pullRequests: [
+              { label: 'PR #42', status: 'warning', detail: 'Checks had warnings', link: null },
+            ],
+          },
+        }}
+      />,
+    ).container
+
+    expect(rendered.textContent).toContain('⚠ Warning')
+    expect(rendered.querySelector('[data-compact-facts]')?.textContent).toContain('PR #42 warning')
+    expect(rendered.textContent).toContain('Warning item:')
+  })
 })

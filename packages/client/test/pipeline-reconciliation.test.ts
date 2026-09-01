@@ -4,7 +4,7 @@ import { reconcilePipelineResponse } from '../src/pipeline-reconciliation.ts'
 
 function envelope(
   options: {
-    status?: 'passed' | 'failed' | 'running'
+    status?: 'passed' | 'failed' | 'warning' | 'running'
     sourceUpdatedAt?: string
     sourceRunId?: string
     durationMs?: number
@@ -62,7 +62,7 @@ describe('pipeline reconciliation', () => {
     expect(result.kind).toBe('accepted')
   })
 
-  it.each(['failed', 'cancelled', 'unknown'] as const)(
+  it.each(['failed', 'warning', 'cancelled', 'unknown'] as const)(
     'returns a %s completed run as a sample',
     (status) => {
       const completed = reconcilePipelineResponse({

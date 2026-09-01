@@ -1,9 +1,9 @@
-import type { Envelope, Panel } from '@ze-great-dashboard/shared'
+import type { Envelope, Panel, PipelineStatus } from '@ze-great-dashboard/shared'
 import type { ReactNode } from 'react'
 import styles from './PanelFrame.module.css'
 import { panelLayout } from './panel-layout.ts'
 
-type PanelStatusKind = 'passed' | 'failed' | 'running' | 'cancelled' | 'unknown'
+type PanelStatusKind = PipelineStatus['status']
 
 export function PanelHint({
   children,
