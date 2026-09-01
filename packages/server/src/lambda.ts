@@ -1,5 +1,6 @@
 import type { Hono } from 'hono'
 import { handle } from 'hono/aws-lambda'
+import type { AppEnvironment } from './app.ts'
 import { startup } from './startup.ts'
 
 /**
@@ -9,9 +10,9 @@ import { startup } from './startup.ts'
  * the same clear message rather than a refusal to start. The promise is held (not awaited at
  * module scope) so a failure is retried on the next invocation instead of being cached forever.
  */
-let pending: Promise<Hono> | undefined
+let pending: Promise<Hono<AppEnvironment>> | undefined
 
-function bootstrap(): Promise<Hono> {
+function bootstrap(): Promise<Hono<AppEnvironment>> {
   pending ??= startup()
     .then(({ app }) => app)
     .catch((error: unknown) => {

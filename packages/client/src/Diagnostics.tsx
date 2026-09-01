@@ -79,6 +79,16 @@ export function Diagnostics({ log }: { log: BrowserDiagnosticStore }) {
                     ? `${panel.latestRendered.state}${panel.latestRendered.status ? `/${panel.latestRendered.status}` : ''}`
                     : 'not rendered'}
                   .
+                  {panel.latestFailedObservation && (
+                    <>
+                      {' '}
+                      Failure: {panel.latestFailedObservation.reason}. Support reference:{' '}
+                      <code>
+                        {panel.latestFailedObservation.supportReference ?? 'not provided'}
+                      </code>
+                      .
+                    </>
+                  )}
                 </p>
               ))}
             </div>

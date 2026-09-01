@@ -12,6 +12,7 @@ import { type CredentialResolver, environmentCredentials } from '../credentials.
 import { createGithubClient, GithubAuthenticationError, type GithubClient } from '../github-auth.ts'
 import {
   type AdapterResult,
+  safeNetworkCode,
   upstreamErrorEnvelope,
   upstreamErrorKind,
   observedAt as upstreamObservedAt,
@@ -238,6 +239,10 @@ async function githubObservation(
         ),
         { status: 200 },
       ),
+      failure: {
+        kind: error instanceof GithubAuthenticationError ? 'unauthorized' : 'unreachable',
+        ...(safeNetworkCode(error) ? { networkCode: safeNetworkCode(error) } : {}),
+      },
     }
   }
   if (upstream.status === 304) return { response: upstream }
@@ -255,6 +260,7 @@ async function githubObservation(
         ),
         { status: 200 },
       ),
+      failure: { kind: errorKind(upstream.status), upstreamStatus: upstream.status },
     }
   try {
     return {
@@ -275,6 +281,7 @@ async function githubObservation(
         ),
         { status: 200 },
       ),
+      failure: { kind: 'upstream-error', upstreamStatus: upstream.status },
     }
   }
 }
@@ -359,6 +366,10 @@ export async function fetchGithubActionsPipeline(args: {
         ),
         { status: 200 },
       ),
+      failure: {
+        kind: error instanceof GithubAuthenticationError ? 'unauthorized' : 'unreachable',
+        ...(safeNetworkCode(error) ? { networkCode: safeNetworkCode(error) } : {}),
+      },
     }
   }
 
@@ -377,6 +388,7 @@ export async function fetchGithubActionsPipeline(args: {
         ),
         { status: 200 },
       ),
+      failure: { kind: errorKind(upstream.status), upstreamStatus: upstream.status },
     }
   }
 
@@ -399,6 +411,7 @@ export async function fetchGithubActionsPipeline(args: {
           ),
           { status: 200 },
         ),
+        failure: { kind: 'no-runs', upstreamStatus: upstream.status },
       }
     }
     const signal: PipelineStatus = {
@@ -446,6 +459,7 @@ export async function fetchGithubActionsPipeline(args: {
         ),
         { status: 200 },
       ),
+      failure: { kind: 'upstream-error', upstreamStatus: upstream.status },
     }
   }
 }

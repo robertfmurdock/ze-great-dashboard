@@ -4,14 +4,15 @@ import {
   schemaUrlForAssetPath,
 } from '@ze-great-dashboard/shared'
 import type { Hono } from 'hono'
-import { createApp } from './app.ts'
+import { type AppEnvironment, createApp } from './app.ts'
 import { loadBoardConfig } from './board-config.ts'
 import { isLocalHost, loadConfig, type ServerConfig } from './config.ts'
 import { createCredentialResolver } from './credentials.ts'
+import { consoleLogger, type ServerLogger } from './logger.ts'
 import { type Fetcher, fetchTemplate } from './template.ts'
 
 export type StartupResult = {
-  app: Hono
+  app: Hono<AppEnvironment>
   config: ServerConfig
 }
 
@@ -20,37 +21,46 @@ export type StartupResult = {
  * that deserves a warning. Shared by both entry points so the container and Lambda cannot drift
  * in what they consider a valid start.
  */
-export async function startup(options: { fetcher?: Fetcher } = {}): Promise<StartupResult> {
-  const config = loadConfig()
-  const fetcher = options.fetcher ?? globalThis.fetch
+export async function startup(
+  options: { fetcher?: Fetcher; logger?: ServerLogger } = {},
+): Promise<StartupResult> {
+  const logger = options.logger ?? consoleLogger
+  logger.log({ event: 'server.starting' })
+  try {
+    const config = loadConfig()
+    const fetcher = options.fetcher ?? globalThis.fetch
 
-  // Fail at boot rather than serving a 500 per request. A typo'd ASSET_PATH should fail like the
-  // misconfiguration it is, while someone is still watching the logs.
-  // These independent reads happen together so a remote board config does not wait behind the
-  // client template fetch. Startup still completes only after both have succeeded.
-  const [, boardConfig] = await Promise.all([
-    waitForTemplate(config, fetcher),
-    loadBoardConfig(
-      config.boardConfigUrl,
-      fetcher,
-      config.assetPath.includes('__ASSET_PATH__')
-        ? undefined
-        : schemaUrlForAssetPath(config.assetPath),
-    ),
-  ])
-  const board = selectBoard(config.board, boardConfig)
-  const resolvedConfig = { ...config, board }
-  const credentialNames = Object.values(boardConfig.sources).flatMap(credentialEnvironmentNames)
-  const credentials = await createCredentialResolver({
-    secretReference: config.secretReference,
-    credentialNames,
-  })
+    // Fail at boot rather than serving a 500 per request. A typo'd ASSET_PATH should fail like the
+    // misconfiguration it is, while someone is still watching the logs.
+    // These independent reads happen together so a remote board config does not wait behind the
+    // client template fetch. Startup still completes only after both have succeeded.
+    const [, boardConfig] = await Promise.all([
+      waitForTemplate(config, fetcher),
+      loadBoardConfig(
+        config.boardConfigUrl,
+        fetcher,
+        config.assetPath.includes('__ASSET_PATH__')
+          ? undefined
+          : schemaUrlForAssetPath(config.assetPath),
+      ),
+    ])
+    const board = selectBoard(config.board, boardConfig)
+    const resolvedConfig = { ...config, board }
+    const credentialNames = Object.values(boardConfig.sources).flatMap(credentialEnvironmentNames)
+    const credentials = await createCredentialResolver({
+      secretReference: config.secretReference,
+      credentialNames,
+    })
 
-  warnAboutMissingAuth(resolvedConfig)
+    warnAboutMissingAuth(resolvedConfig, logger)
 
-  return {
-    app: createApp({ config: resolvedConfig, fetcher, boardConfig, credentials }),
-    config: resolvedConfig,
+    return {
+      app: createApp({ config: resolvedConfig, fetcher, boardConfig, credentials, logger }),
+      config: resolvedConfig,
+    }
+  } catch (error) {
+    logger.log({ event: 'server.startup_failed', category: startupFailureCategory(error) })
+    throw error
   }
 }
 
@@ -106,11 +116,18 @@ const RETRY_INTERVAL_MILLIS = 250
  * Stage 1 has no auth section to read yet, so this warns purely on the bind address. When the
  * board config's `auth` block is wired in, the condition gains its second half.
  */
-function warnAboutMissingAuth(config: ServerConfig): void {
+function warnAboutMissingAuth(config: ServerConfig, logger: ServerLogger): void {
   if (isLocalHost(config.host)) return
+  logger.log({ event: 'server.no_auth_warning', host: config.host, port: config.port })
+}
 
-  console.warn(
-    '\n  ⚠️  No auth configured. This instance is accessible to anyone who can reach it.\n' +
-      `     Bound to ${config.host}:${config.port}, which is not localhost.\n`,
-  )
+function startupFailureCategory(
+  error: unknown,
+): 'configuration' | 'template' | 'board-config' | 'credentials' | 'unknown' {
+  const message = error instanceof Error ? error.message : ''
+  if (message.includes('server configuration')) return 'configuration'
+  if (message.includes('ASSET_PATH') || message.includes('<head>')) return 'template'
+  if (message.includes('board') || message.includes('Board')) return 'board-config'
+  if (message.includes('credential') || message.includes('secret')) return 'credentials'
+  return 'unknown'
 }

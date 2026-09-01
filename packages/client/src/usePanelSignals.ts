@@ -108,7 +108,13 @@ export function usePanelSignals({
             }
             const value: unknown = await response.json()
             const envelope = parseEnvelope(value)
-            diagnostics.record({ ...transport, ...(envelope ? { envelope } : {}) })
+            diagnostics.record({
+              ...transport,
+              ...(envelope ? { envelope } : {}),
+              ...(envelope?.state === 'error'
+                ? { failure: failedObservation(envelope, response) }
+                : {}),
+            })
             if (!envelope) return { error: 'Response was not a valid signal envelope.' }
             if (envelope.state === 'error') return { error: envelope.error.message }
             components.set(componentPath, envelope)
@@ -232,7 +238,13 @@ export function usePanelSignals({
                 recordUpdateFailure('Response was not a valid signal envelope.')
                 return undefined
               }
-              diagnostics.record({ ...transport, envelope })
+              diagnostics.record({
+                ...transport,
+                envelope,
+                ...(envelope.state === 'error'
+                  ? { failure: failedObservation(envelope, response) }
+                  : {}),
+              })
               recordConfirmedUpdate()
               return { envelope, cache: transport.cache, status: response.status }
             } catch (error) {
@@ -349,6 +361,14 @@ export function usePanelSignals({
   }, [board, diagnostics, env.board, env.proxyPath])
 
   return { signals, updateHealth }
+}
+
+function failedObservation(envelope: Extract<Envelope, { state: 'error' }>, response: Response) {
+  const supportReference = response.headers.get('x-dashboard-request-id')
+  return {
+    reason: envelope.error.message,
+    ...(supportReference ? { supportReference } : {}),
+  }
 }
 
 function readUpdateWorkflows(panel: Board['panels'][number]) {

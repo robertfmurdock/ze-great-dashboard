@@ -80,9 +80,9 @@ describe('Diagnostics control', () => {
   it('warns when retention has pruned older evidence', () => {
     const values = new Map<string, string>()
     values.set(
-      'ze-great-dashboard.diagnostics.v1',
+      'ze-great-dashboard.diagnostics.v2',
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         retention: { eventsPrunedByAge: 2, eventsPrunedByCount: 5 },
         events: [],
       }),

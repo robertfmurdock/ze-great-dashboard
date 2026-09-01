@@ -22,9 +22,10 @@ import { deriveAllowlist, type PanelOperation, permitsPanelOperation } from './a
 import type { ServerConfig } from './config.ts'
 import { type CredentialResolver, environmentCredentials } from './credentials.ts'
 import { createGithubClient } from './github-auth.ts'
+import { consoleLogger, destinationOrigin, requestId, type ServerLogger } from './logger.ts'
 import { renderIndexHtml } from './render.ts'
 import { type Fetcher, TemplateCache } from './template.ts'
-import { adapterRouteResponse } from './upstream.ts'
+import { type AdapterResult, adapterRouteResponse } from './upstream.ts'
 
 export type AppDependencies = {
   config: ServerConfig
@@ -36,9 +37,20 @@ export type AppDependencies = {
   boardConfig?: BoardConfig
   /** Resolved at boot, never serialized into HTML or API payloads. */
   credentials?: CredentialResolver
+  logger?: ServerLogger
 }
 
-export function createApp(deps: AppDependencies): Hono {
+export type AppEnvironment = { Variables: { dashboardRequestId: string } }
+type ObservationContext = {
+  boardId: string
+  panelId: string
+  operation: string
+  sourceName?: string
+  sourceType?: string
+  destination?: string
+}
+
+export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
   const { config } = deps
   const templates = new TemplateCache(deps.fetcher ?? globalThis.fetch)
   const selectedBoard =
@@ -46,16 +58,34 @@ export function createApp(deps: AppDependencies): Hono {
   const allowlist = deps.boardConfig ? deriveAllowlist(deps.boardConfig) : new Map()
   const credentials = deps.credentials ?? environmentCredentials()
   const githubClient = createGithubClient(credentials)
+  const logger = deps.logger ?? consoleLogger
+  const app = new Hono<AppEnvironment>()
 
-  const app = new Hono()
+  app.use('/api/*', async (c, next) => {
+    const id = requestId()
+    c.set('dashboardRequestId', id)
+    await next()
+    c.header('x-dashboard-request-id', id)
+  })
+  app.onError((_error, c) => {
+    const id = c.get('dashboardRequestId')
+    logger.log({
+      event: 'server.unhandled_exception',
+      ...(id ? { requestId: id } : {}),
+      operation: 'route-handler',
+    })
+    return c.json(
+      { error: 'The dashboard could not complete this request.' },
+      500,
+      id ? { 'x-dashboard-request-id': id } : undefined,
+    )
+  })
 
   app.get('/health', (c) => c.json({ status: 'ok' }))
 
   // AUTHORIZATION_BOUNDARY: the public initial deployment is intentionally authless. Keep this
   // middleware immediately before dashboard/API routes so an Auth0 or gateway check can be added
   // without changing packaging, route handlers, or the client contract.
-  app.use('/api/*', async (_c, next) => next())
-
   app.get(`${config.proxyPath}/client`, (c) => {
     const identity: ClientIdentity = { assetPath: config.assetPath }
     return c.json(identity, 200, { 'cache-control': 'no-store' })
@@ -79,7 +109,7 @@ export function createApp(deps: AppDependencies): Hono {
     })
   })
   const layoutDownload = (
-    c: Context<Record<string, never>, '/api/boards/:board/rendered'>,
+    c: Context<AppEnvironment, '/api/boards/:board/rendered'>,
     mode: 'rendered' | 'authored',
   ) => {
     const boardName = c.req.param('board')
@@ -129,50 +159,84 @@ export function createApp(deps: AppDependencies): Hono {
       (panel.type !== 'http-value' && !source) ||
       !permitsPanelOperation(allowlist, boardName, panelId, 'read')
     )
-      return c.notFound()
+      return rejected(c, { boardId: boardName, panelId, operation: 'read' })
 
     if (panel.type === 'pipeline-status' && source?.type === 'github-actions' && source) {
-      const result = await fetchGithubActionsPipeline({
+      const result = fetchGithubActionsPipeline({
         panel,
         source,
         requestHeaders: c.req.raw.headers,
         fetcher: deps.fetcher ?? globalThis.fetch,
         githubClient,
       })
-      return adapterRouteResponse(result)
+      return observation(c, result, {
+        boardId: boardName,
+        panelId,
+        operation: 'read',
+        sourceName: panel.source,
+        sourceType: source.type,
+        destination: 'https://api.github.com',
+      })
     }
     if (panel.type === 'pipeline-status' && source?.type === 'azure-devops' && source) {
-      const result = await fetchAzureDevOpsPipeline({
+      const result = fetchAzureDevOpsPipeline({
         panel,
         source,
         requestHeaders: c.req.raw.headers,
         fetcher: deps.fetcher ?? globalThis.fetch,
         credentials,
       })
-      return adapterRouteResponse(result)
+      return observation(c, result, {
+        boardId: boardName,
+        panelId,
+        operation: 'read',
+        sourceName: panel.source,
+        sourceType: source.type,
+        destination: 'https://dev.azure.com',
+      })
     }
-    if (panel.type === 'pull-request-health') return c.notFound()
+    if (panel.type === 'pull-request-health')
+      return rejected(c, { boardId: boardName, panelId, operation: 'read' })
     if (panel.type === 'http-value') {
-      const result = await fetchHttpValue({
+      const result = fetchHttpValue({
         panel,
         requestHeaders: c.req.raw.headers,
         fetcher: deps.fetcher ?? globalThis.fetch,
       })
-      return adapterRouteResponse(result)
+      return observation(c, result, {
+        boardId: boardName,
+        panelId,
+        operation: 'read',
+        destination: panel.url,
+      })
     }
     return c.notFound()
   })
 
   app.get('/api/panel/:board/:panelId/pull-requests', async (c) => {
     const resolved = pullRequestPanel(c.req.param('board'), c.req.param('panelId'), 'pull-requests')
-    if (!resolved) return c.notFound()
-    return adapterRouteResponse(
-      await fetchGithubActionsPullRequestCandidates({
+    if (!resolved)
+      return rejected(c, {
+        boardId: c.req.param('board'),
+        panelId: c.req.param('panelId'),
+        operation: 'pull-requests',
+      })
+    return observation(
+      c,
+      fetchGithubActionsPullRequestCandidates({
         ...resolved,
         requestHeaders: c.req.raw.headers,
         fetcher: deps.fetcher ?? globalThis.fetch,
         githubClient,
       }),
+      {
+        boardId: c.req.param('board'),
+        panelId: c.req.param('panelId'),
+        operation: 'pull-requests',
+        sourceName: resolved.panel.source,
+        sourceType: resolved.source.type,
+        destination: 'https://api.github.com',
+      },
     )
   })
   app.get('/api/panel/:board/:panelId/update-workflow/:workflow', async (c) => {
@@ -182,15 +246,29 @@ export function createApp(deps: AppDependencies): Hono {
       'update-workflow',
     )
     const workflow = c.req.param('workflow')
-    if (!resolved?.capabilities.configuredUpdateWorkflow(workflow)) return c.notFound()
-    return adapterRouteResponse(
-      await fetchGithubActionsUpdateWorkflow({
+    if (!resolved?.capabilities.configuredUpdateWorkflow(workflow))
+      return rejected(c, {
+        boardId: c.req.param('board'),
+        panelId: c.req.param('panelId'),
+        operation: 'update-workflow',
+      })
+    return observation(
+      c,
+      fetchGithubActionsUpdateWorkflow({
         ...resolved,
         workflow,
         requestHeaders: c.req.raw.headers,
         fetcher: deps.fetcher ?? globalThis.fetch,
         githubClient,
       }),
+      {
+        boardId: c.req.param('board'),
+        panelId: c.req.param('panelId'),
+        operation: 'update-workflow',
+        sourceName: resolved.panel.source,
+        sourceType: resolved.source.type,
+        destination: 'https://api.github.com',
+      },
     )
   })
   app.get('/api/panel/:board/:panelId/pull-request-build', async (c) => {
@@ -201,15 +279,28 @@ export function createApp(deps: AppDependencies): Hono {
     )
     const branch = c.req.query('branch')
     if (!resolved || !branch || !resolved.capabilities.permitsBuildBranch(branch))
-      return c.notFound()
-    return adapterRouteResponse(
-      await fetchGithubActionsPullRequestBuild({
+      return rejected(c, {
+        boardId: c.req.param('board'),
+        panelId: c.req.param('panelId'),
+        operation: 'pull-request-build',
+      })
+    return observation(
+      c,
+      fetchGithubActionsPullRequestBuild({
         ...resolved,
         branch,
         requestHeaders: c.req.raw.headers,
         fetcher: deps.fetcher ?? globalThis.fetch,
         githubClient,
       }),
+      {
+        boardId: c.req.param('board'),
+        panelId: c.req.param('panelId'),
+        operation: 'pull-request-build',
+        sourceName: resolved.panel.source,
+        sourceType: resolved.source.type,
+        destination: 'https://api.github.com',
+      },
     )
   })
 
@@ -226,6 +317,48 @@ export function createApp(deps: AppDependencies): Hono {
       permitsPanelOperation(allowlist, boardName, panelId, operation)
       ? { panel, source, capabilities }
       : undefined
+  }
+
+  function rejected(c: Context<AppEnvironment>, context: ObservationContext) {
+    logger.log({
+      event: 'api.operation_rejected',
+      requestId: c.get('dashboardRequestId'),
+      boardId: context.boardId,
+      panelId: context.panelId,
+      operation: context.operation,
+    })
+    return c.notFound()
+  }
+
+  async function observation(
+    c: Context<AppEnvironment>,
+    result: Promise<AdapterResult> | AdapterResult,
+    context: ObservationContext,
+  ) {
+    const started = performance.now()
+    const resolved = await result
+    const adapted = await adapterRouteResponse(resolved)
+    if (adapted.envelope?.state === 'error') {
+      logger.log({
+        event: 'panel.observation_failed',
+        requestId: c.get('dashboardRequestId'),
+        boardId: context.boardId,
+        panelId: context.panelId,
+        operation: context.operation,
+        errorKind: adapted.envelope.error.kind,
+        elapsedMs: Math.round(performance.now() - started),
+        ...(context.sourceName ? { sourceName: context.sourceName } : {}),
+        ...(context.sourceType ? { sourceType: context.sourceType } : {}),
+        ...(destinationOrigin(context.destination)
+          ? { destinationOrigin: destinationOrigin(context.destination) }
+          : {}),
+        ...(resolved.failure?.upstreamStatus
+          ? { upstreamStatus: resolved.failure.upstreamStatus }
+          : {}),
+        ...(resolved.failure?.networkCode ? { networkCode: resolved.failure.networkCode } : {}),
+      })
+    }
+    return adapted.response
   }
 
   async function renderEntrypoint(_request: Request, board: string): Promise<Response> {

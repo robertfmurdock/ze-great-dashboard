@@ -4,6 +4,8 @@ import {
   type AdapterResult,
   forwardValidators,
   observedAt,
+  publicLink,
+  safeNetworkCode,
   upstreamErrorEnvelope,
   upstreamErrorKind,
   upstreamErrorResponse,
@@ -44,7 +46,13 @@ export async function fetchHttpValue(args: {
   try {
     upstream = await args.fetcher(call.url, { headers: call.headers })
   } catch (error) {
-    return { response: errorResponse('unreachable', error, panel) }
+    return {
+      response: errorResponse('unreachable', error, panel),
+      failure: {
+        kind: 'unreachable',
+        ...(safeNetworkCode(error) ? { networkCode: safeNetworkCode(error) } : {}),
+      },
+    }
   }
   if (upstream.status === 304) return { response: upstream }
   if (!upstream.ok) {
@@ -55,6 +63,7 @@ export async function fetchHttpValue(args: {
         panel,
         upstream,
       ),
+      failure: { kind: upstreamErrorKind(upstream.status), upstreamStatus: upstream.status },
     }
   }
 
@@ -69,7 +78,7 @@ export async function fetchHttpValue(args: {
         panelId: panel.id,
         state: 'ok',
         observedAt: observedAt(upstream.headers.get('date')),
-        link: panel.link ?? panel.url,
+        link: publicLink(panel.link ?? panel.url),
         signal,
       },
       response: upstream,
@@ -77,6 +86,7 @@ export async function fetchHttpValue(args: {
   } catch (error) {
     return {
       response: errorResponse('upstream-error', error, panel, upstream),
+      failure: { kind: 'upstream-error', upstreamStatus: upstream.status },
     }
   }
 }

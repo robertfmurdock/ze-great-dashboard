@@ -352,7 +352,7 @@ describe('the GitHub Actions adapter', () => {
       state: 'error',
       error: {
         kind: 'no-runs',
-        message: 'No workflow runs found for branch "master". Check the source\'s branch setting.',
+        message: 'No matching workflow runs were found. Check the configured workflow and branch.',
       },
     })
   })

@@ -12,6 +12,7 @@ import type { CredentialResolver } from '../credentials.ts'
 import {
   type AdapterResult,
   forwardValidators,
+  safeNetworkCode,
   upstreamErrorEnvelope,
   upstreamErrorKind,
   upstreamErrorResponse,
@@ -78,6 +79,7 @@ export async function fetchAzureDevOpsPipeline(args: {
           sourceLink(panel.pipeline, source),
         ),
       ),
+      failure: { kind: 'unauthorized' },
     }
   }
 
@@ -93,6 +95,10 @@ export async function fetchAzureDevOpsPipeline(args: {
       response: errorResponse(
         errorEnvelope(panel.id, 'unreachable', error, sourceLink(panel.pipeline, source)),
       ),
+      failure: {
+        kind: 'unreachable',
+        ...(safeNetworkCode(error) ? { networkCode: safeNetworkCode(error) } : {}),
+      },
     }
   }
   if (upstream.status === 304) return { response: upstream }
@@ -107,6 +113,7 @@ export async function fetchAzureDevOpsPipeline(args: {
           observedAt(upstream.headers.get('date')),
         ),
       ),
+      failure: { kind: errorKind(upstream.status), upstreamStatus: upstream.status },
     }
   }
 
@@ -125,6 +132,7 @@ export async function fetchAzureDevOpsPipeline(args: {
             observedAt(upstream.headers.get('date')),
           ),
         ),
+        failure: { kind: 'no-runs', upstreamStatus: upstream.status },
       }
     }
     const signal: PipelineStatus = {
@@ -172,6 +180,7 @@ export async function fetchAzureDevOpsPipeline(args: {
           observedAt(upstream.headers.get('date')),
         ),
       ),
+      failure: { kind: 'upstream-error', upstreamStatus: upstream.status },
     }
   }
 }

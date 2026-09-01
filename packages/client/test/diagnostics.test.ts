@@ -14,16 +14,17 @@ const env: ClientEnv = {
 }
 
 function memory(initial?: string) {
-  let value = initial ?? null
+  const values = new Map<string, string>()
+  if (initial) values.set('ze-great-dashboard.diagnostics.v2', initial)
   return {
-    getItem: () => value,
-    setItem: (_key: string, next: string) => {
-      value = next
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, next: string) => {
+      values.set(key, next)
     },
-    removeItem: () => {
-      value = null
+    removeItem: (key: string) => {
+      values.delete(key)
     },
-    value: () => value,
+    value: () => values.get('ze-great-dashboard.diagnostics.v2') ?? null,
   }
 }
 
@@ -80,6 +81,45 @@ describe('browser-local diagnostics', () => {
       expect(log.count()).toBe(1)
       expect(store.value()).toContain(String(diagnosticsSchemaVersion))
     }
+  })
+
+  it('purges legacy v1 diagnostics instead of retaining historic raw error text', () => {
+    const values = new Map<string, string>([
+      ['ze-great-dashboard.diagnostics.v1', JSON.stringify({ error: 'upstream secret value' })],
+    ])
+    const log = new BrowserDiagnosticStore(
+      env,
+      {
+        getItem: (key) => values.get(key) ?? null,
+        setItem: (key, value) => values.set(key, value),
+        removeItem: (key) => values.delete(key),
+      },
+      () => new Date('2026-08-21T12:00:00Z'),
+    )
+    expect(values.has('ze-great-dashboard.diagnostics.v1')).toBe(false)
+    expect(JSON.stringify(log.export())).not.toContain('upstream secret value')
+  })
+
+  it('exports a failed observation reason and its opaque support reference', () => {
+    const log = new BrowserDiagnosticStore(env, memory(), () => new Date('2026-08-21T12:00:00Z'))
+    log.record({
+      kind: 'panel-fetch-response',
+      panelId: 'build',
+      path: '/api/panel/ze-great-team/build',
+      status: 200,
+      failure: { reason: 'The source could not be reached.', supportReference: '8ecf1a94' },
+    })
+    expect(log.summary().panels[0]).toMatchObject({
+      latestFailedObservation: {
+        reason: 'The source could not be reached.',
+        supportReference: '8ecf1a94',
+      },
+    })
+    expect(log.export().events).toContainEqual(
+      expect.objectContaining({
+        failure: expect.objectContaining({ supportReference: '8ecf1a94' }),
+      }),
+    )
   })
 
   it('continues in memory when storage throws', () => {

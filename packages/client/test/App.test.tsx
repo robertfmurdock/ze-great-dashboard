@@ -458,7 +458,7 @@ describe('pipeline-status refresh scheduling', () => {
       await act(async () => vi.advanceTimersByTime(1_000))
       await settle()
     }
-    const saved = JSON.parse(store.getItem('ze-great-dashboard.diagnostics.v1') ?? '{}')
+    const saved = JSON.parse(store.getItem('ze-great-dashboard.diagnostics.v2') ?? '{}')
     const kinds = saved.events.map((event: { kind: string }) => event.kind)
     expect(kinds).toContain('panel-fetch-response')
     expect(kinds).toContain('panel-fetch-parse-failure')

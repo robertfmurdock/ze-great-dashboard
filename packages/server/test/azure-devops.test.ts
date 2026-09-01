@@ -181,7 +181,7 @@ describe('the Azure DevOps pipeline adapter', () => {
     expect(response.response.status).toBe(200)
     await expect(response.response.json()).resolves.toMatchObject({
       state: 'error',
-      link: 'https://dev.azure.com/example-org/Example%20Project/_build?definitionId=42',
+      link: 'https://dev.azure.com/example-org/Example%20Project/_build',
       error: { kind },
     })
   })

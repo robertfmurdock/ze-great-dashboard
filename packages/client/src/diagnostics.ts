@@ -9,8 +9,9 @@ import {
 import { type DiagnosticsSummary, summarizeDiagnostics } from './diagnostics-summary.ts'
 import { clientReleaseVersion } from './release-version.ts'
 
-const storageKey = 'ze-great-dashboard.diagnostics.v1'
-export const diagnosticsSchemaVersion = 1
+const storageKey = 'ze-great-dashboard.diagnostics.v2'
+const legacyStorageKey = 'ze-great-dashboard.diagnostics.v1'
+export const diagnosticsSchemaVersion = 2
 const maximumEvents = 2_000
 const maximumAgeMillis = 7 * 24 * 60 * 60 * 1_000
 const diagnosticKinds = [
@@ -58,6 +59,11 @@ export type RenderedPanelDiagnostic = {
   link: string | null
 }
 
+export type FailedObservation = {
+  reason: string
+  supportReference?: string
+}
+
 export type DiagnosticEventInput =
   | { kind: 'session-start' }
   | { kind: 'client-update-check'; path: string }
@@ -87,6 +93,7 @@ export type DiagnosticEventInput =
       status?: number
       cache?: CacheMetadata
       envelope?: Envelope
+      failure?: FailedObservation
     }
   | { kind: 'panel-fetch-parse-failure'; panelId: string; path: string; message: string }
   | { kind: 'panel-fetch-failure'; panelId: string; path: string; message: string }
@@ -140,6 +147,8 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
       | undefined,
     private readonly now: () => Date = () => new Date(),
   ) {
+    // v1 could retain upstream-provided error text. It is intentionally not migrated.
+    removeBrowserValue(this.storage, legacyStorageKey)
     this.events = this.read()
     this.record({ kind: 'session-start' })
   }

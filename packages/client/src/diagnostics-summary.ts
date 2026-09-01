@@ -1,6 +1,7 @@
 import type {
   DiagnosticEvent,
   DiagnosticRetention,
+  FailedObservation,
   RenderedPanelDiagnostic,
 } from './diagnostics.ts'
 
@@ -12,6 +13,7 @@ export type PanelDiagnosticsSummary = {
   networkFailures: number
   visibleStateChanges: number
   latestRendered?: RenderedPanelDiagnostic
+  latestFailedObservation?: FailedObservation
 }
 
 export type DiagnosticsSummary = {
@@ -63,6 +65,7 @@ export function summarizeDiagnostics(
         const status = String(event.status)
         panel.httpStatuses[status] = (panel.httpStatuses[status] ?? 0) + 1
       }
+      if (event.failure) panel.latestFailedObservation = event.failure
     }
     if (event.kind === 'panel-fetch-parse-failure') panel.parseFailures++
     if (event.kind === 'panel-fetch-failure') panel.networkFailures++
