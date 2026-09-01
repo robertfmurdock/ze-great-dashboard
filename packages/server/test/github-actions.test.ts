@@ -4,7 +4,9 @@ import type { BoardConfig } from '@ze-great-dashboard/shared'
 import { describe, expect, it, vi } from 'vitest'
 import {
   fetchGithubActionsPipeline,
-  fetchGithubActionsPullRequestHealth,
+  fetchGithubActionsPullRequestBuild,
+  fetchGithubActionsPullRequestCandidates,
+  fetchGithubActionsUpdateWorkflow,
   permittedGithubActionsCalls,
 } from '../src/adapters/github-actions.ts'
 import { createApp } from '../src/app.ts'
@@ -421,7 +423,7 @@ describe('the panel route', () => {
   })
 })
 
-describe('pull-request-health', () => {
+describe('pull-request-health observations', () => {
   const healthPanel = {
     id: 'updates',
     type: 'pull-request-health',
@@ -441,7 +443,7 @@ describe('pull-request-health', () => {
     head_branch: 'cpr-gradle-update/create-update-branch/42',
   }
 
-  it('rolls up update workflow and matching PR build health', async () => {
+  it('normalizes candidates, configured update workflows, and prefix-authorized PR builds', async () => {
     const fetcher = vi.fn(async (url: string) => {
       if (url.includes('/pulls?'))
         return new Response(
@@ -463,20 +465,39 @@ describe('pull-request-health', () => {
       return new Response(JSON.stringify({ workflow_runs: [successfulRun] }))
     }) as unknown as typeof fetch
 
-    const result = await fetchGithubActionsPullRequestHealth({
+    const candidates = await fetchGithubActionsPullRequestCandidates({
       panel: healthPanel,
       source: healthSource,
       requestHeaders: new Headers(),
       fetcher,
     })
-
-    expect(result.envelope).toMatchObject({
+    const workflow = await fetchGithubActionsUpdateWorkflow({
+      panel: healthPanel,
+      source: healthSource,
+      workflow: 'dependency-update.yml',
+      requestHeaders: new Headers(),
+      fetcher,
+    })
+    const build = await fetchGithubActionsPullRequestBuild({
+      panel: healthPanel,
+      source: healthSource,
+      branch: 'cpr-gradle-update/create-update-branch/42',
+      requestHeaders: new Headers(),
+      fetcher,
+    })
+    expect(candidates.envelope).toMatchObject({
       state: 'ok',
       link: 'https://github.com/example-org/example-repo',
+      signal: { type: 'pull-request-candidates', pullRequests: [{ number: 42 }] },
+    })
+    expect(workflow.envelope).toMatchObject({
+      signal: { type: 'pull-request-workflow', item: { status: 'passed' } },
+    })
+    expect(build.envelope).toMatchObject({
       signal: {
-        type: 'pull-request-health',
-        status: 'passed',
-        pullRequests: [{ label: 'PR #42', status: 'passed' }],
+        type: 'pull-request-build',
+        branch: 'cpr-gradle-update/create-update-branch/42',
+        item: { status: 'passed' },
       },
     })
     expect(fetcher).toHaveBeenCalledWith(
@@ -489,13 +510,13 @@ describe('pull-request-health', () => {
     )
   })
 
-  it('uses the bearer header on every private GitHub request', async () => {
+  it('uses the bearer header on private observation requests', async () => {
     const fetcher = vi.fn(async (url: string) =>
       url.includes('/pulls?')
         ? new Response(JSON.stringify([]))
         : new Response(JSON.stringify({ workflow_runs: [successfulRun] })),
     ) as unknown as typeof fetch
-    await fetchGithubActionsPullRequestHealth({
+    await fetchGithubActionsPullRequestCandidates({
       panel: healthPanel,
       source: { ...healthSource, token_env: 'GITHUB_TOKEN' },
       requestHeaders: new Headers(),
@@ -507,26 +528,6 @@ describe('pull-request-health', () => {
       if (!(headers instanceof Headers)) throw new Error('GitHub call had no Headers')
       expect(headers.get('authorization')).toBe('Bearer secret-token')
     }
-  })
-
-  it('does not treat an absent matching PR as a failure', async () => {
-    const fetcher = vi.fn(async (url: string) =>
-      url.includes('/pulls?')
-        ? new Response(JSON.stringify([]))
-        : new Response(JSON.stringify({ workflow_runs: [successfulRun] })),
-    ) as unknown as typeof fetch
-
-    const result = await fetchGithubActionsPullRequestHealth({
-      panel: healthPanel,
-      source: healthSource,
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-
-    expect(result.envelope).toMatchObject({
-      state: 'ok',
-      signal: { status: 'passed', summary: '1 update workflow · No open update PRs' },
-    })
   })
 
   it('uses an update workflow run only when its branch matches that workflow prefix', async () => {
@@ -547,16 +548,17 @@ describe('pull-request-health', () => {
           ),
     ) as unknown as typeof fetch
 
-    const result = await fetchGithubActionsPullRequestHealth({
+    const result = await fetchGithubActionsUpdateWorkflow({
       panel: healthPanel,
       source: healthSource,
+      workflow: 'dependency-update.yml',
       requestHeaders: new Headers(),
       fetcher,
     })
 
     expect(result.envelope).toMatchObject({
       state: 'ok',
-      signal: { status: 'passed', workflows: [{ status: 'passed' }] },
+      signal: { type: 'pull-request-workflow', item: { status: 'passed' } },
     })
     expect(fetcher).toHaveBeenCalledWith(
       expect.stringContaining('dependency-update.yml/runs?per_page=100'),
@@ -564,7 +566,7 @@ describe('pull-request-health', () => {
     )
   })
 
-  it('rolls up a failing PR build as failed', async () => {
+  it('normalizes a failing PR build and rejects non-prefix branch reads at the route boundary', async () => {
     const fetcher = vi.fn(async (url: string) => {
       if (url.includes('/pulls?'))
         return new Response(
@@ -583,9 +585,10 @@ describe('pull-request-health', () => {
       return new Response(JSON.stringify({ workflow_runs: [run] }))
     }) as unknown as typeof fetch
 
-    const result = await fetchGithubActionsPullRequestHealth({
+    const result = await fetchGithubActionsPullRequestBuild({
       panel: healthPanel,
       source: healthSource,
+      branch: 'cpr-gradle-update/create-update-branch/42',
       requestHeaders: new Headers(),
       fetcher,
     })
@@ -593,9 +596,39 @@ describe('pull-request-health', () => {
     expect(result.envelope).toMatchObject({
       state: 'ok',
       signal: {
-        status: 'failed',
-        summary: 'PR #42: cpr-gradle-update/create-update-branch/42 · failure',
+        type: 'pull-request-build',
+        item: { status: 'failed' },
       },
     })
+  })
+
+  it('exposes only named observation routes and relays their validators', async () => {
+    const fetcher = vi.fn(
+      async () =>
+        new Response(JSON.stringify([]), {
+          headers: { etag: 'W/"prs"', date: '2026-08-29T12:00:00Z' },
+        }),
+    ) as unknown as typeof fetch
+    const app = createApp({
+      config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
+      boardConfig: {
+        sources: { github: healthSource },
+        boards: { team: { panels: [healthPanel] } },
+      },
+      fetcher,
+    })
+    const response = await app.request('/api/panel/team/updates/pull-requests')
+    expect(response.status).toBe(200)
+    expect(response.headers.get('etag')).toBe('W/"prs"')
+    await expect(response.json()).resolves.toMatchObject({
+      signal: { type: 'pull-request-candidates' },
+    })
+    expect(
+      (await app.request('/api/panel/team/updates/pull-request-build?branch=feature/manual'))
+        .status,
+    ).toBe(404)
+    expect(
+      (await app.request('/api/panel/team/updates/update-workflow/not-configured.yml')).status,
+    ).toBe(404)
   })
 })

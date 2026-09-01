@@ -1,8 +1,8 @@
 import { PanelMetadata } from './PanelFrame.tsx'
 import type { PanelUpdateHealth } from './panel-props.ts'
 
-export function ObservedAt({ value }: { value: string }) {
-  return <TimeAge value={value} label="Observed" />
+export function ObservedAt({ value, label = 'Observed' }: { value: string; label?: string }) {
+  return <TimeAge value={value} label={label} />
 }
 
 export function PipelineAge({

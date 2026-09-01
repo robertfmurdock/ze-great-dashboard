@@ -12,10 +12,13 @@ import { stringify as stringifyYaml } from 'yaml'
 import { fetchAzureDevOpsPipeline } from './adapters/azure-devops.ts'
 import {
   fetchGithubActionsPipeline,
-  fetchGithubActionsPullRequestHealth,
+  fetchGithubActionsPullRequestBuild,
+  fetchGithubActionsPullRequestCandidates,
+  fetchGithubActionsUpdateWorkflow,
+  pullRequestHealthCapabilities,
 } from './adapters/github-actions.ts'
 import { fetchHttpValue } from './adapters/http-value.ts'
-import { deriveAllowlist } from './allowlist.ts'
+import { deriveAllowlist, type PanelOperation, permitsPanelOperation } from './allowlist.ts'
 import type { ServerConfig } from './config.ts'
 import { type CredentialResolver, environmentCredentials } from './credentials.ts'
 import { createGithubClient } from './github-auth.ts'
@@ -124,7 +127,7 @@ export function createApp(deps: AppDependencies): Hono {
     if (
       !panel ||
       (panel.type !== 'http-value' && !source) ||
-      !allowlist.has(`${boardName}/${panelId}`)
+      !permitsPanelOperation(allowlist, boardName, panelId, 'read')
     )
       return c.notFound()
 
@@ -148,16 +151,7 @@ export function createApp(deps: AppDependencies): Hono {
       })
       return adapterRouteResponse(result)
     }
-    if (panel.type === 'pull-request-health' && source?.type === 'github-actions' && source) {
-      const result = await fetchGithubActionsPullRequestHealth({
-        panel,
-        source,
-        requestHeaders: c.req.raw.headers,
-        fetcher: deps.fetcher ?? globalThis.fetch,
-        githubClient,
-      })
-      return adapterRouteResponse(result)
-    }
+    if (panel.type === 'pull-request-health') return c.notFound()
     if (panel.type === 'http-value') {
       const result = await fetchHttpValue({
         panel,
@@ -168,6 +162,71 @@ export function createApp(deps: AppDependencies): Hono {
     }
     return c.notFound()
   })
+
+  app.get('/api/panel/:board/:panelId/pull-requests', async (c) => {
+    const resolved = pullRequestPanel(c.req.param('board'), c.req.param('panelId'), 'pull-requests')
+    if (!resolved) return c.notFound()
+    return adapterRouteResponse(
+      await fetchGithubActionsPullRequestCandidates({
+        ...resolved,
+        requestHeaders: c.req.raw.headers,
+        fetcher: deps.fetcher ?? globalThis.fetch,
+        githubClient,
+      }),
+    )
+  })
+  app.get('/api/panel/:board/:panelId/update-workflow/:workflow', async (c) => {
+    const resolved = pullRequestPanel(
+      c.req.param('board'),
+      c.req.param('panelId'),
+      'update-workflow',
+    )
+    const workflow = c.req.param('workflow')
+    if (!resolved?.capabilities.configuredUpdateWorkflow(workflow)) return c.notFound()
+    return adapterRouteResponse(
+      await fetchGithubActionsUpdateWorkflow({
+        ...resolved,
+        workflow,
+        requestHeaders: c.req.raw.headers,
+        fetcher: deps.fetcher ?? globalThis.fetch,
+        githubClient,
+      }),
+    )
+  })
+  app.get('/api/panel/:board/:panelId/pull-request-build', async (c) => {
+    const resolved = pullRequestPanel(
+      c.req.param('board'),
+      c.req.param('panelId'),
+      'pull-request-build',
+    )
+    const branch = c.req.query('branch')
+    if (!resolved || !branch || !resolved.capabilities.permitsBuildBranch(branch))
+      return c.notFound()
+    return adapterRouteResponse(
+      await fetchGithubActionsPullRequestBuild({
+        ...resolved,
+        branch,
+        requestHeaders: c.req.raw.headers,
+        fetcher: deps.fetcher ?? globalThis.fetch,
+        githubClient,
+      }),
+    )
+  })
+
+  function pullRequestPanel(boardName: string, panelId: string, operation: PanelOperation) {
+    const panel = deps.boardConfig?.boards[boardName]?.panels.find(
+      (candidate) => candidate.id === panelId,
+    )
+    const source = panel?.source ? deps.boardConfig?.sources[panel.source] : undefined
+    const capabilities =
+      panel?.type === 'pull-request-health' ? pullRequestHealthCapabilities(panel) : undefined
+    if (!capabilities) return undefined
+    return panel?.type === 'pull-request-health' &&
+      source?.type === 'github-actions' &&
+      permitsPanelOperation(allowlist, boardName, panelId, operation)
+      ? { panel, source, capabilities }
+      : undefined
+  }
 
   async function renderEntrypoint(_request: Request, board: string): Promise<Response> {
     const template = await templates.get(config.assetPath)

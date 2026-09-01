@@ -5,6 +5,10 @@
   gap: 0.1em;
 }
 
+.incomplete {
+  color: var(--warning-text);
+}
+
 .compactFact {
   min-width: 0;
   margin: 0;

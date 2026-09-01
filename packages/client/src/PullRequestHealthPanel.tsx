@@ -68,9 +68,24 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
           />
         </div>
         <div className={styles.freshness}>
-          <ObservedAt value={envelope.observedAt} />
+          <ObservedAt value={envelope.observedAt} label="Observed (oldest evidence)" />
+          {signal.data.newestObservedAt && (
+            <span className="screen-reader-only">
+              Newest evidence observed {signal.data.newestObservedAt}.
+            </span>
+          )}
           {updateHealth && <UpdateHealth health={updateHealth} />}
         </div>
+        {signal.data.incompleteObservations && (
+          <div role="status">
+            <PanelHint className={styles.incomplete}>
+              ⚠ Incomplete observations:{' '}
+              {signal.data.incompleteObservations
+                .map(({ label, message }) => `${label}: ${message}`)
+                .join(' · ')}
+            </PanelHint>
+          </div>
+        )}
       </div>
     </PanelFrame>
   )

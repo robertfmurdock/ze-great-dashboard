@@ -50,10 +50,18 @@ export {
   type OkEnvelope,
   type PipelineActivity,
   type PipelineStatus,
+  type PullRequestBuildObservation,
+  type PullRequestCandidate,
+  type PullRequestCandidates,
   type PullRequestHealth,
+  type PullRequestWorkflowObservation,
   pipelineActivitySchema,
   pipelineStatusSchema,
+  pullRequestBuildObservationSchema,
+  pullRequestCandidateSchema,
+  pullRequestCandidatesSchema,
   pullRequestHealthSchema,
+  pullRequestWorkflowObservationSchema,
 } from './envelope.ts'
 export {
   analyzeBoardLayout,

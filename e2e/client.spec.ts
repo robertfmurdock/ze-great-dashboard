@@ -422,9 +422,19 @@ test('centers pull-request status in a narrow tall tile while retaining normal a
     }),
   )
   await page.route('**/api/panel/**', (route) => {
-    const panelId = decodeURIComponent(
-      new URL(route.request().url()).pathname.split('/').at(-1) ?? '',
-    )
+    const path = new URL(route.request().url()).pathname
+    const panelId = decodeURIComponent(path.split('/').at(-2) ?? '')
+    if (path.endsWith('/pull-requests'))
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          panelId,
+          state: 'ok',
+          observedAt: '2026-08-29T12:00:00.000Z',
+          link: 'https://github.com/example/repo',
+          signal: { type: 'pull-request-candidates', pullRequests: [] },
+        }),
+      })
     return route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify(pullRequestHealthEnvelope(panelId)),

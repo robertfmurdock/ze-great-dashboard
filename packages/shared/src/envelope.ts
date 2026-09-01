@@ -106,9 +106,49 @@ export const pullRequestHealthSchema = z.object({
   summary: z.string().min(1),
   workflows: z.array(pullRequestHealthItemSchema),
   pullRequests: z.array(pullRequestHealthItemSchema),
+  /** Missing component reads remain visible even when the evidence we did get is reassuring. */
+  incompleteObservations: z
+    .array(z.object({ label: z.string().min(1), message: z.string().min(1) }))
+    .optional(),
+  /** The latest component reading, disclosed beside the oldest aggregate evidence. */
+  newestObservedAt: z.iso.datetime().optional(),
 })
 
 export type PullRequestHealth = z.infer<typeof pullRequestHealthSchema>
+
+/** A public, credential-free candidate returned by the bounded update-PR observation. */
+export const pullRequestCandidateSchema = z.object({
+  number: z.number().int().positive(),
+  branch: z.string().min(1),
+  link: z.url(),
+})
+
+export type PullRequestCandidate = z.infer<typeof pullRequestCandidateSchema>
+
+export const pullRequestCandidatesSchema = z.object({
+  type: z.literal('pull-request-candidates'),
+  pullRequests: z.array(pullRequestCandidateSchema),
+  /** GitHub's first page is a deliberate bounded observation, not proof that no later PR exists. */
+  truncated: z.boolean().optional(),
+})
+
+export type PullRequestCandidates = z.infer<typeof pullRequestCandidatesSchema>
+
+export const pullRequestWorkflowObservationSchema = z.object({
+  type: z.literal('pull-request-workflow'),
+  workflow: z.string().min(1),
+  item: pullRequestHealthItemSchema,
+})
+
+export type PullRequestWorkflowObservation = z.infer<typeof pullRequestWorkflowObservationSchema>
+
+export const pullRequestBuildObservationSchema = z.object({
+  type: z.literal('pull-request-build'),
+  branch: z.string().min(1),
+  item: pullRequestHealthItemSchema,
+})
+
+export type PullRequestBuildObservation = z.infer<typeof pullRequestBuildObservationSchema>
 
 export const httpValueSchema = z.object({
   type: z.literal('http-value'),

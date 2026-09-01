@@ -13,6 +13,7 @@ import { BrowserPanelMemory, resolvePanelMemoryIdentity } from './panel-memory.t
 import type { PanelUpdateHealth } from './panel-props.ts'
 import { reconcilePipelineResponse } from './pipeline-reconciliation.ts'
 import { nextPollDelayMillis } from './polling-schedule.ts'
+import { rollupPullRequestHealth } from './pull-request-rollup.ts'
 
 export function usePanelSignals({
   board,
@@ -41,6 +42,7 @@ export function usePanelSignals({
 
     let cancelled = false
     const timers = new Set<number>()
+    const abortControllers = new Set<AbortController>()
     for (const panel of board.panels) {
       if (isZeroPosition(panel.position)) continue
       if (
@@ -81,6 +83,122 @@ export function usePanelSignals({
             },
           }
         })
+      }
+      if (panel.type === 'pull-request-health') {
+        const workflows = readUpdateWorkflows(panel)
+        const components = new Map<string, Envelope>()
+        let activeController: AbortController | undefined
+        const request = async (componentPath: string) => {
+          diagnostics.record({ kind: 'panel-fetch-start', panelId: panel.id, path: componentPath })
+          try {
+            const response = await fetch(componentPath, { signal: activeController?.signal })
+            const transport = {
+              kind: 'panel-fetch-response' as const,
+              panelId: panel.id,
+              path: componentPath,
+              status: response.status,
+              cache: cacheMetadata(response.headers),
+            }
+            if (response.status === 304) {
+              diagnostics.record(transport)
+              const cached = components.get(componentPath)
+              return cached
+                ? { envelope: cached }
+                : { error: 'Source returned not modified before an initial observation.' }
+            }
+            const value: unknown = await response.json()
+            const envelope = parseEnvelope(value)
+            diagnostics.record({ ...transport, ...(envelope ? { envelope } : {}) })
+            if (!envelope) return { error: 'Response was not a valid signal envelope.' }
+            if (envelope.state === 'error') return { error: envelope.error.message }
+            components.set(componentPath, envelope)
+            return { envelope }
+          } catch (error) {
+            if (activeController?.signal.aborted) return { error: 'Observation cancelled.' }
+            diagnostics.record({
+              kind: 'panel-fetch-failure',
+              panelId: panel.id,
+              path: componentPath,
+              message: errorMessage(error),
+            })
+            return { error: errorMessage(error) }
+          }
+        }
+        const refreshPullRequestHealth = async () => {
+          if (cancelled || inFlight) return
+          inFlight = true
+          activeController = new AbortController()
+          abortControllers.add(activeController)
+          const root = path
+          const [candidateResult, ...workflowResults] = await Promise.all([
+            request(`${root}/pull-requests`),
+            ...workflows.map(({ workflow }) =>
+              request(`${root}/update-workflow/${encodeURIComponent(workflow)}`),
+            ),
+          ])
+          const candidates =
+            candidateResult.envelope?.state === 'ok' &&
+            isCandidates(candidateResult.envelope.signal)
+              ? candidateResult.envelope.signal.pullRequests
+              : []
+          if (cancelled || activeController.signal.aborted) {
+            abortControllers.delete(activeController)
+            return
+          }
+          const buildResults = await Promise.all(
+            candidates.map(
+              async (candidate) =>
+                [
+                  candidate.branch,
+                  await request(
+                    `${root}/pull-request-build?branch=${encodeURIComponent(candidate.branch)}`,
+                  ),
+                ] as const,
+            ),
+          )
+          const rolled = rollupPullRequestHealth({
+            panelId: panel.id,
+            link: candidateResult.envelope?.link ?? null,
+            workflows: workflows.map(({ workflow }, index) => ({
+              workflow,
+              observation: workflowResults[index] ?? { error: 'Missing workflow result.' },
+            })),
+            candidates: candidateResult,
+            builds: new Map(buildResults),
+          })
+          if (cancelled || activeController.signal.aborted) {
+            abortControllers.delete(activeController)
+            return
+          }
+          if (rolled && !cancelled) {
+            lastEnvelope = rolled
+            recordConfirmedUpdate()
+            const previous = signalsRef.current[panel.id]
+            if (panelDiagnosticChanged(previous, panel, rolled))
+              diagnostics.record({
+                kind: 'panel-rendered',
+                panelId: panel.id,
+                path,
+                rendered: projectPanelDiagnostic(panel, rolled),
+              })
+            signalsRef.current = { ...signalsRef.current, [panel.id]: rolled }
+            setSignals(signalsRef.current)
+          } else if (!cancelled) recordUpdateFailure('No usable pull-request observations.')
+          inFlight = false
+          abortControllers.delete(activeController)
+          if (!cancelled) {
+            const nextTimer = window.setTimeout(
+              () => {
+                timers.delete(nextTimer)
+                void refreshPullRequestHealth()
+              },
+              nextPollDelayMillis(lastEnvelope, Date.now(), settings),
+            )
+            timers.add(nextTimer)
+          }
+        }
+        void refreshPullRequestHealth()
+        continue
       }
       const refresh = () => {
         if (cancelled || inFlight) return
@@ -225,11 +343,35 @@ export function usePanelSignals({
     }
     return () => {
       cancelled = true
+      for (const controller of abortControllers) controller.abort()
       for (const timer of timers) window.clearTimeout(timer)
     }
   }, [board, diagnostics, env.board, env.proxyPath])
 
   return { signals, updateHealth }
+}
+
+function readUpdateWorkflows(panel: Board['panels'][number]) {
+  const value = panel.update_workflows
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) =>
+    typeof entry === 'object' &&
+    entry !== null &&
+    typeof (entry as { workflow?: unknown }).workflow === 'string'
+      ? [{ workflow: (entry as { workflow: string }).workflow }]
+      : [],
+  )
+}
+
+function isCandidates(
+  value: unknown,
+): value is { type: 'pull-request-candidates'; pullRequests: Array<{ branch: string }> } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === 'pull-request-candidates' &&
+    Array.isArray((value as { pullRequests?: unknown }).pullRequests)
+  )
 }
 
 function errorMessage(error: unknown) {

@@ -2,6 +2,7 @@ import type { PullRequestHealth } from '@ze-great-dashboard/shared'
 import { describe, expect, it } from 'vitest'
 import { formatCount } from '../src/panel-formatting.ts'
 import { compactPullRequestHealthFacts } from '../src/pull-request-health.ts'
+import { rollupPullRequestHealth } from '../src/pull-request-rollup.ts'
 
 const signal = (overrides: Partial<PullRequestHealth> = {}): PullRequestHealth => ({
   type: 'pull-request-health',
@@ -70,5 +71,70 @@ describe('formatCount', () => {
     expect(formatCount(1, 'workflow')).toBe('1 workflow')
     expect(formatCount(2, 'workflow')).toBe('2 workflows')
     expect(formatCount(2, 'open PR')).toBe('2 open PRs')
+  })
+})
+
+describe('rollupPullRequestHealth', () => {
+  it('uses the oldest component evidence and makes a missing build explicit without hiding successful evidence', () => {
+    const workflow = {
+      panelId: 'updates',
+      state: 'ok' as const,
+      observedAt: '2026-08-29T12:00:00.000Z',
+      link: null,
+      signal: {
+        type: 'pull-request-workflow',
+        workflow: 'updates.yml',
+        item: { label: 'updates.yml', status: 'passed', detail: 'Passed', link: null },
+      },
+    }
+    const candidates = {
+      panelId: 'updates',
+      state: 'ok' as const,
+      observedAt: '2026-08-29T12:05:00.000Z',
+      link: 'https://github.com/example/repo',
+      signal: {
+        type: 'pull-request-candidates',
+        pullRequests: [
+          { number: 42, branch: 'deps/42', link: 'https://github.com/example/repo/pull/42' },
+        ],
+      },
+    }
+    const result = rollupPullRequestHealth({
+      panelId: 'updates',
+      link: candidates.link,
+      workflows: [{ workflow: 'updates.yml', observation: { envelope: workflow } }],
+      candidates: { envelope: candidates },
+      builds: new Map([['deps/42', { error: 'offline' }]]),
+    })
+    expect(result).toMatchObject({
+      observedAt: workflow.observedAt,
+      signal: {
+        status: 'unknown',
+        newestObservedAt: candidates.observedAt,
+        pullRequests: [{ label: 'PR #42', status: 'unknown' }],
+        incompleteObservations: [{ label: 'PR #42', message: 'offline' }],
+      },
+    })
+  })
+
+  it('marks a bounded candidate observation as incomplete instead of silently treating it as exhaustive', () => {
+    const result = rollupPullRequestHealth({
+      panelId: 'updates',
+      link: 'https://github.com/example/repo',
+      workflows: [],
+      candidates: {
+        envelope: {
+          panelId: 'updates',
+          state: 'ok',
+          observedAt: '2026-08-29T12:00:00.000Z',
+          link: 'https://github.com/example/repo',
+          signal: { type: 'pull-request-candidates', pullRequests: [], truncated: true },
+        },
+      },
+      builds: new Map(),
+    })
+    expect(result).toMatchObject({
+      signal: { incompleteObservations: [{ label: 'Open update PR candidates' }] },
+    })
   })
 })

@@ -22,6 +22,17 @@ const board: Board = {
   ],
 }
 
+const pullRequestBoard: Board = {
+  panels: [
+    {
+      id: 'updates',
+      type: 'pull-request-health',
+      refresh: '1s' as Board['panels'][number]['refresh'],
+      update_workflows: [{ workflow: 'dependency-update.yml' }],
+    },
+  ],
+}
+
 function Probe({
   diagnostics,
   currentBoard = board,
@@ -202,5 +213,29 @@ describe('usePanelSignals', () => {
     await act(async () => vi.advanceTimersByTime(2_000))
     expect(fetcher).toHaveBeenCalledTimes(1)
     resolveFetch?.(new Response(envelope()))
+  })
+
+  it('aborts pull-request component reads on cleanup before they can fan out to build reads', async () => {
+    const diagnostics = recordingSink()
+    const aborted: boolean[] = []
+    const fetcher = vi.fn((_path: string, init?: RequestInit) => {
+      const signal = init?.signal
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => {
+          aborted.push(true)
+          reject(new DOMException('Aborted', 'AbortError'))
+        })
+      })
+    })
+    vi.stubGlobal('fetch', fetcher)
+
+    const rendered = render(<Probe diagnostics={diagnostics} currentBoard={pullRequestBoard} />)
+    await act(async () => {})
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    rendered.unmount()
+    await act(async () => {})
+
+    expect(aborted).toHaveLength(2)
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 })

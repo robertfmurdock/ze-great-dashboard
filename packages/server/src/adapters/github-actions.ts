@@ -4,7 +4,6 @@ import type {
   GithubActionsSource,
   Panel,
   PipelineStatus,
-  PullRequestHealth,
   Source,
 } from '@ze-great-dashboard/shared'
 import { githubActionsSourceSchema } from '@ze-great-dashboard/shared'
@@ -95,104 +94,144 @@ export function permittedGithubActionsCalls(
   return [{ url: url.toString(), headers: new Headers() }]
 }
 
-export function permittedGithubActionsPullRequestHealthCalls(
-  panel: Panel,
-  source: Source,
-): PermittedCall[] {
-  const parsedPanel = pullRequestHealthPanelSchema.parse(panel)
-  const parsedSource = githubActionsSourceSchema.parse(source)
-  const calls = parsedPanel.update_workflows.map(({ workflow }) =>
-    githubRunsCall(parsedSource, workflow),
-  )
-  calls.push({
-    ...pullRequestsCall(parsedSource, parsedPanel.base_branch, 1),
-  })
-  // PR build calls are derived only from head refs returned by the bounded pull request query.
-  // The adapter, rather than the browser, owns that dynamic URL construction.
-  return calls
+export function pullRequestHealthCapabilities(panel: Panel) {
+  const parsed = pullRequestHealthPanelSchema.parse(panel)
+  return {
+    panel: parsed,
+    configuredUpdateWorkflow(workflow: string) {
+      return parsed.update_workflows.find((candidate) => candidate.workflow === workflow)
+    },
+    permitsBuildBranch(branch: string) {
+      return parsed.update_workflows.some(({ branch_prefixes }) =>
+        branch_prefixes.some((prefix) => branch.startsWith(prefix)),
+      )
+    },
+  }
 }
 
-export async function fetchGithubActionsPullRequestHealth(args: {
+export async function fetchGithubActionsPullRequestCandidates(
+  args: AdapterArgs,
+): Promise<AdapterResult> {
+  const capabilities = pullRequestHealthCapabilities(args.panel)
+  const panel = capabilities.panel
+  const source = githubActionsSourceSchema.parse(args.source)
+  return githubObservation(
+    args,
+    source,
+    pullRequestsCall(source, panel.base_branch, 1),
+    (value, observedAt) => {
+      const page = pullRequestsSchema.parse(value)
+      const pullRequests = page.filter((pullRequest) =>
+        capabilities.permitsBuildBranch(pullRequest.head.ref),
+      )
+      return {
+        panelId: panel.id,
+        state: 'ok',
+        observedAt,
+        link: sourceLinkForRepository(source),
+        signal: {
+          type: 'pull-request-candidates',
+          pullRequests: pullRequests.map((pullRequest) => ({
+            number: pullRequest.number,
+            branch: pullRequest.head.ref,
+            link: pullRequest.html_url,
+          })),
+          ...(page.length === 100 ? { truncated: true } : {}),
+        },
+      } satisfies Envelope
+    },
+  )
+}
+
+export async function fetchGithubActionsUpdateWorkflow(
+  args: AdapterArgs & { workflow: string },
+): Promise<AdapterResult> {
+  const capabilities = pullRequestHealthCapabilities(args.panel)
+  const panel = capabilities.panel
+  const source = githubActionsSourceSchema.parse(args.source)
+  const configured = capabilities.configuredUpdateWorkflow(args.workflow)
+  if (!configured) throw new Error('Unconfigured update workflow')
+  return githubObservation(
+    args,
+    source,
+    githubRunsCall(source, configured.workflow, undefined, undefined, 100),
+    (value, observedAt) => {
+      const run = runsSchema.parse(value).workflow_runs.find((candidate) => {
+        const branch = candidate.head_branch
+        return (
+          typeof branch === 'string' &&
+          configured.branch_prefixes.some((prefix) => branch.startsWith(prefix))
+        )
+      })
+      return {
+        panelId: panel.id,
+        state: 'ok',
+        observedAt,
+        link: sourceLinkForRepository(source),
+        signal: {
+          type: 'pull-request-workflow',
+          workflow: configured.workflow,
+          item: healthItem(configured.workflow, run, `Update workflow ${configured.workflow}`),
+        },
+      } satisfies Envelope
+    },
+  )
+}
+
+export async function fetchGithubActionsPullRequestBuild(
+  args: AdapterArgs & { branch: string },
+): Promise<AdapterResult> {
+  const capabilities = pullRequestHealthCapabilities(args.panel)
+  const panel = capabilities.panel
+  const source = githubActionsSourceSchema.parse(args.source)
+  if (!capabilities.permitsBuildBranch(args.branch))
+    throw new Error('Unpermitted pull request branch')
+  return githubObservation(
+    args,
+    source,
+    githubRunsCall(source, panel.build_workflow, args.branch, 'pull_request'),
+    (value, observedAt) => {
+      const run = runsSchema.parse(value).workflow_runs[0]
+      return {
+        panelId: panel.id,
+        state: 'ok',
+        observedAt,
+        link: sourceLinkForRepository(source),
+        signal: {
+          type: 'pull-request-build',
+          branch: args.branch,
+          item: healthItem(args.branch, run, args.branch),
+        },
+      } satisfies Envelope
+    },
+  )
+}
+
+type AdapterArgs = {
   panel: Panel
   source: Source
   requestHeaders: Headers
   fetcher: typeof fetch
   githubClient?: GithubClient
   credentials?: CredentialResolver
-}): Promise<AdapterResult> {
-  const panel = pullRequestHealthPanelSchema.parse(args.panel)
-  const source = githubActionsSourceSchema.parse(args.source)
-  try {
-    const workflowResults = await Promise.all(
-      panel.update_workflows.map(async ({ workflow, branch_prefixes }) => ({
-        workflow,
-        run: await latestRun({
-          source,
-          workflow,
-          branchPrefixes: branch_prefixes,
-          requestHeaders: args.requestHeaders,
-          fetcher: args.fetcher,
-          githubClient: githubClientFor(args),
-        }),
-      })),
-    )
-    const pullRequests = await openPullRequests({
-      source,
-      baseBranch: panel.base_branch,
-      requestHeaders: args.requestHeaders,
-      fetcher: args.fetcher,
-      githubClient: githubClientFor(args),
-    })
-    const matching = pullRequests.filter((pullRequest) =>
-      panel.update_workflows.some(({ branch_prefixes }) =>
-        branch_prefixes.some((prefix) => pullRequest.head.ref.startsWith(prefix)),
-      ),
-    )
-    const pullRequestResults = await Promise.all(
-      matching.map(async (pullRequest) => ({
-        pullRequest,
-        run: await latestRun({
-          source,
-          workflow: panel.build_workflow,
-          branch: pullRequest.head.ref,
-          event: 'pull_request',
-          requestHeaders: args.requestHeaders,
-          fetcher: args.fetcher,
-          githubClient: githubClientFor(args),
-        }),
-      })),
-    )
+}
 
-    const workflows = workflowResults.map(({ workflow, run }) =>
-      healthItem(workflow, run, `Update workflow ${workflow}`),
-    )
-    const pullRequestItems = pullRequestResults.map(({ pullRequest, run }) =>
-      healthItem(`PR #${pullRequest.number}`, run, pullRequest.head.ref, pullRequest.html_url),
-    )
-    const allItems = [...workflows, ...pullRequestItems]
-    const status = aggregateStatus(allItems.map((item) => item.status))
-    const summary = summarize(status, workflows, pullRequestItems)
-    const envelope: Envelope = {
-      panelId: panel.id,
-      state: 'ok',
-      observedAt: new Date().toISOString(),
-      link: sourceLinkForRepository(source),
-      signal: {
-        type: 'pull-request-health',
-        status,
-        summary,
-        workflows,
-        pullRequests: pullRequestItems,
-      } satisfies PullRequestHealth,
-    }
-    return { envelope, response: new Response(null, { status: 200 }) }
+async function githubObservation(
+  args: AdapterArgs,
+  source: GithubActionsSource,
+  call: PermittedCall,
+  normalize: (value: unknown, observedAt: string) => Envelope,
+): Promise<AdapterResult> {
+  let upstream: Response
+  try {
+    upstream = await githubFetch(call, { ...args, source, githubClient: githubClientFor(args) })
   } catch (error) {
     return {
       response: new Response(
         JSON.stringify(
           errorEnvelope(
-            panel.id,
-            error instanceof GithubAuthenticationError ? 'unauthorized' : 'upstream-error',
+            args.panel.id,
+            error instanceof GithubAuthenticationError ? 'unauthorized' : 'unreachable',
             error,
             sourceLinkForRepository(source),
           ),
@@ -201,55 +240,42 @@ export async function fetchGithubActionsPullRequestHealth(args: {
       ),
     }
   }
-}
-
-async function latestRun(args: {
-  source: GithubActionsSource
-  workflow: string
-  branch?: string
-  branchPrefixes?: string[]
-  event?: string
-  requestHeaders: Headers
-  fetcher: typeof fetch
-  githubClient: GithubClient
-}) {
-  const call = githubRunsCall(
-    args.source,
-    args.workflow,
-    args.branch,
-    args.event,
-    args.branchPrefixes ? 100 : 1,
-  )
-  const response = await githubFetch(call, args)
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
-  const runs = runsSchema.parse(await response.json()).workflow_runs
-  const branchPrefixes = args.branchPrefixes
-  if (!branchPrefixes) return runs[0]
-  return runs.find((run) => {
-    const headBranch = run.head_branch
-    return (
-      headBranch !== undefined &&
-      headBranch !== null &&
-      branchPrefixes.some((prefix) => headBranch.startsWith(prefix))
-    )
-  })
-}
-
-async function openPullRequests(args: {
-  source: GithubActionsSource
-  baseBranch: string
-  requestHeaders: Headers
-  fetcher: typeof fetch
-  githubClient: GithubClient
-}) {
-  const result = []
-  for (let page = 1; ; page += 1) {
-    const call = pullRequestsCall(args.source, args.baseBranch, page)
-    const response = await githubFetch(call, args)
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
-    const pageResults = pullRequestsSchema.parse(await response.json())
-    result.push(...pageResults)
-    if (pageResults.length < 100) return result
+  if (upstream.status === 304) return { response: upstream }
+  if (!upstream.ok)
+    return {
+      response: new Response(
+        JSON.stringify(
+          errorEnvelope(
+            args.panel.id,
+            errorKind(upstream.status),
+            `${upstream.status} ${upstream.statusText}`,
+            sourceLinkForRepository(source),
+            observedAt(upstream.headers.get('date')),
+          ),
+        ),
+        { status: 200 },
+      ),
+    }
+  try {
+    return {
+      envelope: normalize(await upstream.json(), observedAt(upstream.headers.get('date'))),
+      response: upstream,
+    }
+  } catch (error) {
+    return {
+      response: new Response(
+        JSON.stringify(
+          errorEnvelope(
+            args.panel.id,
+            'upstream-error',
+            error,
+            sourceLinkForRepository(source),
+            observedAt(upstream.headers.get('date')),
+          ),
+        ),
+        { status: 200 },
+      ),
+    }
   }
 }
 
@@ -294,26 +320,6 @@ function healthItem(
     detail: run ? `${detail} · ${run.conclusion ?? run.status}` : `${detail} · No run found`,
     link: link ?? run?.html_url ?? null,
   }
-}
-
-function aggregateStatus(statuses: PipelineStatus['status'][]): PipelineStatus['status'] {
-  if (statuses.some((status) => status === 'failed')) return 'failed'
-  if (statuses.some((status) => status === 'running')) return 'running'
-  if (statuses.some((status) => status === 'unknown')) return 'unknown'
-  if (statuses.some((status) => status === 'cancelled')) return 'cancelled'
-  return 'passed'
-}
-
-function summarize(
-  status: PipelineStatus['status'],
-  workflows: ReturnType<typeof healthItem>[],
-  pullRequests: ReturnType<typeof healthItem>[],
-) {
-  const failed = [...workflows, ...pullRequests].find((item) => item.status === status)
-  if (status !== 'passed' && failed) return `${failed.label}: ${failed.detail}`
-  return pullRequests.length === 0
-    ? `${workflows.length} update workflow${workflows.length === 1 ? '' : 's'} · No open update PRs`
-    : `${workflows.length} update workflow${workflows.length === 1 ? '' : 's'} · ${pullRequests.length} open update PR${pullRequests.length === 1 ? '' : 's'}`
 }
 
 function sourceLinkForRepository(source: GithubActionsSource) {
