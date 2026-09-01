@@ -1,8 +1,6 @@
-import { execFile } from 'node:child_process'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { promisify } from 'node:util'
 import { strToU8, zipSync } from 'fflate'
 import { parseDocument, Scalar } from 'yaml'
 import type { ComputeMode } from './bootstrap.js'
@@ -75,8 +73,6 @@ export {
   bootstrapRemediation,
   formatBootstrapRemediationText,
 } from './remediation.js'
-
-const run = promisify(execFile)
 
 export type ReleaseMetadata = {
   computeMode: ComputeMode
@@ -246,39 +242,6 @@ export async function packageEcs(options: EcsPackageOptions): Promise<PackagedRe
     `${sha256(await readFile(join(outputDir, 'release.json')))}  release.json\n`,
   )
   return packagedRelease
-}
-
-export type PublishClientAssetsOptions = {
-  assetsDir: string
-  assetsBucket: string
-  assetsBaseUrl: string
-  version: string
-}
-
-/** Publishes the versioned client half of a provider-managed release. */
-export async function publishClientAssets(options: PublishClientAssetsOptions): Promise<string> {
-  const assetsDir = resolve(options.assetsDir)
-  await readFile(join(assetsDir, 'index.html'))
-  const assetPath = `${options.assetsBaseUrl.replace(/\/+$/, '')}/dashboard/${options.version}`
-  await run('aws', [
-    's3',
-    'sync',
-    assetsDir,
-    `s3://${options.assetsBucket}/dashboard/${options.version}/`,
-    '--exclude',
-    'index.html',
-    '--cache-control',
-    'public, max-age=31536000, immutable',
-  ])
-  await run('aws', [
-    's3',
-    'cp',
-    join(assetsDir, 'index.html'),
-    `s3://${options.assetsBucket}/dashboard/${options.version}/index.html`,
-    '--cache-control',
-    'public, max-age=60',
-  ])
-  return assetPath
 }
 
 export async function cloudFormationTemplate(mode: ComputeMode = 'lambda'): Promise<string> {

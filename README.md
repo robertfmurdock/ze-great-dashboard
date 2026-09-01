@@ -81,7 +81,9 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
 ### Deploy on AWS
 
 The published [`@continuous-excellence/ze-great-dashboard-aws`](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
-package contains the Lambda runtime, CLI, compatible client, and CloudFormation template. The
+package contains the Lambda runtime, CLI, and CloudFormation template. Its default client source is
+the matching immutable S3/CloudFront release; [`@continuous-excellence/ze-great-dashboard-client`](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-client)
+is a separately published browser artifact for alternate CDNs. The
 [AWS deployment guide](docs/aws-setup.md) walks a consumer-managed deployment from bootstrap
 through a protected gateway.
 

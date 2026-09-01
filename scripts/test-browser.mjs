@@ -14,8 +14,8 @@ const npmCommand = npmCli ? process.execPath : 'npm'
 // The standalone command builds; the aggregate test command opts into reuse after test:unit.
 const clientScript = noBuild ? 'test:browser:no-build' : 'test:browser'
 const npmArgs = npmCli
-  ? [npmCli, 'run', clientScript, '--workspace', '@ze-great-dashboard/client']
-  : ['run', clientScript, '--workspace', '@ze-great-dashboard/client']
+  ? [npmCli, 'run', clientScript, '--workspace', '@continuous-excellence/ze-great-dashboard-client']
+  : ['run', clientScript, '--workspace', '@continuous-excellence/ze-great-dashboard-client']
 
 let activeChild
 let interruptedBy

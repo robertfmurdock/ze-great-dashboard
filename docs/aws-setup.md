@@ -33,9 +33,10 @@ Pin an exact version in the repository that owns the deployment:
 npm install --save-exact @continuous-excellence/ze-great-dashboard-aws
 ```
 
-The package includes the Lambda runtime, CLI, CloudFormation template, and matching immutable
-browser client. Normal consumers do not publish client assets. Append `@version` when installing a
-previously reviewed release rather than the current one.
+The package includes the Lambda runtime, CLI, and CloudFormation template. The matching immutable
+browser client is selected from the default S3/CloudFront path; normal consumers do not publish
+client assets. Append `@version` when installing a previously reviewed release rather than the
+current one.
 
 ## 2. Create a board
 
@@ -104,14 +105,14 @@ exact release already hosted on jsDelivr, an internal CDN, or S3, provide the co
 npm exec -- ze-great-dashboard-aws package \
   --board-config board.yaml \
   --parameters aws-dashboard-parameters.json \
-  --asset-path https://cdn.jsdelivr.net/npm/@your-scope/dashboard@1.2.3/client \
+  --asset-path https://cdn.jsdelivr.net/npm/@continuous-excellence/ze-great-dashboard-client@1.2.3/client \
   --output aws-dashboard-release
 ```
 
 That URL must contain the matching `index.html` and `board-config.schema.json`; it is recorded in
-the board modeline and deployed as `ASSET_PATH`. `--asset-domain` remains a deprecated shorthand
-for the package's legacy public S3 layout. `publish-assets` is provider-specific and still uses the
-package version to choose its S3 upload destination.
+the board modeline and deployed as `ASSET_PATH`. The separately published client package is an
+immutable static artifact, so use an exact version. The normal AWS path remains the matching
+versioned S3/CloudFront location. `--asset-domain` remains a deprecated shorthand for that layout.
 
 This validates the board and writes:
 

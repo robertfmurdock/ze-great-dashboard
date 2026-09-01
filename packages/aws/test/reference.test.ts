@@ -144,14 +144,14 @@ describe('persistent consumer reference', () => {
     expect(bootstrap).toContain('secretsmanager:CreateSecret')
 
     const workflow = await readFile(join(repositoryRoot, '.github/workflows/main.yml'), 'utf8')
-    const tarball = workflow.indexOf('Build the exact-version npm tarball')
+    const tarball = workflow.indexOf('Build the exact-version npm tarballs')
     const assets = workflow.indexOf('Publish candidate client assets from the tarball')
     const reference = workflow.indexOf(
       'Deploy and check the exact tarball as the consumer reference',
     )
     const candidate = workflow.indexOf('Save verified release candidate')
     const publish = workflow.indexOf('Publish the same npm tarball')
-    const registry = workflow.indexOf('Confirm the published version is visible')
+    const registry = workflow.indexOf('Confirm the published versions are visible')
     const tag = workflow.indexOf('Tag verified release')
     expect(
       [tarball, assets, reference, candidate, publish, registry, tag].every((index) => index >= 0),
@@ -162,6 +162,15 @@ describe('persistent consumer reference', () => {
     expect(reference).toBeLessThan(publish)
     expect(publish).toBeLessThan(registry)
     expect(registry).toBeLessThan(tag)
+    expect(workflow).toContain('--pack client-package.tgz --pack aws-package.tgz')
+    expect(workflow).toContain('tar -xzf client-package.tgz -C .candidate-client')
+    expect(workflow).toContain('client_dir=.candidate-client/package/client')
+    expect(workflow).toContain('aws s3api head-object')
+    expect(workflow).toContain('Immutable S3 collision')
+    expect(workflow).toContain('--checksum-algorithm SHA256')
+    expect(workflow).toContain('--publish-tarball client-package.tgz')
+    expect(workflow).toContain('--publish-tarball aws-package.tgz')
+    expect(workflow).not.toContain('publish-assets')
     expect(workflow).toContain('bash scripts/deploy-reference-composition.sh')
     expect(workflow).toContain('verified-release-candidate')
     expect(workflow).not.toContain('Deploy application 🚀')

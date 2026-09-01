@@ -8,7 +8,8 @@ export default defineConfig({
     ...devices['Desktop Chrome'],
   },
   webServer: {
-    command: 'npm run preview --workspace @ze-great-dashboard/client -- --host 127.0.0.1',
+    command:
+      'npm run preview --workspace @continuous-excellence/ze-great-dashboard-client -- --host 127.0.0.1',
     url: 'http://127.0.0.1:4173/__ASSET_PATH__/',
     reuseExistingServer: !process.env.CI,
   },

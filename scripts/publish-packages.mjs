@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,8 +9,18 @@ import { packageLayout } from './package-layout.mjs'
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const releaseVersion = normalizeVersion(process.env.RELEASE_VERSION)
 const args = process.argv.slice(2)
-const packIndex = args.indexOf('--pack')
+const packPaths = optionValues('--pack')
 const publishIndex = args.indexOf('--publish-tarball')
+const publicPackages = await Promise.all(
+  packageLayout.map(async (packageSpec) => {
+    const manifest = JSON.parse(
+      await readFile(join(root, packageSpec.directory, 'package.json'), 'utf8'),
+    )
+    if (typeof manifest.name !== 'string' || !manifest.name)
+      throw new Error(`Public package ${packageSpec.id} has no package name`)
+    return { id: packageSpec.id, name: manifest.name }
+  }),
+)
 
 if (publishIndex >= 0) {
   const tarball = resolve(requiredArgument(publishIndex, '--publish-tarball'))
@@ -30,12 +40,16 @@ if (publishIndex >= 0) {
     for (const packageSpec of packageLayout)
       await stagePackage(packageSpec, join(stagingRoot, packageSpec.id))
 
-    if (packIndex >= 0) {
-      if (packageLayout.length !== 1) throw new Error('--pack requires exactly one public package')
-      await packPackage(
-        join(stagingRoot, packageLayout[0].id),
-        requiredArgument(packIndex, '--pack'),
-      )
+    if (packPaths.length) {
+      if (packPaths.length !== packageLayout.length)
+        throw new Error(
+          `--pack requires one path for each public package: ${packageLayout.map(({ id }) => id).join(', ')}`,
+        )
+      // npm pack is process-global enough on some local npm installations that concurrent calls
+      // can produce malformed JSON output. The artifacts were already built together; pack them
+      // deterministically one at a time.
+      for (const [index, packageSpec] of packageLayout.entries())
+        await packPackage(join(stagingRoot, packageSpec.id), packPaths[index])
     } else {
       for (const packageSpec of packageLayout) {
         const publishArgs = ['publish', '--access', 'public', '--provenance']
@@ -58,6 +72,12 @@ function requiredArgument(index, flag) {
   return value
 }
 
+function optionValues(flag) {
+  return args.flatMap((argument, index) =>
+    argument === flag ? [requiredArgument(index, flag)] : [],
+  )
+}
+
 function normalizeVersion(value) {
   const version = value?.replace(/^v/, '')
   if (!version || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version))
@@ -67,64 +87,71 @@ function normalizeVersion(value) {
 
 async function stagePackage(packageSpec, destinationDirectory) {
   const sourceDirectory = join(root, packageSpec.directory)
-  for (const file of packageSpec.publishFiles)
-    await cp(join(sourceDirectory, file), join(destinationDirectory, file), { recursive: true })
-  if (packageSpec.id === 'aws')
-    await verifyBoardSchemaArtifacts(sourceDirectory, destinationDirectory)
+  // Callers may retain the staging root for inspection. Recreate each package directory so stale
+  // artifacts cannot become part of a later tarball.
+  await rm(destinationDirectory, { recursive: true, force: true })
+  for (const publishedFile of packageSpec.publishFiles) {
+    const { source, destination } =
+      typeof publishedFile === 'string'
+        ? { source: publishedFile, destination: publishedFile }
+        : publishedFile
+    await cp(join(sourceDirectory, source), join(destinationDirectory, destination), {
+      recursive: true,
+    })
+  }
   await cp(join(root, 'LICENSE'), join(destinationDirectory, 'LICENSE'))
   await cp(join(sourceDirectory, 'README.md'), join(destinationDirectory, 'README.md'))
   const manifest = JSON.parse(await readFile(join(sourceDirectory, 'package.json'), 'utf8'))
   manifest.version = releaseVersion
   delete manifest.scripts
+  if (packageSpec.id === 'client') {
+    delete manifest.dependencies
+    delete manifest.devDependencies
+    delete manifest.exports
+    manifest.files = ['client', 'README.md', 'LICENSE']
+  }
   await writeFile(
     join(destinationDirectory, 'package.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
   )
 }
 
-async function verifyBoardSchemaArtifacts(sourceDirectory, destinationDirectory) {
-  const rootSchema = await readFile(join(sourceDirectory, 'board-config.schema.json'))
-  const clientSchema = await readFile(join(sourceDirectory, 'client', 'board-config.schema.json'))
-  if (!rootSchema.equals(clientSchema))
-    throw new Error('AWS package schema artifacts differ between the package root and client/')
-
-  const stagedRootSchema = await readFile(join(destinationDirectory, 'board-config.schema.json'))
-  const stagedClientSchema = await readFile(
-    join(destinationDirectory, 'client', 'board-config.schema.json'),
-  )
-  if (!rootSchema.equals(stagedRootSchema) || !rootSchema.equals(stagedClientSchema))
-    throw new Error('AWS package staging did not preserve both board schema artifacts')
-}
-
 async function packPackage(stagedDirectory, requestedPath) {
   const target = resolve(requestedPath)
   const packRoot = await mkdtemp(join(tmpdir(), 'ze-great-dashboard-pack-'))
   try {
-    const output = execFileSync(
+    execFileSync(
       'npm',
-      ['pack', stagedDirectory, '--pack-destination', packRoot, '--json', '--ignore-scripts'],
+      ['pack', stagedDirectory, '--pack-destination', packRoot, '--ignore-scripts'],
       {
         cwd: root,
-        encoding: 'utf8',
+        stdio: 'inherit',
         env: { ...process.env, npm_config_cache: join(packRoot, 'npm-cache') },
       },
     )
-    const result = JSON.parse(output)
-    if (!Array.isArray(result) || typeof result[0]?.filename !== 'string')
-      throw new Error('npm pack did not report a tarball filename')
-    await cp(join(packRoot, result[0].filename), target)
-    console.log(`${target} (${result[0].integrity})`)
+    const tarballs = (await readdir(packRoot)).filter((file) => file.endsWith('.tgz'))
+    if (tarballs.length !== 1)
+      throw new Error(`npm pack wrote ${tarballs.length} tarballs instead of one`)
+    await cp(join(packRoot, tarballs[0]), target)
+    console.log(
+      `${target} (sha512-${createHash('sha512')
+        .update(await readFile(target))
+        .digest('base64')})`,
+    )
   } finally {
     await rm(packRoot, { recursive: true, force: true })
   }
 }
 
 async function publishTarball(tarball) {
-  const packageName = packageLayout[0]?.directory
-    ? JSON.parse(await readFile(join(root, packageLayout[0].directory, 'package.json'), 'utf8'))
-        .name
-    : undefined
-  if (!packageName) throw new Error('No public package is configured')
+  const manifest = await tarballManifest(tarball)
+  if (manifest.version !== releaseVersion)
+    throw new Error(
+      `Tarball version ${manifest.version} does not match RELEASE_VERSION ${releaseVersion}`,
+    )
+  if (!publicPackages.some(({ name }) => name === manifest.name))
+    throw new Error(`Tarball package ${manifest.name} is not a configured public package`)
+  const packageName = manifest.name
   if (releaseVersion.endsWith('-SNAPSHOT')) {
     execFileSync('npm', ['ping', '--registry', 'https://registry.npmjs.org'], {
       cwd: root,
@@ -171,4 +198,17 @@ async function publishTarball(tarball) {
     stdio: 'inherit',
     env: { ...process.env, NPM_CONFIG_IGNORE_SCRIPTS: 'true' },
   })
+}
+
+async function tarballManifest(tarball) {
+  const packageRoot = await mkdtemp(join(tmpdir(), 'ze-great-dashboard-tarball-'))
+  try {
+    execFileSync('tar', ['-xzf', tarball, '-C', packageRoot, 'package/package.json'])
+    const manifest = JSON.parse(await readFile(join(packageRoot, 'package/package.json'), 'utf8'))
+    if (typeof manifest.name !== 'string' || !manifest.name || typeof manifest.version !== 'string')
+      throw new Error('Tarball package.json must contain a name and version')
+    return manifest
+  } finally {
+    await rm(packageRoot, { recursive: true, force: true })
+  }
 }

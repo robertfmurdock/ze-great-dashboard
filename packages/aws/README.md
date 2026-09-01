@@ -1,8 +1,8 @@
 # Ze Great Dashboard on AWS
 
 `@continuous-excellence/ze-great-dashboard-aws` packages a board for a private AWS Lambda or ECS
-deployment. It includes the Lambda runtime, matching browser client, deployment CLI, and
-CloudFormation templates.
+deployment. It includes the Lambda runtime, deployment CLI, and CloudFormation templates; browser
+assets are published separately as `@continuous-excellence/ze-great-dashboard-client`.
 
 Deployment mode is persisted in `dashboard-bootstrap.json` and generated application parameters
 as `ComputeMode`. Existing files without that field mean `lambda`. Choose `--mode ecs` during
@@ -95,7 +95,7 @@ Changing `board.yaml` or upgrading the pinned package uses this same path.
 | The package owns | You own |
 | --- | --- |
 | Board validation and Lambda packaging | Board content and source access |
-| Compatible immutable browser assets | The protected gateway and authentication |
+| Server runtime and CloudFormation templates | The immutable browser asset host and authentication |
 | Private application CloudFormation template | AWS account administration |
 | Restricted bootstrap templates | Secret values and the credential-map ARN |
 | Read-only preflight and consistency checks | Reviewing and executing AWS changes |

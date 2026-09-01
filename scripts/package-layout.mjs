@@ -1,15 +1,13 @@
 export const packageLayout = [
   {
+    id: 'client',
+    directory: 'packages/client',
+    publishFiles: [{ source: 'dist', destination: 'client' }],
+  },
+  {
     id: 'aws',
     directory: 'packages/aws',
-    publishFiles: [
-      'dist',
-      'client',
-      'board-config.schema.json',
-      'bootstrap',
-      'template.yml',
-      'template-ecs.yml',
-    ],
+    publishFiles: ['dist', 'bootstrap', 'template.yml', 'template-ecs.yml'],
   },
 ]
 

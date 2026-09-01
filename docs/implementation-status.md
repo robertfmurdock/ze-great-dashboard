@@ -67,10 +67,10 @@ locally. The current implementation includes:
 
 Verification covers the client production build, the core board validator, AWS adapter Lambda
 archives, publish staging, the checked-in reference consumer inputs, scoped reference IAM names, and
-the release ordering. The GitHub workflow builds one exact-version AWS adapter tarball, publishes its
-versioned client assets, deploys that tarball to the consumer reference, publishes it through npm
-trusted publishing, confirms registry visibility, and only then creates the Git tag; core and shared
-remain internal workspace packages.
+the release ordering. The GitHub workflow builds exact-version client and AWS tarballs, publishes
+the client tarball's versioned files to S3 after rejecting immutable-key collisions, deploys the AWS
+tarball to the consumer reference, publishes both through npm trusted publishing, confirms registry
+visibility, and only then creates the Git tag; core and shared remain internal workspace packages.
 
 Snapshot versions such as `0.6.0-SNAPSHOT` use the same checks and exact tarball path, then run
 npm connectivity and publish validation in dry-run mode. They do not publish client assets, AWS

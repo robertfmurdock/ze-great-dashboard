@@ -18,7 +18,7 @@ const client = spawn(
     'run',
     'dev',
     '--workspace',
-    '@ze-great-dashboard/client',
+    '@continuous-excellence/ze-great-dashboard-client',
     '--',
     '--host',
     '127.0.0.1',

@@ -177,6 +177,9 @@ describe('AWS deployment contract', () => {
     expect(await readFile(join(outputDir, 'template.yml'), 'utf8')).toContain(
       `Default: "${assetPath}"`,
     )
+    const lambdaEntries = Object.keys(unzipSync(await readFile(join(outputDir, 'lambda.zip'))))
+    expect(lambdaEntries).toEqual(['SHA256SUMS', 'board.yaml', 'index.mjs', 'release.json'])
+    expect(lambdaEntries).not.toContain('client/index.html')
   })
 
   it('retains the legacy asset-domain shorthand but rejects conflicting selectors', async () => {

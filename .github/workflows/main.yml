@@ -59,11 +59,11 @@ jobs:
           version="$(npm run --silent release:version)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Build the exact-version npm tarball
+      - name: Build the exact-version npm tarballs
         if: github.ref == 'refs/heads/main'
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
-        run: node scripts/publish-packages.mjs --pack aws-package.tgz
+        run: node scripts/publish-packages.mjs --pack client-package.tgz --pack aws-package.tgz
 
       - name: Log in to GHCR for candidate image
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
@@ -135,11 +135,42 @@ jobs:
       - name: Publish candidate client assets from the tarball
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
         run: |
-          mkdir .reference-consumer
-          npm install --prefix .reference-consumer --ignore-scripts --save-exact "$GITHUB_WORKSPACE/aws-package.tgz"
-          .reference-consumer/node_modules/.bin/ze-great-dashboard-aws publish-assets \
-            --assets-bucket "${{ steps.infrastructure.outputs.assets_bucket }}" \
-            --assets-base-url "${{ steps.infrastructure.outputs.assets_base_url }}"
+          mkdir .candidate-client
+          tar -xzf client-package.tgz -C .candidate-client
+          client_dir=.candidate-client/package/client
+          test -f "$client_dir/index.html"
+          test "$(node -p "require('./.candidate-client/package/package.json').version")" = \
+            "${{ steps.version.outputs.version }}"
+          asset_prefix="dashboard/${{ steps.version.outputs.version }}"
+          while IFS= read -r -d '' file; do
+            relative_path="${file#"$client_dir"/}"
+            object_key="$asset_prefix/$relative_path"
+            local_checksum="$(openssl dgst -sha256 -binary "$file" | base64)"
+            if existing_checksum="$(aws s3api head-object \
+              --bucket "${{ steps.infrastructure.outputs.assets_bucket }}" \
+              --key "$object_key" \
+              --checksum-mode ENABLED \
+              --query ChecksumSHA256 \
+              --output text 2>.candidate-client/head-object.err)"; then
+              test "$existing_checksum" != None
+              test "$existing_checksum" = "$local_checksum" || {
+                echo "Immutable S3 collision at $object_key" >&2
+                exit 1
+              }
+            elif ! grep -Eq '404|Not Found|HeadObject' .candidate-client/head-object.err; then
+              cat .candidate-client/head-object.err >&2
+              exit 1
+            fi
+          done < <(find "$client_dir" -type f -print0)
+          aws s3 sync "$client_dir" \
+            "s3://${{ steps.infrastructure.outputs.assets_bucket }}/dashboard/${{ steps.version.outputs.version }}/" \
+            --exclude index.html \
+            --checksum-algorithm SHA256 \
+            --cache-control 'public, max-age=31536000, immutable'
+          aws s3 cp "$client_dir/index.html" \
+            "s3://${{ steps.infrastructure.outputs.assets_bucket }}/dashboard/${{ steps.version.outputs.version }}/index.html" \
+            --checksum-algorithm SHA256 \
+            --cache-control 'public, max-age=60'
 
       - name: AWS reference deployment credentials
         if: github.ref == 'refs/heads/main' && endsWith(steps.version.outputs.version, '-SNAPSHOT') != true
@@ -227,7 +258,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: verified-release-candidate
-          path: aws-package.tgz
+          path: |
+            client-package.tgz
+            aws-package.tgz
           retention-days: 1
 
   consumer-bootstrap-validation:
@@ -397,19 +430,25 @@ jobs:
       - name: Publish the same npm tarball
         env:
           RELEASE_VERSION: ${{ needs.check.outputs.version }}
-        run: node scripts/publish-packages.mjs --publish-tarball aws-package.tgz
+        run: |
+          node scripts/publish-packages.mjs --publish-tarball client-package.tgz
+          node scripts/publish-packages.mjs --publish-tarball aws-package.tgz
 
-      - name: Confirm the published version is visible
+      - name: Confirm the published versions are visible
         if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
         env:
           RELEASE_VERSION: ${{ needs.check.outputs.version }}
         run: |
-          for attempt in {1..12}; do
-            published_version="$(npm view "@continuous-excellence/ze-great-dashboard-aws@$RELEASE_VERSION" version --prefer-online 2>/dev/null || true)"
-            if [ "$published_version" = "$RELEASE_VERSION" ]; then exit 0; fi
-            sleep 5
+          for package in \
+            @continuous-excellence/ze-great-dashboard-client \
+            @continuous-excellence/ze-great-dashboard-aws; do
+            for attempt in {1..12}; do
+              published_version="$(npm view "$package@$RELEASE_VERSION" version --prefer-online 2>/dev/null || true)"
+              if [ "$published_version" = "$RELEASE_VERSION" ]; then break; fi
+              sleep 5
+            done
+            test "$published_version" = "$RELEASE_VERSION"
           done
-          test "$published_version" = "$RELEASE_VERSION"
 
       - name: Log in to GHCR
         if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true

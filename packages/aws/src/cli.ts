@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
-import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { parse } from 'yaml'
 import { runDoctor } from './doctor.ts'
@@ -27,7 +26,6 @@ import {
   type PackagedRelease,
   packageEcs,
   packageLambda,
-  publishClientAssets,
   requireComputeMode,
   requiredBootstrapParameters,
   resolveComputeMode,
@@ -358,17 +356,7 @@ function copyableCommand(command: string[]): string {
 
 try {
   const packageVersion = await installedPackageVersion()
-  const bundledAssets = fileURLToPath(new URL('../client', import.meta.url))
-  if (args[0] === 'publish-assets') {
-    const version = requiredOption('--version', packageVersion)
-    const assetPath = await publishClientAssets({
-      assetsDir: option('--assets-dir', bundledAssets) ?? bundledAssets,
-      assetsBucket: requiredOption('--assets-bucket'),
-      assetsBaseUrl: requiredOption('--assets-base-url'),
-      version,
-    })
-    console.log(JSON.stringify({ published: true, version, assetPath }))
-  } else if (args[0] === 'doctor') {
+  if (args[0] === 'doctor') {
     const parametersPath =
       option('--parameters', 'aws-dashboard-parameters.json') ?? 'aws-dashboard-parameters.json'
     const region =
@@ -739,9 +727,7 @@ try {
       }
     }
   } else if (args[0] !== 'package')
-    throw new Error(
-      'Usage: ze-great-dashboard-aws package|parameters|bootstrap|publish-assets|doctor [options]',
-    )
+    throw new Error('Usage: ze-great-dashboard-aws package|parameters|bootstrap|doctor [options]')
   else {
     const boardConfig = option('--board-config')
     // Consumers should omit --version so the package and client release stay paired. The explicit

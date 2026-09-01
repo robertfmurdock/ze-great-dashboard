@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { cp, mkdir, rm } from 'node:fs/promises'
+import { mkdir, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
@@ -47,16 +47,14 @@ for (const [entry, outfile] of [
 }
 declarations('core')
 
-execFileSync('npm', ['run', 'build', '--workspace', '@ze-great-dashboard/client'], {
-  cwd: root,
-  stdio: 'inherit',
-})
-await cp(join(root, 'packages/client/dist'), join(directories.aws, 'client'), { recursive: true })
-await cp(
-  join(root, 'packages/client/dist/board-config.schema.json'),
-  join(directories.aws, 'board-config.schema.json'),
+execFileSync(
+  'npm',
+  ['run', 'build', '--workspace', '@continuous-excellence/ze-great-dashboard-client'],
+  {
+    cwd: root,
+    stdio: 'inherit',
+  },
 )
-
 await build({
   entryPoints: [join(root, 'packages/server/src/lambda.ts')],
   bundle: true,

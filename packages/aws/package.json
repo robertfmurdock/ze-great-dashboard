@@ -2,7 +2,7 @@
   "name": "@continuous-excellence/ze-great-dashboard-aws",
   "version": "0.0.0-dev",
   "type": "module",
-  "description": "AWS Lambda and CloudFormation adapter for Ze Great Dashboard.",
+  "description": "AWS server runtime and CloudFormation deployment tooling for Ze Great Dashboard.",
   "keywords": [
     "aws",
     "lambda",
@@ -28,8 +28,6 @@
   },
   "files": [
     "dist",
-    "client",
-    "board-config.schema.json",
     "bootstrap",
     "template.yml",
     "template-ecs.yml",

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { packageLayout } from './package-layout.mjs'
@@ -20,7 +20,12 @@ try {
       PUBLISH_STAGING_DIR: stagingRoot,
     },
   })
-  assert.equal(packageLayout.length, 1)
+  assert.equal(packageLayout.length, 2)
+  assert.deepEqual(
+    packageLayout.map(({ id }) => id),
+    ['client', 'aws'],
+  )
+  assert.ok(output.includes('@continuous-excellence/ze-great-dashboard-client@9.8.7'))
   assert.ok(output.includes('@continuous-excellence/ze-great-dashboard-aws@9.8.7'))
   assert.doesNotMatch(
     output,
@@ -28,7 +33,32 @@ try {
   )
   assert.doesNotMatch(output, /\.ts\s/)
 
-  assert.deepEqual(await readdir(stagingRoot), ['aws'])
+  assert.deepEqual((await readdir(stagingRoot)).sort(), ['aws', 'client'])
+  const clientManifest = JSON.parse(
+    await readFile(join(stagingRoot, 'client', 'package.json'), 'utf8'),
+  )
+  assert.equal(clientManifest.name, '@continuous-excellence/ze-great-dashboard-client')
+  assert.equal(clientManifest.version, '9.8.7')
+  assert.equal(clientManifest.dependencies, undefined)
+  assert.equal(clientManifest.devDependencies, undefined)
+  assert.deepEqual(clientManifest.files, ['client', 'README.md', 'LICENSE'])
+  assert.match(
+    await readFile(join(stagingRoot, 'client', 'README.md'), 'utf8'),
+    /not an importable/,
+  )
+  assert.match(
+    await readFile(join(stagingRoot, 'client', 'client', 'index.html'), 'utf8'),
+    /__ASSET_PATH__/,
+  )
+  assert.ok(await stat(join(stagingRoot, 'client', 'client', 'board-config.schema.json')))
+  const clientBundle = (await readdir(join(stagingRoot, 'client', 'client', 'assets'))).find(
+    (name) => name.endsWith('.js'),
+  )
+  assert.ok(clientBundle)
+  assert.match(
+    await readFile(join(stagingRoot, 'client', 'client', 'assets', clientBundle), 'utf8'),
+    /9\.8\.7/,
+  )
   const manifest = JSON.parse(await readFile(join(stagingRoot, 'aws', 'package.json'), 'utf8'))
   assert.equal(manifest.license, 'MIT')
   assert.match(await readFile(join(stagingRoot, 'aws', 'LICENSE'), 'utf8'), /MIT License/)
@@ -51,6 +81,7 @@ try {
   assert.match(stagedReadme, /consumer-owned gateway/)
   assert.match(stagedReadme, /resolves configured `token_env` names only at\s+Lambda cold start/)
   assert.deepEqual(Object.keys(manifest.dependencies).sort(), ['fflate', 'yaml', 'zod'])
+  assert.equal(manifest.dependencies['@continuous-excellence/ze-great-dashboard-client'], undefined)
   const publishedFiles = []
   async function collect(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -60,11 +91,12 @@ try {
     }
   }
   await collect(join(stagingRoot, 'aws'))
-  const clientBundles = publishedFiles.filter(
-    (file) => file.includes('/client/assets/') && file.endsWith('.js'),
+  assert.deepEqual(
+    publishedFiles.filter(
+      (file) => file.includes('/aws/client/') || file.endsWith('board-config.schema.json'),
+    ),
+    [],
   )
-  assert.equal(clientBundles.length, 1)
-  assert.match(await readFile(clientBundles[0], 'utf8'), /9\.8\.7/)
   assert.ok(publishedFiles.every((file) => !file.endsWith('.ts') || file.endsWith('.d.ts')))
   for (const file of publishedFiles.filter(
     (file) => file.endsWith('.js') || file.endsWith('.d.ts'),
@@ -156,9 +188,42 @@ try {
 
   const registryTestRoot = await mkdtemp(join(tmpdir(), 'ze-great-dashboard-registry-test-'))
   try {
-    const tarball = join(registryTestRoot, 'package.tgz')
+    const clientTarball = join(registryTestRoot, 'client.tgz')
+    const awsTarball = join(registryTestRoot, 'aws.tgz')
+    const snapshotClientTarball = join(registryTestRoot, 'snapshot-client.tgz')
+    const snapshotAwsTarball = join(registryTestRoot, 'snapshot-aws.tgz')
     const fakeNpm = join(registryTestRoot, 'npm')
-    await writeFile(tarball, 'exact tarball bytes')
+    execFileSync(
+      process.execPath,
+      ['scripts/publish-packages.mjs', '--pack', clientTarball, '--pack', awsTarball],
+      { cwd: root, env: { ...process.env, RELEASE_VERSION: '9.8.7' }, stdio: 'pipe' },
+    )
+    execFileSync(
+      process.execPath,
+      [
+        'scripts/publish-packages.mjs',
+        '--pack',
+        snapshotClientTarball,
+        '--pack',
+        snapshotAwsTarball,
+      ],
+      { cwd: root, env: { ...process.env, RELEASE_VERSION: '9.8.7-SNAPSHOT' }, stdio: 'pipe' },
+    )
+    const mismatchedTarballRoot = join(registryTestRoot, 'mismatched-package')
+    await mkdir(join(mismatchedTarballRoot, 'package'), { recursive: true })
+    await writeFile(
+      join(mismatchedTarballRoot, 'package', 'package.json'),
+      '{"name":"@continuous-excellence/ze-great-dashboard-client","version":"9.8.6"}\n',
+    )
+    const mismatchedTarball = join(registryTestRoot, 'mismatched.tgz')
+    execFileSync('tar', ['-czf', mismatchedTarball, '-C', mismatchedTarballRoot, 'package'])
+    const extractedClient = join(registryTestRoot, 'extracted-client')
+    await mkdir(extractedClient)
+    execFileSync('tar', ['-xzf', clientTarball, '-C', extractedClient])
+    assert.equal(
+      await readFile(join(extractedClient, 'package', 'client', 'index.html'), 'utf8'),
+      await readFile(join(stagingRoot, 'client', 'client', 'index.html'), 'utf8'),
+    )
     await writeFile(
       fakeNpm,
       `#!/usr/bin/env node
@@ -167,40 +232,52 @@ else throw new Error('publish must not be called when the version exists')
 `,
     )
     await chmod(fakeNpm, 0o755)
-    const integrity = `sha512-${createHash('sha512')
-      .update(await readFile(tarball))
-      .digest('base64')}`
+    const integrity = async (tarball) =>
+      `sha512-${createHash('sha512')
+        .update(await readFile(tarball))
+        .digest('base64')}`
     const publishEnvironment = {
       ...process.env,
       PATH: `${registryTestRoot}:${process.env.PATH}`,
       RELEASE_VERSION: '9.8.7',
     }
-    const rerun = execFileSync(
-      process.execPath,
-      ['scripts/publish-packages.mjs', '--publish-tarball', tarball],
-      {
-        cwd: root,
-        encoding: 'utf8',
-        env: { ...publishEnvironment, FAKE_REGISTRY_INTEGRITY: integrity },
-      },
-    )
-    assert.match(rerun, /matching integrity; skipping/)
     assert.throws(
       () =>
         execFileSync(
           process.execPath,
-          ['scripts/publish-packages.mjs', '--publish-tarball', tarball],
-          {
-            cwd: root,
-            stdio: 'pipe',
-            env: {
-              ...publishEnvironment,
-              FAKE_REGISTRY_INTEGRITY: 'sha512-different-immutable-bytes',
-            },
-          },
+          ['scripts/publish-packages.mjs', '--publish-tarball', mismatchedTarball],
+          { cwd: root, stdio: 'pipe', env: publishEnvironment },
         ),
-      (error) => String(error.stderr).includes('Immutable npm version collision'),
+      (error) => String(error.stderr).includes('does not match RELEASE_VERSION'),
     )
+    for (const tarball of [clientTarball, awsTarball]) {
+      const rerun = execFileSync(
+        process.execPath,
+        ['scripts/publish-packages.mjs', '--publish-tarball', tarball],
+        {
+          cwd: root,
+          encoding: 'utf8',
+          env: { ...publishEnvironment, FAKE_REGISTRY_INTEGRITY: await integrity(tarball) },
+        },
+      )
+      assert.match(rerun, /matching integrity; skipping/)
+      assert.throws(
+        () =>
+          execFileSync(
+            process.execPath,
+            ['scripts/publish-packages.mjs', '--publish-tarball', tarball],
+            {
+              cwd: root,
+              stdio: 'pipe',
+              env: {
+                ...publishEnvironment,
+                FAKE_REGISTRY_INTEGRITY: 'sha512-different-immutable-bytes',
+              },
+            },
+          ),
+        (error) => String(error.stderr).includes('Immutable npm version collision'),
+      )
+    }
 
     const snapshotLog = join(registryTestRoot, 'snapshot-npm.log')
     await writeFile(
@@ -216,15 +293,19 @@ throw new Error('unexpected npm command: ' + process.argv.slice(2).join(' '))
 `,
     )
     await chmod(fakeNpm, 0o755)
-    execFileSync(process.execPath, ['scripts/publish-packages.mjs', '--publish-tarball', tarball], {
-      cwd: root,
-      env: {
-        ...publishEnvironment,
-        RELEASE_VERSION: '9.8.7-SNAPSHOT',
-        FAKE_NPM_LOG: snapshotLog,
+    execFileSync(
+      process.execPath,
+      ['scripts/publish-packages.mjs', '--publish-tarball', snapshotClientTarball],
+      {
+        cwd: root,
+        env: {
+          ...publishEnvironment,
+          RELEASE_VERSION: '9.8.7-SNAPSHOT',
+          FAKE_NPM_LOG: snapshotLog,
+        },
+        stdio: 'pipe',
       },
-      stdio: 'pipe',
-    })
+    )
     const snapshotNpmArgs = await readFile(snapshotLog, 'utf8')
     assert.match(snapshotNpmArgs, /publish/)
     assert.match(snapshotNpmArgs, /--tag\nsnapshot/)

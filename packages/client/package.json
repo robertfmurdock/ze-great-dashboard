@@ -1,9 +1,12 @@
 {
-  "name": "@ze-great-dashboard/client",
+  "name": "@continuous-excellence/ze-great-dashboard-client",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
-  "description": "The board renderer. Built once, published to a versioned path, holds zero environment values.",
+  "description": "Immutable browser assets for Ze Great Dashboard.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/robertfmurdock/ze-great-dashboard.git"
+  },
   "cdn": {
     "bundle": []
   },
