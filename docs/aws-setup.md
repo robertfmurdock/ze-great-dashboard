@@ -27,16 +27,15 @@ credential. It does **not** load a credential-map value into arbitrary `token_en
 
 ## 1. Install the package
 
-Pin an exact version in the repository that owns the deployment:
+Choose a reviewed exact version and record it in the repository that owns the deployment:
 
 ```sh
-npm install --save-exact @continuous-excellence/ze-great-dashboard-aws
+npm install --save-exact @continuous-excellence/ze-great-dashboard-aws@REVIEWED_VERSION
 ```
 
-The package includes the Lambda runtime, CLI, and CloudFormation template. The matching immutable
-browser client is selected from the default S3/CloudFront path; normal consumers do not publish
-client assets. Append `@version` when installing a previously reviewed release rather than the
-current one.
+Replace `REVIEWED_VERSION` with the release approved for this deployment. The package includes the
+Lambda runtime, CLI, and CloudFormation template. The matching immutable browser client is selected
+from the default S3/CloudFront path; normal consumers do not publish client assets.
 
 ## 2. Create a board
 
@@ -99,20 +98,29 @@ npm exec -- ze-great-dashboard-aws package \
 ```
 
 The package selects the immutable browser client with its default public asset path. To use an
-exact release already hosted on jsDelivr, an internal CDN, or S3, provide the complete URL instead:
+exact release from a different host, provide the complete URL instead. jsDelivr is a known
+alternative CDN for the published client package (verified with release `0.21.0`); internal CDNs
+and S3 prefixes are also supported:
 
 ```sh
 npm exec -- ze-great-dashboard-aws package \
   --board-config board.yaml \
   --parameters aws-dashboard-parameters.json \
-  --asset-path https://cdn.jsdelivr.net/npm/@continuous-excellence/ze-great-dashboard-client@1.2.3/client \
+  --asset-path https://cdn.jsdelivr.net/npm/@continuous-excellence/ze-great-dashboard-client@0.21.0/client \
   --output aws-dashboard-release
 ```
 
 That URL must contain the matching `index.html` and `board-config.schema.json`; it is recorded in
 the board modeline and deployed as `ASSET_PATH`. The separately published client package is an
-immutable static artifact, so use an exact version. The normal AWS path remains the matching
-versioned S3/CloudFront location. `--asset-domain` remains a deprecated shorthand for that layout.
+immutable static artifact, so replace `0.21.0` with the exact client release you have reviewed—do
+not use a moving tag. The normal AWS path remains the matching versioned S3/CloudFront location.
+`--asset-domain` remains a deprecated shorthand for that layout.
+
+An alternate host is part of the deployment boundary: the server must be able to fetch its
+`index.html` and schema, and browsers must be able to fetch its hashed assets directly over HTTPS.
+For an internal CDN or S3, configure CORS to permit those browser asset requests; `Access-Control-Allow-Origin: *`
+is appropriate for these public, environment-free files. Keep every versioned directory immutable
+once it is deployed.
 
 This validates the board and writes:
 
@@ -180,6 +188,14 @@ For a board change, rerun steps 3 through 5. For a package upgrade, install the 
 first, then use the same path. A bootstrap revision mismatch stops the deployment and requires the
 administrator to review a bootstrap update; routine deployment never updates bootstrap implicitly.
 
+## Bootstrap upgrades
+
+When `bootstrap check` reports a stale desired state, template revision, contract, parameter, or
+drift problem, stop application deployment and follow the
+[AWS bootstrap upgrade runbook](aws-bootstrap-upgrade.md). It preserves the separation of duties:
+the package generates commands and the administrator explicitly reviews and executes any AWS
+change set.
+
 ## Private sources
 
 Public GitHub sources need neither `token_env` nor `SecretReference`. For a private repository,
@@ -244,9 +260,3 @@ for the endpoint permission requirement.
   integration and its scoped Lambda permission.
 - **A GitHub panel is unauthorized:** verify the fine-grained PAT's repository access and Actions
   permission, then confirm its map key matches `token_env`.
-Before application deployment, the consumer deployment process should consume the committed
-`dashboard-bootstrap.json` and pinned npm package. When upgrading that package, run
-`bootstrap upgrade --config dashboard-bootstrap.json`, review and commit the desired-state-only
-change, then generate and preview approved CloudFormation UPDATE change sets before execution.
-`bootstrap check` must pass afterward. The manifest is not an AWS-state capture; captures and
-generated parameter files are deployment artifacts, and must not contain credentials.

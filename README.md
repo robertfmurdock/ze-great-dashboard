@@ -1,8 +1,10 @@
 # Ze Great Dashboard
 
 [![Build](https://github.com/robertfmurdock/ze-great-dashboard/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/robertfmurdock/ze-great-dashboard/actions/workflows/main.yml)
-[![Socket](https://socket.dev/api/badge/npm/package/@continuous-excellence/ze-great-dashboard-aws)](https://socket.dev/npm/package/@continuous-excellence/ze-great-dashboard-aws)
-[![npm version](https://img.shields.io/npm/v/@continuous-excellence/ze-great-dashboard-aws?label=npm)](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
+[![AWS package](https://img.shields.io/npm/v/@continuous-excellence/ze-great-dashboard-aws?label=AWS%20package)](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
+[![AWS package security](https://socket.dev/api/badge/npm/package/@continuous-excellence/ze-great-dashboard-aws)](https://socket.dev/npm/package/@continuous-excellence/ze-great-dashboard-aws)
+[![Client package](https://img.shields.io/npm/v/@continuous-excellence/ze-great-dashboard-client?label=Client%20package)](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-client)
+[![Client package security](https://socket.dev/api/badge/npm/package/@continuous-excellence/ze-great-dashboard-client)](https://socket.dev/npm/package/@continuous-excellence/ze-great-dashboard-client)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Ze Great Dashboard is a team-visible, stateless trust dashboard that reads current engineering
@@ -68,24 +70,21 @@ For the included example board, Compose needs no `.env` file:
 docker compose pull && docker compose up
 ```
 
-Compose uses `ghcr.io/robertfmurdock/ze-great-dashboard:latest` by default. Pin
-`DASHBOARD_IMAGE` to an exact release tag when rolling back. Set `ASSET_PATH` only to intentionally
-select another published client version or to test local assets; put that override in `.env`.
-Otherwise the image uses the matching client version embedded at release time. To build the current
-source locally, set `ASSET_PATH` explicitly in `.env` and run:
-
-```sh
-docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
-```
+Compose uses `ghcr.io/robertfmurdock/ze-great-dashboard:latest` for evaluation. For an ongoing
+deployment, set `DASHBOARD_IMAGE` to a reviewed exact release tag; the image selects its matching
+immutable client by default. See the [AWS deployment guide](docs/aws-setup.md) when you need to
+select a different client host or version. Local source builds are covered by the
+[contributor guide](docs/contributing.md).
 
 ### Deploy on AWS
 
 The published [`@continuous-excellence/ze-great-dashboard-aws`](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
 package contains the Lambda runtime, CLI, and CloudFormation template. Its default client source is
 the matching immutable S3/CloudFront release; [`@continuous-excellence/ze-great-dashboard-client`](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-client)
-is a separately published browser artifact for alternate CDNs. The
+is a separately published browser artifact for alternate CDNs. jsDelivr is a known alternative for
+an exact client release; the
 [AWS deployment guide](docs/aws-setup.md) walks a consumer-managed deployment from bootstrap
-through a protected gateway.
+through a protected gateway and shows the pinned asset-path format.
 
 ## How it works
 

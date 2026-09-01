@@ -34,3 +34,27 @@ Compose overlay supplying the retired `RELEASE_VERSION` argument. That would hav
 images with an empty default selector. Both now pass the complete canonical `ASSET_PATH`; the
 workflow assertion names that exact handoff. Package assembly also now rejects non-HTTP(S) paths and
 URLs with credentials, query strings, or fragments before it writes any release artifact.
+
+### jsDelivr smoke verification
+
+Recorded 2026-09-01.
+
+The external-CDN option was exercised end to end against the published, exact client release
+`0.21.0` at jsDelivr: the checked-out server fetched its template and schema, rewrote the
+entrypoint for a temporary credential-free board, and Chromium loaded the resulting cross-origin
+hashed assets without browser, page, or request failures. This turns jsDelivr from a
+jsDelivr-shaped structural fixture into a documented known alternative for consumers. It does not
+turn a moving tag into a supported selector: administrators must continue to choose an exact,
+reviewed client release.
+
+### Consumer documentation boundary
+
+Recorded 2026-09-01.
+
+Consumer setup now consistently asks an application owner to select an exact reviewed package and
+client release. The top-level README keeps the evaluated published-image path separate from source
+build workflow, which belongs in contributor material. Alternate-host instructions now name the
+operational contract behind the immutable-client design: the server reaches the entrypoint and
+schema; browsers retrieve hashed assets across CORS; and a versioned asset directory is never
+changed in place. The AWS guide also links bootstrap upgrade decisions to the administrator runbook
+instead of leaving its procedure after troubleshooting.
