@@ -64,8 +64,11 @@ describe('startup refuses to proceed without a template', () => {
 describe('configured panel admission', () => {
   afterEach(() => vi.unstubAllEnvs())
 
-  function withStartupEnvironment(boardConfigUrl: string) {
-    vi.stubEnv('ASSET_PATH', 'https://assets.example.com/client-2.0.0')
+  function withStartupEnvironment(
+    boardConfigUrl: string,
+    assetPath = 'https://assets.example.com/client-2.0.0',
+  ) {
+    vi.stubEnv('ASSET_PATH', assetPath)
     vi.stubEnv('BOARD_CONFIG_URL', boardConfigUrl)
   }
 
@@ -80,6 +83,21 @@ describe('configured panel admission', () => {
     expect(result.config.board).toBe('operations')
     // Startup fetches only the immutable client template. Its configured ADO operation is not
     // executed until the browser requests the panel (covered by the adapter route contract).
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('admits the release credential smoke board without invoking its configured source', async () => {
+    withStartupEnvironment(
+      'reference/credential-smoke-board.yaml',
+      'https://public-assets.zegreatrob.com/dashboard/0.18.0',
+    )
+    const fetcher = vi.fn(
+      async () => new Response('<html><head></head><body></body></html>'),
+    ) as unknown as typeof fetch
+
+    const result = await startup({ fetcher })
+
+    expect(result.config.board).toBe('reference')
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
 

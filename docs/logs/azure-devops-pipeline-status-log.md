@@ -56,3 +56,9 @@ Manual local verification on 2026-09-01 confirmed that a read-scoped Azure DevOp
 running dashboard instance. This establishes that the real credential and Build API path operates
 end-to-end; it does not replace the planned redacted response fixtures, which are still needed to
 cover result and error variations reproducibly.
+
+The first release candidate after strict admission exposed a CI-only board that used a synthetic
+`release-reference` panel solely because the reference deployment invokes `/health`. That synthetic
+type was correctly rejected at Lambda cold start. The smoke board now declares a bounded GitHub
+`pipeline-status` operation, which remains uncalled by the health probe, and startup coverage uses
+that actual board to prevent the deployment-only regression from returning.
