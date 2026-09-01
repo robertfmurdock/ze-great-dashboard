@@ -189,6 +189,9 @@ jobs:
           REFERENCE_SECRET_ARN: ${{ steps.infrastructure.outputs.reference_credential_smoke_secret_arn }}
           REFERENCE_PARAMETER_ARN: ${{ steps.infrastructure.outputs.reference_credential_smoke_parameter_arn }}
         run: |
+          mkdir .reference-consumer
+          npm install --prefix .reference-consumer --ignore-scripts --save-exact \
+            "$GITHUB_WORKSPACE/aws-package.tgz"
           cp reference/credential-smoke-board.yaml .reference-consumer/board.yaml
           cp reference/aws-dashboard-parameters.json .reference-consumer/
           reference_cli=.reference-consumer/node_modules/.bin/ze-great-dashboard-aws
