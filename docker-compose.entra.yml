@@ -1,0 +1,8 @@
+# Local delegated-user Azure DevOps access only. This intentionally mounts a renewable access-token
+# directory, never the host Azure CLI profile or its refresh-token cache.
+services:
+  server:
+    environment:
+      ADO_ENTRA_TOKEN_FILE: /run/dashboard/ado-token.json
+    volumes:
+      - ./.dashboard-entra:/run/dashboard:ro

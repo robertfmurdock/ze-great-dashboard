@@ -59,7 +59,7 @@ describe('the board config schema', () => {
     expect(result.error?.issues[0]?.message).toContain('token_env or github_app')
   })
 
-  it('requires Azure DevOps pipeline panels to name a numeric definition and read credential', () => {
+  it('requires Azure DevOps pipeline panels to name a numeric definition and one credential mode', () => {
     const base = {
       sources: {
         ado: {
@@ -82,6 +82,29 @@ describe('the board config schema', () => {
       boardConfigSchema.safeParse({
         ...base,
         sources: { ado: { ...base.sources.ado, token_env: undefined } },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('accepts either Azure DevOps PAT or local Entra token-file authentication, but not both', () => {
+    const config = {
+      sources: {
+        ado: {
+          type: 'azure-devops',
+          organization: 'example-org',
+          project: 'Example Project',
+          entra_token_file_env: 'ADO_ENTRA_TOKEN_FILE',
+        },
+      },
+      boards: {
+        board: { panels: [{ id: 'build', type: 'pipeline-status', source: 'ado', pipeline: 42 }] },
+      },
+    }
+    expect(boardConfigSchema.safeParse(config).success).toBe(true)
+    expect(
+      boardConfigSchema.safeParse({
+        ...config,
+        sources: { ado: { ...config.sources.ado, token_env: 'ADO_PAT' } },
       }).success,
     ).toBe(false)
   })

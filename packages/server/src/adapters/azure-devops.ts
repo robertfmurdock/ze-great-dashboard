@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import type {
   AzureDevOpsSource,
   Envelope,
@@ -68,14 +69,14 @@ export async function fetchAzureDevOpsPipeline(args: {
 }): Promise<AdapterResult> {
   const panel = pipelinePanelSchema.parse(args.panel)
   const source = azureDevOpsSourceSchema.parse(args.source)
-  const token = args.credentials.get(source.token_env)
-  if (!token) {
+  const authorization = await azureDevOpsAuthorization(source, args.credentials)
+  if (!authorization) {
     return {
       response: errorResponse(
         errorEnvelope(
           panel.id,
           'unauthorized',
-          `Credential ${source.token_env} is not available.`,
+          'Azure DevOps credentials are not available.',
           sourceLink(panel.pipeline, source),
         ),
       ),
@@ -85,7 +86,7 @@ export async function fetchAzureDevOpsPipeline(args: {
 
   const call = buildsCall(panel.pipeline, source)
   copyValidators(args.requestHeaders, call.headers)
-  call.headers.set('authorization', `Basic ${btoa(`:${token}`)}`)
+  call.headers.set('authorization', authorization)
 
   let upstream: Response
   try {
@@ -182,6 +183,39 @@ export async function fetchAzureDevOpsPipeline(args: {
       ),
       failure: { kind: 'upstream-error', upstreamStatus: upstream.status },
     }
+  }
+}
+
+const delegatedTokenFileSchema = z.object({
+  accessToken: z.string().min(1),
+  expiresAt: z.string().min(1),
+})
+
+/**
+ * Resolves ADO authentication for one request. The delegated file is intentionally read each
+ * time: a host-side broker can replace its short-lived token without restarting this process.
+ * Every failure is deliberately indistinguishable to the panel; paths and token details are local
+ * credential material, not useful dashboard evidence.
+ */
+async function azureDevOpsAuthorization(
+  source: AzureDevOpsSource,
+  credentials: CredentialResolver,
+): Promise<string | undefined> {
+  if (source.token_env) {
+    const token = credentials.get(source.token_env)
+    return token ? `Basic ${btoa(`:${token}`)}` : undefined
+  }
+  if (!source.entra_token_file_env) return undefined
+  const tokenFile = credentials.get(source.entra_token_file_env)
+  if (!tokenFile) return undefined
+
+  try {
+    const token = delegatedTokenFileSchema.parse(JSON.parse(await readFile(tokenFile, 'utf8')))
+    const expiresAt = Date.parse(token.expiresAt)
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return undefined
+    return `Bearer ${token.accessToken}`
+  } catch {
+    return undefined
   }
 }
 

@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { BoardConfig } from '@ze-great-dashboard/shared'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -24,6 +27,13 @@ const source = {
 const credentials: CredentialResolver = {
   get: (name) => (name === 'ADO_PAT' ? 'read-token' : undefined),
 }
+const entraSource = {
+  type: 'azure-devops',
+  organization: 'example-org',
+  project: 'Example Project',
+  branch: 'main',
+  entra_token_file_env: 'ADO_ENTRA_TOKEN_FILE',
+} as const
 
 function build(overrides: Record<string, unknown> = {}) {
   return {
@@ -150,6 +160,79 @@ describe('the Azure DevOps pipeline adapter', () => {
     expect(response.response.status).toBe(304)
   })
 
+  it('reads a renewable local Entra token file for every request and sends it as Bearer auth', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'dashboard-ado-entra-'))
+    const tokenFile = join(directory, 'token.json')
+    const fetcher = vi.fn(
+      async () => new Response(JSON.stringify({ value: [build()] })),
+    ) as unknown as typeof fetch
+    const entraCredentials: CredentialResolver = {
+      get: (name) => (name === 'ADO_ENTRA_TOKEN_FILE' ? tokenFile : undefined),
+    }
+    try {
+      await writeFile(
+        tokenFile,
+        JSON.stringify({ accessToken: 'first-token', expiresAt: '2099-01-01T00:00:00.000Z' }),
+      )
+      await fetchAzureDevOpsPipeline({
+        panel,
+        source: entraSource,
+        credentials: entraCredentials,
+        requestHeaders: new Headers(),
+        fetcher,
+      })
+      await writeFile(
+        tokenFile,
+        JSON.stringify({ accessToken: 'second-token', expiresAt: '2099-01-01T00:00:00.000Z' }),
+      )
+      await fetchAzureDevOpsPipeline({
+        panel,
+        source: entraSource,
+        credentials: entraCredentials,
+        requestHeaders: new Headers(),
+        fetcher,
+      })
+      expect(vi.mocked(fetcher).mock.calls).toHaveLength(2)
+      expect(authorizationForCall(fetcher, 0)).toBe('Bearer first-token')
+      expect(authorizationForCall(fetcher, 1)).toBe('Bearer second-token')
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    ['absent', undefined],
+    ['malformed', '{not json'],
+    [
+      'expired',
+      JSON.stringify({ accessToken: 'expired-token', expiresAt: '2000-01-01T00:00:00.000Z' }),
+    ],
+  ] as const)(
+    'reports a %s Entra token file as a non-disclosing unauthorized envelope',
+    async (_name, contents) => {
+      const directory = await mkdtemp(join(tmpdir(), 'dashboard-ado-entra-'))
+      const tokenFile = join(directory, 'sensitive-token-file.json')
+      const entraCredentials: CredentialResolver = { get: () => tokenFile }
+      try {
+        if (contents) await writeFile(tokenFile, contents)
+        const result = await fetchAzureDevOpsPipeline({
+          panel,
+          source: entraSource,
+          credentials: entraCredentials,
+          requestHeaders: new Headers(),
+          fetcher: vi.fn() as unknown as typeof fetch,
+        })
+        expect(result.response.status).toBe(200)
+        const body = await result.response.text()
+        expect(body).toContain('"kind":"unauthorized"')
+        expect(body).not.toContain(tokenFile)
+        expect(body).not.toContain('expired-token')
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    },
+  )
+
   it.each([
     ['empty', upstream([]), 'no-runs'],
     [
@@ -186,6 +269,13 @@ describe('the Azure DevOps pipeline adapter', () => {
     })
   })
 })
+
+function authorizationForCall(fetcher: typeof fetch, callIndex: number): string | null {
+  const request = vi.mocked(fetcher).mock.calls.at(callIndex)?.[1]
+  const headers = request?.headers
+  if (!(headers instanceof Headers)) throw new Error(`request ${callIndex} did not include Headers`)
+  return headers.get('authorization')
+}
 
 describe('the Azure DevOps panel route', () => {
   const boardConfig: BoardConfig = {

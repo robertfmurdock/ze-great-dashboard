@@ -127,16 +127,33 @@ export const githubActionsSourceSchema = z
 
 export type GithubActionsSource = z.infer<typeof githubActionsSourceSchema>
 
-export const azureDevOpsSourceSchema = z.looseObject({
-  type: z.literal('azure-devops'),
-  /** Azure DevOps organization name, used as one URL path segment. */
-  organization: z.string().regex(/^[^/\s]+$/, 'must be an organization name'),
-  project: z.string().min(1),
-  /** The branch whose build health the dashboard represents. */
-  branch: z.string().min(1).optional(),
-  /** Azure DevOps Build API access is authenticated with a read-scoped PAT. */
-  token_env: z.string().min(1),
-})
+export const azureDevOpsSourceSchema = z
+  .looseObject({
+    type: z.literal('azure-devops'),
+    /** Azure DevOps organization name, used as one URL path segment. */
+    organization: z.string().regex(/^[^/\s]+$/, 'must be an organization name'),
+    project: z.string().min(1),
+    /** The branch whose build health the dashboard represents. */
+    branch: z.string().min(1).optional(),
+    /** A PAT environment variable. The adapter sends it with Basic authentication. */
+    token_env: z.string().min(1).optional(),
+    /** An environment variable naming a local, short-lived delegated-token file. */
+    entra_token_file_env: z.string().min(1).optional(),
+  })
+  .superRefine((source, ctx) => {
+    if (source.token_env && source.entra_token_file_env) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'configure token_env or entra_token_file_env, not both',
+      })
+    }
+    if (!source.token_env && !source.entra_token_file_env) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'configure token_env or entra_token_file_env',
+      })
+    }
+  })
 
 export type AzureDevOpsSource = z.infer<typeof azureDevOpsSourceSchema>
 

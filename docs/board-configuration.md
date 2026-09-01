@@ -83,7 +83,10 @@ and a workflow `pipeline`. When configured, the branch is sent to GitHub when fi
 run, so feature-branch runs do not replace the primary-branch status. When absent, GitHub returns
 runs from all branches. `http-value` uses `url` and an optional `json_path` such as `$.version`.
 
-An Azure DevOps `pipeline-status` source names an organization, project, and a runtime-only PAT.
+An Azure DevOps Services `pipeline-status` source names an organization, project, and exactly one
+runtime-only credential mode. A PAT uses `token_env` and Basic authentication. For local
+delegated-user development, `entra_token_file_env` names an environment variable containing a
+short-lived Entra token-file path; the YAML never contains a token.
 Its panel's `pipeline` must be the numeric pipeline definition ID. The optional branch is shown on
 the board and is sent to Azure DevOps as `refs/heads/<branch>` when it is not already a ref:
 
@@ -112,6 +115,22 @@ boards:
 Create `ADO_PAT` separately with only Azure DevOps **Build (read)** scope for the project. The
 dashboard uses it only on the server to read the newest matching build and its active timeline;
 the token is never returned to browsers.
+
+For local Azure CLI development, use the Entra mode instead of a PAT:
+
+```yaml
+sources:
+  ado:
+    type: azure-devops
+    organization: your-organization
+    project: Your Project
+    entra_token_file_env: ADO_ENTRA_TOKEN_FILE
+```
+
+`entra_token_file_env` is local Azure DevOps Services access only. It is mutually exclusive with
+`token_env`; see [local Azure DevOps Entra access](local-azure-devops-entra.md) for setup,
+operational boundaries, and the host and Compose commands. This mode is experimental and
+incubating: it has no live-tenant validation or compatibility promise.
 
 ## Active pipeline treatments
 

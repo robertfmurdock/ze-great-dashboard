@@ -81,6 +81,14 @@ the [AWS deployment guide](docs/aws-setup.md) when you need to select a differen
 version. Local source builds are covered by the
 [contributor guide](docs/contributing.md).
 
+### Local Azure DevOps access with Entra
+
+**Experimental / incubating:** Azure DevOps Services boards can use your local Azure CLI login
+without placing a PAT or Azure CLI profile in a container. See
+[local Azure DevOps Entra access](docs/local-azure-devops-entra.md) for the host and Compose
+configuration. This is interactive local development, not a deployed identity mechanism; it has no
+live-tenant validation or compatibility promise.
+
 ### Deploy on AWS
 
 The published [`@continuous-excellence/ze-great-dashboard-aws`](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)

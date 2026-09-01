@@ -30,6 +30,7 @@ npm run verify
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Start the client and server development loop. |
+| `npm run ado-entra-token` | Write a short-lived local Azure CLI delegated token file. |
 | `npm run check` | Lint, typecheck, unit and browser tests, validate the example board, and test the published package. The unit phase builds packages once; the browser phase reuses that client build. |
 | `npm run verify` | Run `check`, then build the production client and Lambda bundle. This is the commit-hook gate. |
 | `npm run test:browser` | Build the client and run browser tests independently. |

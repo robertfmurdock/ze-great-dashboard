@@ -14,5 +14,6 @@ release-build.tgz
 # Local credentials — never commit. See .env.example for the variable names.
 .env
 .env.local
+.dashboard-entra/
 
 .DS_Store
