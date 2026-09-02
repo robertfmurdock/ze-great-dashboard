@@ -42,23 +42,39 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.DASHBOARD_PAT }}
         run: |
-          if git diff --quiet; then
-            echo "Direct npm dependencies are already current."
-            exit 0
-          fi
+          publish_dependency_update_pr() {
+            if git diff --quiet; then
+              echo "Direct npm dependencies are already current."
+              return
+            fi
 
-          branch="automation/npm-dependencies-${{ github.run_id }}-${{ github.run_attempt }}"
-          git config user.name "ze-great-dashboard automation"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git switch --create "$branch"
-          git add --all
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: update npm dependencies"
-          gh auth setup-git
-          git push --set-upstream origin "$branch"
-          pr_url="$(gh pr create \
-            --base main \
-            --head "$branch" \
-            --title "chore: update npm dependencies" \
-            --body "Automated update of direct npm dependencies across the root project and all workspaces. The normal Build workflow remains the merge gate.")"
-          gh pr merge --rebase --auto "$pr_url"
+            branch="automation/npm-dependencies-${{ github.run_id }}-${{ github.run_attempt }}"
+            git config user.name "ze-great-dashboard automation"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git switch --create "$branch"
+            git add --all
+            git diff --cached --quiet && return
+            git commit -m "chore: update npm dependencies"
+            gh auth setup-git
+            git push --set-upstream origin "$branch"
+
+            pr_created=false
+            cleanup_unopened_branch() {
+              if [ "$pr_created" = false ]; then
+                git push origin --delete "$branch" || \
+                  echo "Could not delete unopened update branch $branch." >&2
+              fi
+            }
+            trap cleanup_unopened_branch EXIT
+
+            pr_url="$(gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "chore: update npm dependencies" \
+              --body "Automated update of direct npm dependencies across the root project and all workspaces. The normal Build workflow remains the merge gate.")"
+            pr_created=true
+            trap - EXIT
+            gh pr merge --rebase --auto "$pr_url"
+          }
+
+          publish_dependency_update_pr

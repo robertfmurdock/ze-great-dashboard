@@ -32,3 +32,7 @@ until its relationship to the Node 24/npm 11.19.0 CI contract receives a separat
 The permitted-update set is derived from the root `workspaces` declaration by one repository script.
 The workflow invokes that script before staging all changes, avoiding a second workflow-specific
 allowlist that could silently drift as workspaces change.
+
+After the first manual runs, auto-merge was enabled and `main` gained its required **Build and
+check** branch-protection gate. The workflow now also removes its pushed update branch if PR creation
+fails, while preserving a branch once its PR exists for normal CI and recovery.
