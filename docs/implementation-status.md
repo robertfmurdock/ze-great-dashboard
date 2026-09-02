@@ -74,6 +74,19 @@ the client tarball's versioned files to S3 after rejecting immutable-key collisi
 tarball to the consumer reference, publishes both through npm trusted publishing, confirms registry
 visibility, and only then creates the Git tag; core and shared remain internal workspace packages.
 
+Direct npm dependencies are refreshed daily by a manually dispatchable workflow that updates the
+root project and every workspace, regenerates the lockfile without lifecycle scripts, and opens an
+update PR. It enables rebase auto-merge only after the existing Build workflow and normal branch
+protection rules accept the change. Tests are release evidence for this path: the fast gate targets
+distinct real interfaces and failure modes rather than coverage targets or structural duplication;
+an update-caused regression earns the smallest meaningful real-interface regression test. GitHub
+Actions and Docker base-image updates remain deliberate review work.
+
+Focused interface checks are encouraged during implementation to preserve fast feedback, but every
+commit remains subject to the unified `npm run check` gate. The current updater also deliberately
+excludes the pinned npm toolchain; updating npm requires a separate review of the Node 24/npm
+11.19.0 CI contract.
+
 Snapshot versions such as `0.6.0-SNAPSHOT` use the same checks and exact tarball path, then run
 npm connectivity and publish validation in dry-run mode. They do not publish client assets, AWS
 references, npm packages, Docker images, or Git tags. The workflow keeps this as one release

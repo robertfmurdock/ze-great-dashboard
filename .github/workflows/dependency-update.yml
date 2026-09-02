@@ -1,0 +1,64 @@
+name: Update npm dependencies
+
+on:
+  schedule:
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    name: Update direct npm dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Pin npm
+        run: |
+          cd "$RUNNER_TEMP"
+          npm install --global npm@11.19.0
+          test "$(npm --version)" = "11.19.0"
+
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      - name: Update direct dependencies in every workspace
+        run: npm run update:dependencies
+
+      - name: Refuse unexpected updater changes
+        run: node scripts/assert-dependency-update-files.mjs
+
+      - name: Create an auto-merge pull request
+        env:
+          GH_TOKEN: ${{ secrets.DASHBOARD_PAT }}
+        run: |
+          if git diff --quiet; then
+            echo "Direct npm dependencies are already current."
+            exit 0
+          fi
+
+          branch="automation/npm-dependencies-${{ github.run_id }}-${{ github.run_attempt }}"
+          git config user.name "ze-great-dashboard automation"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch --create "$branch"
+          git add --all
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: update npm dependencies"
+          gh auth setup-git
+          git push --set-upstream origin "$branch"
+          pr_url="$(gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "chore: update npm dependencies" \
+            --body "Automated update of direct npm dependencies across the root project and all workspaces. The normal Build workflow remains the merge gate.")"
+          gh pr merge --rebase --auto "$pr_url"

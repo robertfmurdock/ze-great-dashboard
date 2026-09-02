@@ -29,6 +29,24 @@ packages. Say what it buys and what it costs in the change that adds it. This is
 `app.request()` covers it), no husky (`core.hooksPath` covers it), and no separate formatter (Biome
 does both).
 
+## Release evidence and dependency updates
+
+Tests are release evidence, not coverage theater: use the fast-check budget for distinct, real
+interfaces and failure modes that give extremely high confidence an automatic dependency update
+works in release-relevant conditions or fails before merge. Do not spend it on duplicated structural
+assertions, source-text checks, or coverage targets. When an update exposes a regression, add the
+smallest meaningful real-interface regression test for that class of breakage.
+
+Use relevant focused checks during iteration, but every commit must still run the unified `npm run
+check` gate so unexpected effects cannot evade release evidence.
+
+The daily `Update npm dependencies` workflow updates direct dependencies in the root and every npm
+workspace, then enables rebase auto-merge on its PR. The normal Build workflow and protected-branch
+requirements remain the only acceptance boundary. GitHub Actions and Docker base-image updates are
+intentional review work, not part of this automation.
+The pinned npm toolchain is intentionally excluded until a separate review decides how to update it
+alongside the Node 24/npm 11.19.0 CI contract.
+
 ## Consumer-facing documentation
 
 README files and setup, deployment, and configuration guides are for people deciding whether to use

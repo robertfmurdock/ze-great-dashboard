@@ -33,6 +33,7 @@
     "test": "npm run test:unit && npm run test:browser:no-build",
     "test:unit": "npm run build:packages && vitest run",
     "test:published": "node scripts/test-published-packages.mjs",
+    "update:dependencies": "XDG_CONFIG_HOME=\"${TMPDIR:-/tmp}/npm-check-updates\" ncu --workspaces --root --reject npm --upgrade && npm install --ignore-scripts",
     "test:installed": "node scripts/test-installed-package.mjs",
     "test:browser": "node scripts/test-browser.mjs",
     "test:browser:no-build": "node scripts/test-browser.mjs --no-build",
@@ -60,6 +61,7 @@
     "@testing-library/react": "^16.3.2",
     "@types/node": "^26.2.0",
     "concurrently": "^9.2.1",
+    "npm-check-updates": "23.1.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },

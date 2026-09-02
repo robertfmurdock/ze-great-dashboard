@@ -47,6 +47,33 @@ gate; CI still runs its own checks and release builds.
 New dependencies need a clear justification: the project deliberately keeps its dependency surface
 small.
 
+## Automated npm dependency updates
+
+The scheduled **Update npm dependencies** workflow runs daily at 17:00 UTC and can also be started
+manually from GitHub Actions. It updates direct dependencies in the root project and every npm
+workspace, regenerates `package-lock.json` without lifecycle scripts, and opens a pull request only
+when there is a change. Its rebase auto-merge waits on the normal required Build workflow; it does
+not create a shortcut around release checks. The same update can be prepared locally with:
+
+```sh
+npm run update:dependencies
+```
+
+The workflow requires the repository secret `DASHBOARD_PAT`, owned and rotated by a repository
+administrator. Use a fine-grained PAT scoped only to this repository with **Contents: read and
+write**, **Pull requests: read and write**, and **Workflows: read and write** permissions. Workflow
+access is needed only because a dependency update can legitimately change a package that alters CI
+configuration; the token is used only for the branch, pull request, and auto-merge operations.
+
+GitHub Actions and Docker base-image changes are deliberately outside this automation and receive
+normal human review.
+
+Use focused checks that exercise the interface under active work while iterating. Before committing,
+always run the unified `npm run check` gate as well: it is the release-evidence boundary for
+unexpected cross-package, browser, container, board-validation, and published-package effects. The
+automated updater deliberately excludes the pinned npm toolchain for now; updating npm itself needs
+a separate review of its relationship to the Node 24/npm 11.19.0 CI contract.
+
 ## AWS bootstrap output contract
 
 Bootstrap validation and handoff commands support `--format json|text`; the formats are
@@ -77,6 +104,12 @@ is therefore an intentional review of the builder and runtime release pair, rath
 automatic tag refresh.
 
 ## Regression and compatibility testing
+
+Tests are release evidence, not coverage theater. Spend the fast-check budget on distinct, real
+interfaces and failure modes that give extremely high confidence an automatic dependency update
+works in release-relevant conditions or fails before merge. Do not add duplicate structural
+assertions, source-text checks, or coverage targets. When an update exposes a regression, add the
+smallest meaningful real-interface regression test so that class of breakage is caught next time.
 
 Treat existing tests as contracts for previous defaults and behavior. When adding a feature, prefer
 adding new tests over editing existing tests, so the old behavior remains visibly defended. New
