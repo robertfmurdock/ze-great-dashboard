@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://assets.test/dashboard/local/board-config.schema.json
+sources:
+  local-gitlab:
+    type: gitlab-ci
+    project: root/dashboard-gitlab-functional
+    branch: main
+    token_env: GITLAB_DASHBOARD_TOKEN
+    url: https://gitlab.test
+
+boards:
+  gitlab-functional:
+    panels:
+      - id: pipeline
+        type: pipeline-status
+        source: local-gitlab

@@ -1,0 +1,14 @@
+sources:
+  gitlab:
+    type: gitlab-ci
+    project: group/platform/service
+    branch: main
+    token_env: GITLAB_TOKEN
+    url: https://gitlab.example.com/gitlab
+
+boards:
+  operations:
+    panels:
+      - id: service-build
+        type: pipeline-status
+        source: gitlab

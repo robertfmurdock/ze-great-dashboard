@@ -26,11 +26,11 @@ that own the underlying facts.
 
 ## What it can show
 
-You can configure GitHub Actions `pipeline-status` panels and source-agnostic `http-value` panels
+You can configure GitHub Actions and GitLab CI `pipeline-status` panels and source-agnostic `http-value` panels
 for scalar text or small JSON-path lookups. Panels poll independently, show when their reading was
 observed, and report upstream failures instead of appearing healthy or blank.
 
-GitHub Actions is supported, and Azure DevOps `pipeline-status` is supported but incubating.
+GitHub Actions and GitLab CI are supported, and Azure DevOps `pipeline-status` is supported but incubating.
 Historical analytics, hosted-SaaS operation, and server-side persistence are intentionally outside
 its scope.
 

@@ -116,6 +116,36 @@ Create `ADO_PAT` separately with only Azure DevOps **Build (read)** scope for th
 dashboard uses it only on the server to read the newest matching build and its active timeline;
 the token is never returned to browsers.
 
+## GitLab CI pipelines
+
+A GitLab CI `pipeline-status` source names a project path and a runtime-only access token. GitLab.com
+is the default; set `url` to an HTTPS self-managed instance, including its path prefix when it is
+installed below one. `branch` optionally limits the newest pipeline to a branch or tag. GitLab
+projects may be nested below multiple groups, and do not need a panel `pipeline` field.
+
+```yaml
+sources:
+  gitlab:
+    type: gitlab-ci
+    project: group/platform/service
+    branch: main
+    token_env: GITLAB_TOKEN
+    # Optional; this example is a self-managed instance below /gitlab.
+    url: https://gitlab.example.com/gitlab
+
+boards:
+  operations:
+    panels:
+      - id: service-build
+        type: pipeline-status
+        source: gitlab
+```
+
+Create `GITLAB_TOKEN` separately with the minimum access needed to list project pipelines: a
+read-only token with GitLab's **`read_api`** scope and access to that project. The dashboard sends
+it only from the server as GitLab's `PRIVATE-TOKEN` header. Instance URLs cannot contain
+credentials, query strings, or fragments.
+
 For local Azure CLI development, use the Entra mode instead of a PAT:
 
 ```yaml

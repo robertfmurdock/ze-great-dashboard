@@ -1,0 +1,6 @@
+https://gitlab.test {
+	tls internal
+	reverse_proxy gitlab:80 {
+		header_up Host {host}
+	}
+}

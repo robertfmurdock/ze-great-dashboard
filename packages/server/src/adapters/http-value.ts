@@ -10,7 +10,7 @@ import {
   upstreamErrorKind,
   upstreamErrorResponse,
 } from '../upstream.ts'
-import type { PermittedCall } from './github-actions.ts'
+import type { PermittedCall } from './types.ts'
 
 const httpValuePanelSchema = z.object({
   id: z.string().min(1),

@@ -1,0 +1,7 @@
+[[runners]]
+  # Jobs need the Compose DNS entry for gitlab.test. The Runner control
+  # connection stays on Caddy HTTPS; checkout uses the internal HTTP origin.
+  clone_url = "http://gitlab"
+
+  [runners.docker]
+    network_mode = "ze-great-dashboard-gitlab-functional_default"

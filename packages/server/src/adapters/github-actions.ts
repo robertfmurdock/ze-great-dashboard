@@ -17,6 +17,7 @@ import {
   upstreamErrorKind,
   observedAt as upstreamObservedAt,
 } from '../upstream.ts'
+import type { PermittedCall } from './types.ts'
 
 const pipelinePanelSchema = z.object({
   id: z.string().min(1),
@@ -75,8 +76,6 @@ const pullRequestsSchema = z.array(
     base: z.object({ ref: z.string().min(1) }),
   }),
 )
-
-export type PermittedCall = { url: string; headers: Headers }
 
 export function permittedGithubActionsCalls(
   panel: Panel,

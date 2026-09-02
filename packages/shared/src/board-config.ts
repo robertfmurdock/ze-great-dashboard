@@ -157,6 +157,30 @@ export const azureDevOpsSourceSchema = z
 
 export type AzureDevOpsSource = z.infer<typeof azureDevOpsSourceSchema>
 
+const gitlabInstanceUrlSchema = z.url().superRefine((value, ctx) => {
+  const url = new URL(value)
+  if (url.protocol !== 'https:')
+    ctx.addIssue({ code: 'custom', message: 'must be an HTTPS GitLab instance URL' })
+  if (url.username || url.password)
+    ctx.addIssue({ code: 'custom', message: 'must not include credentials' })
+  if (url.search) ctx.addIssue({ code: 'custom', message: 'must not include a query string' })
+  if (url.hash) ctx.addIssue({ code: 'custom', message: 'must not include a fragment' })
+})
+
+export const gitlabCiSourceSchema = z.looseObject({
+  type: z.literal('gitlab-ci'),
+  /** GitLab project path, including any nested groups. */
+  project: z.string().regex(/^[^/\s]+(?:\/[^/\s]+)+$/, 'must be a namespace/project path'),
+  /** A GitLab personal, project, or group access-token environment variable. */
+  token_env: z.string().min(1),
+  /** The branch or tag whose newest pipeline the dashboard represents. */
+  branch: z.string().min(1).optional(),
+  /** HTTPS GitLab.com or a self-managed instance, optionally below a path prefix. */
+  url: gitlabInstanceUrlSchema.optional().default('https://gitlab.com'),
+})
+
+export type GitlabCiSource = z.infer<typeof gitlabCiSourceSchema>
+
 export const sourceSchema = z
   .looseObject({ type: z.string().min(1), ...sourceAuthenticationSchema })
   .superRefine(exactlyOneGithubAuthenticationMode)
@@ -229,8 +253,14 @@ export const boardConfigSchema = z
   })
   .superRefine((config, ctx) => {
     for (const [sourceName, source] of Object.entries(config.sources)) {
-      if (source.type !== 'azure-devops') continue
-      const parsedSource = azureDevOpsSourceSchema.safeParse(source)
+      const sourceSchema =
+        source.type === 'azure-devops'
+          ? azureDevOpsSourceSchema
+          : source.type === 'gitlab-ci'
+            ? gitlabCiSourceSchema
+            : undefined
+      if (!sourceSchema) continue
+      const parsedSource = sourceSchema.safeParse(source)
       if (!parsedSource.success) {
         for (const issue of parsedSource.error.issues) {
           ctx.addIssue({

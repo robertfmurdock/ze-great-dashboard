@@ -16,4 +16,7 @@ release-build.tgz
 .env.local
 .dashboard-entra/
 
+# Disposable state for the local GitLab CI adapter compatibility experiment.
+experiments/gitlab-ci-functional/.state/
+
 .DS_Store

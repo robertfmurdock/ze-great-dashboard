@@ -17,6 +17,7 @@ import {
   fetchGithubActionsUpdateWorkflow,
   pullRequestHealthCapabilities,
 } from './adapters/github-actions.ts'
+import { fetchGitlabCiPipeline } from './adapters/gitlab-ci.ts'
 import { fetchHttpValue } from './adapters/http-value.ts'
 import { deriveAllowlist, type PanelOperation, permitsPanelOperation } from './allowlist.ts'
 import type { ServerConfig } from './config.ts'
@@ -196,6 +197,23 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
         sourceName: panel.source,
         sourceType: source.type,
         destination: 'https://dev.azure.com',
+      })
+    }
+    if (panel.type === 'pipeline-status' && source?.type === 'gitlab-ci' && source) {
+      const result = fetchGitlabCiPipeline({
+        panel,
+        source,
+        requestHeaders: c.req.raw.headers,
+        fetcher: deps.fetcher ?? globalThis.fetch,
+        credentials,
+      })
+      return observation(c, result, {
+        boardId: boardName,
+        panelId,
+        operation: 'read',
+        sourceName: panel.source,
+        sourceType: source.type,
+        destination: typeof source.url === 'string' ? source.url : 'https://gitlab.com',
       })
     }
     if (panel.type === 'pull-request-health')

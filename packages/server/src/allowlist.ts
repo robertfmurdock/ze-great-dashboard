@@ -4,6 +4,7 @@ import {
   permittedGithubActionsCalls,
   pullRequestHealthCapabilities,
 } from './adapters/github-actions.ts'
+import { permittedGitlabCiCalls } from './adapters/gitlab-ci.ts'
 import { permittedHttpValueCalls } from './adapters/http-value.ts'
 
 /**
@@ -77,6 +78,10 @@ function panelCapability(panel: Panel, source: Source | undefined): PanelCapabil
   }
   if (panel.type === 'pipeline-status' && source?.type === 'azure-devops') {
     permittedAzureDevOpsCalls(panel, source)
+    return { kind: 'server', operations: ['read'] }
+  }
+  if (panel.type === 'pipeline-status' && source?.type === 'gitlab-ci') {
+    permittedGitlabCiCalls(panel, source)
     return { kind: 'server', operations: ['read'] }
   }
   if (panel.type === 'http-value') {
