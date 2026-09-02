@@ -231,6 +231,10 @@
     grid-row: auto;
     min-height: 6em;
   }
+  /* Stacked cards grow for their evidence; the panel still clips only its decorative field. */
+  .content {
+    flex-shrink: 0;
+  }
   .density-comfortable .content,
   .density-compact .content,
   .density-auto .content {

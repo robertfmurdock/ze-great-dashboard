@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 
 test('the production client loads and renders with CDN modules', async ({ page }) => {
   const browserErrors: string[] = []
@@ -218,18 +218,22 @@ const pullRequestHealthEnvelope = (panelId: string) => ({
   },
 })
 
-function stubBoard(page: import('@playwright/test').Page) {
+function browserEnv(board = 'ze-great-team') {
+  return {
+    assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+    proxyPath: '/api',
+    board,
+    clientVersion: 'browser-test',
+  }
+}
+
+function stubDashboard(page: Page, board: unknown, boardName = 'ze-great-team') {
   return Promise.all([
-    page.addInitScript(() => {
-      window.env = {
-        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-        proxyPath: '/api',
-        board: 'ze-great-team',
-        clientVersion: 'browser-test',
-      }
-    }),
-    page.route('**/api/boards/ze-great-team', (route) =>
-      route.fulfill({ contentType: 'application/json', body: JSON.stringify(positionedBoard) }),
+    page.addInitScript((env) => {
+      window.env = env
+    }, browserEnv(boardName)),
+    page.route(`**/api/boards/${boardName}`, (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify(board) }),
     ),
     page.route('**/api/client', (route) =>
       route.fulfill({
@@ -240,6 +244,12 @@ function stubBoard(page: import('@playwright/test').Page) {
         }),
       }),
     ),
+  ])
+}
+
+function stubBoard(page: Page) {
+  return Promise.all([
+    stubDashboard(page, positionedBoard),
     page.route('**/api/panel/**', (route) =>
       route.fulfill({ contentType: 'application/json', body: JSON.stringify({}) }),
     ),
@@ -297,26 +307,7 @@ test('adapts density independently across wide, square, narrow, and tall cells',
     ],
   }
   await page.setViewportSize({ width: 2400, height: 1200 })
-  await page.addInitScript(() => {
-    window.env = {
-      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-      proxyPath: '/api',
-      board: 'ze-great-team',
-      clientVersion: 'browser-test',
-    }
-  })
-  await page.route('**/api/boards/ze-great-team', (route) =>
-    route.fulfill({ contentType: 'application/json', body: JSON.stringify(densityBoard) }),
-  )
-  await page.route('**/api/client', (route) =>
-    route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-        clientVersion: 'browser-test',
-      }),
-    }),
-  )
+  await stubDashboard(page, densityBoard)
   await page.route('**/api/panel/**', (route) => {
     const panelId = decodeURIComponent(
       new URL(route.request().url()).pathname.split('/').at(-1) ?? '',
@@ -401,26 +392,7 @@ test('centers pull-request status in a narrow tall tile while retaining normal a
     ],
   }
   await page.setViewportSize({ width: 2400, height: 1200 })
-  await page.addInitScript(() => {
-    window.env = {
-      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-      proxyPath: '/api',
-      board: 'ze-great-team',
-      clientVersion: 'browser-test',
-    }
-  })
-  await page.route('**/api/boards/ze-great-team', (route) =>
-    route.fulfill({ contentType: 'application/json', body: JSON.stringify(board) }),
-  )
-  await page.route('**/api/client', (route) =>
-    route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-        clientVersion: 'browser-test',
-      }),
-    }),
-  )
+  await stubDashboard(page, board)
   await page.route('**/api/panel/**', (route) => {
     const path = new URL(route.request().url()).pathname
     const panelId = decodeURIComponent(path.split('/').at(-2) ?? '')
@@ -491,16 +463,77 @@ test('centers pull-request status in a narrow tall tile while retaining normal a
   })
 })
 
-test('stacks panels readably on a narrow viewport', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
-  await stubBoard(page)
+test('stacks build and pull-request evidence readably on narrow viewports', async ({ page }) => {
+  const board = {
+    panels: [
+      {
+        id: 'build',
+        label: 'Main build',
+        type: 'pipeline-status',
+        position: { x: 0, y: 0, w: 6, h: 2 },
+      },
+      {
+        id: 'updates',
+        label: 'Dependency updates',
+        type: 'pull-request-health',
+        update_workflows: [{ workflow: 'dependabot' }],
+        position: { x: 6, y: 0, w: 6, h: 2 },
+      },
+    ],
+  }
+  await page.setViewportSize({ width: 700, height: 844 })
+  await stubDashboard(page, board)
+  await page.route('**/api/panel/**', (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path === '/api/panel/ze-great-team/build')
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(pipelineEnvelope('build')),
+      })
+    if (path === '/api/panel/ze-great-team/updates/pull-requests')
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          panelId: 'updates',
+          state: 'ok',
+          observedAt: '2026-08-24T14:00:00.000Z',
+          link: 'https://github.com/example/example/pulls',
+          signal: { type: 'pull-request-candidates', pullRequests: [] },
+        }),
+      })
+    if (path === '/api/panel/ze-great-team/updates/update-workflow/dependabot')
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          panelId: 'updates',
+          state: 'ok',
+          observedAt: '2026-08-24T14:00:00.000Z',
+          link: 'https://github.com/example/example/actions',
+          signal: {
+            type: 'pull-request-workflow',
+            workflow: 'dependabot',
+            item: { label: 'dependabot', status: 'passed', detail: 'Passed', link: null },
+          },
+        }),
+      })
+    return route.fulfill({ status: 404, body: `Unexpected panel path: ${path}` })
+  })
   await page.goto('/')
-  await expect(page.locator('[data-panel]')).toHaveCount(positionedBoard.panels.length)
+  await expect(page.locator('[data-panel]')).toHaveCount(board.panels.length)
+  await expect(page.locator('[data-panel][aria-busy="true"]')).toHaveCount(0)
+  await expect(page.locator('[data-panel-id="build"]')).toContainText('✓ Passed')
+  await expect(page.locator('[data-panel-id="updates"]')).toContainText('✓ Healthy')
 
   const layout = await page.evaluate(() => {
     const panels = [...document.querySelectorAll<HTMLElement>('[data-panel]')].map((panel) => {
       const rect = panel.getBoundingClientRect()
-      return { left: rect.left, top: rect.top, right: rect.right }
+      const content = panel.querySelector<HTMLElement>('[data-panel-content]')
+      return {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        readableContentFits: content ? content.scrollHeight <= content.clientHeight : false,
+      }
     })
     return {
       panels,
@@ -512,6 +545,7 @@ test('stacks panels readably on a narrow viewport', async ({ page }) => {
   expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewport)
   expect(new Set(layout.panels.map((panel) => panel.left)).size).toBe(1)
   expect(layout.panels.every((panel) => panel.right <= layout.viewport)).toBe(true)
+  expect(layout.panels.every((panel) => panel.readableContentFits)).toBe(true)
   expect(layout.panels[0].top).toBeLessThan(layout.panels[1].top)
 })
 
@@ -532,26 +566,7 @@ test('keeps panel-scale fields behind readable content, adapts them without over
       estimatedDurationMs: 2_000,
     },
   }
-  await page.addInitScript(() => {
-    window.env = {
-      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-      proxyPath: '/api',
-      board: 'ze-great-team',
-      clientVersion: 'browser-test',
-    }
-  })
-  await page.route('**/api/boards/ze-great-team', (route) =>
-    route.fulfill({ contentType: 'application/json', body: JSON.stringify(signalFieldBoard) }),
-  )
-  await page.route('**/api/client', (route) =>
-    route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-        clientVersion: 'browser-test',
-      }),
-    }),
-  )
+  await stubDashboard(page, signalFieldBoard)
   await page.route('**/api/panel/**', (route) => {
     const panelId = decodeURIComponent(
       new URL(route.request().url()).pathname.split('/').at(-1) ?? '',
@@ -681,26 +696,7 @@ test('keeps phased signal and bloom markers continuous while progress updates an
       estimatedDurationMs: 300_000,
     },
   }
-  await page.addInitScript(() => {
-    window.env = {
-      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-      proxyPath: '/api',
-      board: 'ze-great-team',
-      clientVersion: 'browser-test',
-    }
-  })
-  await page.route('**/api/boards/ze-great-team', (route) =>
-    route.fulfill({ contentType: 'application/json', body: JSON.stringify(motionBoard) }),
-  )
-  await page.route('**/api/client', (route) =>
-    route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-        clientVersion: 'browser-test',
-      }),
-    }),
-  )
+  await stubDashboard(page, motionBoard)
   await page.route('**/api/panel/**', (route) => {
     const panelId = decodeURIComponent(
       new URL(route.request().url()).pathname.split('/').at(-1) ?? '',
@@ -821,26 +817,7 @@ test('fits populated single-screen team layout without clipping required content
   page,
 }) => {
   await page.setViewportSize({ width: 2048, height: 1024 })
-  await page.addInitScript(() => {
-    window.env = {
-      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-      proxyPath: '/api',
-      board: 'ze-great-team',
-      clientVersion: 'browser-test',
-    }
-  })
-  await page.route('**/api/boards/ze-great-team', (route) =>
-    route.fulfill({ contentType: 'application/json', body: JSON.stringify(singleScreenBoard) }),
-  )
-  await page.route('**/api/client', (route) =>
-    route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-        clientVersion: 'browser-test',
-      }),
-    }),
-  )
+  await stubDashboard(page, singleScreenBoard)
   await page.route('**/api/panel/**', (route) => {
     const panelId = decodeURIComponent(
       new URL(route.request().url()).pathname.split('/').at(-1) ?? '',
@@ -911,26 +888,7 @@ test('keeps the focused signal-field demo expanded at panel scale', async ({ pag
       },
     ],
   }
-  await page.addInitScript(() => {
-    window.env = {
-      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-      proxyPath: '/api',
-      board: 'ze-great-team',
-      clientVersion: 'browser-test',
-    }
-  })
-  await page.route('**/api/boards/ze-great-team', (route) =>
-    route.fulfill({ contentType: 'application/json', body: JSON.stringify(reviewBoard) }),
-  )
-  await page.route('**/api/client', (route) =>
-    route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-        clientVersion: 'browser-test',
-      }),
-    }),
-  )
+  await stubDashboard(page, reviewBoard)
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/')
 
@@ -966,26 +924,7 @@ test('keeps the showcase signal-field visual inside its three-row panel', async 
       },
     ],
   }
-  await page.addInitScript(() => {
-    window.env = {
-      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-      proxyPath: '/api',
-      board: 'animation-showcase',
-      clientVersion: 'browser-test',
-    }
-  })
-  await page.route('**/api/boards/animation-showcase', (route) =>
-    route.fulfill({ contentType: 'application/json', body: JSON.stringify(showcaseBoard) }),
-  )
-  await page.route('**/api/client', (route) =>
-    route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-        clientVersion: 'browser-test',
-      }),
-    }),
-  )
+  await stubDashboard(page, showcaseBoard, 'animation-showcase')
 
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/')
