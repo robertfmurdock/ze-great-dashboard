@@ -29,7 +29,7 @@ export function App({ env }: { env: ClientEnv }) {
   if (!diagnosticsRef.current) diagnosticsRef.current = new BrowserDiagnosticStore(env)
   const diagnostics = diagnosticsRef.current
   useClientUpdate({ env, diagnostics })
-  const { signals, updateHealth } = usePanelSignals({
+  const { signals, updateHealth, factSignals } = usePanelSignals({
     board: loadedBoardName === env.board ? board : undefined,
     env,
     diagnostics,
@@ -117,6 +117,7 @@ export function App({ env }: { env: ClientEnv }) {
               panel={panel}
               envelope={signals[panel.id]}
               updateHealth={updateHealth[panel.id]}
+              facts={factSignals[panel.id]}
             />
           ))}
       </main>

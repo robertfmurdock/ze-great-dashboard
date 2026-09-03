@@ -299,6 +299,67 @@ test('fits a positioned board inside the desktop viewport', async ({ page }) => 
   )
 })
 
+test('keeps four independently sourced facts readable inside one compact panel', async ({
+  page,
+}) => {
+  const facts = [
+    { id: 'api', label: 'API', url: 'https://api.example.com/version' },
+    { id: 'web', label: 'Web', url: 'https://web.example.com/version' },
+    { id: 'worker', label: 'Worker', url: 'https://worker.example.com/version' },
+    { id: 'docs', label: 'Docs', url: 'https://docs.example.com/version' },
+  ]
+  await page.setViewportSize({ width: 2400, height: 1200 })
+  await stubDashboard(page, {
+    panels: [
+      {
+        id: 'versions',
+        label: 'Deployed libraries',
+        type: 'http-value',
+        density: 'compact',
+        facts,
+        position: { x: 0, y: 0, w: 6, h: 4 },
+      },
+    ],
+  })
+  await page.route('**/api/panel/**', (route) => {
+    const factId = new URL(route.request().url()).pathname.split('/').at(-1) ?? ''
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        panelId: 'versions',
+        state: 'ok',
+        observedAt: '2026-08-24T14:00:00.000Z',
+        link: `https://${factId}.example.com/version`,
+        signal: { type: 'http-value', value: `${factId}-1.2.3` },
+      }),
+    })
+  })
+
+  await page.goto('/')
+  await expect(page.locator('[data-http-value-fact]')).toHaveCount(4)
+  const layout = await page.locator('[data-panel-id="versions"]').evaluate((panel) => {
+    const panelRect = panel.getBoundingClientRect()
+    const facts = [...panel.querySelectorAll<HTMLElement>('[data-http-value-fact]')]
+    return {
+      fits: panel.scrollHeight <= panel.clientHeight,
+      factsFit: facts.every((fact) => {
+        const rect = fact.getBoundingClientRect()
+        return (
+          rect.left >= panelRect.left &&
+          rect.right <= panelRect.right &&
+          rect.top >= panelRect.top &&
+          rect.bottom <= panelRect.bottom
+        )
+      }),
+    }
+  })
+  expect(layout).toEqual({ fits: true, factsFit: true })
+  for (const fact of facts)
+    await expect(
+      page.locator(`[aria-label="View source for ${fact.label} (opens in a new tab)"]`),
+    ).toHaveCount(1)
+})
+
 test('adapts density independently across wide, square, narrow, and tall cells', async ({
   page,
 }) => {

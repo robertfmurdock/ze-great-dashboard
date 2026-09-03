@@ -1,6 +1,58 @@
 .fact {
   display: contents;
 }
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35em 0.6em;
+  min-width: 0;
+}
+
+.factCell {
+  position: relative;
+  min-width: 0;
+  padding: 0.1em 1.8em 0.1em 0;
+}
+
+.factCell h3 {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.65em;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.factCell :global([data-panel-meta]) {
+  font-size: 0.55em;
+}
+
+.factSource {
+  position: absolute;
+  top: 0.1em;
+  right: 0.15em;
+  display: grid;
+  width: 1.5em;
+  height: 1.5em;
+  place-items: center;
+  border-radius: 0.25em;
+  color: var(--ink-secondary);
+  font-size: 0.7em;
+  text-decoration: none;
+}
+
+.factSource:hover,
+.factSource:focus-visible {
+  color: var(--ink-primary);
+  background: color-mix(in srgb, var(--ink-primary) 8%, transparent);
+}
+
+@container panel (max-width: 13rem) {
+  .facts {
+    grid-template-columns: 1fr;
+  }
+}
 @container panel (min-width: 48rem) {
   :global([data-density="compact"][data-shallow="true"]) .fact > *,
   :global([data-density="auto"][data-shallow="true"]) .fact > * {

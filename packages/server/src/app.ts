@@ -18,7 +18,7 @@ import {
   pullRequestHealthCapabilities,
 } from './adapters/github-actions.ts'
 import { fetchGitlabCiPipeline } from './adapters/gitlab-ci.ts'
-import { fetchHttpValue } from './adapters/http-value.ts'
+import { fetchHttpValue, fetchHttpValueFact, httpValueFact } from './adapters/http-value.ts'
 import { deriveAllowlist, type PanelOperation, permitsPanelOperation } from './allowlist.ts'
 import { assetPathId, type ServerConfig } from './config.ts'
 import { type CredentialResolver, environmentCredentials } from './credentials.ts'
@@ -169,6 +169,29 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
   }
   app.get('/api/boards/:board/rendered', (c) => layoutDownload(c, 'rendered'))
   app.get('/api/boards/:board/authored', (c) => layoutDownload(c, 'authored'))
+  app.get('/api/panel/:board/:panelId/facts/:factId', async (c) => {
+    const boardName = c.req.param('board')
+    const panelId = c.req.param('panelId')
+    const factId = c.req.param('factId')
+    const panel = deps.boardConfig?.boards[boardName]?.panels.find(
+      (candidate) => candidate.id === panelId,
+    )
+    const fact =
+      panel?.type === 'http-value' && panel.facts ? httpValueFact(panel, factId) : undefined
+    if (!panel || !fact || !permitsPanelOperation(allowlist, boardName, panelId, 'read'))
+      return rejected(c, { boardId: boardName, panelId, operation: 'read' })
+
+    return observation(
+      c,
+      fetchHttpValueFact({
+        panel,
+        factId,
+        requestHeaders: c.req.raw.headers,
+        fetcher: deps.fetcher ?? globalThis.fetch,
+      }),
+      { boardId: boardName, panelId, operation: 'read', destination: fact.url },
+    )
+  })
   app.get('/api/panel/:board/:panelId', async (c) => {
     const boardName = c.req.param('board')
     const panelId = c.req.param('panelId')
@@ -236,6 +259,7 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
     if (panel.type === 'pull-request-health')
       return rejected(c, { boardId: boardName, panelId, operation: 'read' })
     if (panel.type === 'http-value') {
+      if (panel.facts) return rejected(c, { boardId: boardName, panelId, operation: 'read' })
       const result = fetchHttpValue({
         panel,
         requestHeaders: c.req.raw.headers,

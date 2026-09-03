@@ -56,7 +56,8 @@ locally. The current implementation includes:
 - Server-authoritative client update checks: the browser polls the no-store client identity endpoint
   every 60 seconds and reloads when the server selects a different immutable client.
 - Source-agnostic `http-value` panels. They fetch configured HTTP(S) endpoints, accept plain scalar
-  text or JSON, and support the deliberately small field-and-index JSON-path subset.
+  text or JSON, and support the deliberately small field-and-index JSON-path subset. One panel can
+  also compactly show up to four independently fetched HTTP facts with their own source evidence.
 - Radiator layout polish: configured 12-column positions are rendered, narrow screens collapse to a
   readable single column, and every observation discloses relative age with stale readings emphasized.
 - Layout reporting is explicit: positions outside the intended 12×12 canvas and overlaps are shown

@@ -61,6 +61,7 @@ export type RenderedPanelDiagnostic = {
   state: Envelope['state']
   status?: string
   link: string | null
+  facts?: Array<{ id: string; state: 'ok' | 'error' | 'unavailable'; link: string | null }>
 }
 
 export type FailedObservation = {

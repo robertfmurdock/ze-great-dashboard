@@ -9,9 +9,15 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { dashboardFetch } from './dashboard-fetch.ts'
 import { cacheMetadata, type DiagnosticSink } from './diagnostics.ts'
-import { panelDiagnosticChanged, projectPanelDiagnostic } from './panel-diagnostics.ts'
+import {
+  httpValueFactsDiagnosticChanged,
+  panelDiagnosticChanged,
+  projectHttpValueFactsDiagnostic,
+  projectPanelDiagnostic,
+} from './panel-diagnostics.ts'
 import { BrowserPanelMemory, resolvePanelMemoryIdentity } from './panel-memory.ts'
-import type { PanelUpdateHealth } from './panel-props.ts'
+import { readPanelObservation } from './panel-observation.ts'
+import type { HttpValueFactObservation, PanelUpdateHealth } from './panel-props.ts'
 import { reconcilePipelineResponse } from './pipeline-reconciliation.ts'
 import { nextPollDelayMillis } from './polling-schedule.ts'
 import { rollupPullRequestHealth } from './pull-request-rollup.ts'
@@ -31,14 +37,22 @@ export function usePanelSignals({
   const [updateHealth, setUpdateHealth] = useState<Record<string, PanelUpdateHealth | undefined>>(
     {},
   )
+  const [factSignals, setFactSignals] = useState<
+    Record<string, Record<string, HttpValueFactObservation | undefined> | undefined>
+  >({})
   const signalsRef = useRef<Record<string, Envelope | undefined>>({})
+  const factSignalsRef = useRef<
+    Record<string, Record<string, HttpValueFactObservation | undefined> | undefined>
+  >({})
   const memoryRef = useRef<BrowserPanelMemory | null>(null)
   if (!memoryRef.current) memoryRef.current = memory ?? new BrowserPanelMemory()
 
   useEffect(() => {
     signalsRef.current = {}
+    factSignalsRef.current = {}
     setSignals({})
     setUpdateHealth({})
+    setFactSignals({})
     if (!board) return
 
     let cancelled = false
@@ -85,53 +99,71 @@ export function usePanelSignals({
           }
         })
       }
+      if (panel.type === 'http-value' && panel.facts) {
+        const facts = panel.facts
+        const components = new Map<string, Envelope>()
+        let activeController: AbortController | undefined
+        const refreshFacts = async () => {
+          if (cancelled || inFlight) return
+          inFlight = true
+          activeController = new AbortController()
+          abortControllers.add(activeController)
+          const root = `${path}/facts`
+          const observations = await Promise.all(
+            facts.map(async (fact) => {
+              const factPath = `${root}/${encodeURIComponent(fact.id)}`
+              const result = await readPanelObservation({
+                diagnostics,
+                panelId: panel.id,
+                path: factPath,
+                signal: activeController?.signal,
+                cache: components,
+                fetcher: (input, init) => dashboardFetch(env, input, init),
+              })
+              return [fact.id, result.error ? { failure: result.error } : result] as const
+            }),
+          )
+          if (!cancelled && !activeController.signal.aborted) {
+            const next = Object.fromEntries(observations)
+            const previous = factSignalsRef.current[panel.id]
+            if (httpValueFactsDiagnosticChanged(previous, next))
+              diagnostics.record({
+                kind: 'panel-rendered',
+                panelId: panel.id,
+                path,
+                rendered: projectHttpValueFactsDiagnostic(next),
+              })
+            factSignalsRef.current = { ...factSignalsRef.current, [panel.id]: next }
+            setFactSignals(factSignalsRef.current)
+          }
+          inFlight = false
+          abortControllers.delete(activeController)
+          if (!cancelled) {
+            const timer = window.setTimeout(() => {
+              timers.delete(timer)
+              void refreshFacts()
+            }, settings.refreshMillis)
+            timers.add(timer)
+          }
+        }
+        void refreshFacts()
+        continue
+      }
       if (panel.type === 'pull-request-health') {
         const workflows = readUpdateWorkflows(panel)
         const components = new Map<string, Envelope>()
         let activeController: AbortController | undefined
         const request = async (componentPath: string) => {
-          diagnostics.record({ kind: 'panel-fetch-start', panelId: panel.id, path: componentPath })
-          try {
-            const response = await dashboardFetch(env, componentPath, {
-              signal: activeController?.signal,
-            })
-            const transport = {
-              kind: 'panel-fetch-response' as const,
-              panelId: panel.id,
-              path: componentPath,
-              status: response.status,
-              cache: cacheMetadata(response.headers),
-            }
-            if (response.status === 304) {
-              diagnostics.record(transport)
-              const cached = components.get(componentPath)
-              return cached
-                ? { envelope: cached }
-                : { error: 'Source returned not modified before an initial observation.' }
-            }
-            const value: unknown = await response.json()
-            const envelope = parseEnvelope(value)
-            diagnostics.record({
-              ...transport,
-              ...(envelope ? { envelope } : {}),
-              ...(envelope?.state === 'error'
-                ? { failure: failedObservation(envelope, response) }
-                : {}),
-            })
-            if (!envelope) return { error: 'Response was not a valid signal envelope.' }
-            if (envelope.state === 'error') return { error: envelope.error.message }
-            components.set(componentPath, envelope)
-            return { envelope }
-          } catch (error) {
-            if (activeController?.signal.aborted) return { error: 'Observation cancelled.' }
-            diagnostics.record({
-              kind: 'panel-fetch-failure',
-              panelId: panel.id,
-              path: componentPath,
-              message: errorMessage(error),
-            })
-            return { error: errorMessage(error) }
-          }
+          const result = await readPanelObservation({
+            diagnostics,
+            panelId: panel.id,
+            path: componentPath,
+            signal: activeController?.signal,
+            cache: components,
+            fetcher: (input, init) => dashboardFetch(env, input, init),
+          })
+          if (result.envelope?.state === 'error') return { error: result.envelope.error.message }
+          return result
         }
         const refreshPullRequestHealth = async () => {
           if (cancelled || inFlight) return
@@ -363,7 +395,7 @@ export function usePanelSignals({
     }
   }, [board, diagnostics, env])
 
-  return { signals, updateHealth }
+  return { signals, updateHealth, factSignals }
 }
 
 function failedObservation(envelope: Extract<Envelope, { state: 'error' }>, response: Response) {

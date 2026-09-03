@@ -96,6 +96,39 @@ describe('the http-value adapter', () => {
 })
 
 describe('the http-value panel route', () => {
+  it('reads each grouped fact only at its stable configured address', async () => {
+    const grouped = {
+      id: 'versions',
+      type: 'http-value',
+      facts: [
+        { id: 'api', label: 'API', url: 'https://api.example.com/version', json_path: '$.version' },
+        { id: 'web', label: 'Web', url: 'https://web.example.com/version' },
+      ],
+    }
+    const fetcher = vi.fn(
+      async (url: string | URL) =>
+        new Response(
+          String(url).includes('api.') ? JSON.stringify({ version: '2.0.0' }) : '1.4.0',
+          {
+            headers: { etag: 'W/"fact"' },
+          },
+        ),
+    ) as unknown as typeof fetch
+    const app = createApp({
+      config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
+      boardConfig: { sources: {}, boards: { example: { panels: [grouped] } } },
+      fetcher,
+    })
+
+    const api = await app.request('/api/panel/example/versions/facts/api')
+    expect(api.headers.get('etag')).toBe('W/"fact"')
+    await expect(api.json()).resolves.toMatchObject({ signal: { value: '2.0.0' } })
+    expect((await app.request('/api/panel/example/versions/facts/unknown')).status).toBe(404)
+    expect((await app.request('/api/panel/example/versions')).status).toBe(404)
+    expect(vi.mocked(fetcher)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(fetcher).mock.calls[0]?.[0]).toBe('https://api.example.com/version')
+  })
+
   it('serves a source-agnostic panel without a named source', async () => {
     const boardConfig: BoardConfig = { sources: {}, boards: { example: { panels: [panel] } } }
     const app = createApp({

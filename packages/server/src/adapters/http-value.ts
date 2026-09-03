@@ -1,5 +1,9 @@
-import type { HttpValue, Panel } from '@ze-great-dashboard/shared'
-import { z } from 'zod'
+import {
+  type HttpValue,
+  httpValueGroupedPanelSchema,
+  httpValueScalarPanelSchema,
+  type Panel,
+} from '@ze-great-dashboard/shared'
 import {
   type AdapterResult,
   forwardValidators,
@@ -12,24 +16,18 @@ import {
 } from '../upstream.ts'
 import type { PermittedCall } from './types.ts'
 
-const httpValuePanelSchema = z.object({
-  id: z.string().min(1),
-  type: z.literal('http-value'),
-  url: z.url(),
-  json_path: z
-    .string()
-    .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/)
-    .optional(),
-  link: z.url().optional(),
-})
-
 export function permittedHttpValueCalls(panel: Panel): PermittedCall[] {
-  const parsed = httpValuePanelSchema.parse(panel)
-  const url = new URL(parsed.url)
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('http-value URLs must use http or https')
-  }
-  return [{ url: url.toString(), headers: new Headers({ accept: 'application/json, text/plain' }) }]
+  const grouped = httpValueGroupedPanelSchema.safeParse(panel)
+  const urls = grouped.success
+    ? grouped.data.facts.map((fact) => fact.url)
+    : [httpValueScalarPanelSchema.parse(panel).url]
+  return urls.map(permittedCall)
+}
+
+/** Resolves a stable grouped-fact address without ever accepting a browser-supplied URL. */
+export function httpValueFact(panel: Panel, factId: string) {
+  const grouped = httpValueGroupedPanelSchema.parse(panel)
+  return grouped.facts.find((fact) => fact.id === factId)
 }
 
 export async function fetchHttpValue(args: {
@@ -37,7 +35,7 @@ export async function fetchHttpValue(args: {
   requestHeaders: Headers
   fetcher: typeof fetch
 }): Promise<AdapterResult> {
-  const panel = httpValuePanelSchema.parse(args.panel)
+  const panel = httpValueScalarPanelSchema.parse(args.panel)
   const [call] = permittedHttpValueCalls(args.panel)
   if (!call) throw new Error('http-value adapter declared no permitted call')
   forwardValidators(args.requestHeaders, call.headers)
@@ -91,6 +89,29 @@ export async function fetchHttpValue(args: {
   }
 }
 
+/** Reads one configured fact. Grouping happens in the client so each source keeps its own cache contract. */
+export async function fetchHttpValueFact(args: {
+  panel: Panel
+  factId: string
+  requestHeaders: Headers
+  fetcher: typeof fetch
+}): Promise<AdapterResult> {
+  const fact = httpValueFact(args.panel, args.factId)
+  if (!fact) throw new Error(`http-value fact "${args.factId}" is not configured`)
+  return fetchHttpValue({
+    panel: { id: args.panel.id, type: 'http-value', url: fact.url, json_path: fact.json_path },
+    requestHeaders: args.requestHeaders,
+    fetcher: args.fetcher,
+  })
+}
+
+function permittedCall(value: string): PermittedCall {
+  const url = new URL(value)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:')
+    throw new Error('http-value URLs must use http or https')
+  return { url: url.toString(), headers: new Headers({ accept: 'application/json, text/plain' }) }
+}
+
 function parseValue(text: string): string | number | boolean {
   const trimmed = text.trim()
   try {
@@ -126,7 +147,7 @@ function extractJsonPath(value: unknown, path: string): string | number | boolea
 function errorResponse(
   kind: 'unreachable' | 'unauthorized' | 'not-found' | 'upstream-error',
   error: unknown,
-  panel: z.infer<typeof httpValuePanelSchema>,
+  panel: ReturnType<typeof httpValueScalarPanelSchema.parse>,
   response?: Response,
 ): Response {
   return upstreamErrorResponse(

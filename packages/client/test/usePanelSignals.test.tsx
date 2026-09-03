@@ -3,7 +3,7 @@ import type { Board, ClientEnv, Envelope, PipelineStatus } from '@ze-great-dashb
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DiagnosticEventInput, DiagnosticSink } from '../src/diagnostics.ts'
-import type { PanelUpdateHealth } from '../src/panel-props.ts'
+import type { HttpValueFactObservation, PanelUpdateHealth } from '../src/panel-props.ts'
 import { usePanelSignals } from '../src/usePanelSignals.ts'
 
 const env: ClientEnv = {
@@ -34,20 +34,38 @@ const pullRequestBoard: Board = {
   ],
 }
 
+const groupedHttpValueBoard: Board = {
+  panels: [
+    {
+      id: 'versions',
+      type: 'http-value',
+      facts: [
+        { id: 'api', label: 'API', url: 'https://api.example.com/version' },
+        { id: 'web', label: 'Web', url: 'https://web.example.com/version' },
+      ],
+    },
+  ],
+}
+
 function Probe({
   diagnostics,
   currentBoard = board,
   onSignals,
   onUpdateHealth,
+  onFactSignals,
 }: {
   diagnostics: DiagnosticSink
   currentBoard?: Board
   onSignals?: (signals: Record<string, Envelope | undefined>) => void
   onUpdateHealth?: (updateHealth: Record<string, PanelUpdateHealth | undefined>) => void
+  onFactSignals?: (
+    facts: Record<string, Record<string, HttpValueFactObservation | undefined> | undefined>,
+  ) => void
 }) {
   const result = usePanelSignals({ board: currentBoard, env, diagnostics })
   onSignals?.(result.signals)
   onUpdateHealth?.(result.updateHealth)
+  onFactSignals?.(result.factSignals)
   return null
 }
 
@@ -86,6 +104,54 @@ afterEach(() => {
 })
 
 describe('usePanelSignals', () => {
+  it('records a compact rendered projection for independently observed HTTP facts', async () => {
+    const diagnostics = recordingSink()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) => {
+        const fact = String(input).endsWith('/api') ? 'api' : 'web'
+        return new Response(
+          JSON.stringify({
+            panelId: 'versions',
+            state: fact === 'api' ? 'ok' : 'error',
+            observedAt: '2026-08-21T12:00:00.000Z',
+            link: `https://${fact}.example.com/version`,
+            ...(fact === 'api'
+              ? { signal: { type: 'http-value', value: '2.0.0' } }
+              : { error: { kind: 'unreachable', message: 'offline' } }),
+          }),
+        )
+      }),
+    )
+    let facts: Record<string, Record<string, HttpValueFactObservation | undefined> | undefined> = {}
+
+    render(
+      <Probe
+        diagnostics={diagnostics}
+        currentBoard={groupedHttpValueBoard}
+        onFactSignals={(next) => (facts = next)}
+      />,
+    )
+    await act(async () => {})
+
+    expect(facts.versions?.api?.envelope?.state).toBe('ok')
+    expect(facts.versions?.web?.envelope?.state).toBe('error')
+    expect(diagnostics.events).toContainEqual(
+      expect.objectContaining({
+        kind: 'panel-rendered',
+        panelId: 'versions',
+        rendered: {
+          state: 'ok',
+          link: null,
+          facts: [
+            { id: 'api', state: 'ok', link: 'https://api.example.com/version' },
+            { id: 'web', state: 'error', link: 'https://web.example.com/version' },
+          ],
+        },
+      }),
+    )
+  })
+
   it('emits typed fetch evidence and the compact rendered transition through its sink', async () => {
     const diagnostics = recordingSink()
     vi.stubGlobal(

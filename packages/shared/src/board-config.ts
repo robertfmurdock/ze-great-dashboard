@@ -31,6 +31,39 @@ export const panelDensities = ['auto', 'comfortable', 'compact'] as const
 export const panelDensitySchema = z.enum(panelDensities)
 export type PanelDensity = z.infer<typeof panelDensitySchema>
 
+const httpValueJsonPathSchema = z
+  .string()
+  .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/, 'must be a simple JSON path')
+
+/** One independently observed reading in a compact HTTP value panel. */
+export const httpValueFactSchema = z.object({
+  /** Stable address below the panel; labels and ordering may change without repointing it. */
+  id: z.string().min(1),
+  label: z.string().min(1),
+  url: z.url(),
+  json_path: httpValueJsonPathSchema.optional(),
+})
+export type HttpValueFact = z.infer<typeof httpValueFactSchema>
+
+const httpValuePanelIdentitySchema = z.object({
+  id: z.string().min(1),
+  type: z.literal('http-value'),
+})
+
+/** The original one-endpoint HTTP value contract. */
+export const httpValueScalarPanelSchema = httpValuePanelIdentitySchema.extend({
+  url: z.url(),
+  json_path: httpValueJsonPathSchema.optional(),
+  link: z.url().optional(),
+})
+export type HttpValueScalarPanel = z.infer<typeof httpValueScalarPanelSchema>
+
+/** A visual group whose facts remain independently fetched observations. */
+export const httpValueGroupedPanelSchema = httpValuePanelIdentitySchema.extend({
+  facts: z.array(httpValueFactSchema).min(1).max(4),
+})
+export type HttpValueGroupedPanel = z.infer<typeof httpValueGroupedPanelSchema>
+
 /** A deliberately small, comparable set of visible active-run treatments. */
 export const visibleRunningAnimations = [
   'radial',
@@ -78,10 +111,9 @@ export const panelSchema = z
     /** Source-agnostic endpoint used by the http-value signal. */
     url: z.url().optional(),
     /** Small, deliberate JSON path subset: $.version, $.deployment.version, or $.response.docs[0].latestVersion. */
-    json_path: z
-      .string()
-      .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/, 'must be a simple JSON path')
-      .optional(),
+    json_path: httpValueJsonPathSchema.optional(),
+    /** Up to four independently fetched source-agnostic readings in one visual panel. */
+    facts: httpValueGroupedPanelSchema.shape.facts.optional(),
   })
   .superRefine((panel, ctx) => {
     if ('display' in panel) {
@@ -89,6 +121,32 @@ export const panelSchema = z
         code: 'custom',
         path: ['display'],
         message: 'display was removed; use density',
+      })
+    }
+    if (panel.type !== 'http-value') return
+    if (panel.facts) {
+      if (panel.url !== undefined)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['url'],
+          message: 'use facts URLs for grouped panels',
+        })
+      if (panel.json_path !== undefined)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['json_path'],
+          message: 'use facts json_path values for grouped panels',
+        })
+      const seen = new Map<string, number>()
+      panel.facts.forEach((fact, index) => {
+        const first = seen.get(fact.id)
+        if (first === undefined) seen.set(fact.id, index)
+        else
+          ctx.addIssue({
+            code: 'custom',
+            path: ['facts', index, 'id'],
+            message: `duplicate fact id "${fact.id}" (already used by fact at index ${first})`,
+          })
       })
     }
   })

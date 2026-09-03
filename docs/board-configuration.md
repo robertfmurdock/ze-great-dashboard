@@ -81,7 +81,32 @@ Sources are reusable named definitions. Current source and panel adapters determ
 additional fields they accept; for example, `github-actions` uses `repo`, an optional `branch`,
 and a workflow `pipeline`. When configured, the branch is sent to GitHub when finding the newest
 run, so feature-branch runs do not replace the primary-branch status. When absent, GitHub returns
-runs from all branches. `http-value` uses `url` and an optional `json_path` such as `$.version`.
+runs from all branches. `http-value` supports either one scalar endpoint with `url` and an optional
+`json_path` such as `$.version`, or a compact group of up to four independently read facts. A
+grouped panel gives each fact a stable `id`, a wall-facing `label`, and its own HTTP(S) `url` and
+optional `json_path`:
+
+```yaml
+- id: deployed-libraries
+  label: Deployed libraries
+  type: http-value
+  refresh: 5m
+  facts:
+    - id: api
+      label: API
+      url: https://api.example.com/version
+      json_path: $.version
+    - id: web
+      label: Web
+      url: https://web.example.com/build.json
+      json_path: $.release.version
+```
+
+The dashboard reads each fact separately through its bounded proxy route. That preserves each
+source's link, cache validators, and observation age; an unavailable fact is shown as unavailable
+without hiding the other readings. Facts share the panel's refresh setting. Fact IDs are stable
+addresses, so rename the label rather than the ID when only the wall text changes. Do not combine
+`facts` with the single-value `url` or `json_path` fields.
 
 An Azure DevOps Services `pipeline-status` source names an organization, project, and exactly one
 runtime-only credential mode. A PAT uses `token_env` and Basic authentication. For local

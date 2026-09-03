@@ -632,6 +632,66 @@ describe('pipeline-status refresh scheduling', () => {
 })
 
 describe('http-value panels', () => {
+  it('reads independently configured facts into one partial, evidence-bearing panel', async () => {
+    const requests: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) => {
+        const url = String(input)
+        requests.push(url)
+        if (url.startsWith('/api/boards/'))
+          return new Response(
+            JSON.stringify({
+              panels: [
+                {
+                  id: 'versions',
+                  type: 'http-value',
+                  facts: [
+                    { id: 'api', label: 'API', url: 'https://api.example.com/version' },
+                    { id: 'web', label: 'Web', url: 'https://web.example.com/version' },
+                  ],
+                },
+              ],
+            }),
+          )
+        if (url.endsWith('/facts/api'))
+          return new Response(
+            JSON.stringify({
+              panelId: 'versions',
+              state: 'ok',
+              observedAt: '2026-08-18T12:00:00.000Z',
+              link: 'https://api.example.com/version',
+              signal: { type: 'http-value', value: '2.0.0' },
+            }),
+          )
+        return new Response(
+          JSON.stringify({
+            panelId: 'versions',
+            state: 'error',
+            observedAt: '2026-08-18T12:00:00.000Z',
+            link: 'https://web.example.com/version',
+            error: { kind: 'unreachable', message: 'offline' },
+          }),
+        )
+      }),
+    )
+
+    const rendered = render(<App env={env} />)
+    await act(async () => {})
+    expect(requests.filter((url) => url.includes('/facts/'))).toHaveLength(2)
+    expect(requests.some((url) => url.endsWith('/versions'))).toBe(false)
+    expect(rendered.textContent).toContain('API')
+    expect(rendered.textContent).toContain('2.0.0')
+    expect(rendered.textContent).toContain('Web')
+    expect(rendered.textContent).toContain('Source unavailable')
+    expect(
+      rendered.querySelector('[aria-label="View source for API (opens in a new tab)"]'),
+    ).not.toBeNull()
+    expect(
+      rendered.querySelector('[aria-label="View source for Web (opens in a new tab)"]'),
+    ).not.toBeNull()
+  })
+
   it('fetches and renders a configured value', async () => {
     const requests: string[] = []
     vi.stubGlobal(

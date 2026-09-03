@@ -299,6 +299,55 @@ describe('the board config schema', () => {
     expect(result.boards.a?.panels[0]).toMatchObject({ json_path: '$.v' })
   })
 
+  it('accepts up to four independently addressed http-value facts and rejects ambiguous shapes', () => {
+    const grouped = {
+      id: 'versions',
+      type: 'http-value',
+      facts: [
+        { id: 'api', label: 'API', url: 'https://api.example.com/version', json_path: '$.version' },
+        { id: 'web', label: 'Web', url: 'https://web.example.com/version' },
+      ],
+    }
+    expect(boardConfigSchema.safeParse({ boards: { a: { panels: [grouped] } } }).success).toBe(true)
+    expect(
+      boardConfigSchema.safeParse({
+        boards: { a: { panels: [{ ...grouped, url: 'https://example.com/ambiguous' }] } },
+      }).success,
+    ).toBe(false)
+    expect(
+      boardConfigSchema.safeParse({
+        boards: {
+          a: {
+            panels: [
+              {
+                ...grouped,
+                facts: Array.from({ length: 5 }, (_, index) => ({
+                  id: `fact-${index}`,
+                  label: `Fact ${index}`,
+                  url: `https://example.com/${index}`,
+                })),
+              },
+            ],
+          },
+        },
+      }).success,
+    ).toBe(false)
+    expect(
+      boardConfigSchema.safeParse({
+        boards: {
+          a: {
+            panels: [
+              {
+                ...grouped,
+                facts: [{ ...grouped.facts[0] }, { ...grouped.facts[0], label: 'Copy' }],
+              },
+            ],
+          },
+        },
+      }).success,
+    ).toBe(false)
+  })
+
   it('preserves the local pipeline animation demo with ordinary panel metadata', () => {
     const result = boardConfigSchema.parse({
       boards: {
