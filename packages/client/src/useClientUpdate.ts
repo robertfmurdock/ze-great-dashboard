@@ -1,5 +1,6 @@
-import { type ClientEnv, clientIdentitySchema } from '@ze-great-dashboard/shared'
+import { type ClientEnv, clientIdentityResponseSchema } from '@ze-great-dashboard/shared'
 import { useEffect } from 'react'
+import { dashboardFetch } from './dashboard-fetch.ts'
 import type { DiagnosticSink } from './diagnostics.ts'
 
 const clientUpdateIntervalMillis = 60_000
@@ -31,14 +32,25 @@ export function useClientUpdate({
       const timeout = globalThis.setTimeout(() => controller.abort(), clientUpdateTimeoutMillis)
       diagnostics.record({ kind: 'client-update-check', path })
       try {
-        const response = await (fetcher ?? globalThis.fetch)(path, {
-          cache: 'no-store',
-          signal: controller.signal,
-        })
+        const response = await dashboardFetch(
+          env,
+          path,
+          {
+            cache: 'no-store',
+            signal: controller.signal,
+          },
+          fetcher ?? globalThis.fetch,
+        )
         if (!response.ok) throw new Error(`Client identity returned ${response.status}`)
-        const parsed = clientIdentitySchema.safeParse(await response.json())
+        const parsed = clientIdentityResponseSchema.safeParse(await response.json())
         if (!parsed.success) throw new Error('Client identity response was invalid')
         if (cancelled) return
+        diagnostics.record({
+          kind: 'client-update-response',
+          path,
+          serverVersion: parsed.data.serverVersion,
+          assetPathIdMatches: parsed.data.assetPathId === env.assetPathId,
+        })
         if (parsed.data.assetPath !== env.assetPath) {
           diagnostics.record({
             kind: 'client-update-detected',
@@ -69,5 +81,5 @@ export function useClientUpdate({
       cancelled = true
       activeController?.abort()
     }
-  }, [diagnostics, env.assetPath, env.proxyPath, fetcher, reload])
+  }, [diagnostics, env, fetcher, reload])
 }

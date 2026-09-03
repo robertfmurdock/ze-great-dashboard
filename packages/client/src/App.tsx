@@ -7,6 +7,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
 import { Diagnostics } from './Diagnostics.tsx'
+import { dashboardFetch } from './dashboard-fetch.ts'
 import { BrowserDiagnosticStore, cacheMetadata } from './diagnostics.ts'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PanelRenderer } from './panel-registry.tsx'
@@ -50,7 +51,7 @@ export function App({ env }: { env: ClientEnv }) {
     setLoadedBoardName(undefined)
     const path = `${env.proxyPath}/boards/${encodeURIComponent(env.board)}`
     diagnostics.record({ kind: 'board-fetch-start', path })
-    fetch(path)
+    dashboardFetch(env, path)
       .then(async (response) => {
         diagnostics.record({
           kind: 'board-fetch-response',
@@ -99,7 +100,7 @@ export function App({ env }: { env: ClientEnv }) {
     return () => {
       cancelled = true
     }
-  }, [diagnostics, env.board, env.proxyPath])
+  }, [diagnostics, env])
 
   return (
     <div className={styles.board}>

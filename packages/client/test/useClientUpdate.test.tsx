@@ -7,6 +7,7 @@ import { useClientUpdate } from '../src/useClientUpdate.ts'
 
 const env: ClientEnv = {
   assetPath: 'https://assets.example.com/dashboard/1.0.7',
+  assetPathId: 'sha256:3f454a601d3791a603e550652cec7ca1fb4359489df99605e72e051dd5b02731',
   proxyPath: '/api',
   board: 'ze-great-team',
 }
@@ -33,8 +34,15 @@ function recordingSink() {
   }
 }
 
-function identity(overrides: Partial<ClientEnv> = {}) {
-  return new Response(JSON.stringify({ assetPath: env.assetPath, ...overrides }))
+function identity(overrides: Partial<ClientEnv> & { serverVersion?: string } = {}) {
+  return new Response(
+    JSON.stringify({
+      assetPath: env.assetPath,
+      assetPathId: env.assetPathId,
+      serverVersion: 'server-dev',
+      ...overrides,
+    }),
+  )
 }
 
 afterEach(() => {
@@ -44,19 +52,29 @@ afterEach(() => {
 describe('useClientUpdate', () => {
   it('checks the server immediately and does not reload for the current identity', async () => {
     const diagnostics = recordingSink()
-    const fetcher = vi.fn(async () => identity())
+    const fetcher = vi.fn<typeof fetch>(async () => identity())
     const reload = vi.fn()
 
     render(<Probe diagnostics={diagnostics} fetcher={fetcher} reload={reload} />)
     await act(async () => {})
 
-    expect(fetcher).toHaveBeenCalledWith(
-      '/api/client',
-      expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }),
-    )
+    expect(fetcher).toHaveBeenCalledWith('/api/client', expect.anything())
+    const init = fetcher.mock.calls[0]?.[1]
+    expect(init).toMatchObject({ cache: 'no-store', signal: expect.any(AbortSignal) })
+    const headers = new Headers(init?.headers)
+    expect(headers.get('x-dashboard-client-version')).toBe('dev')
+    expect(headers.get('x-dashboard-client-origin')).toBe(window.location.origin)
+    expect(headers.get('x-dashboard-client-asset-id')).toBe(env.assetPathId)
     expect(reload).not.toHaveBeenCalled()
     expect(diagnostics.events).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: 'client-update-check' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'client-update-check' }),
+        expect.objectContaining({
+          kind: 'client-update-response',
+          serverVersion: 'server-dev',
+          assetPathIdMatches: true,
+        }),
+      ]),
     )
   })
 

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 
@@ -64,6 +65,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     throw new Error(`Invalid server configuration:\n${z.prettifyError(result.error)}`)
   }
   return result.data
+}
+
+/** Stable public diagnostic identifier; the path itself is never copied into request logs. */
+export function assetPathId(assetPath: string): string {
+  return `sha256:${createHash('sha256').update(assetPath).digest('hex')}`
 }
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1'])

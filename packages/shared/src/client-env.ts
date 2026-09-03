@@ -11,6 +11,8 @@ import { z } from 'zod'
 export const clientEnvSchema = z.object({
   /** Where the immutable client assets live. The one variable that repoints the whole client. */
   assetPath: z.string().min(1),
+  /** Opaque SHA-256 fingerprint of the canonical asset path, for diagnostic correlation only. */
+  assetPathId: z.string().regex(/^sha256:[a-f0-9]{64}$/),
   /** Same-origin path the proxy is mounted at, so there is no CORS and no cookie problem. */
   proxyPath: z.string().min(1),
   /** Which board this is, resolved server-side so the client parses no URLs. */
@@ -26,10 +28,12 @@ export const clientEnvSchema = z.object({
 
 export type ClientEnv = z.infer<typeof clientEnvSchema>
 
-/** The public identity of the client currently selected by the server. */
-export const clientIdentitySchema = clientEnvSchema.pick({ assetPath: true })
+/** The public identity response returned by the server for a client-update check. */
+export const clientIdentityResponseSchema = clientEnvSchema
+  .pick({ assetPath: true, assetPathId: true })
+  .extend({ serverVersion: z.string().min(1) })
 
-export type ClientIdentity = z.infer<typeof clientIdentitySchema>
+export type ClientIdentityResponse = z.infer<typeof clientIdentityResponseSchema>
 
 declare global {
   interface Window {

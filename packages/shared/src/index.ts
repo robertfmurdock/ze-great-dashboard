@@ -35,9 +35,9 @@ export {
 } from './board-config-modeline.ts'
 export {
   type ClientEnv,
-  type ClientIdentity,
+  type ClientIdentityResponse,
   clientEnvSchema,
-  clientIdentitySchema,
+  clientIdentityResponseSchema,
   readClientEnv,
 } from './client-env.ts'
 export { type Duration, durationSchema, parseDuration } from './duration.ts'

@@ -15,7 +15,7 @@ serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => 
       board: config.board ?? 'unknown',
       host: config.host,
       port: info.port,
-      serverRelease: config.serverRelease,
+      serverVersion: config.serverRelease,
     }),
   )
 })

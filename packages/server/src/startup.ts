@@ -26,7 +26,10 @@ export async function startup(
   options: { fetcher?: Fetcher; logger?: ServerLogger } = {},
 ): Promise<StartupResult> {
   const logger = options.logger ?? consoleLogger
-  logger.log({ event: 'server.starting' })
+  logger.log({
+    event: 'server.starting',
+    serverVersion: process.env.SERVER_RELEASE ?? 'development',
+  })
   try {
     const config = loadConfig()
     const fetcher = options.fetcher ?? globalThis.fetch
@@ -70,7 +73,11 @@ export async function startup(
       config: resolvedConfig,
     }
   } catch (error) {
-    logger.log({ event: 'server.startup_failed', category: startupFailureCategory(error) })
+    logger.log({
+      event: 'server.startup_failed',
+      serverVersion: process.env.SERVER_RELEASE ?? 'development',
+      category: startupFailureCategory(error),
+    })
     throw error
   }
 }
@@ -129,7 +136,12 @@ const RETRY_INTERVAL_MILLIS = 250
  */
 function warnAboutMissingAuth(config: ServerConfig, logger: ServerLogger): void {
   if (isLocalHost(config.host)) return
-  logger.log({ event: 'server.no_auth_warning', host: config.host, port: config.port })
+  logger.log({
+    event: 'server.no_auth_warning',
+    serverVersion: config.serverRelease,
+    host: config.host,
+    port: config.port,
+  })
 }
 
 function startupFailureCategory(

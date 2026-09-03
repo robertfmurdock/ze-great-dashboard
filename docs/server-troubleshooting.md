@@ -4,7 +4,7 @@ This guide is for an engineer investigating a dashboard that cannot start, load 
 
 | Symptom | Event | Safe next action |
 | --- | --- | --- |
-| Confirm which server image is running | `server.ready` | Compare `serverRelease` with the exact image tag or digest selected for the deployment. It is independent of the selected client asset path. |
+| Correlate a browser and server release | request-correlated events | Compare `serverVersion`, the browser's `clientVersion`, and `clientAssetPathMatchesConfigured`. A `false` match means the browser claims a different immutable asset path than this server selected. |
 | Server does not start | `server.startup_failed` | Check the event category, then validate the asset path, board configuration, and required credentials. |
 | Instance is publicly reachable without access control | `server.no_auth_warning` | Put the instance behind the intended gateway or configure the planned authentication boundary. |
 | A panel says access is denied | `panel.observation_failed` with `errorKind: "unauthorized"` | Confirm the source credential exists and has read access; never paste a credential into logs or board YAML. |
@@ -18,8 +18,11 @@ The browser shows an opaque **support reference** for failed observations. It is
 ## Event fields
 
 - `event`: fixed event name.
-- `serverRelease`: immutable server image identifier supplied at image build time; it is diagnostic
+- `serverVersion`: immutable server image identifier supplied at image build time; it is diagnostic
   evidence only and is never compared with `ASSET_PATH`.
+- `clientVersion`, `clientOrigin`, `clientAssetPathMatchesConfigured`: browser-supplied diagnostic
+  claims, normalized before logging. They are not authentication or authorization evidence. Origins
+  retain only scheme, host, and port; malformed and absent claims are omitted.
 - `requestId`: opaque server-generated support reference for an API request.
 - `boardId`, `panelId`, `operation`: configured object and permitted operation being observed.
 - `sourceName`, `sourceType`: configured source identity, when applicable.
@@ -28,7 +31,7 @@ The browser shows an opaque **support reference** for failed observations. It is
 - `upstreamStatus` and `networkCode`: present only when a safe status/code is known.
 - `elapsedMs`: server-side observation duration.
 
-Logs never include headers, response/request bodies, full URLs, query strings, credential names or values, raw exceptions, or stack traces.
+Logs never include raw headers, response/request bodies, full URLs, query strings, credential names or values, raw exceptions, or stack traces.
 
 ## CloudWatch examples
 

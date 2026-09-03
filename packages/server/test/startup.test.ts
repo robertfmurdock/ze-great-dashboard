@@ -126,14 +126,14 @@ describe('server identity logging', () => {
         board: 'operations',
         host: 'localhost',
         port: 3000,
-        serverRelease: config.serverRelease,
+        serverVersion: config.serverRelease,
       }),
     ).toEqual({
       event: 'server.ready',
       board: 'operations',
       host: 'localhost',
       port: 3000,
-      serverRelease: 'server-1.4.0',
+      serverVersion: 'server-1.4.0',
     })
   })
 })

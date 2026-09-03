@@ -9,6 +9,7 @@ import { summarizeDiagnostics } from '../src/diagnostics-summary.ts'
 
 const env: ClientEnv = {
   assetPath: 'https://assets.example.com/dashboard/1.0.7',
+  assetPathId: 'sha256:3f454a601d3791a603e550652cec7ca1fb4359489df99605e72e051dd5b02731',
   proxyPath: '/api',
   board: 'ze-great-team',
 }
@@ -40,9 +41,48 @@ describe('browser-local diagnostics', () => {
 
     expect(log.export()).toMatchObject({
       schemaVersion: diagnosticsSchemaVersion,
-      client: { version: 'dev', board: 'ze-great-team' },
+      client: { version: 'dev', board: 'ze-great-team', assetPathId: env.assetPathId },
       summary: { retained: { eventCount: 2, evidenceMayBeIncomplete: false } },
       events: expect.arrayContaining([expect.objectContaining({ panelId: 'build' })]),
+    })
+  })
+
+  it('stamps new events with the client identity while retaining historical events unchanged', () => {
+    const historical = {
+      schemaVersion: diagnosticsSchemaVersion,
+      events: [
+        {
+          schemaVersion: diagnosticsSchemaVersion,
+          at: '2026-08-21T11:00:00.000Z',
+          sessionId: 'historic',
+          board: 'ze-great-team',
+          kind: 'board-fetch-start',
+          path: '/api/boards/ze-great-team',
+        },
+      ],
+    }
+    const log = new BrowserDiagnosticStore(
+      env,
+      memory(JSON.stringify(historical)),
+      () => new Date('2026-08-21T12:00:00Z'),
+    )
+    log.record({
+      kind: 'client-update-response',
+      path: '/api/client',
+      serverVersion: 'server-1.4.0',
+      assetPathIdMatches: true,
+    })
+
+    const events = log.export().events
+    expect(events.find((event) => event.sessionId === 'historic')).not.toHaveProperty(
+      'clientVersion',
+    )
+    expect(events.find((event) => event.kind === 'client-update-response')).toMatchObject({
+      clientVersion: 'dev',
+      clientAssetPath: env.assetPath,
+      clientAssetPathId: env.assetPathId,
+      serverVersion: 'server-1.4.0',
+      assetPathIdMatches: true,
     })
   })
 

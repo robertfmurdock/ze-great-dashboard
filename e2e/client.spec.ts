@@ -13,6 +13,7 @@ test('the production client loads and renders with CDN modules', async ({ page }
   await page.addInitScript(() => {
     window.env = {
       assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+      assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
       proxyPath: '/api',
       board: 'ze-great-team',
       clientVersion: 'browser-test',
@@ -27,7 +28,8 @@ test('the production client loads and renders with CDN modules', async ({ page }
       headers: { 'cache-control': 'no-store' },
       body: JSON.stringify({
         assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-        clientVersion: 'browser-test',
+        assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
+        serverVersion: 'browser-test-server',
       }),
     }),
   )
@@ -43,6 +45,7 @@ test('reloads when the server starts serving a different client', async ({ page 
   await page.addInitScript(() => {
     window.env = {
       assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+      assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
       proxyPath: '/api',
       board: 'ze-great-team',
       clientVersion: 'browser-test',
@@ -59,7 +62,11 @@ test('reloads when the server starts serving a different client', async ({ page 
         : 'http://127.0.0.1:4173/__ASSET_PATH__'
     return route.fulfill({
       contentType: 'application/json',
-      body: JSON.stringify({ assetPath, clientVersion: 'browser-test' }),
+      body: JSON.stringify({
+        assetPath,
+        assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
+        serverVersion: 'browser-test-server',
+      }),
     })
   })
 
@@ -221,6 +228,7 @@ const pullRequestHealthEnvelope = (panelId: string) => ({
 function browserEnv(board = 'ze-great-team') {
   return {
     assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+    assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
     proxyPath: '/api',
     board,
     clientVersion: 'browser-test',
@@ -240,7 +248,8 @@ function stubDashboard(page: Page, board: unknown, boardName = 'ze-great-team') 
         contentType: 'application/json',
         body: JSON.stringify({
           assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-          clientVersion: 'browser-test',
+          assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
+          serverVersion: 'browser-test-server',
         }),
       }),
     ),

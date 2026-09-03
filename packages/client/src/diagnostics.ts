@@ -17,6 +17,7 @@ const maximumAgeMillis = 7 * 24 * 60 * 60 * 1_000
 const diagnosticKinds = [
   'session-start',
   'client-update-check',
+  'client-update-response',
   'client-update-failure',
   'client-update-detected',
   'board-fetch-start',
@@ -51,6 +52,9 @@ type EventMetadata = {
   at: string
   sessionId: string
   board: string
+  clientVersion: string
+  clientAssetPath: string
+  clientAssetPathId: string
 }
 
 export type RenderedPanelDiagnostic = {
@@ -67,6 +71,12 @@ export type FailedObservation = {
 export type DiagnosticEventInput =
   | { kind: 'session-start' }
   | { kind: 'client-update-check'; path: string }
+  | {
+      kind: 'client-update-response'
+      path: string
+      serverVersion: string
+      assetPathIdMatches: boolean
+    }
   | { kind: 'client-update-failure'; path: string; message: string }
   | {
       kind: 'client-update-detected'
@@ -172,6 +182,9 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
           at: this.now().toISOString(),
           sessionId: this.sessionId,
           board: this.env.board,
+          clientVersion: clientReleaseVersion,
+          clientAssetPath: this.env.assetPath,
+          clientAssetPathId: this.env.assetPathId,
         },
       ],
       this.now(),
@@ -220,6 +233,7 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
       client: {
         version: clientReleaseVersion,
         assetPath: this.env.assetPath,
+        assetPathId: this.env.assetPathId,
         board: this.env.board,
         sessionId: this.sessionId,
       },

@@ -8,6 +8,7 @@ import { usePanelSignals } from '../src/usePanelSignals.ts'
 
 const env: ClientEnv = {
   assetPath: 'https://assets.example.com/dashboard/1.0.7',
+  assetPathId: 'sha256:3f454a601d3791a603e550652cec7ca1fb4359489df99605e72e051dd5b02731',
   proxyPath: '/api',
   board: 'ze-great-team',
 }

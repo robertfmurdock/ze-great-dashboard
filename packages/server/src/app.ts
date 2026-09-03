@@ -2,7 +2,7 @@ import {
   type BoardConfig,
   boardSchemaModeline,
   type ClientEnv,
-  type ClientIdentity,
+  type ClientIdentityResponse,
   normalizeBoardLayout,
   schemaUrlForAssetPath,
 } from '@ze-great-dashboard/shared'
@@ -20,10 +20,17 @@ import {
 import { fetchGitlabCiPipeline } from './adapters/gitlab-ci.ts'
 import { fetchHttpValue } from './adapters/http-value.ts'
 import { deriveAllowlist, type PanelOperation, permitsPanelOperation } from './allowlist.ts'
-import type { ServerConfig } from './config.ts'
+import { assetPathId, type ServerConfig } from './config.ts'
 import { type CredentialResolver, environmentCredentials } from './credentials.ts'
 import { createGithubClient } from './github-auth.ts'
-import { consoleLogger, destinationOrigin, requestId, type ServerLogger } from './logger.ts'
+import {
+  clientDiagnosticClaims,
+  consoleLogger,
+  destinationOrigin,
+  requestId,
+  type ServerLogger,
+  serverDiagnosticContext,
+} from './logger.ts'
 import { renderIndexHtml } from './render.ts'
 import { type Fetcher, TemplateCache } from './template.ts'
 import { type AdapterResult, adapterRouteResponse } from './upstream.ts'
@@ -63,6 +70,10 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
   const credentials = deps.credentials ?? environmentCredentials()
   const githubClient = createGithubClient(credentials)
   const logger = deps.logger ?? consoleLogger
+  const diagnosticContext = serverDiagnosticContext(
+    config.serverRelease,
+    assetPathId(config.assetPath),
+  )
   const app = new Hono<AppEnvironment>()
 
   app.use('/api/*', async (c, next) => {
@@ -75,8 +86,10 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
     const id = c.get('dashboardRequestId')
     logger.log({
       event: 'server.unhandled_exception',
+      serverVersion: diagnosticContext.serverVersion,
       ...(id ? { requestId: id } : {}),
       operation: 'route-handler',
+      ...clientDiagnosticClaims(c.req.raw.headers, diagnosticContext),
     })
     return c.json(
       { error: 'The dashboard could not complete this request.' },
@@ -91,7 +104,11 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
   // middleware immediately before dashboard/API routes so an Auth0 or gateway check can be added
   // without changing packaging, route handlers, or the client contract.
   app.get(`${config.proxyPath}/client`, (c) => {
-    const identity: ClientIdentity = { assetPath: config.assetPath }
+    const identity: ClientIdentityResponse = {
+      assetPath: config.assetPath,
+      assetPathId: diagnosticContext.configuredAssetPathId,
+      serverVersion: diagnosticContext.serverVersion,
+    }
     return c.json(identity, 200, { 'cache-control': 'no-store' })
   })
 
@@ -343,10 +360,12 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
   function rejected(c: Context<AppEnvironment>, context: ObservationContext) {
     logger.log({
       event: 'api.operation_rejected',
+      serverVersion: diagnosticContext.serverVersion,
       requestId: c.get('dashboardRequestId'),
       boardId: context.boardId,
       panelId: context.panelId,
       operation: context.operation,
+      ...clientDiagnosticClaims(c.req.raw.headers, diagnosticContext),
     })
     return c.notFound()
   }
@@ -362,10 +381,12 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
     if (adapted.envelope?.state === 'error') {
       logger.log({
         event: 'panel.observation_failed',
+        serverVersion: diagnosticContext.serverVersion,
         requestId: c.get('dashboardRequestId'),
         boardId: context.boardId,
         panelId: context.panelId,
         operation: context.operation,
+        ...clientDiagnosticClaims(c.req.raw.headers, diagnosticContext),
         errorKind: adapted.envelope.error.kind,
         elapsedMs: Math.round(performance.now() - started),
         ...(context.sourceName ? { sourceName: context.sourceName } : {}),
@@ -386,6 +407,7 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
     const template = await templates.get(config.assetPath)
     const env: ClientEnv = {
       assetPath: config.assetPath,
+      assetPathId: diagnosticContext.configuredAssetPathId,
       proxyPath: config.proxyPath,
       board,
     }

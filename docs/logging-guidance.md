@@ -25,6 +25,10 @@ counts, lists of passing commands, build/package success, commit hashes, or push
 verification uncovered a meaningful environmental fact or changed a decision. A concise note that
 the repository gate passed is enough when verification is relevant to the entry.
 
+When an existing test prevents a real implementation mistake or reveals a meaningful contract gap,
+record that testing win and what it protected. Do not manufacture “wins” from routine red/green
+iteration, formatter fixes, or ordinary passing checks.
+
 When recording a completed work slice, use these as lightweight prompts rather than mandatory
 headings:
 

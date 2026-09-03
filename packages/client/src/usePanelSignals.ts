@@ -7,6 +7,7 @@ import {
   resolvePollingSettings,
 } from '@ze-great-dashboard/shared'
 import { useEffect, useRef, useState } from 'react'
+import { dashboardFetch } from './dashboard-fetch.ts'
 import { cacheMetadata, type DiagnosticSink } from './diagnostics.ts'
 import { panelDiagnosticChanged, projectPanelDiagnostic } from './panel-diagnostics.ts'
 import { BrowserPanelMemory, resolvePanelMemoryIdentity } from './panel-memory.ts'
@@ -91,7 +92,9 @@ export function usePanelSignals({
         const request = async (componentPath: string) => {
           diagnostics.record({ kind: 'panel-fetch-start', panelId: panel.id, path: componentPath })
           try {
-            const response = await fetch(componentPath, { signal: activeController?.signal })
+            const response = await dashboardFetch(env, componentPath, {
+              signal: activeController?.signal,
+            })
             const transport = {
               kind: 'panel-fetch-response' as const,
               panelId: panel.id,
@@ -210,7 +213,7 @@ export function usePanelSignals({
         if (cancelled || inFlight) return
         inFlight = true
         diagnostics.record({ kind: 'panel-fetch-start', panelId: panel.id, path })
-        fetch(path)
+        dashboardFetch(env, path)
           .then(async (response) => {
             const transport = {
               kind: 'panel-fetch-response' as const,
@@ -358,7 +361,7 @@ export function usePanelSignals({
       for (const controller of abortControllers) controller.abort()
       for (const timer of timers) window.clearTimeout(timer)
     }
-  }, [board, diagnostics, env.board, env.proxyPath])
+  }, [board, diagnostics, env])
 
   return { signals, updateHealth }
 }

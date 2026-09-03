@@ -179,6 +179,55 @@ describe('the http-value panel route', () => {
     ])
   })
 
+  it('normalizes browser diagnostic claims without retaining malformed or raw values', async () => {
+    const events: ServerLogEvent[] = []
+    const app = createApp({
+      config: loadConfig({
+        ASSET_PATH: 'https://assets.example.com/1.0.0',
+        SERVER_RELEASE: '1.4.0',
+      }),
+      boardConfig: { sources: {}, boards: { example: { panels: [panel] } } },
+      logger: { log: (event) => events.push(event) },
+    })
+    const assetId = 'sha256:376cc4dda23ff1ff5498cfe206fbbb6495b4d0085a939aa53e1335521b0eed1c'
+
+    await app.request('/api/panel/example/not-configured', {
+      headers: {
+        'x-dashboard-client-version': 'client-2.0.0',
+        'x-dashboard-client-origin': 'https://dashboard.example.test/a/path?secret=value',
+        'x-dashboard-client-asset-id': assetId,
+      },
+    })
+    await app.request('/api/panel/example/not-configured', {
+      headers: {
+        'x-dashboard-client-version': 'bad value with spaces',
+        'x-dashboard-client-origin': 'not a URL /private',
+        'x-dashboard-client-asset-id':
+          'sha256:6d9f5ba76e4d4d1a0a35deca7d74f1ce8b77c02ea7d38be38868e6b224ac7994',
+      },
+    })
+    await app.request('/api/panel/example/not-configured', {
+      headers: { 'x-dashboard-client-asset-id': 'https://assets.example.test/private-client' },
+    })
+
+    expect(events[0]).toMatchObject({
+      serverVersion: '1.4.0',
+      clientVersion: 'client-2.0.0',
+      clientOrigin: 'https://dashboard.example.test',
+      clientAssetPathMatchesConfigured: true,
+    })
+    expect(events[1]).toMatchObject({
+      serverVersion: '1.4.0',
+      clientAssetPathMatchesConfigured: false,
+    })
+    expect(events[1]).not.toHaveProperty('clientVersion')
+    expect(events[1]).not.toHaveProperty('clientOrigin')
+    expect(events[2]).toMatchObject({ serverVersion: '1.4.0' })
+    expect(events[2]).not.toHaveProperty('clientAssetPathMatchesConfigured')
+    expect(JSON.stringify(events)).not.toContain('private-client')
+    expect(JSON.stringify(events)).not.toContain('secret=value')
+  })
+
   it('records an upstream HTTP status without retaining its response body', async () => {
     const events: ServerLogEvent[] = []
     const body = 'token-like-response-body'
