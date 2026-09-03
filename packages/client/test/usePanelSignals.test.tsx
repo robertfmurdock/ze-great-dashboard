@@ -4,6 +4,7 @@ import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DiagnosticEventInput, DiagnosticSink } from '../src/diagnostics.ts'
 import type { HttpValueFactObservation, PanelUpdateHealth } from '../src/panel-props.ts'
+import type { PollingScheduleSnapshot } from '../src/polling-schedule.ts'
 import { usePanelSignals } from '../src/usePanelSignals.ts'
 
 const env: ClientEnv = {
@@ -53,6 +54,7 @@ function Probe({
   onSignals,
   onUpdateHealth,
   onFactSignals,
+  onSchedules,
 }: {
   diagnostics: DiagnosticSink
   currentBoard?: Board
@@ -61,11 +63,13 @@ function Probe({
   onFactSignals?: (
     facts: Record<string, Record<string, HttpValueFactObservation | undefined> | undefined>,
   ) => void
+  onSchedules?: (schedules: PollingScheduleSnapshot[]) => void
 }) {
   const result = usePanelSignals({ board: currentBoard, env, diagnostics })
   onSignals?.(result.signals)
   onUpdateHealth?.(result.updateHealth)
   onFactSignals?.(result.factSignals)
+  onSchedules?.(result.schedules)
   return null
 }
 
@@ -104,6 +108,33 @@ afterEach(() => {
 })
 
 describe('usePanelSignals', () => {
+  it('publishes an initial request snapshot and schedules the next poll only after settlement', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-03T12:00:00.000Z'))
+    const diagnostics = recordingSink()
+    let resolveFetch: ((response: Response) => void) | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFetch = resolve
+          }),
+      ),
+    )
+    let schedules: PollingScheduleSnapshot[] = []
+    render(<Probe diagnostics={diagnostics} onSchedules={(next) => (schedules = next)} />)
+    await act(async () => {})
+    expect(schedules[0]).toMatchObject({ panelId: 'build', inFlight: true, nextDueAt: undefined })
+    resolveFetch?.(new Response(envelope()))
+    await act(async () => {})
+    expect(schedules[0]).toMatchObject({
+      inFlight: false,
+      cadence: 'normal',
+      nextDueAt: '2026-09-03T12:00:01.000Z',
+    })
+  })
+
   it('records a compact rendered projection for independently observed HTTP facts', async () => {
     const diagnostics = recordingSink()
     vi.stubGlobal(
@@ -124,18 +155,29 @@ describe('usePanelSignals', () => {
       }),
     )
     let facts: Record<string, Record<string, HttpValueFactObservation | undefined> | undefined> = {}
+    let schedules: PollingScheduleSnapshot[] = []
 
     render(
       <Probe
         diagnostics={diagnostics}
         currentBoard={groupedHttpValueBoard}
         onFactSignals={(next) => (facts = next)}
+        onSchedules={(next) => (schedules = next)}
       />,
     )
     await act(async () => {})
 
     expect(facts.versions?.api?.envelope?.state).toBe('ok')
     expect(facts.versions?.web?.envelope?.state).toBe('error')
+    expect(schedules[0]).toMatchObject({
+      panelId: 'versions',
+      knownPaths: [
+        '/api/panel/ze-great-team/versions/facts/api',
+        '/api/panel/ze-great-team/versions/facts/web',
+      ],
+      inFlight: false,
+      cadence: 'normal',
+    })
     expect(diagnostics.events).toContainEqual(
       expect.objectContaining({
         kind: 'panel-rendered',

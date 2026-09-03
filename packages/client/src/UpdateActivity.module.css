@@ -1,0 +1,127 @@
+.activity {
+  position: relative;
+}
+.button {
+  border: 1px solid var(--edge);
+  border-radius: 0.25rem;
+  background: var(--surface-raised);
+  color: var(--ink-secondary);
+  font: inherit;
+  padding: 0.3em 0.55em;
+  cursor: pointer;
+}
+.dialog {
+  position: fixed;
+  z-index: 20;
+  right: var(--gap);
+  bottom: var(--gap);
+  width: min(46rem, calc(100vw - 2 * var(--gap)));
+  max-height: min(36rem, calc(100dvh - 2 * var(--gap)));
+  overflow: auto;
+  padding: 0.85rem;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  box-shadow: 0 0.5rem 1.5rem #0008;
+}
+.heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.heading p,
+.note,
+.detail p {
+  margin: 0.35rem 0;
+}
+.close {
+  border: 0;
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: 1.25em;
+  cursor: pointer;
+}
+.axis {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.8rem 0 0.2rem 9rem;
+  color: var(--ink-muted);
+  font-size: 0.75em;
+}
+.lanes {
+  display: grid;
+  gap: 0.3rem;
+}
+.lane {
+  display: grid;
+  grid-template-columns: 8rem 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  padding: 0.25rem;
+  color: var(--ink-secondary);
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.lane[data-selected] {
+  border-color: var(--ink-muted);
+}
+.laneLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.track {
+  position: relative;
+  height: 0.8rem;
+  border-bottom: 1px solid var(--edge);
+}
+.observed,
+.expected {
+  position: absolute;
+  top: 0.1rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  transform: translateX(-50%);
+}
+.observed {
+  border-radius: 50%;
+  background: var(--ink-primary);
+}
+.expected {
+  border: 1px solid var(--ink-secondary);
+  transform: translateX(-50%) rotate(45deg);
+}
+.legend {
+  color: var(--ink-muted);
+  font-size: 0.65em;
+}
+.detail {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--edge);
+  padding-top: 0.65rem;
+  color: var(--ink-secondary);
+}
+.detail code {
+  color: var(--ink-muted);
+}
+.note {
+  color: var(--ink-muted);
+  font-size: 0.8em;
+}
+@media (max-width: 40rem) {
+  .axis {
+    margin-left: 0;
+  }
+  .lane {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+  .legend {
+    display: none;
+  }
+}

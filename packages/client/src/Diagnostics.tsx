@@ -1,15 +1,31 @@
 import { useState, useSyncExternalStore } from 'react'
 import styles from './Diagnostics.module.css'
 import type { BrowserDiagnosticStore } from './diagnostics.ts'
+import type { UpdateActivitySnapshot } from './update-activity.ts'
 
-export function Diagnostics({ log }: { log: BrowserDiagnosticStore }) {
+export function Diagnostics({
+  log,
+  updateActivity,
+}: {
+  log: BrowserDiagnosticStore
+  updateActivity?: () => UpdateActivitySnapshot
+}) {
   const [open, setOpen] = useState(false)
   useSyncExternalStore(log.subscribe, log.snapshot, log.snapshot)
   const count = log.count()
   const githubConsistencyIncidents = log.githubConsistencyIncidentCount()
   const summary = log.summary()
   const download = () => {
-    const blob = new Blob([JSON.stringify(log.export(), null, 2)], { type: 'application/json' })
+    const blob = new Blob(
+      [
+        JSON.stringify(
+          log.export(updateActivity ? { updateActivity: updateActivity() } : {}),
+          null,
+          2,
+        ),
+      ],
+      { type: 'application/json' },
+    )
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url

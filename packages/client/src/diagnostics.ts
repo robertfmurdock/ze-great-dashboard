@@ -132,6 +132,10 @@ export type DiagnosticRetention = {
   eventsPrunedByAge: number
   eventsPrunedByCount: number
 }
+export type RetainedDiagnosticEvidence = {
+  events: DiagnosticEvent[]
+  retention: DiagnosticRetention
+}
 
 type StoredDiagnostics = {
   schemaVersion: number
@@ -211,6 +215,11 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
   summary = (): DiagnosticsSummary =>
     summarizeDiagnostics(this.events, this.retention, this.incidents.length)
 
+  retainedEvidence = (): RetainedDiagnosticEvidence => ({
+    events: [...this.events],
+    retention: { ...this.retention },
+  })
+
   clear() {
     this.events = []
     this.incidents = []
@@ -227,7 +236,7 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
     }
   }
 
-  export = () => {
+  export = <TSupplement extends object = object>(supplement?: TSupplement) => {
     return {
       schemaVersion: diagnosticsSchemaVersion,
       exportedAt: this.now().toISOString(),
@@ -241,6 +250,7 @@ export class BrowserDiagnosticStore implements DiagnosticSink {
       events: this.events,
       githubConsistencyIncidents: this.incidents,
       summary: this.summary(),
+      ...supplement,
     }
   }
 

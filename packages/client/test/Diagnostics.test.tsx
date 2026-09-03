@@ -52,9 +52,9 @@ describe('Diagnostics control', () => {
     expect(screen.getByRole('button', { name: /Diagnostics \(2\)/ })).not.toBeNull()
   })
 
-  it('downloads its JSON evidence and only clears after confirmation', () => {
+  it('downloads its JSON evidence and only clears after confirmation', async () => {
     const diagnosticLog = log()
-    const createObjectURL = vi.fn(() => 'blob:test')
+    const createObjectURL = vi.fn((_blob: Blob) => 'blob:test')
     const revokeObjectURL = vi.fn()
     vi.stubGlobal('URL', { createObjectURL, revokeObjectURL })
     vi.stubGlobal(
@@ -62,10 +62,24 @@ describe('Diagnostics control', () => {
       vi.fn(() => false),
     )
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-    render(<Diagnostics log={diagnosticLog} />)
+    render(
+      <Diagnostics
+        log={diagnosticLog}
+        updateActivity={() => ({
+          capturedAt: '2026-08-21T12:00:00.000Z',
+          window: { from: '2026-08-21T11:50:00.000Z', to: '2026-08-21T12:00:00.000Z' },
+          schedules: [],
+        })}
+      />,
+    )
     fireEvent.click(screen.getByRole('button', { name: /Diagnostics/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Download' }))
     expect(createObjectURL).toHaveBeenCalled()
+    const blob = createObjectURL.mock.calls[0]?.[0]
+    if (!blob) throw new Error('Expected diagnostics download blob.')
+    expect(JSON.parse(await blob.text())).toMatchObject({
+      updateActivity: { window: { from: '2026-08-21T11:50:00.000Z' }, schedules: [] },
+    })
     expect(click).toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
     expect(diagnosticLog.count()).toBe(1)

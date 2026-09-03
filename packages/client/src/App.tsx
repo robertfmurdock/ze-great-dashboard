@@ -11,6 +11,8 @@ import { dashboardFetch } from './dashboard-fetch.ts'
 import { BrowserDiagnosticStore, cacheMetadata } from './diagnostics.ts'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PanelRenderer } from './panel-registry.tsx'
+import { UpdateActivity } from './UpdateActivity.tsx'
+import { projectUpdateActivity } from './update-activity.ts'
 import { useClientUpdate } from './useClientUpdate.ts'
 import { usePanelSignals } from './usePanelSignals.ts'
 
@@ -29,7 +31,7 @@ export function App({ env }: { env: ClientEnv }) {
   if (!diagnosticsRef.current) diagnosticsRef.current = new BrowserDiagnosticStore(env)
   const diagnostics = diagnosticsRef.current
   useClientUpdate({ env, diagnostics })
-  const { signals, updateHealth, factSignals } = usePanelSignals({
+  const { signals, updateHealth, factSignals, schedules } = usePanelSignals({
     board: loadedBoardName === env.board ? board : undefined,
     env,
     diagnostics,
@@ -128,7 +130,22 @@ export function App({ env }: { env: ClientEnv }) {
           {layout && layout.issues.length > 0 && (
             <LayoutWarning board={env.board} layout={layout} proxyPath={env.proxyPath} />
           )}
-          <Diagnostics log={diagnostics} />
+          <Diagnostics
+            log={diagnostics}
+            updateActivity={() => {
+              const evidence = diagnostics.retainedEvidence()
+              const projected = projectUpdateActivity({
+                schedules,
+                ...evidence,
+              })
+              return {
+                capturedAt: projected.capturedAt,
+                window: projected.window,
+                schedules: projected.schedules,
+              }
+            }}
+          />
+          <UpdateActivity board={board} schedules={schedules} log={diagnostics} />
         </div>
       </footer>
     </div>

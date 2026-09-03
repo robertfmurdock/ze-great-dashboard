@@ -3,8 +3,6 @@ import {
   type ClientEnv,
   type Envelope,
   envelopeSchema,
-  isZeroPosition,
-  resolvePollingSettings,
 } from '@ze-great-dashboard/shared'
 import { useEffect, useRef, useState } from 'react'
 import { dashboardFetch } from './dashboard-fetch.ts'
@@ -19,7 +17,13 @@ import { BrowserPanelMemory, resolvePanelMemoryIdentity } from './panel-memory.t
 import { readPanelObservation } from './panel-observation.ts'
 import type { HttpValueFactObservation, PanelUpdateHealth } from './panel-props.ts'
 import { reconcilePipelineResponse } from './pipeline-reconciliation.ts'
-import { nextPollDelayMillis } from './polling-schedule.ts'
+import {
+  initialPollingSchedule,
+  panelProxyPath,
+  pollingPanels,
+  readUpdateWorkflows,
+} from './polling-panels.ts'
+import { type PollingScheduleSnapshot, resolveNextPoll } from './polling-schedule.ts'
 import { rollupPullRequestHealth } from './pull-request-rollup.ts'
 
 export function usePanelSignals({
@@ -40,6 +44,7 @@ export function usePanelSignals({
   const [factSignals, setFactSignals] = useState<
     Record<string, Record<string, HttpValueFactObservation | undefined> | undefined>
   >({})
+  const [schedules, setSchedules] = useState<PollingScheduleSnapshot[]>([])
   const signalsRef = useRef<Record<string, Envelope | undefined>>({})
   const factSignalsRef = useRef<
     Record<string, Record<string, HttpValueFactObservation | undefined> | undefined>
@@ -53,24 +58,34 @@ export function usePanelSignals({
     setSignals({})
     setUpdateHealth({})
     setFactSignals({})
+    setSchedules([])
     if (!board) return
 
     let cancelled = false
     const timers = new Set<number>()
     const abortControllers = new Set<AbortController>()
-    for (const panel of board.panels) {
-      if (isZeroPosition(panel.position)) continue
-      if (
-        panel.type !== 'pipeline-status' &&
-        panel.type !== 'pull-request-health' &&
-        panel.type !== 'http-value'
+    const panels = pollingPanels(board)
+    const initialSchedules = panels.map((panel) => initialPollingSchedule(board, env, panel))
+    const schedulesByPanelId = new Map(
+      initialSchedules.map((schedule) => [schedule.panelId, schedule]),
+    )
+    setSchedules(initialSchedules)
+    const updateSchedule = (panelId: string, update: Partial<PollingScheduleSnapshot>) => {
+      if (cancelled) return
+      setSchedules((current) =>
+        current.map((schedule) =>
+          schedule.panelId === panelId ? { ...schedule, ...update } : schedule,
+        ),
       )
-        continue
+    }
+    for (const panel of panels) {
       let inFlight = false
       const memory = memoryRef.current
       if (!memory) return
-      const settings = resolvePollingSettings(board, panel)
-      const path = `${env.proxyPath}/panel/${encodeURIComponent(env.board)}/${encodeURIComponent(panel.id)}`
+      const schedule = schedulesByPanelId.get(panel.id)
+      if (!schedule) continue
+      const { settings } = schedule
+      const path = panelProxyPath(env, panel.id)
       let lastEnvelope: Envelope | undefined
       let lastConfirmedAt: string | undefined
       const recordConfirmedUpdate = () => {
@@ -106,6 +121,11 @@ export function usePanelSignals({
         const refreshFacts = async () => {
           if (cancelled || inFlight) return
           inFlight = true
+          updateSchedule(panel.id, {
+            inFlight: true,
+            lastRequestStartedAt: new Date().toISOString(),
+            nextDueAt: undefined,
+          })
           activeController = new AbortController()
           abortControllers.add(activeController)
           const root = `${path}/facts`
@@ -139,6 +159,12 @@ export function usePanelSignals({
           inFlight = false
           abortControllers.delete(activeController)
           if (!cancelled) {
+            const due = Date.now() + settings.refreshMillis
+            updateSchedule(panel.id, {
+              inFlight: false,
+              cadence: 'normal',
+              nextDueAt: new Date(due).toISOString(),
+            })
             const timer = window.setTimeout(() => {
               timers.delete(timer)
               void refreshFacts()
@@ -168,6 +194,11 @@ export function usePanelSignals({
         const refreshPullRequestHealth = async () => {
           if (cancelled || inFlight) return
           inFlight = true
+          updateSchedule(panel.id, {
+            inFlight: true,
+            lastRequestStartedAt: new Date().toISOString(),
+            nextDueAt: undefined,
+          })
           activeController = new AbortController()
           abortControllers.add(activeController)
           const root = path
@@ -228,13 +259,17 @@ export function usePanelSignals({
           inFlight = false
           abortControllers.delete(activeController)
           if (!cancelled) {
-            const nextTimer = window.setTimeout(
-              () => {
-                timers.delete(nextTimer)
-                void refreshPullRequestHealth()
-              },
-              nextPollDelayMillis(lastEnvelope, Date.now(), settings),
-            )
+            const next = resolveNextPoll(lastEnvelope, Date.now(), settings)
+            const due = Date.now() + next.delayMillis
+            updateSchedule(panel.id, {
+              inFlight: false,
+              cadence: next.cadence,
+              nextDueAt: new Date(due).toISOString(),
+            })
+            const nextTimer = window.setTimeout(() => {
+              timers.delete(nextTimer)
+              void refreshPullRequestHealth()
+            }, next.delayMillis)
             timers.add(nextTimer)
           }
         }
@@ -244,6 +279,11 @@ export function usePanelSignals({
       const refresh = () => {
         if (cancelled || inFlight) return
         inFlight = true
+        updateSchedule(panel.id, {
+          inFlight: true,
+          lastRequestStartedAt: new Date().toISOString(),
+          nextDueAt: undefined,
+        })
         diagnostics.record({ kind: 'panel-fetch-start', panelId: panel.id, path })
         dashboardFetch(env, path)
           .then(async (response) => {
@@ -375,13 +415,17 @@ export function usePanelSignals({
           .finally(() => {
             inFlight = false
             if (!cancelled) {
-              const nextTimer = window.setTimeout(
-                () => {
-                  timers.delete(nextTimer)
-                  refresh()
-                },
-                nextPollDelayMillis(lastEnvelope, Date.now(), settings),
-              )
+              const next = resolveNextPoll(lastEnvelope, Date.now(), settings)
+              const due = Date.now() + next.delayMillis
+              updateSchedule(panel.id, {
+                inFlight: false,
+                cadence: next.cadence,
+                nextDueAt: new Date(due).toISOString(),
+              })
+              const nextTimer = window.setTimeout(() => {
+                timers.delete(nextTimer)
+                refresh()
+              }, next.delayMillis)
               timers.add(nextTimer)
             }
           })
@@ -395,7 +439,7 @@ export function usePanelSignals({
     }
   }, [board, diagnostics, env])
 
-  return { signals, updateHealth, factSignals }
+  return { signals, updateHealth, factSignals, schedules }
 }
 
 function failedObservation(envelope: Extract<Envelope, { state: 'error' }>, response: Response) {
@@ -404,18 +448,6 @@ function failedObservation(envelope: Extract<Envelope, { state: 'error' }>, resp
     reason: envelope.error.message,
     ...(supportReference ? { supportReference } : {}),
   }
-}
-
-function readUpdateWorkflows(panel: Board['panels'][number]) {
-  const value = panel.update_workflows
-  if (!Array.isArray(value)) return []
-  return value.flatMap((entry) =>
-    typeof entry === 'object' &&
-    entry !== null &&
-    typeof (entry as { workflow?: unknown }).workflow === 'string'
-      ? [{ workflow: (entry as { workflow: string }).workflow }]
-      : [],
-  )
 }
 
 function isCandidates(
