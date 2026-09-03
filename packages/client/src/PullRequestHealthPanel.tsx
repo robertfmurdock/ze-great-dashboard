@@ -1,6 +1,6 @@
 import { pullRequestHealthSchema } from '@ze-great-dashboard/shared'
 import { errorPresentation } from './error-presentation.ts'
-import { PanelFrame, PanelHint, PanelMetadata, PanelStatus } from './PanelFrame.tsx'
+import { PanelEvidence, PanelFrame, PanelHint, PanelMetadata, PanelStatus } from './PanelFrame.tsx'
 import styles from './PullRequestHealthPanel.module.css'
 import type { PanelProps } from './panel-props.ts'
 import { statusPresentation } from './panel-status.ts'
@@ -11,15 +11,19 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
   if (!envelope)
     return (
       <PanelFrame panel={panel}>
-        <PanelHint>Loading…</PanelHint>
+        <PanelEvidence>
+          <PanelHint>Loading…</PanelHint>
+        </PanelEvidence>
       </PanelFrame>
     )
   if (envelope.state === 'error') {
     const presentation = errorPresentation(envelope.error.kind)
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <PanelStatus emphasis={presentation.emphasis}>⚠ {presentation.label}</PanelStatus>
-        <PanelHint>{envelope.error.message}</PanelHint>
+        <PanelEvidence>
+          <PanelStatus emphasis={presentation.emphasis}>⚠ {presentation.label}</PanelStatus>
+          <PanelHint>{envelope.error.message}</PanelHint>
+        </PanelEvidence>
       </PanelFrame>
     )
   }
@@ -27,7 +31,9 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
   if (!signal.success)
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <PanelStatus>⚠ Invalid signal</PanelStatus>
+        <PanelEvidence>
+          <PanelStatus>⚠ Invalid signal</PanelStatus>
+        </PanelEvidence>
       </PanelFrame>
     )
   const presentation = statusPresentation(signal.data.status, 'Healthy')
@@ -58,6 +64,7 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
             glyph="⚙"
             label="Update workflows"
             value={compactFacts.workflow}
+            compact={{ kind: 'short-value', value: signal.data.workflows.length }}
             title={`Update workflows: ${compactFacts.workflow}`}
             className={styles.compactFact}
           />
@@ -65,6 +72,7 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
             glyph="⎇"
             label="Open update pull requests"
             value={compactFacts.pullRequests}
+            compact={{ kind: 'short-value', value: signal.data.pullRequests.length }}
             title={`Open update pull requests: ${compactFacts.pullRequests}`}
             className={styles.compactFact}
           />

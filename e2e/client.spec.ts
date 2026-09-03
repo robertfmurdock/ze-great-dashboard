@@ -299,7 +299,7 @@ test('fits a positioned board inside the desktop viewport', async ({ page }) => 
   )
 })
 
-test('keeps four independently sourced facts readable inside one compact panel', async ({
+test('keeps four independently sourced facts readable inside one compact portrait panel', async ({
   page,
 }) => {
   const facts = [
@@ -317,7 +317,7 @@ test('keeps four independently sourced facts readable inside one compact panel',
         type: 'http-value',
         density: 'compact',
         facts,
-        position: { x: 0, y: 0, w: 6, h: 4 },
+        position: { x: 0, y: 0, w: 1, h: 12 },
       },
     ],
   })
@@ -500,6 +500,7 @@ test('centers pull-request status in a narrow tall tile while retaining normal a
       const label = rect('h2')
       const status = rect('[data-panel-anchor="status"]')
       const evidence = rect('[data-panel-anchor="evidence"]')
+      const panelRect = panel.getBoundingClientRect()
       return {
         id: panel.dataset.panelId,
         facts: getComputedStyle(panel.querySelector('[data-compact-facts]') as Element).display,
@@ -509,7 +510,15 @@ test('centers pull-request status in a narrow tall tile while retaining normal a
         fits: panel.scrollHeight <= panel.clientHeight,
         anchors:
           label && status && evidence
-            ? { labelBottom: label.bottom, statusTop: status.top, evidenceTop: evidence.top }
+            ? {
+                panelTop: panelRect.top,
+                panelHeight: panelRect.height,
+                labelRight: label.right,
+                statusLeft: status.left,
+                statusTop: status.top,
+                statusBottom: status.bottom,
+                evidenceTop: evidence.top,
+              }
             : undefined,
       }
     }),
@@ -521,11 +530,12 @@ test('centers pull-request status in a narrow tall tile while retaining normal a
     fits: true,
   })
   const tallAnchors = presentation.find((panel) => panel.id === 'updates-tall')?.anchors
+  expect(tallAnchors?.labelRight).toBeLessThan(tallAnchors?.statusLeft ?? Number.NEGATIVE_INFINITY)
   expect(tallAnchors?.statusTop).toBeGreaterThan(
-    tallAnchors?.labelBottom ?? Number.POSITIVE_INFINITY,
+    (tallAnchors?.panelTop ?? Number.POSITIVE_INFINITY) + (tallAnchors?.panelHeight ?? 0) * 0.2,
   )
   expect(tallAnchors?.evidenceTop).toBeGreaterThan(
-    tallAnchors?.statusTop ?? Number.POSITIVE_INFINITY,
+    tallAnchors?.statusBottom ?? Number.POSITIVE_INFINITY,
   )
   expect(presentation.find((panel) => panel.id === 'updates-normal')).toMatchObject({
     facts: 'none',
@@ -1001,6 +1011,38 @@ test('keeps the focused signal-field demo expanded at panel scale', async ({ pag
   expect(geometry.visualWidth).toBeGreaterThan(geometry.panelWidth * 0.8)
   expect(geometry.visualHeight).toBeGreaterThan(geometry.panelHeight * 0.5)
   expect(geometry.tracksDisplay).toBe('flex')
+})
+
+test('keeps the animation demo legible in a portrait panel', async ({ page }) => {
+  await stubDashboard(page, {
+    panels: [
+      {
+        id: 'portrait-motion-review',
+        label: 'Motion review',
+        type: 'pipeline-animation-demo',
+        running_animation: 'radial',
+        position: { x: 0, y: 0, w: 1, h: 12 },
+      },
+    ],
+  })
+  await page.setViewportSize({ width: 2400, height: 1200 })
+  await page.goto('/')
+
+  const presentation = await page
+    .locator('[data-panel-id="portrait-motion-review"]')
+    .evaluate((panel) => {
+      const label = panel.querySelector('h2')?.getBoundingClientRect()
+      const status = panel.querySelector('[class*="status"]')
+      return {
+        fits: panel.scrollHeight <= panel.clientHeight,
+        labelHeight: label?.height ?? 0,
+        labelWidth: label?.width ?? 0,
+        status: status?.textContent,
+      }
+    })
+  expect(presentation.fits).toBe(true)
+  expect(presentation.labelHeight).toBeGreaterThan(presentation.labelWidth)
+  expect(presentation.status).toContain('Running')
 })
 
 test('keeps the showcase signal-field visual inside its three-row panel', async ({ page }) => {

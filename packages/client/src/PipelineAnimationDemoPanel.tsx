@@ -1,7 +1,7 @@
 import { type Panel, parseDuration } from '@ze-great-dashboard/shared'
 import { useEffect, useState } from 'react'
 import { fallingSeed } from './falling-shapes.ts'
-import { PanelFrame, PanelStatus } from './PanelFrame.tsx'
+import { PanelEvidence, PanelFrame, PanelStatus } from './PanelFrame.tsx'
 import styles from './PipelineAnimationDemoPanel.module.css'
 import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
 import { RunningFieldTiming } from './RunningFieldTiming.tsx'
@@ -90,17 +90,22 @@ function DemoRun({
         ) : undefined
       }
     >
-      <PanelStatus status="running">↻ Running</PanelStatus>
-      <p className={styles.variant}>Demo treatment · {animation}</p>
-      {usesField ? (
-        <RunningFieldTiming
-          elapsedMs={timing.elapsedMs}
-          estimatedDurationMs={estimatedDurationMs}
-          overdue={timing.overdue}
-        />
-      ) : (
-        <RunningProgress animation={animation} timing={timing} />
-      )}
+      <PanelEvidence>
+        <PanelStatus status="running">↻ Running</PanelStatus>
+        <p className={styles.variant}>
+          <span className={styles.variantPrefix}>Demo treatment · </span>
+          {animation}
+        </p>
+        {usesField ? (
+          <RunningFieldTiming
+            elapsedMs={timing.elapsedMs}
+            estimatedDurationMs={estimatedDurationMs}
+            overdue={timing.overdue}
+          />
+        ) : (
+          <RunningProgress animation={animation} timing={timing} />
+        )}
+      </PanelEvidence>
     </PanelFrame>
   )
 }

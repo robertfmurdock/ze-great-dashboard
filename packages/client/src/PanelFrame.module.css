@@ -31,6 +31,9 @@
   min-height: 0;
   overflow: hidden;
 }
+.evidence {
+  display: contents;
+}
 /* The source link owns its corner, so the label and evidence never render beneath it. */
 .panel:has(.sourceAction) .content {
   padding-inline-end: 2.25em;
@@ -104,6 +107,9 @@
 .metaValue {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.compactValue {
+  display: none;
 }
 .warning {
   color: var(--status-warning);
@@ -282,6 +288,23 @@
     font-size: 0.6em;
   }
 }
+@container panel (max-width: 13rem) {
+  /* Compact evidence keeps its full wording for assistive technology and the hover title. */
+  .meta:has(.compactValue) .fullValue {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .meta:has(.compactValue) .compactValue {
+    display: inline;
+  }
+}
 @container panel (max-width: 8rem) {
   /* Text-light is an internal sub-mode: secondary text remains in the accessibility tree. */
   .content {
@@ -342,4 +365,48 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Portrait cells get a vertical identity rail. This is a shape treatment, not board config. */
+@container panel (max-width: 13rem) and (min-height: 10rem) and (max-aspect-ratio: 3 / 4) {
+  .content {
+    display: grid;
+    grid-template-columns: minmax(1em, auto) minmax(0, 1fr);
+    grid-auto-rows: min-content;
+    align-content: start;
+    column-gap: 0.35em;
+    row-gap: 0.15em;
+  }
+  .label {
+    grid-column: 1;
+    grid-row: 1 / span 12;
+    align-self: stretch;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  [data-panel-evidence] > *,
+  .content > [data-panel-anchor="status"],
+  .content > [data-panel-anchor="evidence"] {
+    grid-column: 2;
+  }
+  .threeAnchor {
+    grid-template-columns: minmax(1em, auto) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+  .threeAnchor .label {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+  }
+  .threeAnchor > [data-panel-anchor="status"] {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+  }
+  .threeAnchor > [data-panel-anchor="evidence"] {
+    grid-column: 2;
+    grid-row: 3;
+    align-self: end;
+  }
 }

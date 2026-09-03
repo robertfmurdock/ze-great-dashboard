@@ -1,7 +1,7 @@
 import { cleanup, render } from '@testing-library/react'
 import type { Envelope, Panel } from '@ze-great-dashboard/shared'
 import { afterEach, describe, expect, it } from 'vitest'
-import { PanelFrame } from '../src/PanelFrame.tsx'
+import { PanelFrame, PanelMetadata } from '../src/PanelFrame.tsx'
 
 const panel: Panel = {
   id: 'build',
@@ -54,6 +54,29 @@ describe('PanelFrame', () => {
       </PanelFrame>,
     ).container
     expect(explicit.querySelector('[data-panel]')?.getAttribute('data-density')).toBe('compact')
+  })
+
+  it('retains a full metadata value while offering a text-light alternative', () => {
+    const rendered = render(
+      <PanelFrame panel={panel}>
+        <PanelMetadata
+          glyph="◷"
+          label="Duration"
+          value="Took 7 minutes"
+          compact={{ kind: 'short-value', value: '7m' }}
+          title="Duration: Took 7 minutes"
+        />
+      </PanelFrame>,
+    ).container
+
+    expect(rendered.textContent).toContain('Duration:')
+    expect(rendered.querySelector('[title]')?.getAttribute('title')).toBe(
+      'Duration: Took 7 minutes',
+    )
+    expect(rendered.querySelector('[aria-hidden="true"] + .screen-reader-only')?.textContent).toBe(
+      'Duration: ',
+    )
+    expect(rendered.textContent).toContain('7m')
   })
 
   it('exposes the opt-in three-anchor layout hook without changing default panels', () => {

@@ -9,7 +9,7 @@ import {
 import { useRef, useState } from 'react'
 import { errorPresentation } from './error-presentation.ts'
 import { fallingSeed } from './falling-shapes.ts'
-import { PanelFrame, PanelHint, PanelMetadata, PanelStatus } from './PanelFrame.tsx'
+import { PanelEvidence, PanelFrame, PanelHint, PanelMetadata, PanelStatus } from './PanelFrame.tsx'
 import styles from './PipelinePanel.module.css'
 import type { PanelProps } from './panel-props.ts'
 import { statusPresentation } from './panel-status.ts'
@@ -24,15 +24,19 @@ export function PipelinePanel({ panel, envelope, updateHealth }: PanelProps) {
   if (!envelope)
     return (
       <PanelFrame panel={panel}>
-        <PanelHint>Loading…</PanelHint>
+        <PanelEvidence>
+          <PanelHint>Loading…</PanelHint>
+        </PanelEvidence>
       </PanelFrame>
     )
   if (envelope.state === 'error') {
     const presentation = errorPresentation(envelope.error.kind)
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <PanelStatus emphasis={presentation.emphasis}>⚠ {presentation.label}</PanelStatus>
-        <PanelHint>{envelope.error.message}</PanelHint>
+        <PanelEvidence>
+          <PanelStatus emphasis={presentation.emphasis}>⚠ {presentation.label}</PanelStatus>
+          <PanelHint>{envelope.error.message}</PanelHint>
+        </PanelEvidence>
       </PanelFrame>
     )
   }
@@ -41,7 +45,9 @@ export function PipelinePanel({ panel, envelope, updateHealth }: PanelProps) {
   if (!signal.success)
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <PanelStatus>⚠ Invalid signal</PanelStatus>
+        <PanelEvidence>
+          <PanelStatus>⚠ Invalid signal</PanelStatus>
+        </PanelEvidence>
       </PanelFrame>
     )
   return (
@@ -99,7 +105,7 @@ function PipelineSignalPanel({
         ) : undefined
       }
     >
-      <div className={styles.details}>
+      <PanelEvidence className={styles.details}>
         <PanelStatus status={signal.status}>
           {presentation.glyph} {presentation.label}
         </PanelStatus>
@@ -108,6 +114,7 @@ function PipelineSignalPanel({
             glyph="⚙"
             label="Activity"
             value={formatPipelineActivity(signal.activity)}
+            compact={{ kind: 'glyph-only' }}
             title={`Activity: ${formatPipelineActivity(signal.activity)}`}
             className={styles.activity}
           />
@@ -117,6 +124,10 @@ function PipelineSignalPanel({
             glyph="⎇"
             label="Branch"
             value={<span className={styles.branch}>{signal.branch}</span>}
+            compact={{
+              kind: 'short-value',
+              value: <span className={styles.branch}>{signal.branch}</span>,
+            }}
             title={`Branch: ${signal.branch}`}
           />
         )}
@@ -133,6 +144,7 @@ function PipelineSignalPanel({
             glyph="◷"
             label="Duration"
             value={`Took ${formatDuration(signal.durationMs)}`}
+            compact={{ kind: 'short-value', value: formatDuration(signal.durationMs) }}
             title={`Duration: Took ${formatDuration(signal.durationMs)}`}
             className={styles.duration}
           />
@@ -144,7 +156,7 @@ function PipelineSignalPanel({
           runStartedAt={signal.runStartedAt}
         />
         {updateHealth && <UpdateHealth health={updateHealth} />}
-      </div>
+      </PanelEvidence>
     </PanelFrame>
   )
 }

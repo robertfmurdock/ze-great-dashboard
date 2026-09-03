@@ -73,9 +73,12 @@ window is deliberately bounded so a delayed run cannot keep the tighter cadence 
 `position` controls a panel's grid footprint and is the space control. The optional `density` setting
 controls its content budget: `auto` (the default) makes a bounded best effort, `comfortable` keeps
 secondary information readable longer, and `compact` condenses earlier. Density never changes the
-authored grid cell or affects neighboring panels. In especially narrow or vertical cells, panels
-may automatically become icon-led; this is an internal text-light presentation, not another board
-setting. Labels and statuses remain visible, and statuses always include a glyph and readable label.
+authored grid cell or affects neighboring panels. The renderer also adapts automatically to the
+allocated shape: wide shallow cells become scan rows, regular cells stack evidence, narrow short
+cells use compact evidence, and narrow portrait cells turn the panel label into a vertical identity
+rail. This is internal presentation rather than another board setting. Secondary prose may become
+a glyph and short value, with its full wording retained for assistive technology and hover. Labels
+and statuses remain visible, and statuses always include a glyph and readable label.
 
 Sources are reusable named definitions. Current source and panel adapters determine which
 additional fields they accept; for example, `github-actions` uses `repo`, an optional `branch`,

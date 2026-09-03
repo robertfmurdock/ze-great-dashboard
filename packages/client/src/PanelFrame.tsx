@@ -4,6 +4,7 @@ import styles from './PanelFrame.module.css'
 import { panelLayout } from './panel-layout.ts'
 
 type PanelStatusKind = PipelineStatus['status']
+type CompactEvidence = { kind: 'short-value'; value: ReactNode } | { kind: 'glyph-only' }
 
 export function PanelHint({
   children,
@@ -26,6 +27,7 @@ export function PanelMetadata({
   glyph,
   label,
   value,
+  compact,
   title,
   observed = false,
   emphasis,
@@ -34,6 +36,8 @@ export function PanelMetadata({
   glyph: string
   label: string
   value: ReactNode
+  /** A text-light visual alternative; the full value remains available to assistive technology. */
+  compact?: CompactEvidence
   title?: string
   observed?: boolean
   emphasis?: 'warning' | 'serious'
@@ -46,9 +50,29 @@ export function PanelMetadata({
     >
       <span aria-hidden="true">{glyph}</span> <span className="screen-reader-only">{label}: </span>
       <span className={styles.metaValue} title={title}>
-        {value}
+        <span className={styles.fullValue}>{value}</span>
+        {compact && (
+          <span className={styles.compactValue} aria-hidden="true">
+            {compact.kind === 'short-value' ? compact.value : null}
+          </span>
+        )}
       </span>
     </p>
+  )
+}
+
+/** Stable layout slot for a panel's ordinary readable evidence. */
+export function PanelEvidence({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={`${styles.evidence} ${className ?? ''}`} data-panel-evidence>
+      {children}
+    </div>
   )
 }
 
@@ -113,7 +137,9 @@ export function PanelFrame({
         data-panel-content
         data-panel-layout={layout}
       >
-        <h2 className={styles.label}>{panel.label ?? panel.id}</h2>
+        <h2 className={styles.label} data-panel-anchor="identity">
+          {panel.label ?? panel.id}
+        </h2>
         {children}
       </div>
     </section>

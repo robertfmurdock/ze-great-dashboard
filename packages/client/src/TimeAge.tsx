@@ -52,6 +52,7 @@ function TimeAge({ value, label }: { value: string; label: string }) {
       glyph="◷"
       label={label}
       value={content}
+      compact={{ kind: 'short-value', value: formatCompactAge(age) }}
       title={`${label} at ${formatted}`}
       observed
     />
@@ -64,4 +65,12 @@ export function formatAge(milliseconds: number) {
   if (minutes < 60) return `${minutes}m ago`
   const hours = Math.floor(minutes / 60)
   return `${hours}h ${minutes % 60}m ago`
+}
+
+function formatCompactAge(milliseconds: number) {
+  if (milliseconds < 60_000) return 'now'
+  const minutes = Math.floor(milliseconds / 60_000)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ${minutes % 60}m`
 }

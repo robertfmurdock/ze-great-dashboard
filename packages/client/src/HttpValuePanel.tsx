@@ -1,7 +1,7 @@
 import { httpValueSchema } from '@ze-great-dashboard/shared'
 import { errorPresentation } from './error-presentation.ts'
 import styles from './HttpValuePanel.module.css'
-import { PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
+import { PanelEvidence, PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
 import type { HttpValueFactObservation, PanelProps } from './panel-props.ts'
 import { ObservedAt, UpdateHealth } from './TimeAge.tsx'
 
@@ -10,15 +10,19 @@ export function HttpValuePanel({ panel, envelope, updateHealth, facts }: PanelPr
   if (!envelope)
     return (
       <PanelFrame panel={panel}>
-        <PanelHint>Loading…</PanelHint>
+        <PanelEvidence>
+          <PanelHint>Loading…</PanelHint>
+        </PanelEvidence>
       </PanelFrame>
     )
   if (envelope.state === 'error') {
     const presentation = errorPresentation(envelope.error.kind)
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <PanelStatus emphasis={presentation.emphasis}>⚠ {presentation.label}</PanelStatus>
-        <PanelHint>{envelope.error.message}</PanelHint>
+        <PanelEvidence>
+          <PanelStatus emphasis={presentation.emphasis}>⚠ {presentation.label}</PanelStatus>
+          <PanelHint>{envelope.error.message}</PanelHint>
+        </PanelEvidence>
       </PanelFrame>
     )
   }
@@ -26,16 +30,18 @@ export function HttpValuePanel({ panel, envelope, updateHealth, facts }: PanelPr
   if (!signal.success)
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
-        <PanelStatus>⚠ Invalid value</PanelStatus>
+        <PanelEvidence>
+          <PanelStatus>⚠ Invalid value</PanelStatus>
+        </PanelEvidence>
       </PanelFrame>
     )
   return (
     <PanelFrame panel={panel} envelope={envelope}>
-      <div className={styles.fact}>
+      <PanelEvidence className={styles.fact}>
         <PanelStatus>{String(signal.data.value)}</PanelStatus>
         <ObservedAt value={envelope.observedAt} />
         {updateHealth && <UpdateHealth health={updateHealth} />}
-      </div>
+      </PanelEvidence>
     </PanelFrame>
   )
 }
@@ -44,11 +50,13 @@ function GroupedHttpValuePanel({ panel, facts }: Pick<PanelProps, 'panel' | 'fac
   if (!panel.facts) return null
   return (
     <PanelFrame panel={panel}>
-      <div className={styles.facts} data-http-value-facts>
-        {panel.facts.map((fact) => (
-          <HttpValueFactCell key={fact.id} label={fact.label} observation={facts?.[fact.id]} />
-        ))}
-      </div>
+      <PanelEvidence>
+        <div className={styles.facts} data-http-value-facts>
+          {panel.facts.map((fact) => (
+            <HttpValueFactCell key={fact.id} label={fact.label} observation={facts?.[fact.id]} />
+          ))}
+        </div>
+      </PanelEvidence>
     </PanelFrame>
   )
 }
