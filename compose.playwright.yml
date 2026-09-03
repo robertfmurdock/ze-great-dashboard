@@ -3,7 +3,12 @@ services:
     image: mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION:?Set PLAYWRIGHT_VERSION}-noble
     init: true
     ipc: host
-    network_mode: host
+    ports:
+      - target: 3000
+        published: 0
+        host_ip: 127.0.0.1
+    extra_hosts:
+      - host.docker.internal:host-gateway
     working_dir: /workspace
     volumes:
       - .:/workspace:ro

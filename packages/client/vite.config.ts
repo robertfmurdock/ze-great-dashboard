@@ -43,6 +43,10 @@ export default defineConfig({
     // The server fetches this template cross-origin during local development.
     cors: true,
   },
+  preview: {
+    // The browser runs in the Playwright container while this preview server remains on the host.
+    allowedHosts: ['host.docker.internal'],
+  },
   build: {
     // A published version is immutable, so a stale manifest is worth catching loudly.
     manifest: true,

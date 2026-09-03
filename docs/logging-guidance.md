@@ -29,6 +29,13 @@ When an existing test prevents a real implementation mistake or reveals a meanin
 record that testing win and what it protected. Do not manufacture “wins” from routine red/green
 iteration, formatter fixes, or ordinary passing checks.
 
+Record a **test miss** when release-relevant behavior was not protected because the test did not
+exercise its intended interface or execution environment. This includes a test that passes locally
+but fails under the actual CI, container, browser, deployment, or dependency topology. State the
+unprotected condition, why the test differed, and the smallest correction that makes the evidence
+representative. A test deliberately changed to match an intentional product change is not a test
+miss; it is a contract change and should explain the decision instead.
+
 When recording a completed work slice, use these as lightweight prompts rather than mandatory
 headings:
 

@@ -39,8 +39,6 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Check 🔎
-        env:
-          PLAYWRIGHT_DOCKER: '1'
         run: npm run check
 
       - name: Fetch release history

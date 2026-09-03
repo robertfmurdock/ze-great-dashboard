@@ -230,6 +230,7 @@
     grid-column: 1 / -1;
     grid-row: auto;
     min-height: 6em;
+    --stacked-card-reading-line-height: 1.25;
     /* Desktop cells need size containment to honor their assigned grid height. Stacked cards
        instead need their readable evidence to contribute to height; retain inline queries for
        width-responsive treatments without containing the block axis. */
@@ -238,6 +239,9 @@
   /* Stacked cards grow for their evidence; the panel still clips only its decorative field. */
   .content {
     flex-shrink: 0;
+    min-height: auto;
+    overflow: visible;
+    line-height: var(--stacked-card-reading-line-height);
   }
   .density-comfortable .content,
   .density-compact .content,

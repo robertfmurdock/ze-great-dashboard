@@ -4,6 +4,10 @@
 
 Use Node.js 22+ and npm 11+.
 
+Browser checks use Docker by default, so install Docker Desktop or use a Linux Docker engine. The
+containerized Playwright server keeps local browsers aligned with CI. If your environment deliberately
+manages Playwright browsers natively, opt out explicitly with `PLAYWRIGHT_DOCKER=0 npm run test:browser`.
+
 ## Local development
 
 ```sh
@@ -33,7 +37,7 @@ npm run verify
 | `npm run ado-entra-token` | Write a short-lived local Azure CLI delegated token file. |
 | `npm run check` | Lint, typecheck, unit and browser tests, validate the example board, and test the published package. The unit phase builds packages once; the browser phase reuses that client build. |
 | `npm run verify` | Run `check`, then build the production client and Lambda bundle. This is the commit-hook gate. |
-| `npm run test:browser` | Build the client and run browser tests independently. |
+| `npm run test:browser` | Build the client and run browser tests independently through Docker by default. |
 | `npm run test:watch` | Run unit tests in watch mode. |
 | `npm run build` | Build the production client. |
 | `npm run format` | Apply Biome formatting fixes. |

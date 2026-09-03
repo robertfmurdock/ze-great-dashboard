@@ -1,5 +1,8 @@
 import { expect, type Page, test } from '@playwright/test'
 
+const browserTestOrigin = process.env.PW_TEST_ORIGIN ?? 'http://127.0.0.1:4173'
+const assetPath = `${browserTestOrigin}/__ASSET_PATH__`
+
 test('the production client loads and renders with CDN modules', async ({ page }) => {
   const browserErrors: string[] = []
   page.on('pageerror', (error) => browserErrors.push(error.message))
@@ -10,15 +13,18 @@ test('the production client loads and renders with CDN modules', async ({ page }
     browserErrors.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText}`)
   })
 
-  await page.addInitScript(() => {
-    window.env = {
-      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-      assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
-      proxyPath: '/api',
-      board: 'ze-great-team',
-      clientVersion: 'browser-test',
-    }
-  })
+  await page.addInitScript(
+    (env) => {
+      window.env = {
+        assetPath: env.assetPath,
+        assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
+        proxyPath: '/api',
+        board: 'ze-great-team',
+        clientVersion: 'browser-test',
+      }
+    },
+    { assetPath },
+  )
   await page.route('**/api/boards/ze-great-team', (route) =>
     route.fulfill({ contentType: 'application/json', body: JSON.stringify({ panels: [] }) }),
   )
@@ -27,7 +33,7 @@ test('the production client loads and renders with CDN modules', async ({ page }
       contentType: 'application/json',
       headers: { 'cache-control': 'no-store' },
       body: JSON.stringify({
-        assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+        assetPath,
         assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
         serverVersion: 'browser-test-server',
       }),
@@ -42,28 +48,28 @@ test('the production client loads and renders with CDN modules', async ({ page }
 
 test('reloads when the server starts serving a different client', async ({ page }) => {
   let identityChecks = 0
-  await page.addInitScript(() => {
-    window.env = {
-      assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
-      assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
-      proxyPath: '/api',
-      board: 'ze-great-team',
-      clientVersion: 'browser-test',
-    }
-  })
+  await page.addInitScript(
+    (env) => {
+      window.env = {
+        assetPath: env.assetPath,
+        assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
+        proxyPath: '/api',
+        board: 'ze-great-team',
+        clientVersion: 'browser-test',
+      }
+    },
+    { assetPath },
+  )
   await page.route('**/api/boards/ze-great-team', (route) =>
     route.fulfill({ contentType: 'application/json', body: JSON.stringify({ panels: [] }) }),
   )
   await page.route('**/api/client', (route) => {
     identityChecks += 1
-    const assetPath =
-      identityChecks === 1
-        ? 'http://127.0.0.1:4173/__ASSET_PATH__/new'
-        : 'http://127.0.0.1:4173/__ASSET_PATH__'
+    const clientAssetPath = identityChecks === 1 ? `${assetPath}/new` : assetPath
     return route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify({
-        assetPath,
+        assetPath: clientAssetPath,
         assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
         serverVersion: 'browser-test-server',
       }),
@@ -227,7 +233,7 @@ const pullRequestHealthEnvelope = (panelId: string) => ({
 
 function browserEnv(board = 'ze-great-team') {
   return {
-    assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+    assetPath,
     assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
     proxyPath: '/api',
     board,
@@ -247,7 +253,7 @@ function stubDashboard(page: Page, board: unknown, boardName = 'ze-great-team') 
       route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
-          assetPath: 'http://127.0.0.1:4173/__ASSET_PATH__',
+          assetPath,
           assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
           serverVersion: 'browser-test-server',
         }),
@@ -538,9 +544,12 @@ test('stacks build and pull-request evidence readably on narrow viewports', asyn
       const rect = panel.getBoundingClientRect()
       const content = panel.querySelector<HTMLElement>('[data-panel-content]')
       return {
+        id: panel.dataset.panelId,
         left: rect.left,
         top: rect.top,
         right: rect.right,
+        contentHeight: content?.clientHeight ?? 0,
+        contentScrollHeight: content?.scrollHeight ?? 0,
         readableContentFits: content ? content.scrollHeight <= content.clientHeight : false,
       }
     })
@@ -554,7 +563,18 @@ test('stacks build and pull-request evidence readably on narrow viewports', asyn
   expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewport)
   expect(new Set(layout.panels.map((panel) => panel.left)).size).toBe(1)
   expect(layout.panels.every((panel) => panel.right <= layout.viewport)).toBe(true)
-  expect(layout.panels.every((panel) => panel.readableContentFits)).toBe(true)
+  expect(
+    layout.panels.every((panel) => panel.readableContentFits),
+    `Clipped narrow panel content: ${JSON.stringify(
+      layout.panels
+        .filter((panel) => !panel.readableContentFits)
+        .map(({ id, contentHeight, contentScrollHeight }) => ({
+          id,
+          contentHeight,
+          contentScrollHeight,
+        })),
+    )}`,
+  ).toBe(true)
   expect(layout.panels[0].top).toBeLessThan(layout.panels[1].top)
 })
 

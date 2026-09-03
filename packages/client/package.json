@@ -13,7 +13,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test:browser": "npm run build && npm run test:browser:no-build",
+    "test:browser": "npm run build && npm run test:browser:no-build --",
     "test:browser:no-build": "playwright test --config ../../playwright.config.ts",
     "preview": "vite preview"
   },
