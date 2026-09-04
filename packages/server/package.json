@@ -10,11 +10,11 @@
     "build:lambda": "esbuild src/lambda.ts --bundle --minify --platform=node --target=node22 --format=esm --outfile=dist/index.mjs --banner:js=\"import{createRequire}from'node:module';const require=createRequire(import.meta.url);\" && cp \"${BOARD_CONFIG_PATH:-../../boards/example.yaml}\" dist/board.yaml"
   },
   "dependencies": {
-    "@aws-sdk/client-secrets-manager": "^3.1126.0",
-    "@aws-sdk/client-ssm": "^3.1126.0",
+    "@aws-sdk/client-secrets-manager": "^3.1127.0",
+    "@aws-sdk/client-ssm": "^3.1127.0",
     "@hono/node-server": "^2.1.1",
     "@ze-great-dashboard/shared": "*",
-    "hono": "^4.13.5",
+    "hono": "^4.13.7",
     "yaml": "^2.9.0",
     "zod": "^4.5.4"
   },
