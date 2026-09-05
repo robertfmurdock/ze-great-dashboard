@@ -57,7 +57,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.12",
     "@continuous-excellence/tagger": "3.6.18",
-    "@playwright/test": "^1.62.1",
+    "@playwright/test": "^1.63.0",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^26.4.1",
     "concurrently": "^10.0.5",
