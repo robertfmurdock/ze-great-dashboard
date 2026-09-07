@@ -59,7 +59,7 @@
     "@continuous-excellence/tagger": "3.6.18",
     "@playwright/test": "^1.63.0",
     "@testing-library/react": "^16.3.3",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.5.0",
     "concurrently": "^10.0.5",
     "npm-check-updates": "23.1.0",
     "typescript": "^7.0.2",
