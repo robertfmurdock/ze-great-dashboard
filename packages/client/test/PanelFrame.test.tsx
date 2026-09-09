@@ -23,7 +23,7 @@ describe('PanelFrame', () => {
     expect(frame?.getAttribute('aria-busy')).toBe('true')
     expect(frame?.getAttribute('style')).toContain('--panel-column: 3 / span 4')
     expect(frame?.getAttribute('style')).toContain('--panel-row: 2 / span 3')
-    expect(rendered.querySelector('h2')?.textContent).toBe('build')
+    expect(rendered.querySelector('[data-panel-identity-text]')?.textContent).toBe('build')
     expect(rendered.querySelector('[data-panel-link]')).toBeNull()
   })
 
@@ -34,7 +34,7 @@ describe('PanelFrame', () => {
       </PanelFrame>,
     ).container
 
-    expect(rendered.querySelector('h2')?.textContent).toBe('Build status')
+    expect(rendered.querySelector('[data-panel-identity-text]')?.textContent).toBe('Build status')
     expect(rendered.querySelector('[data-panel]')?.getAttribute('style')).toContain(
       '--panel-column',
     )
@@ -70,7 +70,7 @@ describe('PanelFrame', () => {
     ).container
 
     expect(rendered.textContent).toContain('Duration:')
-    expect(rendered.querySelector('[title]')?.getAttribute('title')).toBe(
+    expect(rendered.querySelector('[data-panel-meta] [title]')?.getAttribute('title')).toBe(
       'Duration: Took 7 minutes',
     )
     expect(rendered.querySelector('[aria-hidden="true"] + .screen-reader-only')?.textContent).toBe(

@@ -34,7 +34,7 @@ export function PipelinePanel({ panel, envelope, updateHealth }: PanelProps) {
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
         <PanelEvidence>
-          <PanelStatus emphasis={presentation.emphasis}>⚠ {presentation.label}</PanelStatus>
+          <PanelStatus glyph="⚠" label={presentation.label} emphasis={presentation.emphasis} />
           <PanelHint>{envelope.error.message}</PanelHint>
         </PanelEvidence>
       </PanelFrame>
@@ -46,7 +46,7 @@ export function PipelinePanel({ panel, envelope, updateHealth }: PanelProps) {
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
         <PanelEvidence>
-          <PanelStatus>⚠ Invalid signal</PanelStatus>
+          <PanelStatus glyph="⚠" label="Invalid signal" />
         </PanelEvidence>
       </PanelFrame>
     )
@@ -106,9 +106,7 @@ function PipelineSignalPanel({
       }
     >
       <PanelEvidence className={styles.details}>
-        <PanelStatus status={signal.status}>
-          {presentation.glyph} {presentation.label}
-        </PanelStatus>
+        <PanelStatus status={signal.status} glyph={presentation.glyph} label={presentation.label} />
         {signal.status === 'running' && (
           <PanelMetadata
             glyph="⚙"

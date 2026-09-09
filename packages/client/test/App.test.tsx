@@ -559,8 +559,8 @@ describe('pipeline-status refresh scheduling', () => {
     await settle()
     expect(rendered.textContent).toContain('Access denied')
     expect(rendered.textContent).toContain('Token no longer grants workflow access.')
-    expect(rendered.textContent).not.toContain('Observed')
-    expect(rendered.textContent).not.toContain('Checked')
+    expect(rendered.querySelector('[data-panel-id="build"]')?.textContent).not.toContain('Observed')
+    expect(rendered.querySelector('[data-panel-id="build"]')?.textContent).not.toContain('Checked')
   })
 
   it('keeps the source link when a pipeline signal is invalid', async () => {

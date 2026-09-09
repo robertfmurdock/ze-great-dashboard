@@ -120,14 +120,17 @@
   font-size: 0.85em;
 }
 .footer {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
   color: var(--ink-muted);
   font-size: 0.75em;
   flex: 0 0 auto;
+}
+.footer > :last-child {
+  grid-column: 1 / -1;
 }
 @media (max-width: 64rem) {
   .board {

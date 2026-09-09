@@ -5,11 +5,12 @@ import { PipelineAnimationDemoPanel } from './PipelineAnimationDemoPanel.tsx'
 import { PipelinePanel } from './PipelinePanel.tsx'
 import { PullRequestHealthPanel } from './PullRequestHealthPanel.tsx'
 import type { PanelProps } from './panel-props.ts'
+import type { RenderablePanelType } from './panel-symbols.ts'
 
 type PanelRendererProps = PanelProps
 
 /** The one client-side dispatch point for panel types. */
-export const panelRenderers: Record<string, ComponentType<PanelRendererProps>> = {
+export const panelRenderers: Record<RenderablePanelType, ComponentType<PanelRendererProps>> = {
   'pipeline-status': PipelinePanel,
   'pull-request-health': PullRequestHealthPanel,
   'http-value': HttpValuePanel,
@@ -17,7 +18,7 @@ export const panelRenderers: Record<string, ComponentType<PanelRendererProps>> =
 }
 
 export function PanelRenderer({ panel, envelope, updateHealth, facts }: PanelRendererProps) {
-  const Renderer = panelRenderers[panel.type]
+  const Renderer = panelRenderers[panel.type as RenderablePanelType]
   return Renderer ? (
     <Renderer panel={panel} envelope={envelope} updateHealth={updateHealth} facts={facts} />
   ) : (

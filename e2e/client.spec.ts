@@ -360,6 +360,66 @@ test('keeps four independently sourced facts readable inside one compact portrai
     ).toHaveCount(1)
 })
 
+test('keeps pipeline and HTTP-value portrait tiles symbol-led without rotating accessible text', async ({
+  page,
+}) => {
+  const board = {
+    panels: [
+      {
+        id: 'build',
+        label: 'Production build',
+        type: 'pipeline-status',
+        position: { x: 0, y: 0, w: 1, h: 12 },
+      },
+      {
+        id: 'version',
+        label: 'Release version',
+        type: 'http-value',
+        position: { x: 1, y: 0, w: 1, h: 12 },
+      },
+    ],
+  }
+  await page.setViewportSize({ width: 2400, height: 1200 })
+  await stubDashboard(page, board)
+  await page.route('**/api/panel/**', (route) => {
+    const panelId = decodeURIComponent(
+      new URL(route.request().url()).pathname.split('/').at(-1) ?? '',
+    )
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(
+        panelId === 'build' ? pipelineEnvelope(panelId) : valueEnvelope(panelId),
+      ),
+    })
+  })
+
+  await page.goto('/')
+  for (const [panelId, label] of [
+    ['build', 'Production build'],
+    ['version', 'Release version'],
+  ]) {
+    const tile = page.locator(`[data-panel-id="${panelId}"]`)
+    await expect(tile).toContainText(label)
+    // Wait for the resolved signal rather than inspecting the initial loading frame.
+    await expect(tile.locator('[data-panel-status] [aria-hidden="true"]')).toBeVisible()
+    const compact = await tile.evaluate((panel) => ({
+      fits: panel.scrollHeight <= panel.clientHeight,
+      writingMode: getComputedStyle(panel.querySelector('h2') as Element).writingMode,
+      typeGlyph: getComputedStyle(panel.querySelector('[data-panel-type-glyph]') as Element)
+        .display,
+      stateGlyph: getComputedStyle(
+        panel.querySelector('[data-panel-status] [aria-hidden="true"]') as Element,
+      ).display,
+    }))
+    expect(compact).toEqual({
+      fits: true,
+      writingMode: 'horizontal-tb',
+      typeGlyph: 'inline-block',
+      stateGlyph: 'inline-block',
+    })
+  }
+})
+
 test('adapts density independently across wide, square, narrow, and tall cells', async ({
   page,
 }) => {
@@ -443,7 +503,7 @@ test('adapts density independently across wide, square, narrow, and tall cells',
   expect(sourceCorner.textOverlapsAction).toBe(false)
 })
 
-test('centers pull-request status in a narrow tall tile while retaining normal and wide cards', async ({
+test('uses readable primary symbols in a narrow tall pull-request tile while retaining normal and wide cards', async ({
   page,
 }) => {
   const board = {
@@ -518,6 +578,15 @@ test('centers pull-request status in a narrow tall tile while retaining normal a
                 statusTop: status.top,
                 statusBottom: status.bottom,
                 evidenceTop: evidence.top,
+                labelWritingMode: getComputedStyle(panel.querySelector('h2') as Element)
+                  .writingMode,
+                typeGlyphVisible:
+                  getComputedStyle(panel.querySelector('[data-panel-type-glyph]') as Element)
+                    .display !== 'none',
+                statusGlyphVisible:
+                  getComputedStyle(
+                    panel.querySelector('[data-panel-status] [aria-hidden="true"]') as Element,
+                  ).display !== 'none',
               }
             : undefined,
       }
@@ -531,12 +600,9 @@ test('centers pull-request status in a narrow tall tile while retaining normal a
   })
   const tallAnchors = presentation.find((panel) => panel.id === 'updates-tall')?.anchors
   expect(tallAnchors?.labelRight).toBeLessThan(tallAnchors?.statusLeft ?? Number.NEGATIVE_INFINITY)
-  expect(tallAnchors?.statusTop).toBeGreaterThan(
-    (tallAnchors?.panelTop ?? Number.POSITIVE_INFINITY) + (tallAnchors?.panelHeight ?? 0) * 0.2,
-  )
-  expect(tallAnchors?.evidenceTop).toBeGreaterThan(
-    tallAnchors?.statusBottom ?? Number.POSITIVE_INFINITY,
-  )
+  expect(tallAnchors?.labelWritingMode).toBe('horizontal-tb')
+  expect(tallAnchors?.typeGlyphVisible).toBe(true)
+  expect(tallAnchors?.statusGlyphVisible).toBe(true)
   expect(presentation.find((panel) => panel.id === 'updates-normal')).toMatchObject({
     facts: 'none',
     summary: 'static',
@@ -732,7 +798,9 @@ test('keeps panel-scale fields behind readable content, adapts them without over
       tracksDisplay: tracks ? getComputedStyle(tracks).display : 'none',
     }
   })
-  expect(legacySignalLayout.visualHeight).toBeGreaterThan(100)
+  // The persistent footer reserves real in-flow room; the visual remains panel-scale rather than
+  // being covered by an overlay.
+  expect(legacySignalLayout.visualHeight).toBeGreaterThan(70)
   expect(legacySignalLayout.tracksDisplay).toBe('flex')
 
   await page.emulateMedia({ reducedMotion: 'reduce' })

@@ -21,7 +21,7 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
         <PanelEvidence>
-          <PanelStatus emphasis={presentation.emphasis}>⚠ {presentation.label}</PanelStatus>
+          <PanelStatus glyph="⚠" label={presentation.label} emphasis={presentation.emphasis} />
           <PanelHint>{envelope.error.message}</PanelHint>
         </PanelEvidence>
       </PanelFrame>
@@ -32,7 +32,7 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
         <PanelEvidence>
-          <PanelStatus>⚠ Invalid signal</PanelStatus>
+          <PanelStatus glyph="⚠" label="Invalid signal" />
         </PanelEvidence>
       </PanelFrame>
     )
@@ -41,11 +41,17 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
   return (
     <PanelFrame panel={panel} envelope={envelope} layout="three-anchor">
       <div className={styles.statusAnchor} data-panel-anchor="status">
-        <PanelStatus status={signal.data.status}>
-          {presentation.glyph} {presentation.label}
-        </PanelStatus>
+        <PanelStatus
+          status={signal.data.status}
+          glyph={presentation.glyph}
+          label={presentation.label}
+        />
       </div>
-      <div className={styles.evidence} data-panel-anchor="evidence">
+      <div
+        className={styles.evidence}
+        data-panel-anchor="evidence"
+        data-panel-evidence-priority="secondary"
+      >
         <PanelHint className={styles.fullSummary} title={signal.data.summary}>
           {signal.data.summary}
         </PanelHint>

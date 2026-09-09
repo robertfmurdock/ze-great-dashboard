@@ -1,82 +1,55 @@
 .activity {
-  position: relative;
-}
-.button {
-  border: 1px solid var(--edge);
-  border-radius: 0.25rem;
-  background: var(--surface-raised);
+  min-width: 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--edge);
   color: var(--ink-secondary);
-  font: inherit;
-  padding: 0.3em 0.55em;
-  cursor: pointer;
-}
-.dialog {
-  position: fixed;
-  z-index: 20;
-  right: var(--gap);
-  bottom: var(--gap);
-  width: min(46rem, calc(100vw - 2 * var(--gap)));
-  max-height: min(36rem, calc(100dvh - 2 * var(--gap)));
-  overflow: auto;
-  padding: 0.85rem;
-  border: 1px solid var(--edge);
-  border-radius: var(--radius);
-  background: var(--surface-raised);
-  box-shadow: 0 0.5rem 1.5rem #0008;
+  font-size: clamp(0.65rem, 0.72vw, 0.85rem);
 }
 .heading {
   display: flex;
+  align-items: start;
   justify-content: space-between;
   gap: 1rem;
 }
 .heading p,
 .note,
-.detail p {
-  margin: 0.35rem 0;
+.empty {
+  margin: 0.2rem 0;
 }
-.close {
-  border: 0;
+.legend,
+.note,
+.empty {
   color: var(--ink-muted);
-  background: transparent;
-  font-size: 1.25em;
-  cursor: pointer;
+}
+.legend {
+  flex: 0 0 auto;
+  font-size: 0.9em;
 }
 .axis {
   display: flex;
   justify-content: space-between;
-  margin: 0.8rem 0 0.2rem 9rem;
+  margin: 0.45rem 0 0.15rem max(10rem, 28%);
   color: var(--ink-muted);
-  font-size: 0.75em;
+  font-size: 0.85em;
 }
 .lanes {
   display: grid;
-  gap: 0.3rem;
+  gap: 0.2rem;
 }
 .lane {
   display: grid;
-  grid-template-columns: 8rem 1fr auto;
-  gap: 0.5rem;
+  grid-template-columns: minmax(9rem, 28%) minmax(0, 1fr);
+  gap: 0.55rem;
   align-items: center;
-  width: 100%;
-  border: 1px solid transparent;
-  border-radius: 0.25rem;
-  padding: 0.25rem;
-  color: var(--ink-secondary);
-  background: transparent;
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
-}
-.lane[data-selected] {
-  border-color: var(--ink-muted);
+  min-width: 0;
 }
 .laneLabel {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .track {
   position: relative;
+  display: block;
+  min-width: 0;
   height: 0.8rem;
   border-bottom: 1px solid var(--edge);
 }
@@ -96,32 +69,20 @@
   border: 1px solid var(--ink-secondary);
   transform: translateX(-50%) rotate(45deg);
 }
-.legend {
-  color: var(--ink-muted);
-  font-size: 0.65em;
-}
-.detail {
-  margin-top: 0.75rem;
-  border-top: 1px solid var(--edge);
-  padding-top: 0.65rem;
-  color: var(--ink-secondary);
-}
-.detail code {
-  color: var(--ink-muted);
-}
 .note {
-  color: var(--ink-muted);
-  font-size: 0.8em;
+  font-size: 0.9em;
 }
 @media (max-width: 40rem) {
+  .heading {
+    display: grid;
+  }
   .axis {
     margin-left: 0;
   }
   .lane {
     grid-template-columns: 1fr;
-    gap: 0.15rem;
   }
   .legend {
-    display: none;
+    justify-self: start;
   }
 }

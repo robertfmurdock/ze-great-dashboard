@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { ClientEnv } from '@ze-great-dashboard/shared'
 import { afterEach, describe, expect, it } from 'vitest'
 import { BrowserDiagnosticStore } from '../src/diagnostics.ts'
@@ -37,7 +37,7 @@ function log() {
 afterEach(() => document.body.replaceChildren())
 
 describe('Update activity', () => {
-  it('opens an accessible non-modal timeline, exposes lane detail, and closes on Escape', () => {
+  it('renders an always-visible browser-local timeline with readable lane semantics', () => {
     const diagnosticLog = log()
     diagnosticLog.record({
       kind: 'panel-fetch-start',
@@ -45,13 +45,13 @@ describe('Update activity', () => {
       path: '/api/panel/team/build',
     })
     render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={diagnosticLog} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Update activity' }))
-    expect(screen.getByRole('dialog', { name: 'Update activity' }).getAttribute('aria-modal')).toBe(
-      'false',
-    )
-    fireEvent.click(screen.getByRole('button', { name: /Build, panel build/ }))
-    expect(screen.getByText(/Observed proxy paths: \/api\/panel\/team\/build/)).not.toBeNull()
-    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('button', { name: 'Update activity' })).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByText('Update activity')).not.toBeNull()
+    expect(screen.getByText('Build')).not.toBeNull()
+    expect(screen.getByText('● observed · ◇ expected')).not.toBeNull()
+    expect(screen.getByLabelText(/Build, panel build; Normal cadence/)).not.toBeNull()
+    expect(screen.getByTitle('Observed request: /api/panel/team/build')).not.toBeNull()
+    expect(screen.getByTitle('Expected next poll')).not.toBeNull()
   })
 })

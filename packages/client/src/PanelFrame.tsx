@@ -2,6 +2,7 @@ import type { Envelope, Panel, PipelineStatus } from '@ze-great-dashboard/shared
 import type { ReactNode } from 'react'
 import styles from './PanelFrame.module.css'
 import { panelLayout } from './panel-layout.ts'
+import { panelTypeSymbol } from './panel-symbols.ts'
 
 type PanelStatusKind = PipelineStatus['status']
 type CompactEvidence = { kind: 'short-value'; value: ReactNode } | { kind: 'glyph-only' }
@@ -65,33 +66,63 @@ export function PanelMetadata({
 export function PanelEvidence({
   children,
   className,
+  priority = 'secondary',
 }: {
   children: ReactNode
   className?: string
+  /** Evidence can be intentionally suppressed by a symbol-led compact composition. */
+  priority?: 'primary' | 'secondary'
 }) {
   return (
-    <div className={`${styles.evidence} ${className ?? ''}`} data-panel-evidence>
+    <div
+      className={`${styles.evidence} ${className ?? ''}`}
+      data-panel-evidence
+      data-panel-evidence-priority={priority}
+    >
       {children}
     </div>
   )
 }
 
 export function PanelStatus({
-  children,
   status,
   emphasis,
+  glyph,
+  label,
+  compactOnly = false,
 }: {
-  children: ReactNode
   status?: PanelStatusKind
   emphasis?: 'warning' | 'serious'
+  glyph: string
+  label: string
+  /** Render a compact state only in a portrait tile without changing ordinary cards. */
+  compactOnly?: boolean
 }) {
   return (
     <p
-      className={`${styles.status} ${status ? styles[status] : ''} ${emphasis ? styles[emphasis] : ''}`}
+      className={`${styles.status} ${status ? styles[status] : ''} ${emphasis ? styles[emphasis] : ''} ${compactOnly ? styles.compactOnlyStatus : ''}`}
+      data-panel-status
     >
-      {children}
+      {glyph && (
+        <span className={styles.statusGlyph} aria-hidden="true">
+          {glyph}
+        </span>
+      )}
+      {glyph && label && ' '}
+      <span className={styles.statusText}>{label}</span>
     </p>
   )
+}
+
+/** A prominent fact or loading message; unlike PanelStatus, this carries no state semantics. */
+export function PanelValue({
+  children,
+  emphasis,
+}: {
+  children: ReactNode
+  emphasis?: 'warning' | 'serious'
+}) {
+  return <p className={`${styles.status} ${emphasis ? styles[emphasis] : ''}`}>{children}</p>
 }
 
 export function PanelFrame({
@@ -113,6 +144,7 @@ export function PanelFrame({
 }) {
   const density = panel.density ?? 'auto'
   const position = panel.position
+  const typeSymbol = panelTypeSymbol(panel.type)
   const shallow = position !== undefined && position.h <= 2
   const short = position !== undefined && position.h <= 3
   return (
@@ -129,6 +161,7 @@ export function PanelFrame({
       data-shallow={shallow}
       data-short={short}
       data-error={error || undefined}
+      data-panel-type={panel.type}
     >
       {field}
       <PanelSourceLink panelId={panel.id} link={envelope?.link} />
@@ -138,7 +171,19 @@ export function PanelFrame({
         data-panel-layout={layout}
       >
         <h2 className={styles.label} data-panel-anchor="identity">
-          {panel.label ?? panel.id}
+          {typeSymbol && (
+            <span
+              className={styles.typeGlyph}
+              aria-hidden="true"
+              title={typeSymbol.label}
+              data-panel-type-glyph
+            >
+              {typeSymbol.glyph}
+            </span>
+          )}
+          <span className={styles.identityText} data-panel-identity-text>
+            {panel.label ?? panel.id}
+          </span>
         </h2>
         {children}
       </div>

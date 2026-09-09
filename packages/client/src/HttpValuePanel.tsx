@@ -1,7 +1,7 @@
 import { httpValueSchema } from '@ze-great-dashboard/shared'
 import { errorPresentation } from './error-presentation.ts'
 import styles from './HttpValuePanel.module.css'
-import { PanelEvidence, PanelFrame, PanelHint, PanelStatus } from './PanelFrame.tsx'
+import { PanelEvidence, PanelFrame, PanelHint, PanelStatus, PanelValue } from './PanelFrame.tsx'
 import type { HttpValueFactObservation, PanelProps } from './panel-props.ts'
 import { ObservedAt, UpdateHealth } from './TimeAge.tsx'
 
@@ -20,7 +20,7 @@ export function HttpValuePanel({ panel, envelope, updateHealth, facts }: PanelPr
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
         <PanelEvidence>
-          <PanelStatus emphasis={presentation.emphasis}>⚠ {presentation.label}</PanelStatus>
+          <PanelStatus glyph="⚠" label={presentation.label} emphasis={presentation.emphasis} />
           <PanelHint>{envelope.error.message}</PanelHint>
         </PanelEvidence>
       </PanelFrame>
@@ -31,14 +31,15 @@ export function HttpValuePanel({ panel, envelope, updateHealth, facts }: PanelPr
     return (
       <PanelFrame panel={panel} envelope={envelope} error>
         <PanelEvidence>
-          <PanelStatus>⚠ Invalid value</PanelStatus>
+          <PanelStatus glyph="⚠" label="Invalid value" />
         </PanelEvidence>
       </PanelFrame>
     )
   return (
     <PanelFrame panel={panel} envelope={envelope}>
       <PanelEvidence className={styles.fact}>
-        <PanelStatus>{String(signal.data.value)}</PanelStatus>
+        <PanelStatus glyph="✓" label="Value read" compactOnly />
+        <PanelValue>{String(signal.data.value)}</PanelValue>
         <ObservedAt value={envelope.observedAt} />
         {updateHealth && <UpdateHealth health={updateHealth} />}
       </PanelEvidence>
@@ -73,9 +74,9 @@ function HttpValueFactCell({
     return (
       <section className={styles.factCell} data-http-value-fact>
         <h3>{label}</h3>
-        <PanelStatus emphasis={observation?.failure ? 'serious' : undefined}>
+        <PanelValue emphasis={observation?.failure ? 'serious' : undefined}>
           {observation?.failure ? '⚠ Updates unavailable' : 'Loading…'}
-        </PanelStatus>
+        </PanelValue>
         {observation?.updateHealth && <UpdateHealth health={observation.updateHealth} />}
       </section>
     )
@@ -85,7 +86,7 @@ function HttpValueFactCell({
       <section className={styles.factCell} data-http-value-fact data-error>
         <FactSourceLink label={label} link={envelope.link} />
         <h3>{label}</h3>
-        <PanelStatus emphasis={presentation.emphasis}>⚠ {presentation.label}</PanelStatus>
+        <PanelStatus glyph="⚠" label={presentation.label} emphasis={presentation.emphasis} />
         <PanelHint>{envelope.error.message}</PanelHint>
         <ObservedAt value={envelope.observedAt} />
       </section>
@@ -97,7 +98,7 @@ function HttpValueFactCell({
       <section className={styles.factCell} data-http-value-fact data-error>
         <FactSourceLink label={label} link={envelope.link} />
         <h3>{label}</h3>
-        <PanelStatus emphasis="serious">⚠ Invalid value</PanelStatus>
+        <PanelStatus glyph="⚠" label="Invalid value" emphasis="serious" />
         <ObservedAt value={envelope.observedAt} />
       </section>
     )
@@ -105,7 +106,7 @@ function HttpValueFactCell({
     <section className={styles.factCell} data-http-value-fact>
       <FactSourceLink label={label} link={envelope.link} />
       <h3>{label}</h3>
-      <PanelStatus>{String(signal.data.value)}</PanelStatus>
+      <PanelValue>{String(signal.data.value)}</PanelValue>
       <ObservedAt value={envelope.observedAt} />
     </section>
   )

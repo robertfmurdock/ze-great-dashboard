@@ -91,7 +91,7 @@ function DemoRun({
       }
     >
       <PanelEvidence>
-        <PanelStatus status="running">↻ Running</PanelStatus>
+        <PanelStatus status="running" glyph="↻" label="Running" />
         <p className={styles.variant}>
           <span className={styles.variantPrefix}>Demo treatment · </span>
           {animation}
