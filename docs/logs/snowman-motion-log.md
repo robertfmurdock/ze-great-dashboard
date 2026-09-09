@@ -43,3 +43,50 @@ the physics engine into separate material and choreography modules, and broader 
 fixtures. Those changes should wait for a second consumer or a concrete maintenance problem. The
 project's preference for small feature-local modules and curated dependencies is the reason to stop
 at these two seams for now.
+
+## Snowball compaction follow-up — 2026-09-09
+
+The rolling snowballs still read as hollow because each grain received a one-time interior target,
+and packed grains then acted as permanent obstacles. Later grains could therefore remain on the
+outside instead of compressing the material already collected. The fix reassigns all ball targets
+after each collection to a dense, deterministic hex-like lattice and lets grains move toward those
+targets together, so additional snow visibly pushes the existing material inward.
+
+The lattice uses whole-cell-scale spacing rather than sub-cell spacing: the canvas renders grains on
+a cellular grid, and finer packing created duplicate rendered coordinates even though local physics
+positions differed. Radius growth was also reduced to keep denser material from creating a positive
+feedback loop where a larger capture radius absorbed the attached snow needed to trigger the overdue
+topple. Existing geometry and overdue-load tests caught both regressions; the full repository gate
+passed after the final adjustment.
+
+## Snowman support follow-up — 2026-09-09
+
+The completed body could retain a small visual gap because its final terrain position was selected
+before the last contact grains were collected and the post-collection radius was applied. The body
+now takes one final support sample when it locks, using its finished radius; this preserves the
+intentional rigid anchor afterward while placing the base against the remaining snow. The completion
+test now protects that real geometry relationship rather than asserting only that the ball is locked.
+
+The first placement of that reseat was still too early in the fixed step: it lived inside ground
+collection, before the settled bank's two relaxation passes. Since locked balls are intentionally
+excluded from collection, that branch was also unreachable for the completed body. The reseat now
+runs after collection, compaction, and terrain relaxation, so the final support sample is taken from
+the same terrain state that is rendered for the frame.
+
+The rendered body could still look detached even though its circular support geometry touched the
+terrain: the packed lattice stopped short of the ball boundary, and rotation left its lowest grain
+about half a grid cell above the support row. The lattice boundary now extends to within one tenth
+of the radius, and the completion test checks the resolved body grains against the resolved ground
+surface so the visible contact remains covered.
+
+## Locked support stability follow-up — 2026-09-09
+
+The final support correction introduced a feedback loop after the body locked. Each simulation step
+reseated the body from the current terrain surface, while terrain relaxation treated the body as an
+obstacle and filled the newly exposed space beneath it. The body consequently hopped upward when the
+space opened and downward when it refilled, even though a locked figure is intended to be anchored.
+
+The body now captures its support height once, at the first post-lock support sample, and retains
+that anchor while nearby snow continues to relax. The completion regression advances through the
+observed terrain change rather than checking only one later frame, protecting both the no-hop behavior
+and the existing resolved-grain contact relationship.

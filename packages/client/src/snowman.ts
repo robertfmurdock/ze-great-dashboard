@@ -23,6 +23,8 @@ export type Snowball = {
   angle: number
   /** A placed ball no longer follows the relaxing terrain beneath it. */
   locked: boolean
+  /** The final support position captured when the body locks. */
+  supportY?: number
   launch?: { x: number; y: number }
 }
 export type SnowmanSimulation = {
@@ -106,10 +108,16 @@ export function snowmanSpawnInterval(
   estimatedDurationMs: number | undefined,
   dimensions: SnowmanDimensions,
   overdue = false,
+  elapsed = 0,
 ) {
   if (estimatedDurationMs === undefined) return overdue ? 30 : 60
   const ordinary = (estimatedDurationMs * HAT_AT) / snowmanMaterialCount(dimensions)
-  return overdue ? ordinary / 2 : ordinary
+  if (overdue) return ordinary / 2
+  const schedule = snowmanSchedule(estimatedDurationMs)
+  if (schedule.mode !== 'snowfall' && elapsed >= Math.max(0, schedule.bodyStart - 500)) {
+    return ordinary * 4
+  }
+  return ordinary
 }
 
 /** Advances a fixed-step cellular snow simulation without reading the DOM or a browser clock. */
@@ -188,7 +196,7 @@ function step(
   dimensions: SnowmanDimensions,
 ) {
   const phase = snowmanScenePhase(progress, estimatedDurationMs, overdue)
-  const interval = snowmanSpawnInterval(estimatedDurationMs, dimensions, overdue)
+  const interval = snowmanSpawnInterval(estimatedDurationMs, dimensions, overdue, elapsed)
   while (elapsed >= simulation.nextAt) {
     simulation.flakes.push({
       id: simulation.id++,
@@ -238,6 +246,11 @@ function step(
   // A small cascade closes a swept gap promptly without making the whole bank flow at once.
   relaxSettledSnow(simulation, seed, elapsed)
   relaxSettledSnow(simulation, seed, elapsed + STEP_MS / 2)
+  const body = simulation.body
+  if (body?.locked) {
+    body.supportY ??= restingBallY(simulation, body.x, body.radius, body.y + body.radius)
+    body.y = body.supportY
+  }
   if (
     overdue &&
     !simulation.toppling &&
@@ -358,12 +371,7 @@ function collectTouchedGround(simulation: SnowmanSimulation) {
       const distance = Math.hypot(dx, dy)
       // The roller takes only exposed grains on its lower, leading contact arc. Capturing buried
       // cells makes the ball appear to hook loose snow into the air behind it.
-      if (
-        !exposedGround.has(cell.id) ||
-        distance > captureRadius ||
-        distance < Math.max(1, ball.radius - 0.85) ||
-        dy < -ball.radius * 0.1
-      )
+      if (!exposedGround.has(cell.id) || distance > captureRadius || dy < -ball.radius * 0.2)
         continue
       const original = originals.get(cell.id)
       if (!original) continue
@@ -378,11 +386,13 @@ function collectTouchedGround(simulation: SnowmanSimulation) {
 
 function canCollect(simulation: SnowmanSimulation, ball: Snowball) {
   if (ball.kind === 'body' || !simulation.body) return true
-  const capacity = Math.max(
-    6,
-    Math.PI * (Math.max(0, simulation.body.radius * 0.68 - 1.7) / 0.6) ** 2,
+  const bodyRadius = simulation.body.radius
+  const targetHeadRadius = bodyRadius * 0.72
+  const maxHeadCount = Math.max(
+    12,
+    Math.round(Math.PI * (Math.max(0, targetHeadRadius - 1.7) / 0.6) ** 2),
   )
-  return simulation.cells.filter((cell) => cell.owner === 'head').length < capacity
+  return simulation.cells.filter((cell) => cell.owner === 'head').length < maxHeadCount
 }
 
 function hitBall(simulation: SnowmanSimulation, flake: AirborneFlake) {
@@ -422,6 +432,11 @@ function joinBall(
   }
   if (cell) Object.assign(cell, next)
   else simulation.cells.push(next)
+  ball.radius = Math.max(
+    ball.radius,
+    ballRadius(simulation, ball.kind, ball.kind === 'body' ? 2 : 1.7),
+  )
+  rebalanceBallTargets(simulation, ball)
 }
 
 function openBallPosition(
@@ -450,17 +465,32 @@ function openBallPosition(
 }
 
 function ballInteriorSlot(simulation: SnowmanSimulation, ball: Snowball, id: number) {
-  const occupied = new Set(
-    simulation.cells
-      .filter((cell) => cell.owner === ball.kind && cell.targetLocalX !== undefined)
-      .map((cell) => key(Math.round(cell.targetLocalX ?? 0), Math.round(cell.targetLocalY ?? 0))),
+  const existing = simulation.cells.filter(
+    (cell) =>
+      cell.owner === ball.kind &&
+      cell.targetLocalX !== undefined &&
+      cell.targetLocalY !== undefined,
   )
-  for (let attempt = 0; attempt < 48; attempt += 1) {
+  const free = (x: number, y: number, minDistance = 0.72) =>
+    existing.every(
+      (cell) =>
+        Math.hypot((cell.targetLocalX ?? 0) - x, (cell.targetLocalY ?? 0) - y) >= minDistance,
+    )
+  for (let attempt = 0; attempt < 64; attempt += 1) {
     const angle = random(id * 31 + attempt * 17) * Math.PI * 2
-    const distance = Math.sqrt(random(id * 37 + attempt * 19)) * Math.max(0.8, ball.radius - 0.45)
-    const x = Math.round(Math.cos(angle) * distance)
-    const y = Math.round(Math.sin(angle) * distance)
-    if (!occupied.has(key(x, y))) return { x, y }
+    const distance = Math.sqrt(random(id * 37 + attempt * 19)) * Math.max(0.4, ball.radius - 0.35)
+    const x = Math.cos(angle) * distance
+    const y = Math.sin(angle) * distance
+    if (free(x, y)) return { x, y }
+  }
+  for (let radius = 0.4; radius <= ball.radius - 0.35; radius += 0.5) {
+    const steps = Math.max(6, Math.round((2 * Math.PI * radius) / 0.72))
+    for (let i = 0; i < steps; i++) {
+      const angle = (i * Math.PI * 2) / steps + random(id * 13)
+      const x = Math.cos(angle) * radius
+      const y = Math.sin(angle) * radius
+      if (free(x, y, 0.6)) return { x, y }
+    }
   }
   return { x: 0, y: 0 }
 }
@@ -475,20 +505,55 @@ function compactBallCells(simulation: SnowmanSimulation) {
       cell.targetLocalY === undefined
     )
       continue
-    const x = moveToward(cell.localX, cell.targetLocalX, 0.2)
-    const y = moveToward(cell.localY, cell.targetLocalY, 0.2)
-    const blocked = simulation.cells.some(
-      (other) =>
-        other.id !== cell.id &&
-        other.owner === cell.owner &&
-        Math.hypot((other.localX ?? 0) - x, (other.localY ?? 0) - y) < 0.75,
-    )
-    if (!blocked) {
-      cell.localX = x
-      cell.localY = y
-    }
-    cell.packed = blocked || (x === cell.targetLocalX && y === cell.targetLocalY)
+    const x = moveToward(cell.localX, cell.targetLocalX, 0.25)
+    const y = moveToward(cell.localY, cell.targetLocalY, 0.25)
+    cell.localX = x
+    cell.localY = y
+    cell.packed = x === cell.targetLocalX && y === cell.targetLocalY
   }
+}
+
+/** Reassigns the material to a dense lattice so newly collected snow compresses older grains. */
+function rebalanceBallTargets(simulation: SnowmanSimulation, ball: Snowball) {
+  const cells = simulation.cells.filter(
+    (cell) => cell.owner === ball.kind && cell.localX !== undefined && cell.localY !== undefined,
+  )
+  const slots = denseBallSlots(ball.radius, cells.length)
+  cells.sort((first, second) => first.id - second.id)
+  for (const [index, cell] of cells.entries()) {
+    const slot = slots[index]
+    if (!slot) break
+    cell.targetLocalX = slot.x
+    cell.targetLocalY = slot.y
+    cell.packed = false
+  }
+}
+
+function denseBallSlots(radius: number, count: number) {
+  const boundary = Math.max(0.2, radius - 0.1)
+  const candidates: Array<{ x: number; y: number }> = []
+  const spacing = 0.9
+  const vertical = (spacing * Math.sqrt(3)) / 2
+  for (let row = -Math.ceil(boundary / vertical); row <= Math.ceil(boundary / vertical); row += 1) {
+    const y = row * vertical
+    const offset = (row & 1) === 0 ? 0 : spacing / 2
+    for (
+      let column = -Math.ceil(boundary / spacing);
+      column <= Math.ceil(boundary / spacing);
+      column += 1
+    ) {
+      const x = column * spacing + offset
+      if (Math.hypot(x, y) <= boundary) candidates.push({ x, y })
+    }
+  }
+  candidates.sort((first, second) => Math.hypot(first.x, first.y) - Math.hypot(second.x, second.y))
+  const slots: Array<{ x: number; y: number }> = []
+  for (const candidate of candidates) {
+    if (slots.every((slot) => Math.hypot(slot.x - candidate.x, slot.y - candidate.y) >= 0.82))
+      slots.push(candidate)
+    if (slots.length === count) break
+  }
+  return slots
 }
 
 export function resolvedHat(simulation: SnowmanSimulation) {
@@ -614,7 +679,7 @@ function restingBallY(simulation: SnowmanSimulation, x: number, radius: number, 
 }
 function ballRadius(simulation: SnowmanSimulation, owner: 'body' | 'head', minimum: number) {
   const count = simulation.cells.filter((cell) => cell.owner === owner).length
-  return minimum + Math.sqrt(count / Math.PI) * 0.6
+  return minimum + Math.sqrt(count / Math.PI) * 0.5
 }
 function beginTopple(simulation: SnowmanSimulation, elapsed: number) {
   const body = simulation.body

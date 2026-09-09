@@ -82,6 +82,12 @@ describe('snowman simulation', () => {
           (later.body?.radius ?? 0) + 1,
       ),
     ).toBe(true)
+    const interiorCells = bodyCells.filter(
+      (cell) =>
+        Math.hypot(cell.x - (later.body?.x ?? 0), cell.y - (later.body?.y ?? 0)) <=
+        (later.body?.radius ?? 0) * 0.65,
+    )
+    expect(interiorCells.length).toBeGreaterThan(5)
   })
 
   it('approaches changing support height without jumping the rolling core', () => {
@@ -145,16 +151,32 @@ describe('snowman simulation', () => {
 
   it('anchors the completed figure while nearby settled snow continues to relax', () => {
     const complete = advanceTo(9_600, 0.96)
-    const later = advanceSnowmanSimulation(complete, {
-      elapsed: 10_600,
-      progress: 1,
-      overdue: false,
-      ...estimated,
-    })
+    let later = complete
+    for (const elapsed of [10_600, 10_975, 11_000, 11_125])
+      later = advanceSnowmanSimulation(later, {
+        elapsed,
+        progress: 1,
+        overdue: false,
+        ...estimated,
+      })
     expect(complete.body?.locked).toBe(true)
     expect(complete.head?.locked).toBe(true)
     expect(later.body).toMatchObject({ x: complete.body?.x, y: complete.body?.y })
     expect(later.head).toMatchObject({ x: complete.head?.x, y: complete.head?.y })
+    const ground = resolvedCells(complete).filter(
+      (cell) =>
+        cell.owner === 'ground' &&
+        Math.abs(cell.x - (complete.body?.x ?? 0)) <= (complete.body?.radius ?? 0),
+    )
+    expect(ground.length).toBeGreaterThan(0)
+    expect((complete.body?.y ?? 0) + (complete.body?.radius ?? 0)).toBeCloseTo(
+      Math.min(...ground.map((cell) => cell.y)),
+      5,
+    )
+    const bodyCells = resolvedCells(complete).filter((cell) => cell.owner === 'body')
+    expect(
+      Math.min(...ground.map((cell) => cell.y)) - Math.max(...bodyCells.map((cell) => cell.y)),
+    ).toBeLessThanOrEqual(0.25)
   })
 
   it('scales dense snowfall with measured area, preserves milestones, and doubles overdue cadence', () => {
@@ -166,6 +188,12 @@ describe('snowman simulation', () => {
     expect(snowmanSpawnInterval(10_000, dimensions, true)).toBe(
       snowmanSpawnInterval(10_000, dimensions) / 2,
     )
+    const baseline = snowmanSpawnInterval(10_000, dimensions, false, 0)
+    // 500ms before assembly starts (bodyStart is 5000ms), snowfall rate is reduced until overdue
+    expect(snowmanSpawnInterval(10_000, dimensions, false, 4_400)).toBe(baseline)
+    expect(snowmanSpawnInterval(10_000, dimensions, false, 4_500)).toBe(baseline * 4)
+    expect(snowmanSpawnInterval(10_000, dimensions, false, 7_000)).toBe(baseline * 4)
+    expect(snowmanSpawnInterval(10_000, dimensions, true, 7_000)).toBe(baseline / 2)
   })
 
   it('keeps unestimated snowfall unassembled and topples only after attached accumulation', () => {
