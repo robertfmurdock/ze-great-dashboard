@@ -19,7 +19,7 @@
   "dependencies": {
     "@ze-great-dashboard/shared": "0.0.0-dev",
     "yaml": "^2.9.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.0"
   },
   "devDependencies": {
     "tsx": "^4.23.13"
