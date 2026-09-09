@@ -12,6 +12,7 @@ export type SnowCell = {
   localY?: number
   targetLocalX?: number
   targetLocalY?: number
+  packed?: boolean
 }
 export type AirborneFlake = { id: number; x: number; y: number; bornAt: number }
 export type Snowball = {
@@ -22,6 +23,7 @@ export type Snowball = {
   angle: number
   /** A placed ball no longer follows the relaxing terrain beneath it. */
   locked: boolean
+  launch?: { x: number; y: number }
 }
 export type SnowmanSimulation = {
   nextAt: number
@@ -34,11 +36,19 @@ export type SnowmanSimulation = {
   head?: Snowball
   toppling?: { startedAt: number; angle: number; pivotX: number; pivotY: number }
   toppled: boolean
+  hat?: { x: number; y: number; angle: number }
 }
+
+export { snowmanSchedule } from './snowman-timing.ts'
+
+import {
+  scheduleAmount as amount,
+  smoothScheduleAmount as ease,
+  snowmanSchedule,
+} from './snowman-timing.ts'
 
 const STEP_MS = 25
 const ASSEMBLY_START = 0.5
-const BODY_DONE = 0.75
 const HAT_AT = 0.95
 /** Attached snowfall at which the completed decorative figure falls and stays down. */
 export const SNOWMAN_TOPPLE_LOAD = 60
@@ -71,6 +81,7 @@ export function snowmanScenePhase(
 ): SnowmanPhase {
   if (overdue) return 'overdue'
   if (estimatedDurationMs === undefined) return 'snowing'
+  if (snowmanSchedule(estimatedDurationMs).mode === 'snowfall') return 'snowing'
   if (progress >= HAT_AT) return 'complete'
   if (progress >= ASSEMBLY_START) return 'assembling'
   return 'drift'
@@ -126,40 +137,19 @@ export function advanceSnowmanSimulation(
       ? clone(previous)
       : createSnowmanSimulation(dimensions)
   const targetElapsed = Math.max(simulation.lastElapsed, elapsed)
-  for (let time = simulation.lastElapsed; time < targetElapsed; time += STEP_MS) {
-    const nextTime = Math.min(targetElapsed, time + STEP_MS)
+  for (let time = simulation.lastElapsed + STEP_MS; time <= targetElapsed; time += STEP_MS) {
     simulation = step(
       simulation,
-      nextTime,
-      progress,
+      time,
+      estimatedDurationMs === undefined ? progress : time / estimatedDurationMs,
       estimatedDurationMs,
-      overdue,
+      overdue && (estimatedDurationMs === undefined || time >= estimatedDurationMs),
       seed,
       dimensions,
     )
+    simulation.lastElapsed = time
   }
-  simulation.lastElapsed = targetElapsed
   return simulation
-}
-
-export function snowmanStaticScene(
-  phase: SnowmanPhase,
-  seed: number,
-  dimensions: SnowmanDimensions,
-): SnowmanSimulation {
-  const duration = 10_000
-  const overdue = phase === 'overdue'
-  const progress =
-    phase === 'drift' || phase === 'snowing' ? 0.48 : phase === 'assembling' ? 0.72 : 1
-  const elapsed = overdue ? duration * 2.5 : duration * progress
-  return advanceSnowmanSimulation(createSnowmanSimulation(dimensions), {
-    elapsed,
-    progress,
-    estimatedDurationMs: phase === 'snowing' ? undefined : duration,
-    overdue,
-    seed,
-    dimensions,
-  })
 }
 
 export function snowmanLoad(cells: readonly SnowCell[]) {
@@ -172,7 +162,11 @@ export function resolvedCells(simulation: SnowmanSimulation) {
       cell.owner === 'body' ? simulation.body : cell.owner === 'head' ? simulation.head : undefined
     const resolved =
       ball && cell.localX !== undefined && cell.localY !== undefined
-        ? { ...cell, x: ball.x + cell.localX, y: ball.y + cell.localY }
+        ? {
+            ...cell,
+            x: ball.x + cell.localX * Math.cos(ball.angle) - cell.localY * Math.sin(ball.angle),
+            y: ball.y + cell.localX * Math.sin(ball.angle) + cell.localY * Math.cos(ball.angle),
+          }
         : cell
     return simulation.toppling && resolved.owner !== 'ground'
       ? rotateAround(resolved, simulation.toppling)
@@ -208,9 +202,13 @@ function step(
   updateBalls(simulation, progress, estimatedDurationMs, overdue)
   const occupied = occupiedCells(simulation)
   const wind = snowmanWind(seed, elapsed) * (STEP_MS / 1_000)
+  const fall =
+    estimatedDurationMs === undefined
+      ? 0.52
+      : Math.max(0.52, ((simulation.grid.rows + 7) * STEP_MS) / (estimatedDurationMs * 0.25))
   const nextFlakes: AirborneFlake[] = []
   for (const flake of simulation.flakes) {
-    const moved = { ...flake, x: flake.x + wind, y: flake.y + 0.52 }
+    const moved = { ...flake, x: flake.x + wind, y: flake.y + fall }
     const ball = hitBall(simulation, moved)
     if (ball) {
       joinBall(simulation, ball, flake.id, moved.x - ball.x, moved.y - ball.y)
@@ -255,87 +253,83 @@ function updateBalls(
   simulation: SnowmanSimulation,
   progress: number,
   estimatedDurationMs: number | undefined,
-  overdue: boolean,
+  _overdue: boolean,
 ) {
   if (estimatedDurationMs === undefined) return
+  const schedule = snowmanSchedule(estimatedDurationMs)
+  if (schedule.mode === 'snowfall') return
+  const time = progress * estimatedDurationMs
   const { columns, rows } = simulation.grid
-  const bodyAmount =
-    overdue || progress >= BODY_DONE
-      ? 1
-      : clamp((progress - ASSEMBLY_START) / (BODY_DONE - ASSEMBLY_START), 0, 1)
-  if (bodyAmount > 0 && !simulation.body)
+  const bodyAmount = ease(amount(time, schedule.bodyStart, schedule.bodyEnd))
+  if (time >= schedule.bodyStart && !simulation.body) {
+    const x = columns * 0.14
     simulation.body = {
       kind: 'body',
-      x: columns * 0.14,
-      y: rows * 0.72,
+      x,
+      y: restingBallY(simulation, x, 2, rows - 1),
       radius: 2,
       angle: 0,
       locked: false,
-    }
-  if (simulation.body) {
-    simulation.body.radius = ballRadius(simulation, 'body', 2)
-    if (!simulation.body.locked) {
-      const x = columns * (0.14 + 0.38 * bodyAmount)
-      const y = restingBallY(simulation, x, simulation.body.radius, rows * 0.82)
-      rollBallTo(simulation, simulation.body, x, y)
-      simulation.body.locked = bodyAmount === 1
     }
   }
-  const headAmount =
-    overdue || progress >= HAT_AT ? 1 : clamp((progress - BODY_DONE) / (HAT_AT - BODY_DONE), 0, 1)
-  if (headAmount > 0 && !simulation.head)
+  const body = simulation.body
+  if (body && !body.locked) {
+    body.radius = Math.max(body.radius, ballRadius(simulation, 'body', 2))
+    const x = columns * (0.14 + 0.38 * bodyAmount)
+    rollBallTo(body, x, restingBallY(simulation, x, body.radius, rows - 1))
+    body.locked = time >= schedule.bodyEnd
+  }
+  if (time >= schedule.headStart && !simulation.head) {
+    const x = columns * (schedule.mode === 'full' ? 0.88 : 0.66)
     simulation.head = {
       kind: 'head',
-      x: columns * 0.88,
-      y: rows * 0.72,
-      radius: 2,
+      x,
+      y: restingBallY(simulation, x, 1.7, rows - 1),
+      radius: 1.7,
       angle: 0,
       locked: false,
     }
-  if (simulation.head && simulation.body) {
-    simulation.head.radius = ballRadius(simulation, 'head', 1.7)
-    if (!simulation.head.locked) {
-      const rolling = clamp(headAmount / 0.68, 0, 1)
-      const groundX = columns * (0.88 - 0.3 * rolling)
-      const groundY = restingBallY(simulation, groundX, simulation.head.radius, rows * 0.82)
-      const seatX = simulation.body.x
-      const seatY = simulation.body.y - simulation.body.radius - simulation.head.radius + 0.5
-      const climb = clamp((headAmount - 0.68) / 0.32, 0, 1)
-      rollBallTo(
-        simulation,
-        simulation.head,
-        groundX + (seatX - groundX) * climb,
-        groundY + (seatY - groundY) * climb,
-      )
-      simulation.head.locked = headAmount === 1
+    collectTouchedGround(simulation)
+  }
+  const head = simulation.head
+  if (head && body && !head.locked) {
+    head.radius = Math.max(head.radius, ballRadius(simulation, 'head', 1.7))
+    if (time < schedule.hopStart) {
+      const rolling = ease(amount(time, schedule.headStart, schedule.hopStart))
+      const x = columns * (0.88 - 0.22 * rolling)
+      rollBallTo(head, x, restingBallY(simulation, x, head.radius, rows - 1))
+    } else {
+      head.launch ??= { x: head.x, y: head.y }
+      const hop = amount(time, schedule.hopStart, schedule.land)
+      const seatY = body.y - body.radius - head.radius + 0.5
+      head.x = head.launch.x + (body.x - head.launch.x) * ease(hop)
+      head.y =
+        head.launch.y +
+        (seatY - head.launch.y) * ease(hop) -
+        Math.sin(Math.PI * hop) * Math.max(5, body.radius * 1.5)
+      if (time >= schedule.land) {
+        const settle = amount(time, schedule.land, schedule.settleEnd)
+        head.y += Math.sin(Math.PI * settle) * 0.45
+      }
+      head.locked = time >= schedule.settleEnd
+    }
+  }
+  if (head && time >= schedule.land) {
+    const drop = amount(time, schedule.land, schedule.end)
+    simulation.hat = {
+      x: head.x,
+      y: head.y - head.radius - 1 - 5 * (1 - drop * drop),
+      angle: (1 - ease(drop)) * -0.22,
     }
   }
 }
 
-function rollBallTo(simulation: SnowmanSimulation, ball: Snowball, x: number, y: number) {
+function rollBallTo(ball: Snowball, x: number, y: number) {
+  const nextY = moveToward(ball.y, y, 0.16)
   const dx = x - ball.x
-  const rotation = dx / Math.max(ball.radius, 1)
-  if (rotation !== 0) {
-    const cosine = Math.cos(rotation)
-    const sine = Math.sin(rotation)
-    for (const cell of simulation.cells) {
-      if (cell.owner !== ball.kind || cell.localX === undefined || cell.localY === undefined)
-        continue
-      const localX = cell.localX
-      cell.localX = localX * cosine - cell.localY * sine
-      cell.localY = localX * sine + cell.localY * cosine
-      if (cell.targetLocalX !== undefined && cell.targetLocalY !== undefined) {
-        const targetLocalX = cell.targetLocalX
-        cell.targetLocalX = targetLocalX * cosine - cell.targetLocalY * sine
-        cell.targetLocalY = targetLocalX * sine + cell.targetLocalY * cosine
-      }
-    }
-    ball.angle += rotation
-  }
+  ball.angle += (Math.sign(dx) * Math.hypot(dx, nextY - ball.y)) / Math.max(ball.radius, 1)
   ball.x = x
-  // Support cells are discrete and can reconfigure in one tick. The rolling core follows that
-  // surface continuously instead of teleporting a whole ball by a cell height.
-  ball.y = moveToward(ball.y, y, 0.16)
+  ball.y = nextY
 }
 
 function collectTouchedGround(simulation: SnowmanSimulation) {
@@ -357,6 +351,7 @@ function collectTouchedGround(simulation: SnowmanSimulation) {
     const owner = ball.kind
     const captureRadius = ball.radius + 0.75
     for (const cell of resolved) {
+      if (!canCollect(simulation, ball)) break
       if (cell.owner !== 'ground') continue
       const dx = cell.x - ball.x
       const dy = cell.y - ball.y
@@ -374,15 +369,30 @@ function collectTouchedGround(simulation: SnowmanSimulation) {
       if (!original) continue
       joinBall(simulation, ball, original.id, dx, dy)
     }
-    ball.radius = ballRadius(simulation, owner, ball.kind === 'body' ? 2 : 1.7)
+    ball.radius = Math.max(
+      ball.radius,
+      ballRadius(simulation, owner, ball.kind === 'body' ? 2 : 1.7),
+    )
   }
+}
+
+function canCollect(simulation: SnowmanSimulation, ball: Snowball) {
+  if (ball.kind === 'body' || !simulation.body) return true
+  const capacity = Math.max(
+    6,
+    Math.PI * (Math.max(0, simulation.body.radius * 0.68 - 1.7) / 0.6) ** 2,
+  )
+  return simulation.cells.filter((cell) => cell.owner === 'head').length < capacity
 }
 
 function hitBall(simulation: SnowmanSimulation, flake: AirborneFlake) {
   const candidates = [simulation.body, simulation.head].filter(
-    (ball): ball is Snowball => ball !== undefined,
+    (ball): ball is Snowball => ball !== undefined && !ball.locked,
   )
-  return candidates.find((ball) => Math.hypot(flake.x - ball.x, flake.y - ball.y) <= ball.radius)
+  return candidates.find(
+    (ball) =>
+      canCollect(simulation, ball) && Math.hypot(flake.x - ball.x, flake.y - ball.y) <= ball.radius,
+  )
 }
 
 function joinBall(
@@ -392,6 +402,11 @@ function joinBall(
   localX: number,
   localY: number,
 ) {
+  const cosine = Math.cos(-ball.angle)
+  const sine = Math.sin(-ball.angle)
+  const rotatedX = localX * cosine - localY * sine
+  localY = localX * sine + localY * cosine
+  localX = rotatedX
   const cell = simulation.cells.find((candidate) => candidate.id === id)
   const target = ballInteriorSlot(simulation, ball, id)
   const start = openBallPosition(simulation, ball, localX, localY, id)
@@ -416,26 +431,22 @@ function openBallPosition(
   localY: number,
   id: number,
 ) {
-  const occupied = new Set(
-    simulation.cells
-      .filter((cell) => cell.id !== id && cell.owner === ball.kind)
-      .map((cell) => key(Math.round(cell.localX ?? 0), Math.round(cell.localY ?? 0))),
-  )
-  const x = Math.round(localX)
-  const y = Math.round(localY)
-  if (!occupied.has(key(x, y))) return { x, y }
-  for (let radius = 1; radius <= Math.ceil(ball.radius); radius += 1)
-    for (let offsetX = -radius; offsetX <= radius; offsetX += 1)
-      for (let offsetY = -radius; offsetY <= radius; offsetY += 1) {
-        const candidateX = x + offsetX
-        const candidateY = y + offsetY
-        if (
-          Math.hypot(candidateX, candidateY) <= ball.radius + 0.3 &&
-          !occupied.has(key(candidateX, candidateY))
-        )
-          return { x: candidateX, y: candidateY }
+  const cells = simulation.cells.filter((cell) => cell.id !== id && cell.owner === ball.kind)
+  const free = (x: number, y: number) =>
+    cells.every((cell) => Math.hypot((cell.localX ?? 0) - x, (cell.localY ?? 0) - y) >= 0.75)
+  if (free(localX, localY)) return { x: localX, y: localY }
+  // Search outward from the contact, retaining already packed grains in their material frame.
+  for (let radius = 0.75; ; radius += 0.75) {
+    for (let i = 0; i < 32; i++) {
+      const angle = (i * Math.PI) / 16
+      const x = localX + Math.cos(angle) * radius
+      const y = localY + Math.sin(angle) * radius
+      if ((Math.hypot(x, y) <= ball.radius + 0.75 || radius > ball.radius * 2) && free(x, y)) {
+        ball.radius = Math.max(ball.radius, Math.hypot(x, y) - 0.5)
+        return { x, y }
       }
-  return { x, y }
+    }
+  }
 }
 
 function ballInteriorSlot(simulation: SnowmanSimulation, ball: Snowball, id: number) {
@@ -455,73 +466,75 @@ function ballInteriorSlot(simulation: SnowmanSimulation, ball: Snowball, id: num
 }
 
 function compactBallCells(simulation: SnowmanSimulation) {
-  for (const ball of [simulation.body, simulation.head]) {
-    if (!ball) continue
-    const cells = simulation.cells.filter(
-      (cell) =>
-        cell.owner === ball.kind &&
-        cell.localX !== undefined &&
-        cell.localY !== undefined &&
-        cell.targetLocalX !== undefined &&
-        cell.targetLocalY !== undefined,
+  for (const cell of simulation.cells) {
+    if (
+      cell.packed ||
+      cell.localX === undefined ||
+      cell.localY === undefined ||
+      cell.targetLocalX === undefined ||
+      cell.targetLocalY === undefined
     )
-    const occupied = new Map<string, SnowCell>()
-    for (const cell of cells) {
-      const start = openBallPosition(simulation, ball, cell.localX ?? 0, cell.localY ?? 0, cell.id)
-      cell.localX = start.x
-      cell.localY = start.y
-      occupied.set(key(start.x, start.y), cell)
+      continue
+    const x = moveToward(cell.localX, cell.targetLocalX, 0.2)
+    const y = moveToward(cell.localY, cell.targetLocalY, 0.2)
+    const blocked = simulation.cells.some(
+      (other) =>
+        other.id !== cell.id &&
+        other.owner === cell.owner &&
+        Math.hypot((other.localX ?? 0) - x, (other.localY ?? 0) - y) < 0.75,
+    )
+    if (!blocked) {
+      cell.localX = x
+      cell.localY = y
     }
-    for (const cell of cells) {
-      const currentX = Math.round(cell.localX ?? 0)
-      const currentY = Math.round(cell.localY ?? 0)
-      const targetX = Math.round(cell.targetLocalX ?? 0)
-      const targetY = Math.round(cell.targetLocalY ?? 0)
-      const horizontal = Math.sign(targetX - currentX)
-      const vertical = Math.sign(targetY - currentY)
-      const moves: [number, number][] =
-        Math.abs(targetX - currentX) >= Math.abs(targetY - currentY)
-          ? [
-              [horizontal, 0],
-              [0, vertical],
-              [horizontal, vertical],
-            ]
-          : [
-              [0, vertical],
-              [horizontal, 0],
-              [horizontal, vertical],
-            ]
-      for (const [x, y] of moves) {
-        if (x === 0 && y === 0) continue
-        if (shiftBallCell(cell, x, y, occupied, ball, new Set())) break
-      }
-    }
+    cell.packed = blocked || (x === cell.targetLocalX && y === cell.targetLocalY)
   }
 }
 
-function shiftBallCell(
-  cell: SnowCell,
-  dx: number,
-  dy: number,
-  occupied: Map<string, SnowCell>,
-  ball: Snowball,
-  seen: Set<number>,
-): boolean {
-  if (seen.has(cell.id)) return false
-  seen.add(cell.id)
-  const fromX = Math.round(cell.localX ?? 0)
-  const fromY = Math.round(cell.localY ?? 0)
-  const toX = fromX + dx
-  const toY = fromY + dy
-  if (Math.hypot(toX, toY) > ball.radius + 0.3) return false
-  const blocker = occupied.get(key(toX, toY))
-  if (blocker && blocker !== cell && !shiftBallCell(blocker, dx, dy, occupied, ball, seen))
-    return false
-  occupied.delete(key(fromX, fromY))
-  cell.localX = toX
-  cell.localY = toY
-  occupied.set(key(toX, toY), cell)
-  return true
+export function resolvedHat(simulation: SnowmanSimulation) {
+  if (!simulation.hat) return undefined
+  return simulation.toppling
+    ? {
+        ...rotateAround(simulation.hat, simulation.toppling),
+        angle: simulation.hat.angle + simulation.toppling.angle,
+      }
+    : simulation.hat
+}
+
+/** Interpolate presentation only; particle identities and physics remain on the fixed clock. */
+export function interpolateSnowman(
+  previous: SnowmanSimulation,
+  next: SnowmanSimulation,
+  fraction: number,
+) {
+  const scene = clone(next)
+  const mix = (a: number, b: number) => a + (b - a) * clamp(fraction, 0, 1)
+  for (const kind of ['body', 'head'] as const) {
+    const a = previous[kind],
+      b = scene[kind]
+    if (a && b) {
+      b.x = mix(a.x, b.x)
+      b.y = mix(a.y, b.y)
+      b.angle = mix(a.angle, b.angle)
+    }
+  }
+  const oldFlakes = new Map(previous.flakes.map((flake) => [flake.id, flake]))
+  for (const flake of scene.flakes) {
+    const old = oldFlakes.get(flake.id)
+    if (old) {
+      flake.x = mix(old.x, flake.x)
+      flake.y = mix(old.y, flake.y)
+    }
+  }
+  if (scene.toppling && previous.toppling)
+    scene.toppling.angle = mix(previous.toppling.angle, scene.toppling.angle)
+  if (scene.hat && previous.hat)
+    scene.hat = {
+      x: mix(previous.hat.x, scene.hat.x),
+      y: mix(previous.hat.y, scene.hat.y),
+      angle: mix(previous.hat.angle, scene.hat.angle),
+    }
+  return scene
 }
 
 function occupiedCells(simulation: SnowmanSimulation) {
@@ -601,7 +614,7 @@ function restingBallY(simulation: SnowmanSimulation, x: number, radius: number, 
 }
 function ballRadius(simulation: SnowmanSimulation, owner: 'body' | 'head', minimum: number) {
   const count = simulation.cells.filter((cell) => cell.owner === owner).length
-  return minimum + Math.sqrt(count / Math.PI) * 0.45
+  return minimum + Math.sqrt(count / Math.PI) * 0.6
 }
 function beginTopple(simulation: SnowmanSimulation, elapsed: number) {
   const body = simulation.body
@@ -641,6 +654,7 @@ function clone(simulation: SnowmanSimulation): SnowmanSimulation {
   return {
     ...simulation,
     grid: { ...simulation.grid },
+    hat: simulation.hat && { ...simulation.hat },
     flakes: simulation.flakes.map((flake) => ({ ...flake })),
     cells: simulation.cells.map((cell) => ({ ...cell })),
     body: simulation.body && { ...simulation.body },

@@ -35,6 +35,6 @@ describe('SnowmanField', () => {
     const field = rendered.container.querySelector('[data-running-part="snowman-field"]')
     expect(field?.getAttribute('data-reduced-motion')).toBe('true')
     expect(Number(field?.getAttribute('data-snow-cell-count'))).toBeGreaterThan(100)
-    expect(field?.getAttribute('data-snowman-toppled')).toBe('true')
+    expect(field?.getAttribute('data-snowman-toppled')).toBeNull()
   })
 })
