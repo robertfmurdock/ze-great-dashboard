@@ -381,6 +381,7 @@ describe('the board config schema', () => {
     'release-transit',
     'status-weather',
     'falling-shapes',
+    'snowman',
     'off',
   ])('accepts the %s running animation', (animation) => {
     const result = boardConfigSchema.parse({

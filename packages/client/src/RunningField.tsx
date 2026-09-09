@@ -3,20 +3,25 @@ import type { CSSProperties } from 'react'
 import { FallingShapesField } from './FallingShapesField.tsx'
 import { ReleaseTransitField } from './ReleaseTransitField.tsx'
 import styles from './RunningField.module.css'
+import { SnowmanField } from './SnowmanField.tsx'
 import { StatusWeatherField } from './StatusWeatherField.tsx'
 import { TelemetryBloomField } from './TelemetryBloomField.tsx'
 
 export type RunningFieldAnimation = Extract<
   RunningAnimation,
-  'telemetry-bloom' | 'release-transit' | 'status-weather' | 'falling-shapes'
+  'telemetry-bloom' | 'release-transit' | 'status-weather' | 'falling-shapes' | 'snowman'
 >
 
 export function isRunningFieldAnimation(
   animation: Exclude<RunningAnimation, 'off'>,
 ): animation is RunningFieldAnimation {
-  return ['telemetry-bloom', 'release-transit', 'status-weather', 'falling-shapes'].includes(
-    animation,
-  )
+  return [
+    'telemetry-bloom',
+    'release-transit',
+    'status-weather',
+    'falling-shapes',
+    'snowman',
+  ].includes(animation)
 }
 
 export function RunningField({
@@ -52,6 +57,14 @@ export function RunningField({
       {animation === 'status-weather' && <StatusWeatherField />}
       {animation === 'falling-shapes' && (
         <FallingShapesField
+          progress={progress}
+          estimatedDurationMs={estimatedDurationMs}
+          overdue={overdue}
+          seed={seed}
+        />
+      )}
+      {animation === 'snowman' && (
+        <SnowmanField
           progress={progress}
           estimatedDurationMs={estimatedDurationMs}
           overdue={overdue}

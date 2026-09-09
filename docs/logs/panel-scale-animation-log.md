@@ -199,3 +199,131 @@ simple and stable; test its parent for the relationship the parent owns; reserve
 behavior whose evidence depends on a real browser. Verification passed with `npm run check`: 301
 unit tests, 10 browser tests, Docker healthcheck, board validation, and published-package smoke
 testing.
+
+## Snowman running field (2026-09-09)
+
+`snowman` is the ninth visible active-run treatment. It remains entirely inside the established
+decorative `RunningField` boundary: clipped, inert, and below the readable panel evidence and
+source link. Its seeded DOM particles first settle into a drift through the first half of an
+estimated run. From 50% they are consumed from their drift positions into the body and head; at
+95% the completed figure receives its hat. A run without an estimate stays an accumulating snow
+scene and deliberately invents none of those milestones.
+
+After an estimate is exceeded, the particle cadence doubles. Settled flakes attach to the figure,
+whose increasing load first tilts it and then crosses a deterministic stability threshold that
+topples it. The fallen figure remains and keeps collecting snow for the rest of that field mount.
+Reduced motion renders the corresponding static phase, including the snow-covered fallen scene,
+rather than running the simulation. No dependency was added. The schema, random rotation,
+showcase, unit phase checks, and browser containment/compact/reduced-motion checks were updated;
+the unified repository gate passed.
+
+The initial implementation also established two deliberately small boundaries: `visualSeed` is
+named for its shared panel-id purpose rather than its original falling-shapes consumer, and the
+pure `snowman` model owns particle transitions while `SnowmanField` owns browser clock, media, and
+DOM work. A generic particle framework was intentionally not introduced; the two current fields
+have different collision and lifecycle rules, so it would make their contracts less legible.
+
+### Physical particle-model clarification (2026-09-09)
+
+The first snowman pass still used CSS body/head circles and treated its assembly as a directed
+relocation. That was visually suggestive but did not meet the useful trust-animation constraint:
+there was no conserved material to inspect. The field now has a small, deliberately non-generic
+physical model. It keeps a logical ground-height field and persistent flake identities. Airborne
+flakes share a deterministic seeded gust while settled flakes are unaffected. The rolling body and
+head balls select only settled identities from that terrain, so the rendered figure is solely
+particles formerly visible in the drift; there are no replacement body/head shapes.
+
+Density is derived from the measured field area. With an estimate, cadence is calculated from the
+material needed for drift plus both balls by the 95% hat milestone. Without one, the field remains
+ordinary accumulating snowfall. Overtime halves that calculated cadence and applies the same
+collision rules to new flakes. Once enough real snow has accumulated on the completed figure it
+falls at `SNOWMAN_TOPPLE_LOAD` (18 attached flakes) and remains a fallen, snow-catching particle
+shape. This threshold is intentionally visual rather than a claim about real snow mechanics.
+
+Reduced motion simulates a deterministic static scene through those same transitions rather than
+substituting geometry. Pure tests now cover gust determinism, terrain conservation, terrain-to-ball
+identity transitions, density-aware cadence, overtime doubling/toppling, and estimate-free runs;
+component and browser checks retain the clipped, compact, particle-built static presentation.
+
+### Cellular canvas reconstruction (2026-09-09)
+
+Review found that the earlier “physical” pass still read as sparse dots being assigned to a
+precomputed snowman: its height field had no local support behavior, the gust was too small to see,
+and `placeOnBall` visibly sent a flake to a bespoke position. The field was therefore rebuilt as a
+dense canvas simulation. Canvas is deliberate here: the visual needs hundreds of fine grains and a
+fixed-step loop, while the dashboard needs no per-flake DOM interaction or accessibility surface.
+
+The new state is a measured 2D occupancy lattice. Every flake has a persistent seeded trajectory;
+it falls under a small permanent breeze and intermittent stronger gusts, then settles only onto
+support or into a deterministic diagonal pocket. Wind never changes settled cells. The body and
+head are moving clusters whose collected cells retain their actual contact offset and are carried
+forward as the balls roll. The head makes a continuous final climb onto the body. This retains the
+intentionally magical assembly rhythm without pretending a cell teleported into a final silhouette.
+
+Canvas replaces DOM-particle structure only inside the already inert, clipped running-field layer.
+The public `SnowmanField` interface, readable panel content, reduced-motion scene, and no-estimate
+fallback remain intact. Browser evidence now asserts the canvas boundary rather than inspecting
+individual DOM flakes.
+
+### Rolling and repose correction (2026-09-09)
+
+The first cellular pass exposed a second visual-model mismatch: a ball carried its cells by simple
+translation, and its swept ground cells never reconsidered their support. That made the roll read as
+a sliding cluster and preserved trenches that granular snow would fill. Rolling now rotates each
+collected cell about its ball core by the travelled arc. After collection, a deterministic repose
+pass lets supported ground grains fall or slide diagonally into newly opened pockets, while occupied
+ball and figure cells remain solid. The relaxation is intentionally one cell per simulation step:
+it visibly heals a sweep without turning the whole drift into liquid sand.
+
+### Placed-figure anchoring (2026-09-09)
+
+The repose pass correctly changes nearby terrain, but the placed balls were still querying that
+changing terrain on every tick. The resulting center-height recalculation made a completed snowman
+jump after placement. A ball now locks its center at its placement milestone; its cluster can retain
+new attached snow, but it is no longer re-seated by unrelated ground relaxation. A regression test
+advances a completed scene while the surrounding bank continues to settle and asserts that both
+placed centers remain fixed.
+
+### Surface-only collection clarification (2026-09-09)
+
+The roller originally accepted any ground cell inside its radius. That still permitted buried cells
+to be carried away, which read as suspended snow caught by the ball. Collection is now restricted to
+exposed grains on the lower contact ring, and the deterministic repose pass gets a second local
+move each step to close the newly opened surface promptly. The cellular model uses smaller grains
+than the earlier DOM model, so the deliberately visual toppling threshold is now 60 attached
+grains; it remains a choreography threshold, not a physical material claim.
+
+### Ball-volume correction (2026-09-09)
+
+Surface-only collection eliminated suspended debris but made the balls read as hollow rings. A ball
+now gives each captured surface grain a deterministic unoccupied interior slot. It rotates with the
+ball and gradually compacts from its contact position into that slot, preserving a visible path from
+drift to volume rather than introducing replacement fill geometry. Airborne flakes that intersect a
+rolling or placed ball join that same compaction process. A focused simulation test exercises both
+the inward compaction and an airborne flake joining the body.
+
+### In-ball collision correction (2026-09-09)
+
+The initial volume compaction interpolated a cell directly toward its interior slot. That made two
+grains visually pass through each other. Ball compaction is now a discrete local occupancy model:
+a cell takes one grid step toward its target only when the destination is free, or after it can push
+the blocking chain one step in that direction within the ball boundary. Joining cells also choose an
+unoccupied contact position. The regression suite asserts unique rounded occupied positions for a
+rolling body, in addition to the existing compaction and falling-flake tests.
+
+### Continuous support following (2026-09-09)
+
+Even after placement anchoring, an actively rolling core could jump because its support height was
+read directly from the discrete, relaxing terrain. The rolling center now approaches its newly
+sampled support height at a bounded rate, while its horizontal progress and particle rotation remain
+continuous. A placed ball still locks entirely at its milestone, and a locked body no longer collects
+ground while the head is assembled. The model test verifies the core cannot change its vertical
+position by more than one small interpolation step in a simulation tick.
+
+### Toppling arc correction (2026-09-09)
+
+Toppling previously reassigned the balls to fallen coordinates in one simulation step. The completed
+figure now records a lower-body pivot and advances through a 750ms eased quarter-turn. Resolved body,
+head, accumulated cells, and hat all use that same transform, so the particle-built figure rolls
+continuously onto its side before entering its persistent fallen state. The model test observes both
+an intermediate angle and the final right-angle resting pose.

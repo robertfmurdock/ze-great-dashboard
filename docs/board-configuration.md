@@ -194,10 +194,10 @@ incubating: it has no live-tenant validation or compatibility promise.
 
 `pipeline-status` panels may set `running_animation` to `off`, or to one of `radial`, `runway`,
 `orbit`, `signal-field`, `telemetry-bloom`, `release-transit`, `status-weather`, or
-`falling-shapes`. Omission chooses one of those visible treatments at random whenever the panel
+`falling-shapes`, or `snowman`. Omission chooses one of those visible treatments at random whenever the panel
 enters the running state, keeps it stable while that run is refreshed, and avoids repeating the
 previous treatment on the next running transition. The first four are retained inline treatments;
-the latter four are panel-scale decorative fields. `falling-shapes` measures the rendered panel and
+the latter five are panel-scale decorative fields. `falling-shapes` measures the rendered panel and
 scales an approximately square-cell field into its interior. Wide panels move pieces from right to
 left, while tall and square panels move them from top to bottom. This setting changes only the
 active-running presentation and never replaces the status label or timing text.
@@ -206,7 +206,7 @@ active-running presentation and never replaces the status label or timing text.
 
 `pipeline-animation-demo` is a local visualization aid for comparing active pipeline treatments.
 It does not name a source, refresh interval, credential, or API endpoint. Without
-`running_animation`, it rotates through all eight supported visible treatments on a 20-second loop,
+`running_animation`, it rotates through all nine supported visible treatments on a 20-second loop,
 including the overdue treatment after its 15-second advisory estimate. Set `demo_run_duration` to
 change that rotation interval. Give it a visible `running_animation` value to hold one treatment
 for focused review; that review mode uses a five-minute estimated run followed by a short overtime

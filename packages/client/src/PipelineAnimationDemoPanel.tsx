@@ -1,12 +1,12 @@
 import { type Panel, parseDuration } from '@ze-great-dashboard/shared'
 import { useEffect, useState } from 'react'
-import { fallingSeed } from './falling-shapes.ts'
 import { PanelEvidence, PanelFrame, PanelStatus } from './PanelFrame.tsx'
 import styles from './PipelineAnimationDemoPanel.module.css'
 import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
 import { RunningFieldTiming } from './RunningFieldTiming.tsx'
 import { RunningProgress } from './RunningProgress.tsx'
 import { useRunningTiming } from './running-timing.ts'
+import { visualSeed } from './visual-seed.ts'
 
 const DEFAULT_RUN_DURATION_MS = 20_000
 const ESTIMATED_DURATION_MS = 15_000
@@ -21,6 +21,7 @@ const variants = [
   'release-transit',
   'status-weather',
   'falling-shapes',
+  'snowman',
 ] as const
 
 /**
@@ -85,7 +86,7 @@ function DemoRun({
             estimatedDurationMs={timing.estimatedDurationMs}
             overdue={timing.overdue}
             indeterminate={!timing.hasEstimate}
-            seed={fallingSeed(panel.id)}
+            seed={visualSeed(panel.id)}
           />
         ) : undefined
       }

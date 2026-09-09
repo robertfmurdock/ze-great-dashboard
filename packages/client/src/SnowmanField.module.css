@@ -1,0 +1,11 @@
+.field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  contain: layout paint;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

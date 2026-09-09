@@ -26,10 +26,10 @@ boards:
         running_animation: falling-shapes
         type: pipeline-animation-demo
         demo_review_duration: 45s
-      - id: showcase-falling-compact
-        label: Falling shapes · compact
+      - id: showcase-snowman-medium
+        label: Snowman · medium
         position: { h: 3, w: 2, x: 0, y: 6 }
-        running_animation: falling-shapes
+        running_animation: snowman
         type: pipeline-animation-demo
         demo_review_duration: 45s
       - id: showcase-runway

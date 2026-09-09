@@ -122,6 +122,12 @@ const signalFieldBoard = {
       running_animation: 'telemetry-bloom',
       position: { x: 0, y: 26, w: 2, h: 2 },
     },
+    {
+      id: 'snowman-build',
+      type: 'pipeline-status',
+      running_animation: 'snowman',
+      position: { x: 2, y: 26, w: 2, h: 2 },
+    },
   ],
 }
 
@@ -788,6 +794,18 @@ test('keeps panel-scale fields behind readable content, adapts them without over
   const fallingField = falling.locator('[data-running-part="falling-shapes-field"]')
   await expect(fallingField).toHaveAttribute('data-direction', 'horizontal')
 
+  const snowman = page.locator('[data-running-field][data-animation="snowman"]')
+  await expect(snowman).toBeVisible()
+  const snowmanBounds = await snowman.evaluate((element) => {
+    const panel = element.closest<HTMLElement>('[data-panel]')?.getBoundingClientRect()
+    return { panel, field: element.getBoundingClientRect() }
+  })
+  expect(snowmanBounds.field.right).toBeLessThanOrEqual(snowmanBounds.panel?.right ?? 0)
+  expect(snowmanBounds.field.bottom).toBeLessThanOrEqual(snowmanBounds.panel?.bottom ?? 0)
+  await expect(snowman.locator('[data-running-part="snowman-canvas"]')).toBeVisible()
+  // The figure is canvas snow, not replacement CSS circles or DOM flakes.
+  await expect(snowman.locator('.body, .head')).toHaveCount(0)
+
   const legacySignal = page.locator('[data-running-progress="signal-field"]')
   await expect(legacySignal).toBeVisible()
   const legacySignalLayout = await legacySignal.evaluate((element) => {
@@ -804,6 +822,11 @@ test('keeps panel-scale fields behind readable content, adapts them without over
   expect(legacySignalLayout.tracksDisplay).toBe('flex')
 
   await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(snowman.locator('[data-running-part="snowman-field"]')).toHaveAttribute(
+    'data-reduced-motion',
+    'true',
+  )
+  await expect(snowman.locator('[data-running-part="snowman-canvas"]')).toBeVisible()
   expect(
     await field
       .locator('[data-running-part="bloom-marker"]')

@@ -65,6 +65,7 @@ describe('RunningField', () => {
     ['release-transit', 'transit-packet'],
     ['status-weather', 'weather-haze'],
     ['falling-shapes', 'falling-shapes-field'],
+    ['snowman', 'snowman-field'],
   ] as const)(
     'renders %s as an inert decorative sibling with timing in the text island',
     (animation, part) => {
@@ -102,7 +103,7 @@ describe('RunningField', () => {
   it('chooses a visible treatment at random by default and excludes inactive, off, error, and loading panels', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.99)
     const running = render(<PipelinePanel panel={panel} envelope={envelope()} />).container
-    expect(running.querySelector('[data-animation="falling-shapes"]')).not.toBeNull()
+    expect(running.querySelector('[data-animation="snowman"]')).not.toBeNull()
     cleanup()
     const off = render(
       <PipelinePanel panel={{ ...panel, running_animation: 'off' }} envelope={envelope()} />,

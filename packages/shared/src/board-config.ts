@@ -74,6 +74,7 @@ export const visibleRunningAnimations = [
   'release-transit',
   'status-weather',
   'falling-shapes',
+  'snowman',
 ] as const
 
 export const runningAnimationSchema = z.enum([...visibleRunningAnimations, 'off'])

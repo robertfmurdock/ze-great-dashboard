@@ -58,13 +58,6 @@ export function fallingGrid(
     : { columns, rows: Math.max(rows, columns) }
 }
 
-export function fallingSeed(value: string): number {
-  return Array.from(value).reduce(
-    (hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0,
-    7,
-  )
-}
-
 export function shapeFits(shape: FallingCell[], columns: number, rows: number): boolean {
   const maxX = Math.max(...shape.map((cell) => cell.x))
   const maxY = Math.max(...shape.map((cell) => cell.y))

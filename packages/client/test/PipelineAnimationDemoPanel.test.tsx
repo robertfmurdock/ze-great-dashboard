@@ -59,6 +59,9 @@ describe('PipelineAnimationDemoPanel', () => {
     expect(rendered.container.querySelector('[data-animation="falling-shapes"]')).not.toBeNull()
 
     await act(async () => vi.advanceTimersByTime(20_000))
+    expect(rendered.container.querySelector('[data-animation="snowman"]')).not.toBeNull()
+
+    await act(async () => vi.advanceTimersByTime(20_000))
     expect(rendered.container.querySelector('[data-running-progress="radial"]')).not.toBeNull()
     expect(rendered.container.textContent).toContain('Elapsed 0s')
     expect(rendered.container.textContent).not.toContain('Over estimate')
@@ -84,6 +87,7 @@ describe('PipelineAnimationDemoPanel', () => {
     'release-transit',
     'status-weather',
     'falling-shapes',
+    'snowman',
   ] as const)('keeps %s mounted and marks it overdue after its estimate', async (animation) => {
     const rendered = render(
       <PipelineAnimationDemoPanel
