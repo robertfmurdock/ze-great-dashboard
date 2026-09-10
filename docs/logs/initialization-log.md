@@ -397,3 +397,20 @@ path.
 Source errors now use actionable headings — for example, “Access denied” and “Source unavailable”
 — with the adapter’s detailed message and the source link retained. No API, config, persistence,
 or dependency change was needed.
+
+---
+
+## Generated editor schema (2026-09-10)
+
+The versioned `board-config.schema.json` release asset is now generated from the shared Zod board
+contract during the normal Vite client build. The previously checked-in schema was a manually
+maintained subset and could drift from the runtime validator; Zod remains the sole structural
+authority, with no new dependency.
+
+The generated draft-2020-12 document has a stable id and title and publishes an
+`x-dashboard-runtime-rules` boundary. JSON Schema deliberately does not claim relationship or
+operational checks it cannot represent: YAML/modeline and version matching, ID uniqueness,
+cross-field and panel/source rules, proxy admission and bounded operations, selected-board and
+credential resolution, and external availability remain runtime validation. The client build and
+published-package evidence now verify that the generated artifact, rather than a source copy, is
+what ships.

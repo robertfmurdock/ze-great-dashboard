@@ -384,6 +384,56 @@ export const boardConfigSchema = z
 export type BoardConfig = z.infer<typeof boardConfigSchema>
 
 /**
+ * Rules the editor cannot express in JSON Schema. Runtime validation remains authoritative for
+ * these relationships and operational policies; this extension makes that boundary visible to
+ * tools consuming the published schema.
+ */
+export const boardConfigRuntimeRules = [
+  {
+    category: 'yaml-modeline-and-schema-version',
+    description: 'YAML parsing and a first-line modeline that names the selected release schema.',
+  },
+  {
+    category: 'unique-panel-and-fact-ids',
+    description: 'Panel IDs are unique within a board and fact IDs are unique within a panel.',
+  },
+  {
+    category: 'cross-field-configuration',
+    description:
+      'Mutually exclusive and paired fields, including grouped HTTP value fields and credential modes.',
+  },
+  {
+    category: 'panel-source-relationships',
+    description: 'Panel/source compatibility and source-specific requirements.',
+  },
+  {
+    category: 'panel-admission-and-bounded-adapter-operations',
+    description:
+      'Supported panel admission and the proxy operations each adapter is permitted to perform.',
+  },
+  {
+    category: 'environment-and-external-availability',
+    description:
+      'Environment-selected boards, credential resolution, and availability of external services.',
+  },
+] as const
+
+/** The immutable release schema consumed by YAML-aware editors. */
+export function boardConfigJsonSchema() {
+  return {
+    ...z.toJSONSchema(boardConfigSchema, { target: 'draft-2020-12' }),
+    $id: 'board-config.schema.json',
+    title: 'Ze Great Dashboard board configuration',
+    'x-dashboard-runtime-rules': boardConfigRuntimeRules.map((rule) => ({ ...rule })),
+  }
+}
+
+/** Keep the generated release artifact stable and readable across builds. */
+export function serializeBoardConfigJsonSchema(): string {
+  return `${JSON.stringify(boardConfigJsonSchema(), null, 2)}\n`
+}
+
+/**
  * Resolves a panel's refresh interval across the three parties who have a say: the board
  * author's default, their per-panel override, and the adapter's floor which clamps both.
  * The floor exists so knowing each upstream's rate limit isn't the board author's problem.

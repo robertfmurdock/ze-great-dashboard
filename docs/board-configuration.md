@@ -254,7 +254,16 @@ instead of starting the dashboard. Start every board file with a schema modeline
 ```
 
 Replace both URL placeholders with the asset host and release version you publish. The release
-packager rewrites it to that exact release URL automatically. In particular, check that:
+packager rewrites it to that exact release URL automatically. The published schema provides
+editor feedback for structural rules, including required fields, supported animation values,
+duration syntax, URLs and JSON paths, and the four-fact limit. Its
+`x-dashboard-runtime-rules` extension lists the checks that require the dashboard runtime.
+
+Packaging and startup validation remain authoritative: they parse YAML, verify that the first-line
+modeline selects the release schema, and enforce relationships that JSON Schema cannot express,
+such as unique IDs, paired or exclusive fields, panel/source compatibility, supported proxy
+operations, environment-selected boards, credential lookup, and external availability. In
+particular, check that:
 
 - `boards` is a map containing at least one board.
 - Each board contains at least one panel.

@@ -5,7 +5,7 @@ import { z } from 'zod'
  * Parsing them here rather than at each use site means a bad value fails config
  * validation at boot instead of silently becoming NaN in a polling loop.
  */
-const DURATION_PATTERN = /^(\d+)(ms|s|m|h)$/
+const DURATION_PATTERN = /^([1-9][0-9]*)(ms|s|m|h)$/
 
 const UNIT_MILLIS = {
   ms: 1,
@@ -30,9 +30,8 @@ export function parseDuration(value: string): number | null {
 
 export const durationSchema = z
   .string()
-  .refine((value) => parseDuration(value) !== null, {
+  .regex(/^[1-9][0-9]*(?:ms|s|m|h)$/, {
     message: 'must be a positive duration like "30s", "5m", or "1h"',
-    params: { constraint: 'Use a positive duration like "30s", "5m", or "1h".' },
   })
   .brand<'Duration'>()
 

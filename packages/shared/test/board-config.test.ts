@@ -348,6 +348,34 @@ describe('the board config schema', () => {
     ).toBe(false)
   })
 
+  it('rejects invalid editor-visible HTTP value fields', () => {
+    const board = (panel: object) => ({ boards: { a: { panels: [panel] } } })
+
+    expect(
+      boardConfigSchema.safeParse(board({ id: 'versions', type: 'http-value', url: 'not a URL' }))
+        .success,
+    ).toBe(false)
+    expect(
+      boardConfigSchema.safeParse(
+        board({
+          id: 'versions',
+          type: 'http-value',
+          url: 'https://example.com',
+          json_path: 'version',
+        }),
+      ).success,
+    ).toBe(false)
+    expect(
+      boardConfigSchema.safeParse(
+        board({
+          id: 'versions',
+          type: 'http-value',
+          facts: [{ id: 'api', url: 'https://api.example.com/version' }],
+        }),
+      ).success,
+    ).toBe(false)
+  })
+
   it('preserves the local pipeline animation demo with ordinary panel metadata', () => {
     const result = boardConfigSchema.parse({
       boards: {

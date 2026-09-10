@@ -5,6 +5,8 @@ export {
   azureDevOpsSourceSchema,
   type Board,
   type BoardConfig,
+  boardConfigJsonSchema,
+  boardConfigRuntimeRules,
   boardConfigSchema,
   boardSchema,
   credentialEnvironmentNames,
@@ -30,6 +32,7 @@ export {
   resolveRefreshMillis,
   runningAnimationSchema,
   type Source,
+  serializeBoardConfigJsonSchema,
   sourceSchema,
   visibleRunningAnimations,
 } from './board-config.ts'
