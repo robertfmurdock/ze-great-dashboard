@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Administrator-owned credential boundary for Ze Great Dashboard Auth0 functional checks
+
+Parameters:
+  LocalSsoPrincipalArn:
+    Type: String
+    Description: IAM role ARN used by the explicitly authorized local AWS SSO permission set
+  GitHubRepository:
+    Type: String
+    Default: robertfmurdock/ze-great-dashboard
+  GitHubOwnerId:
+    Type: String
+    Default: '6215634'
+  GitHubRepositoryId:
+    Type: String
+    Default: '1338375095'
+
+Resources:
+  FunctionalCredentialKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Encrypts only the Ze Great Dashboard Auth0 functional credential parameter
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: EnableAccountAdministrationAndIamPolicies
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action: kms:*
+            Resource: '*'
+
+  FunctionalCredentialKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/ze-great-dashboard-auth0-functional
+      TargetKeyId: !Ref FunctionalCredentialKey
+
+  FunctionalReaderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ZeGreatDashboardAuth0FunctionalReader
+      Description: Reads the one encrypted Auth0 functional-test credential object
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: MainGitHubOidc
+            Effect: Allow
+            Principal:
+              Federated: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+                'token.actions.githubusercontent.com:sub': !Sub
+                  - 'repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:ref:refs/heads/main'
+                  - Owner: { Fn::Select: [0, { Fn::Split: ['/', !Ref GitHubRepository] }] }
+                    Repository: { Fn::Select: [1, { Fn::Split: ['/', !Ref GitHubRepository] }] }
+          - Sid: AuthorizedLocalSso
+            Effect: Allow
+            Principal:
+              AWS: !Ref LocalSsoPrincipalArn
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ReadAuth0FunctionalCredential
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadExactParameter
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ze-great-dashboard/auth0-functional'
+              - Sid: DecryptExactParameter
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: !GetAtt FunctionalCredentialKey.Arn
+                Condition:
+                  StringEquals:
+                    'kms:ViaService': !Sub 'ssm.${AWS::Region}.${AWS::URLSuffix}'
+                    'kms:EncryptionContext:PARAMETER_ARN': !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ze-great-dashboard/auth0-functional'
+
+Outputs:
+  KeyArn: { Value: !GetAtt FunctionalCredentialKey.Arn }
+  ReaderRoleArn: { Value: !GetAtt FunctionalReaderRole.Arn }

@@ -38,7 +38,17 @@ jobs:
       - name: Install
         run: npm ci --ignore-scripts
 
+      - name: Auth0 functional reader credentials
+        if: github.ref == 'refs/heads/main'
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: arn:aws:iam::174159267544:role/ZeGreatDashboardAuth0FunctionalReader
+          aws-region: us-east-1
+
       - name: Check 🔎
+        env:
+          AUTH0_FUNCTIONAL_STRICT: ${{ github.ref == 'refs/heads/main' && 'true' || 'false' }}
+          AUTH0_FUNCTIONAL_SKIP: ${{ github.ref != 'refs/heads/main' && 'true' || 'false' }}
         run: npm run check
 
       - name: Fetch release history

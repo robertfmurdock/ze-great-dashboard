@@ -64,6 +64,69 @@ This command is safe to rerun. It assumes the account's shared GitHub OIDC provi
 `public-assets.zegreatrob.com` is the live CloudFront custom domain and the stable public package
 contract. Keep its ACM validation CNAME in DNS so the certificate can renew automatically.
 
+## Auth0 functional-test credentials
+
+`auth0-functional.yml` is a separate, administrator-owned boundary for the live Auth0 release
+evidence. It creates a rotating customer-managed KMS key and
+`ZeGreatDashboardAuth0FunctionalReader`. That role can read one fixed Parameter Store value and can
+decrypt it only through SSM with that parameter's encryption context. Its trust policy admits only
+the immutable-ID GitHub OIDC subject for `main` and the IAM role ARN supplied for the authorized
+local AWS SSO permission set.
+
+An administrator deploys the boundary after replacing the example SSO role ARN:
+
+```sh
+aws cloudformation deploy \
+  --region us-east-1 \
+  --stack-name ze-great-dashboard-auth0-functional \
+  --template-file infra/auth0-functional.yml \
+  --parameter-overrides \
+    LocalSsoPrincipalArn=arn:aws:iam::174159267544:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_EXAMPLE \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --tags Project=ze-great-dashboard ManagedBy=cloudformation
+```
+
+CloudFormation deliberately does not create the `SecureString`: doing so would put its value in a
+template parameter and deployment history. Retrieve the stack's `KeyArn`, then create or rotate the
+single JSON object from an administrator shell. The three JSON keys retain their former
+GitHub-secret names so their purpose remains recognizable.
+
+```sh
+read -rs 'AUTH0_FUNCTIONAL_TEST_RUNNER_CLIENT_SECRET?Runner client secret: '
+echo
+read -rs 'AUTH0_FUNCTIONAL_ALLOWED_PASSWORD?Allowed-user password: '
+echo
+read -rs 'AUTH0_FUNCTIONAL_UNLISTED_PASSWORD?Unlisted-user password: '
+echo
+key_arn="$(aws cloudformation describe-stacks \
+  --region us-east-1 \
+  --stack-name ze-great-dashboard-auth0-functional \
+  --query "Stacks[0].Outputs[?OutputKey=='KeyArn'].OutputValue" \
+  --output text)"
+value="$(jq -cn \
+  --arg runner "$AUTH0_FUNCTIONAL_TEST_RUNNER_CLIENT_SECRET" \
+  --arg allowed "$AUTH0_FUNCTIONAL_ALLOWED_PASSWORD" \
+  --arg unlisted "$AUTH0_FUNCTIONAL_UNLISTED_PASSWORD" \
+  '{AUTH0_FUNCTIONAL_TEST_RUNNER_CLIENT_SECRET:$runner,AUTH0_FUNCTIONAL_ALLOWED_PASSWORD:$allowed,AUTH0_FUNCTIONAL_UNLISTED_PASSWORD:$unlisted}')"
+aws ssm put-parameter \
+  --region us-east-1 \
+  --name /ze-great-dashboard/auth0-functional \
+  --type SecureString \
+  --key-id "$key_arn" \
+  --value "$value" \
+  --overwrite
+unset AUTH0_FUNCTIONAL_TEST_RUNNER_CLIENT_SECRET AUTH0_FUNCTIONAL_ALLOWED_PASSWORD \
+  AUTH0_FUNCTIONAL_UNLISTED_PASSWORD value
+```
+
+Local `npm run check` first tries the current AWS identity, then assumes the reader role with
+short-lived credentials. If neither is authorized, the packaged-server checks still run and Auth0
+is visibly skipped. The Build workflow requires Auth0 on `main`; other refs explicitly skip it.
+The scheduled/manual workflow runs the same focused strict path. Once both paths have succeeded
+against Parameter Store, delete the three same-named secrets from the former
+`auth0-functional` GitHub environment. The runner reads only Parameter Store and does not accept
+direct secret environment values.
+
 ## Consumer reference
 
 The normal infrastructure provision creates the persistent consumer reference resources alongside

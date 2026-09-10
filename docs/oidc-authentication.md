@@ -48,19 +48,19 @@ This setup deliberately has no Deploy CLI configuration or tenant-sync workflow.
 
 If a temporary Deploy CLI application or its GitHub secrets were created during the abandoned synchronization attempt, delete that application and remove `AUTH0_FUNCTIONAL_DEPLOY_CLIENT_ID` and `AUTH0_FUNCTIONAL_DEPLOY_CLIENT_SECRET` from GitHub. They are not used by the functional suite.
 
-The domain, API identifier, connection, test-runner client ID, and the users' stable usernames and email login identifiers are checked in alongside the runner. The Password grant submits the email login identifier; the usernames identify the allowed and unlisted accounts in Auth0. Create the GitHub environment named `auth0-functional` with only these secrets:
+The domain, API identifier, connection, test-runner client ID, and the users' stable usernames and email login identifiers are checked in alongside the runner. The Password grant submits the email login identifier; the usernames identify the allowed and unlisted accounts in Auth0. Store the three secret values together in the administrator-owned Parameter Store boundary documented in [`infra/README.md`](../infra/README.md):
 
-| Kind | Name |
+| JSON value | Key |
 | --- | --- |
-| Secret | `AUTH0_FUNCTIONAL_TEST_RUNNER_CLIENT_SECRET` |
-| Secret | `AUTH0_FUNCTIONAL_ALLOWED_PASSWORD` |
-| Secret | `AUTH0_FUNCTIONAL_UNLISTED_PASSWORD` |
+| Test-runner client secret | `AUTH0_FUNCTIONAL_TEST_RUNNER_CLIENT_SECRET` |
+| Allowed-user password | `AUTH0_FUNCTIONAL_ALLOWED_PASSWORD` |
+| Unlisted-user password | `AUTH0_FUNCTIONAL_UNLISTED_PASSWORD` |
 
 The test runner's Password grant is restricted to trusted local/CI test execution. It validates API behavior after a user has authenticated and is not a dashboard sign-in mechanism. Do not configure Management API access for this application or either test user.
 
 ### Running the API suite
 
-With these three local secret values exported, run:
+With an authorized AWS SSO session active, run:
 
 ```sh
 npm run test:auth0-functional
@@ -68,4 +68,4 @@ npm run test:auth0-functional
 
 The runner starts a temporary asset fixture and controlled HTTP-value upstream, then builds and starts the real dashboard through the repository's ordinary local Docker Compose shape. A test-only Compose overlay supplies an ephemeral loopback port and lets the container reach those host-owned fixtures; Compose's Docker health check is the startup gate. It verifies public health, missing-token `401`, allowed board and panel reads, unlisted-user `403` responses, the normal panel envelope, and that a denied panel read did not reach the upstream. Credentials and bearer tokens are never written to the board fixture, output, or artifacts.
 
-The scheduled and `main`-push **Auth0 functional API checks** workflow uses the same GitHub environment and a dedicated concurrency group, so it never runs for pull requests or forks and does not put concurrent Password-grant load on the test identities. This complements the controlled discovery/JWKS tests. A future browser suite should reuse this tenant and test identities to cover Universal Login, callback handling, refresh, and authenticated browser requests; it should not replace this focused server API proof.
+The scheduled/manual **Auth0 functional API checks** workflow and the main Build gate assume the same narrowly scoped AWS reader role. Other branches explicitly skip the live provider checks, and the dedicated concurrency group avoids concurrent Password-grant load on the test identities. This complements the controlled discovery/JWKS tests. A future browser suite should reuse this tenant and test identities to cover Universal Login, callback handling, refresh, and authenticated browser requests; it should not replace this focused server API proof.
