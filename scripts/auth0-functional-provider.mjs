@@ -1,4 +1,4 @@
-import { functionalAuth0 } from './auth0-functional-config.mjs'
+import { auth0Endpoint } from './auth0-functional-config.mjs'
 
 export async function requestAuth0Tokens(credentials) {
   return {
@@ -8,17 +8,17 @@ export async function requestAuth0Tokens(credentials) {
 }
 
 async function passwordToken(label, user, credentials) {
-  const response = await fetch(`https://${functionalAuth0.domain}/oauth/token`, {
+  const response = await fetch(`https://${auth0Endpoint.domain}/oauth/token`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       grant_type: 'http://auth0.com/oauth/grant-type/password-realm',
-      realm: functionalAuth0.connection,
+      realm: auth0Endpoint.connection,
       username: user.login,
       password: user.password,
-      audience: functionalAuth0.audience,
+      audience: auth0Endpoint.audience,
       scope: 'openid profile read:dashboard',
-      client_id: functionalAuth0.testRunnerClientId,
+      client_id: auth0Endpoint.testRunnerClientId,
       client_secret: credentials.testRunner.clientSecret,
     }),
   })

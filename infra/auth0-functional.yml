@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Administrator-owned credential boundary for Ze Great Dashboard Auth0 functional checks
+Description: Administrator-owned credential boundary for Ze Great Dashboard Auth0 endpoint checks
 
 Parameters:
   LocalSsoPrincipalArn:

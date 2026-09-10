@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
-import { functionalAuth0 } from './auth0-functional-config.mjs'
+import { auth0Endpoint } from './auth0-functional-config.mjs'
 
-export async function startFunctionalFixtures(allowedToken) {
+export async function startEndpointFixtures(allowedToken) {
   let boardConfig = ''
   const asset = await listen((request, response) => {
     if (request.url === '/index.html') {
@@ -21,12 +21,12 @@ export async function startFunctionalFixtures(allowedToken) {
     upstreamReads += 1
     response
       .writeHead(200, { 'content-type': 'application/json' })
-      .end('{"value":"functional evidence"}')
+      .end('{"value":"endpoint evidence"}')
   })
   const auth = allowedToken
-    ? `auth:\n  issuer: https://${functionalAuth0.domain}/\n  client_id: ${functionalAuth0.testRunnerClientId}\n  audience: ${functionalAuth0.audience}\n  allow:\n    subjects:\n      - ${tokenSubject(allowedToken)}\n`
+    ? `auth:\n  issuer: https://${auth0Endpoint.domain}/\n  client_id: ${auth0Endpoint.testRunnerClientId}\n  audience: ${auth0Endpoint.audience}\n  allow:\n    subjects:\n      - ${tokenSubject(allowedToken)}\n`
     : ''
-  boardConfig = `# yaml-language-server: $schema=${asset.dockerOrigin}/board-config.schema.json\n${auth}sources: {}\nboards:\n  ${functionalAuth0.board}:\n    panels:\n      - id: value\n        type: http-value\n        url: ${upstream.dockerOrigin}/value\n        json_path: $.value\n`
+  boardConfig = `# yaml-language-server: $schema=${asset.dockerOrigin}/board-config.schema.json\n${auth}sources: {}\nboards:\n  ${auth0Endpoint.board}:\n    panels:\n      - id: value\n        type: http-value\n        url: ${upstream.dockerOrigin}/value\n        json_path: $.value\n`
   return {
     assetOrigin: asset.dockerOrigin,
     upstreamReads: () => upstreamReads,
@@ -39,41 +39,29 @@ export async function startFunctionalFixtures(allowedToken) {
 
 export async function exercisePackagedServer(origin, fixtures, tokens) {
   equal((await fetch(`${origin}/health`)).status, 200, 'health endpoint')
-  equal(
-    (await fetch(`${origin}/boards/${functionalAuth0.board}`)).status,
-    200,
-    'rendered entrypoint',
-  )
+  equal((await fetch(`${origin}/boards/${auth0Endpoint.board}`)).status, 200, 'rendered entrypoint')
   const request = tokens ? bearer(tokens.allowedToken) : undefined
   if (tokens)
-    equal(
-      (await fetch(`${origin}/api/boards/${functionalAuth0.board}`)).status,
-      401,
-      'missing token',
-    )
-  const board = await fetch(`${origin}/api/boards/${functionalAuth0.board}`, request)
+    equal((await fetch(`${origin}/api/boards/${auth0Endpoint.board}`)).status, 401, 'missing token')
+  const board = await fetch(`${origin}/api/boards/${auth0Endpoint.board}`, request)
   equal(board.status, 200, 'board endpoint')
   equal((await board.json()).panels[0].id, 'value', 'board content')
-  const panelResponse = await fetch(`${origin}/api/panel/${functionalAuth0.board}/value`, request)
+  const panelResponse = await fetch(`${origin}/api/panel/${auth0Endpoint.board}/value`, request)
   equal(panelResponse.status, 200, 'panel endpoint')
   const panel = await panelResponse.json()
   equal(panel.state, 'ok', 'normalized panel state')
-  equal(panel.signal?.value, 'functional evidence', 'normalized panel value')
+  equal(panel.signal?.value, 'endpoint evidence', 'normalized panel value')
   equal(fixtures.upstreamReads(), 1, 'allowed upstream reads')
   if (!tokens) return
   equal(
-    (await fetch(`${origin}/api/boards/${functionalAuth0.board}`, bearer(tokens.unlistedToken)))
+    (await fetch(`${origin}/api/boards/${auth0Endpoint.board}`, bearer(tokens.unlistedToken)))
       .status,
     403,
     'unlisted board',
   )
   equal(
-    (
-      await fetch(
-        `${origin}/api/panel/${functionalAuth0.board}/value`,
-        bearer(tokens.unlistedToken),
-      )
-    ).status,
+    (await fetch(`${origin}/api/panel/${auth0Endpoint.board}/value`, bearer(tokens.unlistedToken)))
+      .status,
     403,
     'unlisted panel',
   )

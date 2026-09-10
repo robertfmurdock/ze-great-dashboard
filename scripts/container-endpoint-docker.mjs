@@ -1,13 +1,13 @@
 import { spawn } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { functionalAuth0 } from './auth0-functional-config.mjs'
+import { auth0Endpoint } from './auth0-functional-config.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
-export function createFunctionalContainer({ assetOrigin, sensitiveValues }) {
-  const image = `ze-great-dashboard:container-functional-${process.pid}`
-  const project = `dashboard-functional-${process.pid}`
+export function createEndpointContainer({ assetOrigin, sensitiveValues }) {
+  const image = `ze-great-dashboard:container-endpoint-${process.pid}`
+  const project = `dashboard-endpoint-${process.pid}`
   let activeChild
   let composeEnvironment
   let cleaned = false
@@ -27,7 +27,7 @@ export function createFunctionalContainer({ assetOrigin, sensitiveValues }) {
         '--build-arg',
         `ASSET_PATH=${assetOrigin}`,
         '--build-arg',
-        'SERVER_RELEASE=container-functional',
+        'SERVER_RELEASE=container-endpoint',
         '.',
       ],
       process.env,
@@ -38,7 +38,7 @@ export function createFunctionalContainer({ assetOrigin, sensitiveValues }) {
       ASSET_PATH: assetOrigin,
       BOARD_CONFIG_URL: `${assetOrigin}/board.yaml`,
       DASHBOARD_IMAGE: image,
-      FUNCTIONAL_BOARD: functionalAuth0.board,
+      ENDPOINT_BOARD: auth0Endpoint.board,
     }
     try {
       await dockerCompose(['up', '--detach', '--wait'])
@@ -70,7 +70,7 @@ export function createFunctionalContainer({ assetOrigin, sensitiveValues }) {
         '-f',
         'docker-compose.yml',
         '-f',
-        'docker-compose.container-functional.yml',
+        'docker-compose.container-endpoint.yml',
         ...command,
       ],
       composeEnvironment,

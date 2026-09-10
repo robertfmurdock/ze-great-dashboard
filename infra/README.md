@@ -64,9 +64,9 @@ This command is safe to rerun. It assumes the account's shared GitHub OIDC provi
 `public-assets.zegreatrob.com` is the live CloudFront custom domain and the stable public package
 contract. Keep its ACM validation CNAME in DNS so the certificate can renew automatically.
 
-## Auth0 functional-test credentials
+## Auth0 credentials for endpoint checks
 
-`auth0-functional.yml` is a separate, administrator-owned boundary for the live Auth0 release
+`auth0-functional.yml` is a separate, administrator-owned credential boundary for the live Auth0 endpoint
 evidence. It creates a rotating customer-managed KMS key and
 `ZeGreatDashboardAuth0FunctionalReader`. That role can read one fixed Parameter Store value and can
 decrypt it only through SSM with that parameter's encryption context. Its trust policy admits only
@@ -120,8 +120,8 @@ unset AUTH0_FUNCTIONAL_TEST_RUNNER_CLIENT_SECRET AUTH0_FUNCTIONAL_ALLOWED_PASSWO
 ```
 
 Local `npm run check` first tries the current AWS identity, then assumes the reader role with
-short-lived credentials. If neither is authorized, the packaged-server checks still run and Auth0
-is visibly skipped. The Build workflow requires Auth0 on `main`; other refs explicitly skip it.
+short-lived credentials. If neither is authorized, the endpoint checks still run and Auth0
+is visibly skipped. The Build workflow requires Auth0 endpoint checks on `main`; other refs explicitly skip them.
 The scheduled/manual workflow runs the same focused strict path. Once both paths have succeeded
 against Parameter Store, delete the three same-named secrets from the former
 `auth0-functional` GitHub environment. The runner reads only Parameter Store and does not accept

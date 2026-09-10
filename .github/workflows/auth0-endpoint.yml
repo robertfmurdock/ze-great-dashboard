@@ -1,4 +1,4 @@
-name: Auth0 functional API checks
+name: Auth0 endpoint API checks
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: auth0-functional-api
+  group: auth0-endpoint-api
   cancel-in-progress: false
 
 permissions:
@@ -14,7 +14,7 @@ permissions:
   id-token: write
 
 jobs:
-  functional:
+  endpoint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -24,10 +24,10 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci --ignore-scripts
-      - name: Auth0 functional reader credentials
+      - name: Auth0 endpoint reader credentials
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           role-to-assume: arn:aws:iam::174159267544:role/ZeGreatDashboardAuth0FunctionalReader
           aws-region: us-east-1
-      - name: Run Auth0 API functional checks
-        run: npm run test:auth0-functional
+      - name: Run Auth0 endpoint API checks
+        run: npm run test:endpoint

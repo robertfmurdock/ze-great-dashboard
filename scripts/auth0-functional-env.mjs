@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process'
 import {
   auth0CredentialNames,
+  auth0Endpoint,
   auth0FunctionalInfrastructure,
   auth0ReaderRoleArn,
-  functionalAuth0,
 } from './auth0-functional-config.mjs'
 
 export async function resolveAuth0FunctionalEnvironment({
@@ -44,7 +44,7 @@ export async function resolveAuth0FunctionalEnvironment({
 
 function discoveryError(directFailure, fallbackFailure) {
   return new Error(
-    `Auth0 functional credentials are unavailable: direct parameter read ${failureSummary(directFailure)}; ${fallbackFailure}.`,
+    `Auth0 endpoint credentials are unavailable: direct parameter read ${failureSummary(directFailure)}; ${fallbackFailure}.`,
   )
 }
 
@@ -75,7 +75,7 @@ function parseCredentialMap(value) {
   try {
     parsed = JSON.parse(value)
   } catch {
-    throw new ParameterContentError('The Auth0 functional SSM parameter is not valid JSON.')
+    throw new ParameterContentError('The Auth0 endpoint SSM parameter is not valid JSON.')
   }
   if (
     parsed === null ||
@@ -83,7 +83,7 @@ function parseCredentialMap(value) {
     !auth0CredentialNames.every((name) => typeof parsed[name] === 'string' && parsed[name].trim())
   ) {
     throw new ParameterContentError(
-      `The Auth0 functional SSM parameter must contain: ${auth0CredentialNames.join(', ')}.`,
+      `The Auth0 endpoint SSM parameter must contain: ${auth0CredentialNames.join(', ')}.`,
     )
   }
   return parsed
@@ -93,11 +93,11 @@ function capability(values) {
   return {
     testRunner: { clientSecret: values.AUTH0_FUNCTIONAL_TEST_RUNNER_CLIENT_SECRET },
     allowedUser: {
-      login: functionalAuth0.allowedLogin,
+      login: auth0Endpoint.allowedLogin,
       password: values.AUTH0_FUNCTIONAL_ALLOWED_PASSWORD,
     },
     unlistedUser: {
-      login: functionalAuth0.unlistedLogin,
+      login: auth0Endpoint.unlistedLogin,
       password: values.AUTH0_FUNCTIONAL_UNLISTED_PASSWORD,
     },
     secretValues: auth0CredentialNames.map((name) => values[name]),
@@ -133,7 +133,7 @@ async function assumeReaderRole(execute, environment) {
       '--role-arn',
       auth0ReaderRoleArn,
       '--role-session-name',
-      `dashboard-auth0-functional-${process.pid}`,
+      `dashboard-auth0-endpoint-${process.pid}`,
       '--query',
       'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]',
       '--output',
@@ -147,10 +147,10 @@ async function assumeReaderRole(execute, environment) {
   try {
     credentials = JSON.parse(output)
   } catch {
-    throw new Error('AWS returned malformed functional-test role credentials.')
+    throw new Error('AWS returned malformed endpoint-test role credentials.')
   }
   if (!Array.isArray(credentials) || credentials.length !== 3 || credentials.some((item) => !item))
-    throw new Error('AWS returned incomplete functional-test role credentials.')
+    throw new Error('AWS returned incomplete endpoint-test role credentials.')
   return {
     AWS_ACCESS_KEY_ID: credentials[0],
     AWS_SECRET_ACCESS_KEY: credentials[1],

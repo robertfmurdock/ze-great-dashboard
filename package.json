@@ -25,7 +25,7 @@
     "packages/aws"
   ],
   "scripts": {
-    "check": "npm run lint && npm run typecheck && npm run test && node scripts/container-functional.mjs && node packages/core/dist/cli.js validate --board-config boards/example.yaml && npm run test:published",
+    "check": "npm run lint && npm run typecheck && npm run test && node scripts/container-endpoint.mjs && node packages/core/dist/cli.js validate --board-config boards/example.yaml && npm run test:published",
     "verify": "npm run check && npm run build && npm run build:lambda --workspace @ze-great-dashboard/server",
     "lint": "biome ci .",
     "format": "biome check --write .",
@@ -38,7 +38,7 @@
     "test:browser": "node scripts/test-browser.mjs",
     "test:browser:no-build": "node scripts/test-browser.mjs --no-build",
     "test:watch": "vitest",
-    "test:auth0-functional": "node scripts/auth0-functional.mjs",
+    "test:endpoint": "node scripts/auth0-endpoint.mjs",
     "capture:readme": "node scripts/capture-readme-demo.mjs",
     "capture:readme:states": "node scripts/capture-readme-panel-states.mjs",
     "dev": "concurrently -k -n client,server -c cyan,green \"npm:dev:client\" \"npm:dev:server\"",

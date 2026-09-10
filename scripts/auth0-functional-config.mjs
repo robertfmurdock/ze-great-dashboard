@@ -13,12 +13,12 @@ export const auth0CredentialNames = [
   'AUTH0_FUNCTIONAL_UNLISTED_PASSWORD',
 ]
 
-export const functionalAuth0 = {
+export const auth0Endpoint = {
   domain: 'zegreatrob.us.auth0.com',
   audience: 'ze-great-dashboard-test-api',
   connection: 'Username-Password-Authentication',
   testRunnerClientId: 'HdfdNR0ac5lxII2G3gbM9tTnkxexYtog',
   allowedLogin: 'ze-great-dashboard-test@continuousexcellence.io',
   unlistedLogin: 'ze-great-dashboard-test-2@continuousexcellence.io',
-  board: 'functional',
+  board: 'endpoint',
 }

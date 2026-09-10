@@ -100,7 +100,7 @@ test('reports which safe discovery stages failed without exposing command diagno
   })
   assert.equal(
     result.reason,
-    'Auth0 functional credentials are unavailable: direct parameter read failed; reader role assumption failed.',
+    'Auth0 endpoint credentials are unavailable: direct parameter read failed; reader role assumption failed.',
   )
   assert.doesNotMatch(result.reason, /principal-secret|session-secret/)
 })

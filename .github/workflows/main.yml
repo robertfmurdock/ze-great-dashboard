@@ -38,7 +38,7 @@ jobs:
       - name: Install
         run: npm ci --ignore-scripts
 
-      - name: Auth0 functional reader credentials
+      - name: Auth0 endpoint reader credentials
         if: github.ref == 'refs/heads/main'
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:

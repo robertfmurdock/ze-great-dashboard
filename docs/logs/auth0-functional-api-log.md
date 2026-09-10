@@ -38,3 +38,11 @@ its stable interfaces—AWS resolution, Auth0 token acquisition, HTTP fixtures/a
 lifecycle—and the Compose overlay was renamed for its now provider-independent purpose. Retrieved
 malformed parameter data is reported directly rather than being obscured by a pointless role-assume
 fallback.
+
+### Endpoint terminology
+
+The shared packaged-server suite is now named **endpoint** because its observable contract is real
+HTTP calls through the packaged application and deployed-shape server boundary. Auth0 credential
+configuration retains its established `functional` environment variables, SSM path, IAM role, and
+configuration filenames for infrastructure compatibility; this is a naming clarification, not an
+AWS credential-boundary migration.
