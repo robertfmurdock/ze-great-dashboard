@@ -189,7 +189,7 @@ describe('persistent consumer reference', () => {
     expect(infrastructure).toContain('cloudformation:DeleteStack')
     const compositionScript = join(repositoryRoot, 'scripts/deploy-reference-composition.sh')
     execFileSync('bash', ['-n', compositionScript])
-    expect(workflow).toContain('for attempt in {1..12}')
+    expect(workflow).toContain('for attempt in {1..60}')
     expect(workflow).toContain('Assume Docker smoke-test credentials')
     expect(workflow).toContain('Run ephemeral ECS Docker smoke test')
     expect(workflow).toContain('for attempt in 1 2 3')
