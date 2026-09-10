@@ -8,8 +8,10 @@ import { deriveValidatedAllowlist } from './allowlist.ts'
 import { type AppEnvironment, createApp } from './app.ts'
 import { loadBoardConfig } from './board-config.ts'
 import { isLocalHost, loadConfig, type ServerConfig } from './config.ts'
+import { ConfigurationError } from './configuration-error.ts'
 import { createCredentialResolver } from './credentials.ts'
 import { consoleLogger, type ServerLogger } from './logger.ts'
+import { StartupFailure, type StartupFailureCategory } from './startup-failure.ts'
 import { type Fetcher, fetchTemplate } from './template.ts'
 
 export type StartupResult = {
@@ -30,6 +32,7 @@ export async function startup(
     event: 'server.starting',
     serverVersion: process.env.SERVER_RELEASE ?? 'development',
   })
+  let category: StartupFailureCategory = 'configuration'
   try {
     const config = loadConfig()
     const fetcher = options.fetcher ?? globalThis.fetch
@@ -39,26 +42,33 @@ export async function startup(
     // These independent reads happen together so a remote board config does not wait behind the
     // client template fetch. Startup still completes only after both have succeeded.
     const [, boardConfig] = await Promise.all([
-      waitForTemplate(config, fetcher),
+      waitForTemplate(config, fetcher).catch((error: unknown) => {
+        throw new StartupFailure('template', error)
+      }),
       loadBoardConfig(
         config.boardConfigUrl,
         fetcher,
         config.assetPath.includes('__ASSET_PATH__')
           ? undefined
           : schemaUrlForAssetPath(config.assetPath),
-      ),
+      ).catch((error: unknown) => {
+        throw new StartupFailure('board-config', error)
+      }),
     ])
+    category = 'board-config'
     const board = selectBoard(config.board, boardConfig)
     const resolvedConfig = { ...config, board }
     // Admission precedes credentials and all upstream access. The map is passed unchanged to the
     // app, so its immutable board config and its proxy capabilities are derived atomically.
     const allowlist = deriveValidatedAllowlist(boardConfig)
     const credentialNames = Object.values(boardConfig.sources).flatMap(credentialEnvironmentNames)
+    category = 'credentials'
     const credentials = await createCredentialResolver({
       secretReference: config.secretReference,
       credentialNames,
     })
 
+    category = 'unknown'
     warnAboutMissingAuth(resolvedConfig, logger)
 
     return {
@@ -73,27 +83,44 @@ export async function startup(
       config: resolvedConfig,
     }
   } catch (error) {
+    const failure = error instanceof StartupFailure ? error : new StartupFailure(category, error)
     logger.log({
       event: 'server.startup_failed',
       serverVersion: process.env.SERVER_RELEASE ?? 'development',
-      category: startupFailureCategory(error),
+      ...failure.diagnostic,
     })
-    throw error
+    throw failure
   }
 }
 
 export function selectBoard(requested: string | undefined, config: BoardConfig): string {
   if (requested) {
     if (!config.boards[requested]) {
-      throw new Error(
+      throw new ConfigurationError(
         `Board "${requested}" is not defined; available boards: ${Object.keys(config.boards).join(', ')}`,
+        [
+          {
+            kind: 'board-selection',
+            location: 'BOARD',
+            constraint: 'Select a board defined in the configuration.',
+          },
+        ],
       )
     }
     return requested
   }
   const names = Object.keys(config.boards)
   if (names.length === 1 && names[0]) return names[0]
-  throw new Error(`BOARD is required when board configuration contains ${names.length} boards`)
+  throw new ConfigurationError(
+    `BOARD is required when board configuration contains ${names.length} boards`,
+    [
+      {
+        kind: 'board-selection',
+        location: 'BOARD',
+        constraint: 'Set BOARD to a configured board when more than one board exists.',
+      },
+    ],
+  )
 }
 
 /**
@@ -142,15 +169,4 @@ function warnAboutMissingAuth(config: ServerConfig, logger: ServerLogger): void 
     host: config.host,
     port: config.port,
   })
-}
-
-function startupFailureCategory(
-  error: unknown,
-): 'configuration' | 'template' | 'board-config' | 'credentials' | 'unknown' {
-  const message = error instanceof Error ? error.message : ''
-  if (message.includes('server configuration')) return 'configuration'
-  if (message.includes('ASSET_PATH') || message.includes('<head>')) return 'template'
-  if (message.includes('board') || message.includes('Board')) return 'board-config'
-  if (message.includes('credential') || message.includes('secret')) return 'credentials'
-  return 'unknown'
 }

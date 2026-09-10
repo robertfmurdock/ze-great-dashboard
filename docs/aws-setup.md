@@ -260,3 +260,11 @@ for the endpoint permission requirement.
   integration and its scoped Lambda permission.
 - **A GitHub panel is unauthorized:** verify the fine-grained PAT's repository access and Actions
   permission, then confirm its map key matches `token_env`.
+
+## Configuration failures
+
+Lambda and ECS packaging reject invalid board configurations before writing release artifacts. Correct the filename and field reported by the CLI, then package and deploy again. These local checks use the installed tooling’s runtime contract; credentials, upstream availability, and compatibility with an independently selected ECS image still require runtime verification.
+
+A Lambda that cannot start returns HTTP 503 with `Cache-Control: no-store`, code `dashboard_startup_failed`, and a `supportReference`. Find the matching `server.startup_failed` JSON event in the function’s CloudWatch logs. For containers, find that event in the configured container logs; the process exits unsuccessfully. Configuration diagnostics include a kind, location, and corrective constraint. Board, source, panel, and fact indexes are zero-based in the loaded configuration. For example, `sources[1].repo` identifies the second source’s repository field without exposing its name. YAML errors report a line and column when available. Raw configuration, URLs, credential names and values are excluded.
+
+Correct the indicated configuration, repackage, and redeploy. Lambda retries startup on the next invocation after a failure, so a corrected remote configuration can recover without retaining the failed bootstrap. The dashboard admits configuration atomically; no partial board is served.

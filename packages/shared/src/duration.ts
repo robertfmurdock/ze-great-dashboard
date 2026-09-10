@@ -32,6 +32,7 @@ export const durationSchema = z
   .string()
   .refine((value) => parseDuration(value) !== null, {
     message: 'must be a positive duration like "30s", "5m", or "1h"',
+    params: { constraint: 'Use a positive duration like "30s", "5m", or "1h".' },
   })
   .brand<'Duration'>()
 

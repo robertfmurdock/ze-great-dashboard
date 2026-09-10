@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { strToU8, zipSync } from 'fflate'
@@ -147,11 +147,8 @@ function deploymentTemplate(template: string, values: Record<string, string>): s
 
 export async function packageLambda(options: LambdaPackageOptions): Promise<PackagedRelease> {
   const outputDir = resolve(options.outputDir)
-  await mkdir(outputDir, { recursive: true })
   const runtimeDir = join(outputDir, 'lambda')
-  await mkdir(runtimeDir, { recursive: true })
   const lambdaSource = fileURLToPath(new URL('../dist/lambda.mjs', import.meta.url))
-  await cp(lambdaSource, join(runtimeDir, 'index.mjs'))
   const release = await assembleRelease({
     boardConfigPath: options.boardConfigPath,
     outputDir: runtimeDir,
@@ -161,6 +158,7 @@ export async function packageLambda(options: LambdaPackageOptions): Promise<Pack
     assetDomain: options.assetDomain,
     secretReference: options.secretReference,
   })
+  await cp(lambdaSource, join(runtimeDir, 'index.mjs'))
   const runtimeMetadata = {
     ...release.metadata,
     computeMode: 'lambda' as const,
@@ -211,7 +209,6 @@ export async function packageLambda(options: LambdaPackageOptions): Promise<Pack
 /** Packages the published container reference and ECS CloudFormation handoff. */
 export async function packageEcs(options: EcsPackageOptions): Promise<PackagedRelease> {
   const outputDir = resolve(options.outputDir)
-  await mkdir(outputDir, { recursive: true })
   const imageReference = requireImageDigest(options.imageReference ?? '')
   const release = await assembleRelease({
     boardConfigPath: options.boardConfigPath,

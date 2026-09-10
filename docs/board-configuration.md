@@ -261,3 +261,5 @@ packager rewrites it to that exact release URL automatically. In particular, che
 - Panel IDs are unique within each board.
 - Refresh values use supported durations such as `60s` or `5m`.
 - URLs and JSON paths use the supported formats for the panel type.
+
+AWS packaging validates YAML, the schema modeline, the board schema, and supported panel/source operations before producing release artifacts. Errors identify the input file and the configuration field or panel to correct. HTTP value groups accept at most four facts; split larger groups into separate panels. Facts are never truncated. Repackage after correcting the file. Validation uses the installed tooling’s runtime contract and does not contact upstream services or read credentials.

@@ -122,6 +122,7 @@ export const panelSchema = z
         code: 'custom',
         path: ['display'],
         message: 'display was removed; use density',
+        params: { constraint: 'display was removed; use density' },
       })
     }
     if (panel.type !== 'http-value') return
@@ -131,12 +132,14 @@ export const panelSchema = z
           code: 'custom',
           path: ['url'],
           message: 'use facts URLs for grouped panels',
+          params: { constraint: 'use facts URLs for grouped panels' },
         })
       if (panel.json_path !== undefined)
         ctx.addIssue({
           code: 'custom',
           path: ['json_path'],
           message: 'use facts json_path values for grouped panels',
+          params: { constraint: 'use facts json_path values for grouped panels' },
         })
       const seen = new Map<string, number>()
       panel.facts.forEach((fact, index) => {
@@ -147,6 +150,7 @@ export const panelSchema = z
             code: 'custom',
             path: ['facts', index, 'id'],
             message: `duplicate fact id "${fact.id}" (already used by fact at index ${first})`,
+            params: { constraint: 'Use a unique fact id within this panel.' },
           })
       })
     }
@@ -171,7 +175,11 @@ function exactlyOneGithubAuthenticationMode(
   ctx: z.RefinementCtx,
 ) {
   if (source.token_env && source.github_app)
-    ctx.addIssue({ code: 'custom', message: 'configure token_env or github_app, not both' })
+    ctx.addIssue({
+      code: 'custom',
+      message: 'configure token_env or github_app, not both',
+      params: { constraint: 'configure token_env or github_app, not both' },
+    })
 }
 
 export const githubActionsSourceSchema = z
@@ -204,12 +212,14 @@ export const azureDevOpsSourceSchema = z
       ctx.addIssue({
         code: 'custom',
         message: 'configure token_env or entra_token_file_env, not both',
+        params: { constraint: 'configure token_env or entra_token_file_env, not both' },
       })
     }
     if (!source.token_env && !source.entra_token_file_env) {
       ctx.addIssue({
         code: 'custom',
         message: 'configure token_env or entra_token_file_env',
+        params: { constraint: 'configure token_env or entra_token_file_env' },
       })
     }
   })
@@ -219,11 +229,29 @@ export type AzureDevOpsSource = z.infer<typeof azureDevOpsSourceSchema>
 const gitlabInstanceUrlSchema = z.url().superRefine((value, ctx) => {
   const url = new URL(value)
   if (url.protocol !== 'https:')
-    ctx.addIssue({ code: 'custom', message: 'must be an HTTPS GitLab instance URL' })
+    ctx.addIssue({
+      code: 'custom',
+      message: 'must be an HTTPS GitLab instance URL',
+      params: { constraint: 'must be an HTTPS GitLab instance URL' },
+    })
   if (url.username || url.password)
-    ctx.addIssue({ code: 'custom', message: 'must not include credentials' })
-  if (url.search) ctx.addIssue({ code: 'custom', message: 'must not include a query string' })
-  if (url.hash) ctx.addIssue({ code: 'custom', message: 'must not include a fragment' })
+    ctx.addIssue({
+      code: 'custom',
+      message: 'must not include credentials',
+      params: { constraint: 'must not include credentials' },
+    })
+  if (url.search)
+    ctx.addIssue({
+      code: 'custom',
+      message: 'must not include a query string',
+      params: { constraint: 'must not include a query string' },
+    })
+  if (url.hash)
+    ctx.addIssue({
+      code: 'custom',
+      message: 'must not include a fragment',
+      params: { constraint: 'must not include a fragment' },
+    })
 })
 
 export const gitlabCiSourceSchema = z.looseObject({
@@ -283,6 +311,7 @@ export const boardSchema = z.object({
           code: 'custom',
           path: [index, 'id'],
           message: `duplicate panel id "${panel.id}" (already used by panel at index ${firstIndex})`,
+          params: { constraint: 'Use a unique panel id within this board.' },
         })
       })
     }),
@@ -323,9 +352,8 @@ export const boardConfigSchema = z
       if (!parsedSource.success) {
         for (const issue of parsedSource.error.issues) {
           ctx.addIssue({
-            code: 'custom',
+            ...issue,
             path: ['sources', sourceName, ...issue.path],
-            message: issue.message,
           })
         }
       }
@@ -344,6 +372,9 @@ export const boardConfigSchema = z
             path: ['boards', boardName, 'panels', panelIndex, 'pipeline'],
             message:
               'Azure DevOps pipeline-status panels require a positive numeric pipeline definition id',
+            params: {
+              constraint: 'Provide a positive numeric Azure DevOps pipeline definition id.',
+            },
           })
         }
       })

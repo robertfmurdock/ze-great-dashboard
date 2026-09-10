@@ -55,8 +55,9 @@ const timelineSchema = z.object({
 
 /** Builds the one bounded ADO call permitted for a configured pipeline-status panel. */
 export function permittedAzureDevOpsCalls(panel: Panel, source: Source): PermittedCall[] {
-  const parsedPanel = pipelinePanelSchema.parse(panel)
-  const parsedSource = azureDevOpsSourceSchema.parse(source)
+  const { panel: parsedPanel, source: parsedSource } = z
+    .object({ panel: pipelinePanelSchema, source: azureDevOpsSourceSchema })
+    .parse({ panel, source })
   return [buildsCall(parsedPanel.pipeline, parsedSource)]
 }
 

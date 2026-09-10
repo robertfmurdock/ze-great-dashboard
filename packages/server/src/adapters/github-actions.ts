@@ -82,8 +82,9 @@ export function permittedGithubActionsCalls(
   source: Source,
   _credentials?: CredentialResolver,
 ): PermittedCall[] {
-  const parsedPanel = pipelinePanelSchema.parse(panel)
-  const parsedSource = githubActionsSourceSchema.parse(source)
+  const { panel: parsedPanel, source: parsedSource } = z
+    .object({ panel: pipelinePanelSchema, source: githubActionsSourceSchema })
+    .parse({ panel, source })
   const url = new URL(
     `https://api.github.com/repos/${parsedSource.repo}/actions/workflows/${encodeURIComponent(parsedPanel.pipeline)}/runs`,
   )
@@ -95,7 +96,7 @@ export function permittedGithubActionsCalls(
 }
 
 export function pullRequestHealthCapabilities(panel: Panel) {
-  const parsed = pullRequestHealthPanelSchema.parse(panel)
+  const { panel: parsed } = z.object({ panel: pullRequestHealthPanelSchema }).parse({ panel })
   return {
     panel: parsed,
     configuredUpdateWorkflow(workflow: string) {

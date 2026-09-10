@@ -217,3 +217,69 @@ describe('server configuration', () => {
     expect(loadConfig({ ASSET_PATH: 'https://cdn/1.0.0' }).templateWaitMillis).toBe(0)
   })
 })
+
+describe('startup failure classification', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  const validBoard =
+    '# yaml-language-server: $schema=https://assets.example/board-config.schema.json\nboards: {team: {panels: [{id: demo, type: pipeline-animation-demo}]}}'
+  const template = '<html><head></head><body></body></html>'
+  function fetcherFor(failures: { template?: unknown; board?: unknown }): typeof fetch {
+    return async (url) => {
+      const resource = String(url).endsWith('/index.html') ? 'template' : 'board'
+      if (Object.hasOwn(failures, resource)) throw failures[resource]
+      return new Response(resource === 'template' ? template : validBoard)
+    }
+  }
+
+  it.each([
+    {
+      name: 'invalid server settings',
+      category: 'configuration',
+      env: { PORT: 'private-invalid-port' },
+      failures: {},
+    },
+    {
+      name: 'template failure with misleading error text',
+      category: 'template',
+      env: {},
+      failures: { template: new Error('secret board credentials private-template') },
+    },
+    {
+      name: 'board read failure with a non-Error rejection',
+      category: 'board-config',
+      env: {},
+      failures: { board: 'ASSET_PATH secret private-board' },
+    },
+    {
+      name: 'credential resolution failure',
+      category: 'credentials',
+      env: { SECRET_REFERENCE: 'private-invalid-reference' },
+      failures: {},
+    },
+  ])('classifies $name at its startup boundary', async ({ category, env, failures }) => {
+    vi.stubEnv('ASSET_PATH', 'https://private-assets.example')
+    vi.stubEnv('BOARD_CONFIG_URL', 'https://private-config.example')
+    vi.stubEnv('BOARD', 'team')
+    vi.stubEnv('PORT', '3000')
+    vi.stubEnv('SECRET_REFERENCE', undefined)
+    for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value)
+    const log = vi.fn()
+
+    await expect(startup({ fetcher: fetcherFor(failures), logger: { log } })).rejects.toMatchObject(
+      {
+        name: 'StartupFailure',
+        diagnostic: { category, supportReference: expect.any(String) },
+      },
+    )
+
+    expect(log).toHaveBeenCalledTimes(2)
+    expect(log.mock.calls[1]?.[0]).toEqual({
+      event: 'server.startup_failed',
+      serverVersion: process.env.SERVER_RELEASE ?? 'development',
+      category,
+      supportReference: expect.stringMatching(/^[a-f0-9-]{36}$/),
+    })
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/private-|ASSET_PATH secret/)
+  })
+})

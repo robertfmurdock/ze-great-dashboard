@@ -39,8 +39,9 @@ const pipelineSchema = z.object({
 
 /** Builds the one bounded GitLab API call permitted for a configured pipeline-status panel. */
 export function permittedGitlabCiCalls(panel: Panel, source: Source): PermittedCall[] {
-  pipelinePanelSchema.parse(panel)
-  const parsedSource = gitlabCiSourceSchema.parse(source)
+  const { source: parsedSource } = z
+    .object({ panel: pipelinePanelSchema, source: gitlabCiSourceSchema })
+    .parse({ panel, source })
   return [pipelinesCall(parsedSource)]
 }
 

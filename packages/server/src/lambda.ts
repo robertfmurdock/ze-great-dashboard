@@ -2,6 +2,7 @@ import type { Hono } from 'hono'
 import { handle } from 'hono/aws-lambda'
 import type { AppEnvironment } from './app.ts'
 import { startup } from './startup.ts'
+import { StartupFailure } from './startup-failure.ts'
 
 /**
  * The Lambda entry point. Same app, same startup checks — only the invocation differs.
@@ -24,7 +25,21 @@ function bootstrap(): Promise<Hono<AppEnvironment>> {
 
 export const handler = handle({
   fetch: async (request: Request) => {
-    const app = await bootstrap()
+    let app: Hono<AppEnvironment>
+    try {
+      app = await bootstrap()
+    } catch (error) {
+      if (!(error instanceof StartupFailure)) throw error
+      return Response.json(
+        {
+          code: 'dashboard_startup_failed',
+          guidance:
+            'Find server.startup_failed in the server logs using this support reference. Correct the configuration or deployment and redeploy.',
+          supportReference: error.diagnostic.supportReference,
+        },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
     return app.fetch(request)
   },
 } as Hono)

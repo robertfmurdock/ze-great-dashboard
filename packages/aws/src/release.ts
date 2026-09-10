@@ -1,14 +1,16 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import {
+  deriveValidatedAllowlist,
+  loadBoardConfig,
+} from '@ze-great-dashboard/server/internal/configuration'
 import {
   boardSchemaFileName,
   boardSchemaModeline,
-  readBoardSchemaModeline,
+  credentialEnvironmentNames,
 } from '@ze-great-dashboard/shared'
-import { parse, stringify } from 'yaml'
-import { z } from 'zod'
-import { boardConfigSchema, credentialEnvironmentNames } from './internal-board.ts'
+import { stringify } from 'yaml'
 
 export const CORE_RUNTIME_VERSION = '1.0.0'
 const CANONICAL_ASSET_DOMAIN = 'https://public-assets.zegreatrob.com'
@@ -58,21 +60,25 @@ async function validateBoardConfig(
   sha256: string
   usesCredentials: boolean
 }> {
-  const source = await readFile(resolve(path), 'utf8')
-  const authoredSchemaUrl = readBoardSchemaModeline(source, expectedSchemaUrl)
-  const result = boardConfigSchema.safeParse(parse(source))
-  if (!result.success) {
-    const stale =
-      authoredSchemaUrl !== expectedSchemaUrl
-        ? `\nStale schema modeline: expected ${expectedSchemaUrl}`
-        : ''
-    throw new Error(`Invalid board configuration:\n${z.prettifyError(result.error)}${stale}`)
+  const config = await loadBoardConfig(resolve(path), undefined, expectedSchemaUrl).catch(
+    (error: unknown) => {
+      throw new Error(
+        `${path}: ${error instanceof Error ? error.message : 'Invalid board configuration'}`,
+      )
+    },
+  )
+  try {
+    deriveValidatedAllowlist(config)
+  } catch (error) {
+    throw new Error(
+      `${path}: ${error instanceof Error ? error.message : 'Invalid panel configuration'}`,
+    )
   }
-  const yaml = `${boardSchemaModeline(expectedSchemaUrl)}\n${stringify(result.data, { sortMapEntries: true })}`
+  const yaml = `${boardSchemaModeline(expectedSchemaUrl)}\n${stringify(config, { sortMapEntries: true })}`
   return {
     yaml,
     sha256: sha256(yaml),
-    usesCredentials: Object.values(result.data.sources).some(
+    usesCredentials: Object.values(config.sources).some(
       (source) => credentialEnvironmentNames(source).length > 0,
     ),
   }

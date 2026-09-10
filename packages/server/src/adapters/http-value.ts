@@ -4,6 +4,7 @@ import {
   httpValueScalarPanelSchema,
   type Panel,
 } from '@ze-great-dashboard/shared'
+import { z } from 'zod'
 import {
   type AdapterResult,
   forwardValidators,
@@ -20,7 +21,7 @@ export function permittedHttpValueCalls(panel: Panel): PermittedCall[] {
   const grouped = httpValueGroupedPanelSchema.safeParse(panel)
   const urls = grouped.success
     ? grouped.data.facts.map((fact) => fact.url)
-    : [httpValueScalarPanelSchema.parse(panel).url]
+    : [z.object({ panel: httpValueScalarPanelSchema }).parse({ panel }).panel.url]
   return urls.map(permittedCall)
 }
 

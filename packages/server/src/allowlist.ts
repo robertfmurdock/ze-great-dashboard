@@ -1,4 +1,5 @@
 import type { BoardConfig, Panel, Source } from '@ze-great-dashboard/shared'
+import { ZodError } from 'zod'
 import { permittedAzureDevOpsCalls } from './adapters/azure-devops.ts'
 import {
   permittedGithubActionsCalls,
@@ -6,6 +7,11 @@ import {
 } from './adapters/github-actions.ts'
 import { permittedGitlabCiCalls } from './adapters/gitlab-ci.ts'
 import { permittedHttpValueCalls } from './adapters/http-value.ts'
+import {
+  ConfigurationError,
+  configurationLocation,
+  schemaDiagnostics,
+} from './configuration-error.ts'
 
 /**
  * Security boundary: the browser names a configured panel, never a URL. Keep changes here small
@@ -54,7 +60,37 @@ function derive(config: BoardConfig, rejectUnsupported: boolean): Map<string, Se
         if (capability.kind === 'server')
           allowed.set(`${boardName}/${panel.id}`, new Set(capability.operations))
       } catch (error) {
-        if (rejectUnsupported) throw unsupportedPanelOperation(boardName, panel, source, error)
+        if (rejectUnsupported) {
+          const location = `boards[${Object.keys(config.boards).indexOf(boardName)}].panels[${board.panels.indexOf(panel)}]`
+          throw new ConfigurationError(
+            unsupportedPanelOperation(boardName, panel, source, error).message,
+            error instanceof ZodError
+              ? schemaDiagnostics(
+                  error,
+                  ([subject, ...path]) => {
+                    const root =
+                      subject === 'source'
+                        ? ['sources', Object.keys(config.sources).indexOf(panel.source ?? '')]
+                        : [
+                            'boards',
+                            Object.keys(config.boards).indexOf(boardName),
+                            'panels',
+                            board.panels.indexOf(panel),
+                          ]
+                    return configurationLocation([...root, ...path])
+                  },
+                  'panel-admission',
+                )
+              : [
+                  {
+                    kind: 'panel-admission',
+                    location,
+                    constraint:
+                      'Use a supported panel/source combination with bounded HTTP(S) operations.',
+                  },
+                ],
+          )
+        }
         throw error
       }
     }
@@ -113,6 +149,6 @@ function unsupportedPanelOperation(
   const detail =
     error instanceof Error && error.message !== 'no bounded operations' ? ` ${error.message}` : ''
   return new Error(
-    `Unsupported configured panel operation: board "${boardName}", panel "${panel.id}", source "${sourceName}" (${sourceType}), signal "${panel.type}".${detail}`,
+    `Unsupported configured panel operation: board "${boardName}", panel "${panel.id}", source "${sourceName}" (${sourceType}), signal "${panel.type}".${detail} Configure a supported panel/source combination and all adapter-required fields.`,
   )
 }

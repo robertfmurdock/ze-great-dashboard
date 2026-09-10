@@ -1,4 +1,5 @@
 import type { ErrorKind } from '@ze-great-dashboard/shared'
+import type { StartupFailureDiagnostic } from './startup-failure.ts'
 
 /** The complete production log vocabulary. Values are deliberately public-safe metadata only. */
 type ServerIdentity = { serverVersion: string }
@@ -13,10 +14,7 @@ export type ServerLogEvent = ServerIdentity &
   (
     | { event: 'server.starting' }
     | { event: 'server.ready'; board: string; host: string; port: number }
-    | {
-        event: 'server.startup_failed'
-        category: 'configuration' | 'template' | 'board-config' | 'credentials' | 'unknown'
-      }
+    | ({ event: 'server.startup_failed' } & StartupFailureDiagnostic)
     | { event: 'server.no_auth_warning'; host: string; port: number }
     | ({
         event: 'api.operation_rejected'

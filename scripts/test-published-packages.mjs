@@ -5,6 +5,7 @@ import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'n
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { packageLayout } from './package-layout.mjs'
+import { testPackagedConfiguration } from './test-packaged-configuration.mjs'
 
 const root = resolve(new URL('..', import.meta.url).pathname)
 const stagingRoot = join(root, '.publish-staging-test')
@@ -110,6 +111,7 @@ try {
   }
   const artifactRoot = await mkdtemp(join(tmpdir(), 'ze-great-dashboard-published-smoke-'))
   try {
+    await testPackagedConfiguration(stagingRoot, artifactRoot)
     const parametersPath = join(artifactRoot, 'aws-dashboard-parameters.json')
     const releasePath = join(artifactRoot, 'release')
     const cli = join(stagingRoot, 'aws', 'dist', 'cli.js')
