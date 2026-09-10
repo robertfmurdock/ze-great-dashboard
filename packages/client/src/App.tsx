@@ -145,8 +145,8 @@ export function App({ env }: { env: ClientEnv }) {
               }
             }}
           />
+          <UpdateActivity board={board} schedules={schedules} log={diagnostics} />
         </div>
-        <UpdateActivity board={board} schedules={schedules} log={diagnostics} />
       </footer>
     </div>
   )

@@ -305,6 +305,47 @@ test('fits a positioned board inside the desktop viewport', async ({ page }) => 
   )
 })
 
+test('opens update activity as a full-screen inspection without changing the primary grid', async ({
+  page,
+}) => {
+  await stubDashboard(page, positionedBoard)
+  await page.route('**/api/panel/**', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify({}) }),
+  )
+  await page.goto('/')
+  await expect(page.locator('[data-panel]')).toHaveCount(positionedBoard.panels.length)
+  const gridBefore = await page
+    .locator('main')
+    .evaluate((grid) => grid.getBoundingClientRect().toJSON())
+
+  await page.getByRole('button', { name: 'Update activity' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Update activity' })
+  await expect(dialog).toBeVisible()
+  const modal = await dialog.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }
+  })
+  expect(modal).toMatchObject({
+    left: 0,
+    top: 0,
+    width: modal.viewportWidth,
+    height: modal.viewportHeight,
+  })
+
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(
+    await page.locator('main').evaluate((grid) => grid.getBoundingClientRect().toJSON()),
+  ).toEqual(gridBefore)
+})
+
 test('keeps four independently sourced facts readable inside one compact portrait panel', async ({
   page,
 }) => {
@@ -816,8 +857,7 @@ test('keeps panel-scale fields behind readable content, adapts them without over
       tracksDisplay: tracks ? getComputedStyle(tracks).display : 'none',
     }
   })
-  // The persistent footer reserves real in-flow room; the visual remains panel-scale rather than
-  // being covered by an overlay.
+  // Activity inspection is an on-demand overlay, so the primary grid keeps its full footprint.
   expect(legacySignalLayout.visualHeight).toBeGreaterThan(70)
   expect(legacySignalLayout.tracksDisplay).toBe('flex')
 

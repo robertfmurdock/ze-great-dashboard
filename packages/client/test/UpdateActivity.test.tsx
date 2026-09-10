@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ClientEnv } from '@ze-great-dashboard/shared'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BrowserDiagnosticStore } from '../src/diagnostics.ts'
 import type { PollingScheduleSnapshot } from '../src/polling-schedule.ts'
 import { UpdateActivity } from '../src/UpdateActivity.tsx'
@@ -34,10 +34,13 @@ function log() {
     removeItem: (key) => values.delete(key),
   })
 }
-afterEach(() => document.body.replaceChildren())
+afterEach(() => {
+  document.body.replaceChildren()
+  vi.useRealTimers()
+})
 
 describe('Update activity', () => {
-  it('renders an always-visible browser-local timeline with readable lane semantics', () => {
+  it('keeps the footer compact until requested, then exposes the accessible timeline and returns on Close or Escape', () => {
     const diagnosticLog = log()
     diagnosticLog.record({
       kind: 'panel-fetch-start',
@@ -45,13 +48,46 @@ describe('Update activity', () => {
       path: '/api/panel/team/build',
     })
     render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={diagnosticLog} />)
-    expect(screen.queryByRole('button', { name: 'Update activity' })).toBeNull()
+    const trigger = screen.getByRole('button', { name: 'Update activity' })
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByText('Update activity')).not.toBeNull()
+    fireEvent.click(trigger)
+
+    const dialog = screen.getByRole('dialog', { name: 'Update activity' })
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
     expect(screen.getByText('Build')).not.toBeNull()
     expect(screen.getByText('● observed · ◇ expected')).not.toBeNull()
     expect(screen.getByLabelText(/Build, panel build; Normal cadence/)).not.toBeNull()
     expect(screen.getByTitle('Observed request: /api/panel/team/build')).not.toBeNull()
     expect(screen.getByTitle('Expected next poll')).not.toBeNull()
+
+    const close = screen.getByRole('button', { name: 'Close' })
+    expect(document.activeElement).toBe(close)
+    fireEvent.keyDown(close, { key: 'Tab' })
+    expect(document.activeElement).toBe(close)
+    fireEvent.click(close)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+
+    fireEvent.click(trigger)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('dismisses after a minute without interaction and restarts that window on interaction', () => {
+    vi.useFakeTimers()
+    render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={log()} />)
+    const trigger = screen.getByRole('button', { name: 'Update activity' })
+    fireEvent.click(trigger)
+    const dialog = screen.getByRole('dialog', { name: 'Update activity' })
+
+    act(() => vi.advanceTimersByTime(59_000))
+    expect(screen.queryByRole('dialog')).not.toBeNull()
+    fireEvent.pointerDown(dialog)
+    act(() => vi.advanceTimersByTime(2_000))
+    expect(screen.queryByRole('dialog')).not.toBeNull()
+    act(() => vi.advanceTimersByTime(58_000))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(trigger)
   })
 })

@@ -26,6 +26,14 @@ Real-browser fixtures now cover pipeline, HTTP-value, and pull-request-health po
 horizontal text, visible type/state symbols, containment, and retained readable text. The full gate
 passed after the change.
 
+### Activity timeline clarification
+
+The in-flow timeline protected cards from being covered, but it incorrectly elevated auxiliary
+operational evidence above the radiator and permanently reduced the primary grid. Update activity
+is therefore now on-demand in a full-screen, auto-dismissing dialog. This preserves both the
+unobscured wall display and the same browser-local inspection evidence, accessible lane summaries,
+and Diagnostics export.
+
 ### Deferred interaction follow-up
 
 Portrait composition deliberately retains full identity and state wording in the accessibility tree,
