@@ -15,8 +15,21 @@ describe('reading window.env', () => {
 
   it('accepts an auth block when present, and its absence when not', () => {
     expect(
-      readClientEnv({ ...valid, auth: { issuer: 'https://login.example.com' } }),
-    ).toMatchObject({ auth: { issuer: 'https://login.example.com' } })
+      readClientEnv({
+        ...valid,
+        auth: {
+          issuer: 'https://login.example.com',
+          clientId: 'dashboard',
+          audience: 'https://dashboard-api',
+        },
+      }),
+    ).toMatchObject({
+      auth: {
+        issuer: 'https://login.example.com',
+        clientId: 'dashboard',
+        audience: 'https://dashboard-api',
+      },
+    })
     expect(readClientEnv(valid).auth).toBeUndefined()
   })
 

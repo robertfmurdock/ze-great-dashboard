@@ -11,6 +11,7 @@ import { isLocalHost, loadConfig, type ServerConfig } from './config.ts'
 import { ConfigurationError } from './configuration-error.ts'
 import { createCredentialResolver } from './credentials.ts'
 import { consoleLogger, type ServerLogger } from './logger.ts'
+import { createAccessTokenVerifier } from './oidc-auth.ts'
 import { StartupFailure, type StartupFailureCategory } from './startup-failure.ts'
 import { type Fetcher, fetchTemplate } from './template.ts'
 
@@ -68,6 +69,11 @@ export async function startup(
       credentialNames,
     })
 
+    category = 'authentication'
+    const accessTokenVerifier = boardConfig.auth
+      ? await createAccessTokenVerifier(boardConfig.auth, fetcher)
+      : undefined
+
     category = 'unknown'
     warnAboutMissingAuth(resolvedConfig, logger)
 
@@ -79,6 +85,7 @@ export async function startup(
         allowlist,
         credentials,
         logger,
+        accessTokenVerifier,
       }),
       config: resolvedConfig,
     }

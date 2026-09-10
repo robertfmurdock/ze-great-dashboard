@@ -100,7 +100,7 @@
   display: grid;
   gap: 0.35rem;
 }
-.layoutWarningDownloads a {
+.layoutWarningDownloads button {
   border: 1px solid var(--edge);
   border-radius: 0.25rem;
   background: var(--surface-raised);
@@ -110,8 +110,8 @@
   text-align: center;
   text-decoration: none;
 }
-.layoutWarningDownloads a:hover,
-.layoutWarningDownloads a:focus-visible {
+.layoutWarningDownloads button:hover,
+.layoutWarningDownloads button:focus-visible {
   border-color: var(--ink-secondary);
   color: var(--ink-primary);
 }

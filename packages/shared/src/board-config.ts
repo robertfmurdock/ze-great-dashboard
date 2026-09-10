@@ -321,16 +321,14 @@ export const boardSchema = z.object({
 
 export type Board = z.infer<typeof boardSchema>
 
-export const authSchema = z.object({
+export const authSchema = z.strictObject({
   issuer: z.url(),
-  /** Absent in gateway mode — the gateway does the flow, the proxy still validates. */
-  client_id: z.string().min(1).optional(),
-  allow: z
-    .object({
-      groups: z.array(z.string().min(1)).optional(),
-      subjects: z.array(z.string().min(1)).optional(),
-    })
-    .optional(),
+  /** Browser SPA client id. It is public, unlike every source credential. */
+  client_id: z.string().min(1),
+  /** The separately registered API resource accepted by the dashboard proxy. */
+  audience: z.string().min(1),
+  /** A deliberately portable, explicit identity boundary for the first direct-OIDC release. */
+  allow: z.strictObject({ subjects: z.array(z.string().min(1)).min(1) }),
 })
 
 export type Auth = z.infer<typeof authSchema>

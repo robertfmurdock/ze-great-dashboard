@@ -4,6 +4,10 @@ Ze Great Dashboard boards are YAML documents containing named sources and one or
 boards. A panel refers to a source, identifies the signal type to render, and can define its
 refresh interval, concise wall label, and grid position.
 
+For direct OIDC authentication, see [OIDC authentication](oidc-authentication.md). The optional
+`auth` block requires an issuer, browser client ID, API audience, and at least one explicitly
+allowed stable subject.
+
 ## Example
 
 Save a configuration such as this one as `board.yaml`. The GitHub repository in this first example

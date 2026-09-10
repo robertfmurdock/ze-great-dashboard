@@ -21,7 +21,8 @@ export const clientEnvSchema = z.object({
   auth: z
     .object({
       issuer: z.string().min(1),
-      clientId: z.string().min(1).optional(),
+      clientId: z.string().min(1),
+      audience: z.string().min(1),
     })
     .optional(),
 })

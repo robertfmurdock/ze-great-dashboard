@@ -1,5 +1,6 @@
 import { type ClientEnv, clientIdentityResponseSchema } from '@ze-great-dashboard/shared'
 import { useEffect } from 'react'
+import type { DashboardAuth } from './dashboard-fetch.ts'
 import { dashboardFetch } from './dashboard-fetch.ts'
 import type { DiagnosticSink } from './diagnostics.ts'
 
@@ -12,11 +13,13 @@ export function useClientUpdate({
   diagnostics,
   fetcher,
   reload = defaultReload,
+  auth,
 }: {
   env: ClientEnv
   diagnostics: DiagnosticSink
   fetcher?: typeof fetch
   reload?: () => void
+  auth?: DashboardAuth
 }) {
   useEffect(() => {
     let cancelled = false
@@ -40,6 +43,7 @@ export function useClientUpdate({
             signal: controller.signal,
           },
           fetcher ?? globalThis.fetch,
+          auth,
         )
         if (!response.ok) throw new Error(`Client identity returned ${response.status}`)
         const parsed = clientIdentityResponseSchema.safeParse(await response.json())
@@ -81,5 +85,5 @@ export function useClientUpdate({
       cancelled = true
       activeController?.abort()
     }
-  }, [diagnostics, env, fetcher, reload])
+  }, [auth, diagnostics, env, fetcher, reload])
 }

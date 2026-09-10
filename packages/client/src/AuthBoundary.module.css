@@ -1,0 +1,36 @@
+.auth {
+  display: grid;
+  place-content: center;
+  min-height: 100dvh;
+  gap: 0.75rem;
+  padding: 2rem;
+  color: var(--ink-primary);
+  background: var(--surface);
+}
+.auth h1,
+.auth p {
+  margin: 0;
+}
+.auth button {
+  justify-self: start;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  padding: 0.5em 0.8em;
+  color: var(--ink-primary);
+  background: var(--surface-raised);
+  font: inherit;
+  cursor: pointer;
+}
+.signout {
+  position: fixed;
+  z-index: 20;
+  top: var(--gap);
+  right: var(--gap);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  padding: 0.35em 0.6em;
+  color: var(--ink-secondary);
+  background: var(--surface-raised);
+  font: inherit;
+  cursor: pointer;
+}

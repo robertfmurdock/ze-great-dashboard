@@ -5,6 +5,7 @@ export type StartupFailureCategory =
   | 'template'
   | 'board-config'
   | 'credentials'
+  | 'authentication'
   | 'unknown'
 
 /** The only startup failure fields that may leave the process. */

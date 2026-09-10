@@ -819,8 +819,11 @@ describe('http-value panels', () => {
       '1 layout issue detected against the intended 12×12 space',
     )
     expect(rendered.textContent).toContain('second: out-of-bounds at (4, 12), 8×2')
-    expect(rendered.querySelector('a[href="/api/boards/ze-great-team/rendered"]')).not.toBeNull()
-    expect(rendered.querySelector('a[href="/api/boards/ze-great-team/authored"]')).not.toBeNull()
+    expect(
+      [...rendered.querySelectorAll('button')].filter((button) =>
+        /Download .* layout/.test(button.textContent ?? ''),
+      ),
+    ).toHaveLength(2)
     expect(rendered.textContent).toContain('Download legal rendered layout')
     expect(rendered.textContent).toContain('Download authored layout')
   })

@@ -7,8 +7,10 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
 import { Diagnostics } from './Diagnostics.tsx'
+import type { DashboardAuth } from './dashboard-fetch.ts'
 import { dashboardFetch } from './dashboard-fetch.ts'
 import { BrowserDiagnosticStore, cacheMetadata } from './diagnostics.ts'
+import { OidcGate } from './OidcGate.tsx'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PanelRenderer } from './panel-registry.tsx'
 import { UpdateActivity } from './UpdateActivity.tsx'
@@ -25,16 +27,42 @@ import { usePanelSignals } from './usePanelSignals.ts'
  * whole point of the Stage 1 exit criterion.
  */
 export function App({ env }: { env: ClientEnv }) {
+  return env.auth ? (
+    <OidcGate env={env} auth={env.auth}>
+      {(accessToken, denied) => <Dashboard env={env} accessToken={accessToken} onDenied={denied} />}
+    </OidcGate>
+  ) : (
+    <Dashboard env={env} />
+  )
+}
+
+function Dashboard({
+  env,
+  accessToken,
+  onDenied,
+}: {
+  env: ClientEnv
+  accessToken?: string
+  onDenied?: () => void
+}) {
   const [board, setBoard] = useState<Board>()
   const [loadedBoardName, setLoadedBoardName] = useState<string>()
   const diagnosticsRef = useRef<BrowserDiagnosticStore | null>(null)
   if (!diagnosticsRef.current) diagnosticsRef.current = new BrowserDiagnosticStore(env)
   const diagnostics = diagnosticsRef.current
-  useClientUpdate({ env, diagnostics })
+  const auth = useMemo<DashboardAuth | undefined>(
+    () =>
+      accessToken
+        ? { accessToken, onAuthenticationFailure: (status) => status === 403 && onDenied?.() }
+        : undefined,
+    [accessToken, onDenied],
+  )
+  useClientUpdate({ env, diagnostics, auth })
   const { signals, updateHealth, factSignals, schedules } = usePanelSignals({
     board: loadedBoardName === env.board ? board : undefined,
     env,
     diagnostics,
+    auth,
   })
   const layout = useMemo(() => (board ? analyzeBoardLayout(board.panels) : undefined), [board])
 
@@ -53,7 +81,7 @@ export function App({ env }: { env: ClientEnv }) {
     setLoadedBoardName(undefined)
     const path = `${env.proxyPath}/boards/${encodeURIComponent(env.board)}`
     diagnostics.record({ kind: 'board-fetch-start', path })
-    dashboardFetch(env, path)
+    dashboardFetch(env, path, undefined, globalThis.fetch, auth)
       .then(async (response) => {
         diagnostics.record({
           kind: 'board-fetch-response',
@@ -102,7 +130,7 @@ export function App({ env }: { env: ClientEnv }) {
     return () => {
       cancelled = true
     }
-  }, [diagnostics, env])
+  }, [auth, diagnostics, env])
 
   return (
     <div className={styles.board}>
@@ -128,7 +156,7 @@ export function App({ env }: { env: ClientEnv }) {
         <span>Signals are read live from their configured authorities.</span>
         <div className={styles.footerTools}>
           {layout && layout.issues.length > 0 && (
-            <LayoutWarning board={env.board} layout={layout} proxyPath={env.proxyPath} />
+            <LayoutWarning board={env.board} layout={layout} env={env} auth={auth} />
           )}
           <Diagnostics
             log={diagnostics}
@@ -155,11 +183,13 @@ export function App({ env }: { env: ClientEnv }) {
 function LayoutWarning({
   board,
   layout,
-  proxyPath,
+  env,
+  auth,
 }: {
   board: string
   layout: ReturnType<typeof analyzeBoardLayout>
-  proxyPath: string
+  env: ClientEnv
+  auth?: DashboardAuth
 }) {
   const [open, setOpen] = useState(false)
   const dialogId = `layout-warning-${board}`
@@ -173,7 +203,7 @@ function LayoutWarning({
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [open])
 
-  const boardPath = `${proxyPath}/boards/${encodeURIComponent(board)}`
+  const boardPath = `${env.proxyPath}/boards/${encodeURIComponent(board)}`
   return (
     <div className={styles.layoutWarning} data-layout-warning>
       <button
@@ -221,12 +251,18 @@ function LayoutWarning({
             ))}
           </ul>
           <div className={styles.layoutWarningDownloads}>
-            <a href={`${boardPath}/rendered`} download={`${board}-layout-rendered.yaml`}>
+            <button
+              type="button"
+              onClick={() => void downloadLayout(env, `${boardPath}/rendered`, auth)}
+            >
               Download legal rendered layout
-            </a>
-            <a href={`${boardPath}/authored`} download={`${board}-layout-authored.yaml`}>
+            </button>
+            <button
+              type="button"
+              onClick={() => void downloadLayout(env, `${boardPath}/authored`, auth)}
+            >
               Download authored layout
-            </a>
+            </button>
           </div>
           <p className={styles.layoutWarningNote}>
             The legal rendered layout normalizes the currently visible explicit area into 12×12 and
@@ -237,6 +273,17 @@ function LayoutWarning({
       )}
     </div>
   )
+}
+
+async function downloadLayout(env: ClientEnv, path: string, auth?: DashboardAuth) {
+  const response = await dashboardFetch(env, path, undefined, globalThis.fetch, auth)
+  if (!response.ok) throw new Error(`Layout download returned ${response.status}`)
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(await response.blob())
+  link.download =
+    response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'layout.yaml'
+  link.click()
+  URL.revokeObjectURL(link.href)
 }
 
 function errorMessage(error: unknown) {

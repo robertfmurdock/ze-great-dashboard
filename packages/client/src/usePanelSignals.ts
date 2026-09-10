@@ -5,6 +5,7 @@ import {
   envelopeSchema,
 } from '@ze-great-dashboard/shared'
 import { useEffect, useRef, useState } from 'react'
+import type { DashboardAuth } from './dashboard-fetch.ts'
 import { dashboardFetch } from './dashboard-fetch.ts'
 import { cacheMetadata, type DiagnosticSink } from './diagnostics.ts'
 import {
@@ -31,11 +32,13 @@ export function usePanelSignals({
   env,
   diagnostics,
   memory,
+  auth,
 }: {
   board: Board | undefined
   env: ClientEnv
   diagnostics: DiagnosticSink
   memory?: BrowserPanelMemory
+  auth?: DashboardAuth
 }) {
   const [signals, setSignals] = useState<Record<string, Envelope | undefined>>({})
   const [updateHealth, setUpdateHealth] = useState<Record<string, PanelUpdateHealth | undefined>>(
@@ -138,7 +141,7 @@ export function usePanelSignals({
                 path: factPath,
                 signal: activeController?.signal,
                 cache: components,
-                fetcher: (input, init) => dashboardFetch(env, input, init),
+                fetcher: (input, init) => dashboardFetch(env, input, init, globalThis.fetch, auth),
               })
               return [fact.id, result.error ? { failure: result.error } : result] as const
             }),
@@ -186,7 +189,7 @@ export function usePanelSignals({
             path: componentPath,
             signal: activeController?.signal,
             cache: components,
-            fetcher: (input, init) => dashboardFetch(env, input, init),
+            fetcher: (input, init) => dashboardFetch(env, input, init, globalThis.fetch, auth),
           })
           if (result.envelope?.state === 'error') return { error: result.envelope.error.message }
           return result
@@ -285,7 +288,7 @@ export function usePanelSignals({
           nextDueAt: undefined,
         })
         diagnostics.record({ kind: 'panel-fetch-start', panelId: panel.id, path })
-        dashboardFetch(env, path)
+        dashboardFetch(env, path, undefined, globalThis.fetch, auth)
           .then(async (response) => {
             const transport = {
               kind: 'panel-fetch-response' as const,
@@ -437,7 +440,7 @@ export function usePanelSignals({
       for (const controller of abortControllers) controller.abort()
       for (const timer of timers) window.clearTimeout(timer)
     }
-  }, [board, diagnostics, env])
+  }, [auth, board, diagnostics, env])
 
   return { signals, updateHealth, factSignals, schedules }
 }

@@ -31,6 +31,7 @@ import {
   type ServerLogger,
   serverDiagnosticContext,
 } from './logger.ts'
+import { type AccessTokenVerifier, unauthorizedSubject } from './oidc-auth.ts'
 import { renderIndexHtml } from './render.ts'
 import { type Fetcher, TemplateCache } from './template.ts'
 import { type AdapterResult, adapterRouteResponse } from './upstream.ts'
@@ -48,6 +49,8 @@ export type AppDependencies = {
   /** Resolved at boot, never serialized into HTML or API payloads. */
   credentials?: CredentialResolver
   logger?: ServerLogger
+  /** Present only when the board explicitly enables direct OIDC authentication. */
+  accessTokenVerifier?: AccessTokenVerifier
 }
 
 export type AppEnvironment = { Variables: { dashboardRequestId: string } }
@@ -81,6 +84,25 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
     c.set('dashboardRequestId', id)
     await next()
     c.header('x-dashboard-request-id', id)
+  })
+  app.use('/api/*', async (c, next) => {
+    if (!deps.boardConfig?.auth) return next()
+    // Direct construction is used in route tests, but must never accidentally turn an auth
+    // configured production board into an open proxy.
+    if (!deps.accessTokenVerifier)
+      return c.json({ error: 'Authentication verification is unavailable.' }, 503)
+    const authorization = c.req.header('authorization')
+    if (!authorization?.startsWith('Bearer '))
+      return c.json({ error: 'Authentication required.' }, 401)
+    try {
+      await deps.accessTokenVerifier(authorization.slice('Bearer '.length))
+    } catch (error) {
+      return c.json(
+        { error: unauthorizedSubject(error) ? 'Access denied.' : 'Invalid access token.' },
+        unauthorizedSubject(error) ? 403 : 401,
+      )
+    }
+    return next()
   })
   app.onError((_error, c) => {
     const id = c.get('dashboardRequestId')
@@ -434,6 +456,15 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
       assetPathId: diagnosticContext.configuredAssetPathId,
       proxyPath: config.proxyPath,
       board,
+      ...(deps.boardConfig?.auth
+        ? {
+            auth: {
+              issuer: deps.boardConfig.auth.issuer,
+              clientId: deps.boardConfig.auth.client_id,
+              audience: deps.boardConfig.auth.audience,
+            },
+          }
+        : {}),
     }
 
     return new Response(renderIndexHtml(template, env), {
