@@ -11,6 +11,7 @@ const releaseVersion = normalizeVersion(process.env.RELEASE_VERSION)
 const args = process.argv.slice(2)
 const packPaths = optionValues('--pack')
 const publishIndex = args.indexOf('--publish-tarball')
+const noBuild = args.includes('--no-build')
 const publicPackages = await Promise.all(
   packageLayout.map(async (packageSpec) => {
     const manifest = JSON.parse(
@@ -26,13 +27,16 @@ if (publishIndex >= 0) {
   const tarball = resolve(requiredArgument(publishIndex, '--publish-tarball'))
   await publishTarball(tarball)
 } else {
-  // The browser's displayed release is part of its immutable artifact, so rebuild it for the
-  // exact npm release before staging the package.
-  execFileSync('node', ['scripts/build-packages.mjs'], {
-    cwd: root,
-    stdio: 'inherit',
-    env: { ...process.env, RELEASE_VERSION: releaseVersion },
-  })
+  if (!noBuild) {
+    // The browser's displayed release is part of its immutable artifact, so rebuild it for the
+    // exact npm release before staging the package. The check coordinator is the one deliberate
+    // exception: it has already built these exact versioned artifacts upstream.
+    execFileSync('node', ['scripts/build-packages.mjs'], {
+      cwd: root,
+      stdio: 'inherit',
+      env: { ...process.env, RELEASE_VERSION: releaseVersion },
+    })
+  }
   const stagingRoot = process.env.PUBLISH_STAGING_DIR
     ? resolve(process.env.PUBLISH_STAGING_DIR)
     : await mkdtemp(join(tmpdir(), 'ze-great-dashboard-publish-'))

@@ -10,17 +10,22 @@ import { testPackagedConfiguration } from './test-packaged-configuration.mjs'
 const root = resolve(new URL('..', import.meta.url).pathname)
 const stagingRoot = join(root, '.publish-staging-test')
 const npmCache = await mkdtemp(join(tmpdir(), 'ze-great-dashboard-npm-cache-'))
+const useExistingArtifacts = process.argv.includes('--no-build')
 try {
-  const output = execFileSync('node', ['scripts/publish-packages.mjs', '--dry-run'], {
-    cwd: root,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      RELEASE_VERSION: '9.8.7',
-      npm_config_cache: npmCache,
-      PUBLISH_STAGING_DIR: stagingRoot,
+  const output = execFileSync(
+    'node',
+    ['scripts/publish-packages.mjs', '--dry-run', ...(useExistingArtifacts ? ['--no-build'] : [])],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        RELEASE_VERSION: '9.8.7',
+        npm_config_cache: npmCache,
+        PUBLISH_STAGING_DIR: stagingRoot,
+      },
     },
-  })
+  )
   assert.equal(packageLayout.length, 2)
   assert.deepEqual(
     packageLayout.map(({ id }) => id),
@@ -197,7 +202,7 @@ try {
     const fakeNpm = join(registryTestRoot, 'npm')
     execFileSync(
       process.execPath,
-      ['scripts/publish-packages.mjs', '--pack', clientTarball, '--pack', awsTarball],
+      ['scripts/publish-packages.mjs', '--pack', clientTarball, '--pack', awsTarball, '--no-build'],
       { cwd: root, env: { ...process.env, RELEASE_VERSION: '9.8.7' }, stdio: 'pipe' },
     )
     execFileSync(
@@ -208,6 +213,7 @@ try {
         snapshotClientTarball,
         '--pack',
         snapshotAwsTarball,
+        '--no-build',
       ],
       { cwd: root, env: { ...process.env, RELEASE_VERSION: '9.8.7-SNAPSHOT' }, stdio: 'pipe' },
     )

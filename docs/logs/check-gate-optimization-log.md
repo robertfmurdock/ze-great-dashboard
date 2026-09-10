@@ -29,3 +29,38 @@ standalone browser command and every distinct validation layer.
 
 Verification: `npm run check` passed with lint, six TypeScript projects, 241 unit tests, 9 browser
 tests, the Docker healthcheck, example-board validation, and published-package smoke tests.
+
+Recorded 2026-09-10.
+
+`npm run check` now has a small Node coordinator with one explicit, validated dependency graph.
+Lint, the existing concurrent TypeScript batch, package build, and packaged-container endpoint
+evidence start independently. The no-build unit suite, no-build browser suite, and example-board
+CLI validation wait for package artifacts; published-package staging waits until every artifact
+consumer has completed because it intentionally rewrites package outputs. The standalone unit and
+browser commands still build what they need, so this optimization does not make focused use unsafe.
+
+The coordinator has no user-configurable graph, retries, cache, shell execution, or new dependency.
+It validates IDs, argument vectors, dependencies, and cycles before spawning anything; child output
+is held in private temporary logs to prevent concurrent interleaving. A failed prerequisite blocks
+only its dependents while independent active work is allowed to finish. Spawn errors, nonzero exits,
+and child signal termination fail closed. `SIGINT` and `SIGTERM` stop scheduling, reach active
+children, drain their cleanup, print the fixed-order ledger, and return their conventional nonzero
+status.
+
+Subprocess tests exercise those contracts through real child processes, including graph validation,
+concurrent starts, grouped diagnostics, failure blocking, independent completion, spawn and child
+signal failures, and interrupt forwarding. The gate retains all prior release evidence; no package
+was added. On this checkout, the serial-equivalent stages took 44.1 seconds in aggregate and the
+concurrent gate took 28.3 seconds. That comparison is a measured result, not a target that permits
+removing evidence; Docker cache warmth can move either wall-clock number.
+
+Recorded 2026-09-10 (clarification).
+
+The initial coordinator version still allowed the published-package smoke test to invoke its own
+package builds, including while preparing its tarball cases. That contradicted the graph's stated
+single-producer intent and unnecessarily put publication after every artifact consumer. The package
+build stage now runs once at the beginning with the smoke test's deterministic `9.8.7` release
+value. `test:published:no-build` consumes those completed artifacts and stages only temporary
+publication files, so it can run immediately after `build-packages` alongside the unit, browser,
+board-validation, and container evidence. Standalone `test:published` remains self-contained: its
+first staging command builds once, then its remaining tarball scenarios reuse the result.

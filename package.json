@@ -25,14 +25,16 @@
     "packages/aws"
   ],
   "scripts": {
-    "check": "npm run lint && npm run typecheck && npm run test && node scripts/container-endpoint.mjs && node packages/core/dist/cli.js validate --board-config boards/example.yaml && npm run test:published",
+    "check": "node scripts/check.mjs",
     "verify": "npm run check && npm run build && npm run build:lambda --workspace @ze-great-dashboard/server",
     "lint": "biome ci .",
     "format": "biome check --write .",
     "typecheck": "concurrently -g --kill-others-on-fail -n root,shared,core,server,client,aws \"tsc -p tsconfig.json\" \"tsc -p packages/shared\" \"tsc -p packages/core\" \"tsc -p packages/server\" \"tsc -p packages/client\" \"tsc -p packages/aws\"",
     "test": "npm run test:unit && npm run test:browser:no-build",
-    "test:unit": "npm run build:packages && node --test scripts/auth0-functional-env.test.mjs && vitest run",
+    "test:unit": "npm run build:packages && npm run test:unit:no-build",
+    "test:unit:no-build": "node --test scripts/auth0-functional-env.test.mjs scripts/check.test.mjs && vitest run",
     "test:published": "node scripts/test-published-packages.mjs",
+    "test:published:no-build": "node scripts/test-published-packages.mjs --no-build",
     "update:dependencies": "XDG_CONFIG_HOME=\"${TMPDIR:-/tmp}/npm-check-updates\" ncu --workspaces --root --reject npm --upgrade && npm install --ignore-scripts",
     "test:installed": "node scripts/test-installed-package.mjs",
     "test:browser": "node scripts/test-browser.mjs",

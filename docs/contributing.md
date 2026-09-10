@@ -35,7 +35,7 @@ npm run verify
 | --- | --- |
 | `npm run dev` | Start the client and server development loop. |
 | `npm run ado-entra-token` | Write a short-lived local Azure CLI delegated token file. |
-| `npm run check` | Lint, typecheck, unit and browser tests, validate the example board, and test the published package. The unit phase builds packages once; the browser phase reuses that client build. |
+| `npm run check` | The same release evidence—lint, six TypeScript projects, one package build, unit and browser tests, packaged-container endpoint checks, example-board validation, and published-package smoke tests—run through a concise dependency-aware report. Independent checks run together; dependent checks wait for their declared artifact. |
 | `npm run verify` | Run `check`, then build the production client and Lambda bundle. This is the commit-hook gate. |
 | `npm run test:browser` | Build the client and run browser tests independently through Docker by default. |
 | `npm run test:watch` | Run unit tests in watch mode. |
@@ -73,7 +73,9 @@ GitHub Actions and Docker base-image changes are deliberately outside this autom
 normal human review.
 
 Use focused checks that exercise the interface under active work while iterating. Before committing,
-always run the unified `npm run check` gate as well: it is the release-evidence boundary for
+always run the unified `npm run check` gate as well. Its `START`, `PASS`, `FAIL`, and `BLOCKED`
+lines keep concurrent work readable; failed child output is grouped beneath its stage and the final
+ledger is always in the same order. It is the release-evidence boundary for
 unexpected cross-package, browser, container, board-validation, and published-package effects. The
 automated updater deliberately excludes the pinned npm toolchain for now; updating npm itself needs
 a separate review of its relationship to the Node 24/npm 11.19.0 CI contract.
