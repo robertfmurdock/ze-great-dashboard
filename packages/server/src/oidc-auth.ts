@@ -14,11 +14,18 @@ export async function createAccessTokenVerifier(
   auth: Auth,
   fetcher: Fetcher = globalThis.fetch,
 ): Promise<AccessTokenVerifier> {
-  const issuer = auth.issuer.replace(/\/$/, '')
-  const discovery = await fetchJson(`${issuer}/.well-known/openid-configuration`, fetcher)
-  if (discovery.issuer !== issuer || typeof discovery.jwks_uri !== 'string') {
+  const configuredIssuer = auth.issuer.replace(/\/$/, '')
+  const discovery = await fetchJson(`${configuredIssuer}/.well-known/openid-configuration`, fetcher)
+  if (
+    typeof discovery.issuer !== 'string' ||
+    discovery.issuer.replace(/\/$/, '') !== configuredIssuer ||
+    typeof discovery.jwks_uri !== 'string'
+  ) {
     throw new Error('OIDC discovery must name the configured issuer and a JWKS URI.')
   }
+  // JWT issuer validation uses the provider's exact value. Auth0 includes the trailing slash;
+  // discovery comparison above deliberately tolerates whether the checked-in value includes it.
+  const issuer = discovery.issuer
   let jwksUrl: URL
   try {
     jwksUrl = new URL(discovery.jwks_uri)

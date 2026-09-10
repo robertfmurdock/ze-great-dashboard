@@ -60,4 +60,26 @@ describe('OIDC API access-token verification', () => {
       .sign(keys.privateKey)
     await verifier(token).catch((error: unknown) => expect(unauthorizedSubject(error)).toBe(true))
   })
+
+  it('accepts a provider issuer with a trailing slash when configuration omits it', async () => {
+    const keys = await generateKeyPair('RS256')
+    const publicKey = await exportJWK(keys.publicKey)
+    publicKey.kid = 'key-1'
+    const providerIssuer = `${auth.issuer}/`
+    const fetcher = (async (input: string | URL) =>
+      String(input).endsWith('configuration')
+        ? Response.json({ issuer: providerIssuer, jwks_uri: `${providerIssuer}keys` })
+        : Response.json({ keys: [publicKey] })) as typeof fetch
+    const verifier = await createAccessTokenVerifier(auth, fetcher)
+    const token = await new SignJWT({})
+      .setProtectedHeader({ alg: 'RS256', kid: 'key-1' })
+      .setIssuer(providerIssuer)
+      .setAudience(auth.audience)
+      .setSubject('allowed-user')
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(keys.privateKey)
+
+    await expect(verifier(token)).resolves.toEqual({ subject: 'allowed-user' })
+  })
 })
