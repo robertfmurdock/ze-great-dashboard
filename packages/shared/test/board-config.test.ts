@@ -304,11 +304,18 @@ describe('the board config schema', () => {
       id: 'versions',
       type: 'http-value',
       facts: [
-        { id: 'api', label: 'API', url: 'https://api.example.com/version', json_path: '$.version' },
+        {
+          id: 'api',
+          label: 'API',
+          url: 'https://api.example.com/version',
+          json_path: '$.version',
+          link: 'https://status.example.com/api',
+        },
         { id: 'web', label: 'Web', url: 'https://web.example.com/version' },
       ],
     }
-    expect(boardConfigSchema.safeParse({ boards: { a: { panels: [grouped] } } }).success).toBe(true)
+    const parsed = boardConfigSchema.parse({ boards: { a: { panels: [grouped] } } })
+    expect(parsed.boards.a?.panels[0]?.facts?.[0]?.link).toBe('https://status.example.com/api')
     expect(
       boardConfigSchema.safeParse({
         boards: { a: { panels: [{ ...grouped, url: 'https://example.com/ambiguous' }] } },
@@ -340,6 +347,31 @@ describe('the board config schema', () => {
               {
                 ...grouped,
                 facts: [{ ...grouped.facts[0] }, { ...grouped.facts[0], label: 'Copy' }],
+              },
+            ],
+          },
+        },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('rejects malformed public links on grouped http-value facts', () => {
+    expect(
+      boardConfigSchema.safeParse({
+        boards: {
+          a: {
+            panels: [
+              {
+                id: 'versions',
+                type: 'http-value',
+                facts: [
+                  {
+                    id: 'api',
+                    label: 'API',
+                    url: 'https://api.example.com/version',
+                    link: 'not a URL',
+                  },
+                ],
               },
             ],
           },

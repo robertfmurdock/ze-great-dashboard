@@ -28,3 +28,12 @@ diagnostics. Those mechanics now live in one small client helper; composition re
 feature that owns it. Scalar and grouped HTTP-value parser contracts likewise live in shared code,
 so the adapter and allowlist consume the same shapes the board accepts. Grouped panels now emit a
 compact rendered diagnostic containing only fact IDs, states, and public links.
+
+## Public fact links, 2026-09-10
+
+A grouped fact can now name an optional public `link` separately from its required read `url`.
+The bounded route and allowlist continue to resolve and fetch only the read URL; the link is carried
+only into the browser-facing envelope, where the existing public-link sanitizer removes query
+strings and fragments. This permits a reading endpoint to point viewers at useful public context
+without turning a click-through override into a new proxy destination or exposing credential-like
+URL components. Facts without an override retain the sanitized read URL as their evidence link.

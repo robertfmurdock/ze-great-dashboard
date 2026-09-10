@@ -19,5 +19,8 @@ describe('the published board configuration schema', () => {
         expect.objectContaining({ category: 'panel-source-relationships' }),
       ]),
     })
+    expect(published).toMatch(
+      /"facts":\s*\{[\s\S]*?"items":\s*\{[\s\S]*?"link":\s*\{\s*"type":\s*"string",\s*"format":\s*"uri"/,
+    )
   })
 })

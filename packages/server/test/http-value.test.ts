@@ -101,18 +101,24 @@ describe('the http-value panel route', () => {
       id: 'versions',
       type: 'http-value',
       facts: [
-        { id: 'api', label: 'API', url: 'https://api.example.com/version', json_path: '$.version' },
-        { id: 'web', label: 'Web', url: 'https://web.example.com/version' },
+        {
+          id: 'api',
+          label: 'API',
+          url: 'https://api.example.com/version?read-token=private#reading',
+          json_path: '$.version',
+        },
+        {
+          id: 'web',
+          label: 'Web',
+          url: 'https://web.example.com/version',
+          link: 'https://status.example.com/web?viewer=private#details',
+        },
       ],
     }
-    const fetcher = vi.fn(
-      async (url: string | URL) =>
-        new Response(
-          String(url).includes('api.') ? JSON.stringify({ version: '2.0.0' }) : '1.4.0',
-          {
-            headers: { etag: 'W/"fact"' },
-          },
-        ),
+    const fetcher = vi.fn(async (url: string | URL) =>
+      String(url).includes('api.')
+        ? new Response(JSON.stringify({ version: '2.0.0' }), { headers: { etag: 'W/"fact"' } })
+        : new Response('unavailable', { status: 503, statusText: 'Unavailable' }),
     ) as unknown as typeof fetch
     const app = createApp({
       config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
@@ -122,11 +128,23 @@ describe('the http-value panel route', () => {
 
     const api = await app.request('/api/panel/example/versions/facts/api')
     expect(api.headers.get('etag')).toBe('W/"fact"')
-    await expect(api.json()).resolves.toMatchObject({ signal: { value: '2.0.0' } })
+    await expect(api.json()).resolves.toMatchObject({
+      link: 'https://api.example.com/version',
+      signal: { value: '2.0.0' },
+    })
+    const web = await app.request('/api/panel/example/versions/facts/web')
+    await expect(web.json()).resolves.toMatchObject({
+      state: 'error',
+      link: 'https://status.example.com/web',
+      error: { kind: 'upstream-error' },
+    })
     expect((await app.request('/api/panel/example/versions/facts/unknown')).status).toBe(404)
     expect((await app.request('/api/panel/example/versions')).status).toBe(404)
-    expect(vi.mocked(fetcher)).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(fetcher).mock.calls[0]?.[0]).toBe('https://api.example.com/version')
+    expect(vi.mocked(fetcher)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(fetcher).mock.calls.map(([url]) => url)).toEqual([
+      'https://api.example.com/version?read-token=private#reading',
+      'https://web.example.com/version',
+    ])
   })
 
   it('serves a source-agnostic panel without a named source', async () => {

@@ -100,7 +100,13 @@ export async function fetchHttpValueFact(args: {
   const fact = httpValueFact(args.panel, args.factId)
   if (!fact) throw new Error(`http-value fact "${args.factId}" is not configured`)
   return fetchHttpValue({
-    panel: { id: args.panel.id, type: 'http-value', url: fact.url, json_path: fact.json_path },
+    panel: {
+      id: args.panel.id,
+      type: 'http-value',
+      url: fact.url,
+      json_path: fact.json_path,
+      link: fact.link,
+    },
     requestHeaders: args.requestHeaders,
     fetcher: args.fetcher,
   })

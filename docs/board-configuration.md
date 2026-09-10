@@ -86,8 +86,9 @@ and a workflow `pipeline`. When configured, the branch is sent to GitHub when fi
 run, so feature-branch runs do not replace the primary-branch status. When absent, GitHub returns
 runs from all branches. `http-value` supports either one scalar endpoint with `url` and an optional
 `json_path` such as `$.version`, or a compact group of up to four independently read facts. A
-grouped panel gives each fact a stable `id`, a wall-facing `label`, and its own HTTP(S) `url` and
-optional `json_path`:
+grouped panel gives each fact a stable `id`, a wall-facing `label`, and its own HTTP(S) read `url`
+and optional `json_path`. A fact may also provide an optional public `link` for the browser's
+click-through destination; it does not change the endpoint the proxy reads:
 
 ```yaml
 - id: deployed-libraries
@@ -99,17 +100,20 @@ optional `json_path`:
       label: API
       url: https://api.example.com/version
       json_path: $.version
+      link: https://status.example.com/api
     - id: web
       label: Web
       url: https://web.example.com/build.json
       json_path: $.release.version
 ```
 
-The dashboard reads each fact separately through its bounded proxy route. That preserves each
-source's link, cache validators, and observation age; an unavailable fact is shown as unavailable
-without hiding the other readings. Facts share the panel's refresh setting. Fact IDs are stable
-addresses, so rename the label rather than the ID when only the wall text changes. Do not combine
-`facts` with the single-value `url` or `json_path` fields.
+The dashboard reads each fact separately through its bounded proxy route, using only its `url`.
+Its browser-visible link is the fact `link` when supplied, otherwise the read URL; query strings
+and fragments are removed before either is exposed. That preserves cache validators and observation
+age while allowing an unavailable fact to remain linked to public context without hiding the other
+readings. Facts share the panel's refresh setting. Fact IDs are stable addresses, so rename the
+label rather than the ID when only the wall text changes. Do not combine `facts` with the
+single-value `url` or `json_path` fields.
 
 An Azure DevOps Services `pipeline-status` source names an organization, project, and exactly one
 runtime-only credential mode. A PAT uses `token_env` and Basic authentication. For local

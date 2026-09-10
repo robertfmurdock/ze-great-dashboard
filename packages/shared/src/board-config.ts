@@ -40,6 +40,8 @@ export const httpValueFactSchema = z.object({
   /** Stable address below the panel; labels and ordering may change without repointing it. */
   id: z.string().min(1),
   label: z.string().min(1),
+  /** Public destination; the proxy continues to read only `url`. */
+  link: z.url().optional(),
   url: z.url(),
   json_path: httpValueJsonPathSchema.optional(),
 })
