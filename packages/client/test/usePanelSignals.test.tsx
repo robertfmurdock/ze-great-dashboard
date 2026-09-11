@@ -241,13 +241,16 @@ describe('usePanelSignals', () => {
 
   it('uses a completed fallback estimate for the next running response', async () => {
     vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
     const diagnostics = recordingSink()
+    let resolveCompleted: ((response: Response) => void) | undefined
     const fetcher = vi
       .fn()
-      .mockResolvedValueOnce(
-        new Response(
-          envelope('failed', { durationMs: 90_000, sourceUpdatedAt: '2026-08-28T11:00:00Z' }),
-        ),
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveCompleted = resolve
+          }),
       )
       .mockResolvedValueOnce(
         new Response(envelope('running', { sourceUpdatedAt: '2026-08-28T11:30:00Z' })),
@@ -257,6 +260,16 @@ describe('usePanelSignals', () => {
 
     render(<Probe diagnostics={diagnostics} onSignals={(signals) => (latestSignals = signals)} />)
     await act(async () => {})
+    resolveCompleted?.(
+      new Response(
+        envelope('failed', { durationMs: 90_000, sourceUpdatedAt: '2026-08-28T11:00:00Z' }),
+      ),
+    )
+    await act(async () => {})
+    expect(latestSignals.build).toMatchObject({
+      state: 'ok',
+      signal: { status: 'failed', durationMs: 90_000 },
+    })
     await act(async () => vi.advanceTimersByTimeAsync(1_000))
 
     expect(fetcher).toHaveBeenCalledTimes(2)

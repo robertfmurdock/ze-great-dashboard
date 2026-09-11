@@ -64,3 +64,34 @@ value. `test:published:no-build` consumes those completed artifacts and stages o
 publication files, so it can run immediately after `build-packages` alongside the unit, browser,
 board-validation, and container evidence. Standalone `test:published` remains self-contained: its
 first staging command builds once, then its remaining tarball scenarios reuse the result.
+
+Recorded 2026-09-11.
+
+The first CI run after the coordinator change exposed a test miss: the snowman toppling test took
+more than Vitest's five-second timeout while competing with the other release-evidence stages,
+though it passed alone. Its assertion reached the threshold by replaying 24 seconds of dense,
+fixed-step snowfall, which repeatedly exercised broad particle and snow-bank work rather than the
+toppling boundary it was meant to protect.
+
+The test now seeds a completed figure with one fewer attached snow cell than the published topple
+threshold, verifies that state does not start a fall, then passes one real falling flake through the
+simulation so it attaches to the bank and begins the topple. The separate rolling-arc test retains
+the post-threshold fall and settled-pose evidence. This keeps the relevant simulation interface,
+removes the incidental long replay, and makes the CI topology representative of the test's cost.
+
+The same run revealed another test miss in the running-pipeline fallback test. It used fake timers
+but left the clock at the host date while supplying an August 28 completed-run sample. Once the host
+date crossed the memory's fourteen-day retention window, the sample was correctly pruned and the
+test's expected fallback no longer existed. The test now pins its clock within the scenario's
+retention window and controls completion of the first response before advancing the scheduled poll.
+That makes the test exercise the intended completed-then-running sequence rather than an accidental
+relationship to the day on which CI happens to run.
+
+The browser continuity test also missed its intended interface under CPU pressure. It synchronized
+on animation frames and an iteration event, but then treated every observation as a consecutive
+frame and required a fixed maximum movement between samples. A descheduled browser can legitimately
+put seconds between those observations, so that measured elapsed animation rather than a visual
+reset. The test now waits until both independently mounted CSS animations have real start times,
+then verifies their animation instances survive progress renders and the alternate-direction
+iteration. This preserves the browser-level continuity contract without treating scheduler delay as
+an animation defect.

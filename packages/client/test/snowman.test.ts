@@ -26,6 +26,20 @@ function advanceTo(elapsed: number, progress: number, overdue = false) {
   })
 }
 
+function completedSceneWithAttachedSnow(load: number) {
+  const scene = createSnowmanSimulation(dimensions)
+  scene.lastElapsed = 10_000
+  scene.nextAt = Number.POSITIVE_INFINITY
+  scene.body = { kind: 'body', x: 45, y: 40, radius: 4, angle: 0, locked: true }
+  scene.cells = Array.from({ length: load }, (_, id) => ({
+    id,
+    x: 45,
+    y: 45,
+    owner: 'snowman' as const,
+  }))
+  return scene
+}
+
 describe('snowman simulation', () => {
   it('keeps a stable breeze and deterministic intermittent gusts for every seed', () => {
     expect(Math.abs(snowmanWind(7, 2_000))).toBeGreaterThan(0.2)
@@ -197,7 +211,10 @@ describe('snowman simulation', () => {
   })
 
   it('keeps unestimated snowfall unassembled and topples only after attached accumulation', () => {
-    const indefinite = advanceSnowmanSimulation(createSnowmanSimulation(dimensions), {
+    const indefinite = createSnowmanSimulation(dimensions)
+    indefinite.lastElapsed = 7_975
+    indefinite.nextAt = Number.POSITIVE_INFINITY
+    const unestimated = advanceSnowmanSimulation(indefinite, {
       elapsed: 8_000,
       progress: 1,
       estimatedDurationMs: undefined,
@@ -205,17 +222,27 @@ describe('snowman simulation', () => {
       seed: 7,
       dimensions,
     })
-    expect(indefinite.body).toBeUndefined()
-    let overdue = createSnowmanSimulation(dimensions)
-    for (let elapsed = 0; elapsed <= 24_000; elapsed += 100)
-      overdue = advanceSnowmanSimulation(overdue, {
-        elapsed,
-        progress: 1,
-        overdue: true,
-        ...estimated,
-      })
-    expect(snowmanLoad(overdue.cells)).toBeGreaterThanOrEqual(SNOWMAN_TOPPLE_LOAD)
-    expect(overdue.toppled).toBe(true)
+    expect(unestimated.body).toBeUndefined()
+
+    const oneShort = completedSceneWithAttachedSnow(SNOWMAN_TOPPLE_LOAD - 1)
+    const belowThreshold = advanceSnowmanSimulation(oneShort, {
+      elapsed: 10_025,
+      progress: 1,
+      overdue: true,
+      ...estimated,
+    })
+    expect(belowThreshold.toppling).toBeUndefined()
+
+    const threshold = completedSceneWithAttachedSnow(SNOWMAN_TOPPLE_LOAD - 1)
+    threshold.flakes = [{ id: SNOWMAN_TOPPLE_LOAD, x: 45, y: 43.5, bornAt: 10_000 }]
+    const attached = advanceSnowmanSimulation(threshold, {
+      elapsed: 10_025,
+      progress: 1,
+      overdue: true,
+      ...estimated,
+    })
+    expect(snowmanLoad(attached.cells)).toBe(SNOWMAN_TOPPLE_LOAD)
+    expect(attached.toppling).toMatchObject({ startedAt: 10_025 })
   })
 
   it('falls through a continuous rolling arc before the figure settles sideways', () => {

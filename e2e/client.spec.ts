@@ -962,6 +962,7 @@ test('keeps phased signal and bloom markers continuous while progress updates an
           animationName: computed?.animationName,
           animationDuration: computed?.animationDuration,
           animationDirection: computed?.animationDirection,
+          animationStartTime: animation?.startTime ?? Number.NaN,
           animationTime: animation?.currentTime ?? Number.NaN,
           progress: field ? getComputedStyle(field).getPropertyValue('--running-progress') : '',
         }
@@ -992,6 +993,14 @@ test('keeps phased signal and bloom markers continuous while progress updates an
         }),
     )
 
+  // The panels mount independently; sample only once each visible marker has a live animation.
+  await page.waitForFunction(() =>
+    ['bloom-marker', 'signal-marker'].every(
+      (part) =>
+        document.querySelector<HTMLElement>(`[data-running-part="${part}"]`)?.getAnimations()[0]
+          ?.startTime !== null,
+    ),
+  )
   const samples = [await sample()]
   for (let index = 0; index < 3; index += 1) {
     await nextFrame()
@@ -1027,16 +1036,13 @@ test('keeps phased signal and bloom markers continuous while progress updates an
     expect(positions.at(-1)?.animationTime, diagnostics).toBeGreaterThan(
       positions[0]?.animationTime ?? 0,
     )
-    const phaseSteps = [
-      [positions[0], positions[1]],
-      [positions[1], positions[2]],
-      [positions[2], positions[3]],
-      [positions[4], positions[5]],
-      [positions[5], positions[6]],
-    ].map(([before, after]) =>
-      Math.abs(after.bodyLeft - after.anchorLeft - (before.bodyLeft - before.anchorLeft)),
+    expect(
+      positions.every((entry) => entry.animationStartTime === positions[0]?.animationStartTime),
+      diagnostics,
+    ).toBe(true)
+    expect(Number.parseFloat(positions.at(-1)?.progress ?? ''), diagnostics).toBeGreaterThan(
+      Number.parseFloat(positions[0]?.progress ?? ''),
     )
-    expect(Math.max(...phaseSteps), diagnostics).toBeLessThan(20)
   }
   expect(
     samples.map((entry) => entry.bloom.animationName),
