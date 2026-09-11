@@ -7,10 +7,15 @@ import { statusPresentation } from './panel-status.ts'
 import { compactPullRequestHealthFacts } from './pull-request-health.ts'
 import { ObservedAt, UpdateHealth } from './TimeAge.tsx'
 
-export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelProps) {
+export function PullRequestHealthPanel({
+  panel,
+  envelope,
+  attentionActive,
+  updateHealth,
+}: PanelProps) {
   if (!envelope)
     return (
-      <PanelFrame panel={panel}>
+      <PanelFrame panel={panel} attentionActive={attentionActive}>
         <PanelEvidence>
           <PanelHint>Loading…</PanelHint>
         </PanelEvidence>
@@ -19,7 +24,13 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
   if (envelope.state === 'error') {
     const presentation = errorPresentation(envelope.error.kind)
     return (
-      <PanelFrame panel={panel} envelope={envelope} error layout="status-band">
+      <PanelFrame
+        panel={panel}
+        envelope={envelope}
+        attentionActive={attentionActive}
+        error
+        layout="status-band"
+      >
         <div data-panel-anchor="status">
           <PanelStatus glyph="⚠" label={presentation.label} emphasis={presentation.emphasis} />
         </div>
@@ -32,7 +43,13 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
   const signal = pullRequestHealthSchema.safeParse(envelope.signal)
   if (!signal.success)
     return (
-      <PanelFrame panel={panel} envelope={envelope} error layout="status-band">
+      <PanelFrame
+        panel={panel}
+        envelope={envelope}
+        attentionActive={attentionActive}
+        error
+        layout="status-band"
+      >
         <div data-panel-anchor="status">
           <PanelStatus glyph="⚠" label="Invalid signal" />
         </div>
@@ -44,7 +61,12 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
   const presentation = statusPresentation(signal.data.status, 'Healthy')
   const compactFacts = compactPullRequestHealthFacts(signal.data)
   return (
-    <PanelFrame panel={panel} envelope={envelope} layout="status-band">
+    <PanelFrame
+      panel={panel}
+      envelope={envelope}
+      attentionActive={attentionActive}
+      layout="status-band"
+    >
       <div className={styles.statusAnchor} data-panel-anchor="status">
         <PanelStatus
           status={signal.data.status}

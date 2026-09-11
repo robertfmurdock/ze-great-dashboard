@@ -17,10 +17,22 @@ export const panelRenderers: Record<RenderablePanelType, ComponentType<PanelRend
   'pipeline-animation-demo': PipelineAnimationDemoPanel,
 }
 
-export function PanelRenderer({ panel, envelope, updateHealth, facts }: PanelRendererProps) {
+export function PanelRenderer({
+  panel,
+  envelope,
+  attentionActive,
+  updateHealth,
+  facts,
+}: PanelRendererProps) {
   const Renderer = panelRenderers[panel.type as RenderablePanelType]
   return Renderer ? (
-    <Renderer panel={panel} envelope={envelope} updateHealth={updateHealth} facts={facts} />
+    <Renderer
+      panel={panel}
+      envelope={envelope}
+      attentionActive={attentionActive}
+      updateHealth={updateHealth}
+      facts={facts}
+    />
   ) : (
     <PanelPlaceholder label={panel.type} hint="Not wired yet" wide />
   )

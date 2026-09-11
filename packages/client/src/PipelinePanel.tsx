@@ -20,10 +20,10 @@ import { useRunningTiming } from './running-timing.ts'
 import { PipelineAge, UpdateHealth } from './TimeAge.tsx'
 import { visualSeed } from './visual-seed.ts'
 
-export function PipelinePanel({ panel, envelope, updateHealth }: PanelProps) {
+export function PipelinePanel({ panel, envelope, attentionActive, updateHealth }: PanelProps) {
   if (!envelope)
     return (
-      <PanelFrame panel={panel}>
+      <PanelFrame panel={panel} attentionActive={attentionActive}>
         <PanelEvidence>
           <PanelHint>Loading…</PanelHint>
         </PanelEvidence>
@@ -32,7 +32,13 @@ export function PipelinePanel({ panel, envelope, updateHealth }: PanelProps) {
   if (envelope.state === 'error') {
     const presentation = errorPresentation(envelope.error.kind)
     return (
-      <PanelFrame panel={panel} envelope={envelope} error layout="status-band">
+      <PanelFrame
+        panel={panel}
+        envelope={envelope}
+        attentionActive={attentionActive}
+        error
+        layout="status-band"
+      >
         <div data-panel-anchor="status">
           <PanelStatus glyph="⚠" label={presentation.label} emphasis={presentation.emphasis} />
         </div>
@@ -46,7 +52,13 @@ export function PipelinePanel({ panel, envelope, updateHealth }: PanelProps) {
   const signal = pipelineStatusSchema.safeParse(envelope.signal)
   if (!signal.success)
     return (
-      <PanelFrame panel={panel} envelope={envelope} error layout="status-band">
+      <PanelFrame
+        panel={panel}
+        envelope={envelope}
+        attentionActive={attentionActive}
+        error
+        layout="status-band"
+      >
         <div data-panel-anchor="status">
           <PanelStatus glyph="⚠" label="Invalid signal" />
         </div>
@@ -61,6 +73,7 @@ export function PipelinePanel({ panel, envelope, updateHealth }: PanelProps) {
       envelope={envelope}
       signal={signal.data}
       updateHealth={updateHealth}
+      attentionActive={attentionActive}
     />
   )
 }
@@ -70,11 +83,13 @@ function PipelineSignalPanel({
   envelope,
   signal,
   updateHealth,
+  attentionActive,
 }: {
   panel: Panel
   envelope: Envelope
   signal: PipelineStatus
   updateHealth?: PanelProps['updateHealth']
+  attentionActive?: boolean
 }) {
   const presentation = statusPresentation(signal.status)
   const [defaultAnimation, setDefaultAnimation] = useState<RunningAnimation | undefined>(() =>
@@ -97,6 +112,7 @@ function PipelineSignalPanel({
     <PanelFrame
       panel={panel}
       envelope={envelope}
+      attentionActive={attentionActive}
       layout={usesField || usesLegacyProgress ? undefined : 'status-band'}
       field={
         usesField ? (

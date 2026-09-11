@@ -50,6 +50,32 @@ security-relevant proxy addresses; do not use a label rename to change one. `lab
 presentation-only text for the wall display and defaults to the id. Positions use a twelve-column
 grid: `x` and `y` locate the panel, while `w` and `h` define its size.
 
+### Important-panel attention
+
+Use attention only for panels whose failed or unreadable evidence needs a wall-level cue. Mark the
+panel with `attention: true`, then select exactly one treatment for that board:
+
+```yaml
+boards:
+  operations:
+    attention:
+      treatment: beacon # beacon, alarm, or steady
+    panels:
+      - id: production-build
+        label: Production build
+        type: pipeline-status
+        attention: true
+```
+
+`beacon` uses a restrained pulse, `alarm` is a stronger rhythmic cue, and `steady` is static for
+motion-averse spaces. The board never combines treatments: when multiple important panels need
+attention, one header rail names every panel and its reason, with a link to the unchanged panel.
+The cue activates for failed pipeline or pull-request health, error envelopes, invalid signal
+payloads, unreadable grouped HTTP facts, and missed client updates. It does not activate for
+loading, passed, warning, running, cancelled, or unknown statuses. The panel’s normal glyph,
+label, evidence, and source link remain authoritative and usable; reduced-motion preferences turn
+animated treatments into the same high-contrast static cue.
+
 At desktop widths, positions are interpreted in an intended twelve-column by twelve-row space, but
 the current renderer continues to honor authored coordinates and may create implicit rows. The
 dashboard reports panels that exceed the intended space or overlap another panel; live rendering

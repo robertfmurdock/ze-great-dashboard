@@ -18,6 +18,7 @@ export type HttpValueFactObservation = {
 export type PanelProps = {
   panel: Panel
   envelope: Envelope | undefined
+  attentionActive?: boolean
   updateHealth?: PanelUpdateHealth
   facts?: Record<string, HttpValueFactObservation | undefined>
 }

@@ -6,6 +6,7 @@ import {
 } from '@ze-great-dashboard/shared'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
+import { projectAttention } from './attention.ts'
 import { Diagnostics } from './Diagnostics.tsx'
 import type { DashboardAuth } from './dashboard-fetch.ts'
 import { dashboardFetch } from './dashboard-fetch.ts'
@@ -65,6 +66,12 @@ function Dashboard({
     auth,
   })
   const layout = useMemo(() => (board ? analyzeBoardLayout(board.panels) : undefined), [board])
+  const attentionDrivers = useMemo(
+    () => projectAttention({ board, signals, updateHealth, factSignals }),
+    [board, factSignals, signals, updateHealth],
+  )
+  const attentionTreatment = attentionDrivers.length ? board?.attention?.treatment : undefined
+  const activeAttentionPanels = new Set(attentionDrivers.map((driver) => driver.panelId))
 
   useEffect(() => {
     if (!layout || layout.issues.length === 0) return
@@ -133,9 +140,33 @@ function Dashboard({
   }, [auth, diagnostics, env])
 
   return (
-    <div className={styles.board}>
+    <div
+      className={`${styles.board} ${attentionTreatment ? styles[`attention-${attentionTreatment}`] : ''}`}
+      data-attention-treatment={attentionTreatment}
+      data-attention-active={attentionDrivers.length || undefined}
+    >
       <header className={styles.header}>
         <h1 className={styles.title}>{env.board}</h1>
+        {attentionDrivers.length > 0 && (
+          <aside
+            className={styles.attentionRail}
+            role="alert"
+            aria-label="Important panel attention"
+          >
+            <span className={styles.attentionGlyph} aria-hidden="true">
+              ⚠
+            </span>
+            <ul>
+              {attentionDrivers.map((driver) => (
+                <li key={`${driver.panelId}-${driver.factId ?? 'panel'}-${driver.reason}`}>
+                  <a href={`#panel-${driver.panelId}`}>
+                    <strong>{driver.label}</strong>: {driver.reason}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </aside>
+        )}
       </header>
       <main className={styles.grid}>
         {!board && <PanelPlaceholder label="board" hint="Loading configuration…" wide />}
@@ -146,6 +177,7 @@ function Dashboard({
               key={panel.id}
               panel={panel}
               envelope={signals[panel.id]}
+              attentionActive={activeAttentionPanels.has(panel.id)}
               updateHealth={updateHealth[panel.id]}
               facts={factSignals[panel.id]}
             />

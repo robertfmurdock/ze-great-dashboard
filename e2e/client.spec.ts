@@ -46,6 +46,59 @@ test('the production client loads and renders with CDN modules', async ({ page }
   expect(browserErrors).toEqual([])
 })
 
+test('important failures retain readable panel evidence and expose a reduced-motion attention rail', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.addInitScript(
+    (env) => {
+      window.env = {
+        assetPath: env.assetPath,
+        assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
+        proxyPath: '/api',
+        board: 'attention',
+        clientVersion: 'browser-test',
+      }
+    },
+    { assetPath },
+  )
+  await page.route('**/api/boards/attention', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        attention: { treatment: 'alarm' },
+        panels: [{ id: 'build', label: 'Build', type: 'pipeline-status', attention: true }],
+      }),
+    }),
+  )
+  await page.route('**/api/panel/attention/build', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        panelId: 'build',
+        state: 'ok',
+        observedAt: '2026-09-11T12:00:00.000Z',
+        link: null,
+        signal: { type: 'pipeline-status', status: 'failed', rawStatus: 'failure', name: 'Build' },
+      }),
+    }),
+  )
+  await page.route('**/api/client', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify({ assetPath }) }),
+  )
+
+  await page.goto('/')
+  const rail = page.locator('[role="alert"]')
+  await expect(rail).toContainText('Build: Pipeline failed')
+  await expect(rail.locator('a')).toHaveAttribute('href', '#panel-build')
+  await expect(page.locator('#panel-build')).toContainText('Failed')
+  await expect(page.locator('[data-attention-active="true"]')).toHaveCount(1)
+  await expect(page.locator('[data-attention-treatment="alarm"]')).toHaveCSS(
+    'animation-name',
+    'none',
+  )
+})
+
 test('reloads when the server starts serving a different client', async ({ page }) => {
   let identityChecks = 0
   await page.addInitScript(

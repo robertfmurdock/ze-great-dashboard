@@ -1,6 +1,9 @@
 export {
+  type AttentionTreatment,
   type Auth,
   type AzureDevOpsSource,
+  attentionTreatmentSchema,
+  attentionTreatments,
   authSchema,
   azureDevOpsSourceSchema,
   type Board,

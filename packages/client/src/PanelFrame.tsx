@@ -132,6 +132,7 @@ export function PanelValue({
 export function PanelFrame({
   panel,
   envelope,
+  attentionActive = false,
   error = false,
   field,
   layout,
@@ -139,6 +140,7 @@ export function PanelFrame({
 }: {
   panel: Panel
   envelope?: Envelope
+  attentionActive?: boolean
   error?: boolean
   /** Decorative active-run layer. It is intentionally a sibling of readable panel content. */
   field?: ReactNode
@@ -153,7 +155,8 @@ export function PanelFrame({
   const short = position !== undefined && position.h <= 3
   return (
     <section
-      className={`${styles.panel} ${styles[`density-${density}`]} ${shallow ? styles.shallow : ''} ${short ? styles.short : ''} ${error ? styles.error : ''}`}
+      className={`${styles.panel} ${styles[`density-${density}`]} ${shallow ? styles.shallow : ''} ${short ? styles.short : ''} ${error ? styles.error : ''} ${attentionActive ? styles.attentionActive : ''}`}
+      id={`panel-${panel.id}`}
       style={panelLayout(panel)}
       aria-busy={envelope ? undefined : true}
       data-panel
@@ -166,6 +169,7 @@ export function PanelFrame({
       data-short={short}
       data-error={error || undefined}
       data-panel-type={panel.type}
+      data-attention-active={attentionActive || undefined}
     >
       {field}
       <PanelSourceLink panelId={panel.id} link={envelope?.link} />

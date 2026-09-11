@@ -19,6 +19,10 @@
   container-name: panel;
   container-type: size;
 }
+.attentionActive {
+  outline: 0.14rem solid var(--status-critical);
+  outline-offset: 0.16rem;
+}
 .content {
   position: relative;
   z-index: 1;

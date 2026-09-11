@@ -167,6 +167,23 @@ describe('the board config schema', () => {
     expect(boardConfigSchema.safeParse(validConfig).success).toBe(true)
   })
 
+  it('requires one board treatment when a panel opts into attention', () => {
+    const marked = {
+      boards: { a: { panels: [{ id: 'build', type: 'pipeline-status', attention: true }] } },
+    }
+    expect(boardConfigSchema.safeParse(marked).success).toBe(false)
+    expect(
+      boardConfigSchema.safeParse({
+        boards: { a: { attention: { treatment: 'beacon' }, panels: marked.boards.a.panels } },
+      }).success,
+    ).toBe(true)
+    expect(
+      boardConfigSchema.safeParse({
+        boards: { a: { attention: { treatment: 'flash' }, panels: marked.boards.a.panels } },
+      }).success,
+    ).toBe(false)
+  })
+
   it('accepts the zero-size preserved-but-hidden position sentinel', () => {
     expect(
       boardConfigSchema.safeParse({

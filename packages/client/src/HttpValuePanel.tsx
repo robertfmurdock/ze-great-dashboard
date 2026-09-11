@@ -5,11 +5,18 @@ import { PanelEvidence, PanelFrame, PanelHint, PanelStatus, PanelValue } from '.
 import type { HttpValueFactObservation, PanelProps } from './panel-props.ts'
 import { ObservedAt, UpdateHealth } from './TimeAge.tsx'
 
-export function HttpValuePanel({ panel, envelope, updateHealth, facts }: PanelProps) {
-  if (panel.facts) return <GroupedHttpValuePanel panel={panel} facts={facts} />
+export function HttpValuePanel({
+  panel,
+  envelope,
+  attentionActive,
+  updateHealth,
+  facts,
+}: PanelProps) {
+  if (panel.facts)
+    return <GroupedHttpValuePanel panel={panel} attentionActive={attentionActive} facts={facts} />
   if (!envelope)
     return (
-      <PanelFrame panel={panel}>
+      <PanelFrame panel={panel} attentionActive={attentionActive}>
         <PanelEvidence>
           <PanelHint>Loading…</PanelHint>
         </PanelEvidence>
@@ -18,7 +25,7 @@ export function HttpValuePanel({ panel, envelope, updateHealth, facts }: PanelPr
   if (envelope.state === 'error') {
     const presentation = errorPresentation(envelope.error.kind)
     return (
-      <PanelFrame panel={panel} envelope={envelope} error>
+      <PanelFrame panel={panel} envelope={envelope} attentionActive={attentionActive} error>
         <PanelEvidence>
           <PanelStatus glyph="⚠" label={presentation.label} emphasis={presentation.emphasis} />
           <PanelHint>{envelope.error.message}</PanelHint>
@@ -29,14 +36,14 @@ export function HttpValuePanel({ panel, envelope, updateHealth, facts }: PanelPr
   const signal = httpValueSchema.safeParse(envelope.signal)
   if (!signal.success)
     return (
-      <PanelFrame panel={panel} envelope={envelope} error>
+      <PanelFrame panel={panel} envelope={envelope} attentionActive={attentionActive} error>
         <PanelEvidence>
           <PanelStatus glyph="⚠" label="Invalid value" />
         </PanelEvidence>
       </PanelFrame>
     )
   return (
-    <PanelFrame panel={panel} envelope={envelope}>
+    <PanelFrame panel={panel} envelope={envelope} attentionActive={attentionActive}>
       <PanelEvidence className={styles.fact}>
         <PanelStatus glyph="✓" label="Value read" compactOnly />
         <PanelValue>{String(signal.data.value)}</PanelValue>
@@ -47,10 +54,14 @@ export function HttpValuePanel({ panel, envelope, updateHealth, facts }: PanelPr
   )
 }
 
-function GroupedHttpValuePanel({ panel, facts }: Pick<PanelProps, 'panel' | 'facts'>) {
+function GroupedHttpValuePanel({
+  panel,
+  attentionActive,
+  facts,
+}: Pick<PanelProps, 'panel' | 'attentionActive' | 'facts'>) {
   if (!panel.facts) return null
   return (
-    <PanelFrame panel={panel}>
+    <PanelFrame panel={panel} attentionActive={attentionActive}>
       <PanelEvidence>
         <div className={styles.facts} data-http-value-facts>
           {panel.facts.map((fact) => (

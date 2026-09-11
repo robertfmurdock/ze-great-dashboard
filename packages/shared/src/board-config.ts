@@ -31,6 +31,11 @@ export const panelDensities = ['auto', 'comfortable', 'compact'] as const
 export const panelDensitySchema = z.enum(panelDensities)
 export type PanelDensity = z.infer<typeof panelDensitySchema>
 
+/** Board-wide presentation selected when an important panel needs attention. */
+export const attentionTreatments = ['beacon', 'alarm', 'steady'] as const
+export const attentionTreatmentSchema = z.enum(attentionTreatments)
+export type AttentionTreatment = z.infer<typeof attentionTreatmentSchema>
+
 const httpValueJsonPathSchema = z
   .string()
   .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/, 'must be a simple JSON path')
@@ -94,6 +99,8 @@ export const panelSchema = z
     branch: z.string().min(1).optional(),
     /** Content-density bias; position still controls the panel's explicit grid placement. */
     density: panelDensitySchema.optional(),
+    /** Opt in to the board's presentation-only attention cue when this reading is unhealthy. */
+    attention: z.literal(true).optional(),
     /** Advisory in v1 — a panel without a position renders in config order rather than not at all. */
     position: positionSchema.optional(),
     refresh: durationSchema.optional(),
@@ -291,33 +298,45 @@ export function credentialEnvironmentNames(source: Source): string[] {
   ]
 }
 
-export const boardSchema = z.object({
-  refresh: durationSchema.optional(),
-  running_refresh: durationSchema.optional(),
-  running_completion_refresh: durationSchema.optional(),
-  running_completion_window: durationSchema.optional(),
-  panels: z
-    .array(panelSchema)
-    .min(1)
-    .superRefine((panels, ctx) => {
-      // Panel ids address a panel in the proxy URL and key the allowlist. Duplicates resolving
-      // to "whichever came first" would silently repoint a URL, so they fail loudly instead.
-      const seen = new Map<string, number>()
-      panels.forEach((panel, index) => {
-        const firstIndex = seen.get(panel.id)
-        if (firstIndex === undefined) {
-          seen.set(panel.id, index)
-          return
-        }
-        ctx.addIssue({
-          code: 'custom',
-          path: [index, 'id'],
-          message: `duplicate panel id "${panel.id}" (already used by panel at index ${firstIndex})`,
-          params: { constraint: 'Use a unique panel id within this board.' },
+export const boardSchema = z
+  .object({
+    refresh: durationSchema.optional(),
+    running_refresh: durationSchema.optional(),
+    running_completion_refresh: durationSchema.optional(),
+    running_completion_window: durationSchema.optional(),
+    /** One board-wide treatment keeps simultaneous important failures unambiguous. */
+    attention: z.object({ treatment: attentionTreatmentSchema }).optional(),
+    panels: z
+      .array(panelSchema)
+      .min(1)
+      .superRefine((panels, ctx) => {
+        // Panel ids address a panel in the proxy URL and key the allowlist. Duplicates resolving
+        // to "whichever came first" would silently repoint a URL, so they fail loudly instead.
+        const seen = new Map<string, number>()
+        panels.forEach((panel, index) => {
+          const firstIndex = seen.get(panel.id)
+          if (firstIndex === undefined) {
+            seen.set(panel.id, index)
+            return
+          }
+          ctx.addIssue({
+            code: 'custom',
+            path: [index, 'id'],
+            message: `duplicate panel id "${panel.id}" (already used by panel at index ${firstIndex})`,
+            params: { constraint: 'Use a unique panel id within this board.' },
+          })
         })
+      }),
+  })
+  .superRefine((board, ctx) => {
+    if (board.panels.some((panel) => panel.attention) && !board.attention)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['attention'],
+        message: 'configure attention.treatment when one or more panels opt into attention',
+        params: { constraint: 'Important panels require one board attention treatment.' },
       })
-    }),
-})
+  })
 
 export type Board = z.infer<typeof boardSchema>
 
