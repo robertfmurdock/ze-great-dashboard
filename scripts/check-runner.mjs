@@ -1,8 +1,10 @@
 import { spawn } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+
+import { checkEvidence } from './check-evidence.mjs'
 
 const signals = { SIGINT: 130, SIGTERM: 143 }
 
@@ -10,8 +12,17 @@ const signals = { SIGINT: 130, SIGTERM: 143 }
  * Run a small, fixed dependency graph without letting concurrent child output interleave.
  * This is exported solely so the subprocess contract tests can exercise the same process boundary.
  */
-export async function runCheck(stages, { cwd = process.cwd(), environment = process.env } = {}) {
+export async function runCheck(
+  stages,
+  {
+    cwd = process.cwd(),
+    environment = process.env,
+    reportDirectory = join(cwd, checkEvidence.directoryName),
+  } = {},
+) {
   validateGraph(stages)
+  await rm(reportDirectory, { recursive: true, force: true })
+  await mkdir(reportDirectory, { recursive: true })
   const startedAt = performance.now()
   const logDirectory = await mkdtemp(join(tmpdir(), 'dashboard-check-'))
   const state = new Map(stages.map((stage) => [stage.id, { status: 'pending' }]))
@@ -62,6 +73,7 @@ export async function runCheck(stages, { cwd = process.cwd(), environment = proc
   } finally {
     for (const signal of Object.keys(signals)) process.removeListener(signal, interrupt)
     printLedger(stages, state, startedAt)
+    await writeEvidenceLedger(stages, state, startedAt, reportDirectory, interruptedBy)
     for (const stage of stages) {
       const result = state.get(stage.id)
       if (result.status === 'failed' && result.logPath) {
@@ -187,4 +199,49 @@ function printLedger(stages, state, startedAt) {
 
 function formatDuration(milliseconds) {
   return `${(milliseconds / 1000).toFixed(1)}s`
+}
+
+async function writeEvidenceLedger(stages, state, startedAt, reportDirectory, interruptedBy) {
+  const totalDurationMs = Math.round(performance.now() - startedAt)
+  const results = stages.map((stage) => {
+    const result = state.get(stage.id)
+    return {
+      id: stage.id,
+      status: result.status,
+      ...(result.duration === undefined ? {} : { durationMs: Math.round(result.duration) }),
+      ...(result.detail === undefined ? {} : { detail: result.detail }),
+      ...(result.reason === undefined ? {} : { reason: result.reason }),
+    }
+  })
+  const summary = {
+    version: 1,
+    totalDurationMs,
+    ...(interruptedBy === undefined ? {} : { interruptedBy }),
+    stages: results,
+  }
+  await Promise.all([
+    writeFile(
+      join(reportDirectory, checkEvidence.summaryJson),
+      `${JSON.stringify(summary, null, 2)}\n`,
+    ),
+    writeFile(
+      join(reportDirectory, checkEvidence.summaryMarkdown),
+      [
+        '## Check evidence',
+        '',
+        '| Stage | Status | Duration | Detail |',
+        '| --- | --- | --- | --- |',
+        ...results.map(
+          ({ id, status, durationMs, detail, reason }) =>
+            `| ${id} | ${status} | ${durationMs === undefined ? '—' : formatDuration(durationMs)} | ${detail ?? reason ?? '—'} |`,
+        ),
+        '',
+        `Total: ${formatDuration(totalDurationMs)}${interruptedBy ? ` (interrupted by ${interruptedBy})` : ''}`,
+        '',
+        `Native test results: [Node](${checkEvidence.nodeJUnit}), [Vitest](${checkEvidence.vitestJUnit}), [Playwright](${checkEvidence.playwrightJUnit}).`,
+        `Playwright failure attachments, when produced, are in [${checkEvidence.playwrightArtifacts}/](${checkEvidence.playwrightArtifacts}/).`,
+        '',
+      ].join('\n'),
+    ),
+  ])
 }

@@ -51,6 +51,24 @@ jobs:
           AUTH0_FUNCTIONAL_SKIP: ${{ github.ref != 'refs/heads/main' && 'true' || 'false' }}
         run: npm run check
 
+      - name: Publish check evidence summary
+        if: always()
+        run: |
+          if [ -f check-results/summary.md ]; then
+            cat check-results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Check evidence ledger was not created.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload check evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: check-evidence
+          path: check-results/
+          if-no-files-found: warn
+          retention-days: 90
+
       - name: Fetch release history
         if: github.ref == 'refs/heads/main'
         run: |

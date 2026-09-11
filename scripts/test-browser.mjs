@@ -3,6 +3,8 @@ import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { playwrightEvidenceOptions } from './check-evidence.mjs'
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
 // Docker gives local checks the same Playwright server and browser version as CI. Native browsers
@@ -10,6 +12,7 @@ const require = createRequire(import.meta.url)
 const useDocker = process.env.PLAYWRIGHT_DOCKER !== '0'
 const noBuild = process.argv.includes('--no-build')
 const playwrightArguments = process.argv.slice(2).filter((argument) => argument !== '--no-build')
+const checkResultsDirectory = process.env.CHECK_RESULTS_DIR
 const playwrightVersion = require('@playwright/test/package.json').version
 const dockerBrowserOrigin = 'http://host.docker.internal:4173'
 const composeArgs = ['compose', '-f', 'compose.playwright.yml']
@@ -17,6 +20,13 @@ const npmCli = process.env.npm_execpath
 const npmCommand = npmCli ? process.execPath : 'npm'
 // The standalone command builds; the aggregate test command opts into reuse after test:unit.
 const clientScript = noBuild ? 'test:browser:no-build' : 'test:browser'
+
+const evidenceOptions = playwrightEvidenceOptions(checkResultsDirectory)
+if (evidenceOptions) {
+  playwrightArguments.push(...evidenceOptions.arguments)
+  process.env.PLAYWRIGHT_JUNIT_OUTPUT_FILE = evidenceOptions.junitOutputFile
+}
+
 const npmArgs = npmCli
   ? [
       npmCli,

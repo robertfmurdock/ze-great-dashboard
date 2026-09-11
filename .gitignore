@@ -4,6 +4,7 @@ packages/aws/client/
 packages/aws/board-config.schema.json
 coverage/
 test-results/
+check-results/
 playwright-report/
 .bootstrap-work/
 aws-dashboard-release/
