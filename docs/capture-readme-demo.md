@@ -1,25 +1,30 @@
 # README preview capture
 
-## Static panel-state gallery
+## Still proof gallery
 
-`docs/assets/readme-panel-states.png` is a checked-in 1440 × 900 screenshot of the
-`readme-panel-states` board. It shows passed, warning, running, failed, cancelled, unknown, and source-error
-states using deterministic fixture envelopes. The board and fixtures contain no credentials, and
-the Playwright capture intercepts every board and panel API response, so no GitHub or other live
-authority is contacted.
+The README's still images are generated from the named source-free scenarios in
+`scripts/readme-gallery-fixtures.mjs`. Each capture uses the ordinary Vite and application-server
+development path, fixes browser time, requests reduced motion, intercepts every `/api` response,
+and blocks any browser request outside localhost. They use no credentials and never contact a live
+signal authority.
 
-Regenerate it with:
+| Artifact | Scenario evidence | Regenerate |
+| --- | --- | --- |
+| `docs/assets/readme-status-vocabulary.png` | Seven visible states: passed, warning, running, failed, cancelled, unknown, and source unavailable. | `npm run capture:readme:status` |
+| `docs/assets/readme-important-attention.png` | Reduced-motion attention rail with a failed panel and an unreadable panel, each retaining anchored evidence. | `npm run capture:readme:attention` |
+| `docs/assets/readme-authless-warning.png` | A persistent unauthenticated-deployment warning beside ordinary board content. | `npm run capture:readme:warning` |
+| `docs/assets/readme-authentication-required.png` | Fail-closed authentication-required boundary with no board data. | `npm run capture:readme:blocked` |
+
+Each command checks its intended visible text before writing its PNG. Inspect an output with:
 
 ```sh
-npm run capture:readme:states
+file docs/assets/readme-status-vocabulary.png
 ```
 
-The command uses the normal Vite and application-server development path, disables motion, writes
-`docs/assets/readme-panel-states.png`, checks that all seven labels rendered, and cleans up its local
-server processes. Inspect it with:
+Regenerate the entire still gallery in its display order with:
 
 ```sh
-file docs/assets/readme-panel-states.png
+npm run capture:readme:gallery
 ```
 
 The animated preview workflow follows below.

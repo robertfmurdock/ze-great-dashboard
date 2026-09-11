@@ -111,6 +111,7 @@ export async function startup(
         credentials,
         logger,
         accessTokenVerifier,
+        securityState,
       }),
       config: resolvedConfig,
     }

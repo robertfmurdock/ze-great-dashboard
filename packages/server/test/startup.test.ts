@@ -219,6 +219,8 @@ describe('server configuration', () => {
 })
 
 describe('deployment security posture', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
   const baseConfig = loadConfig({ ASSET_PATH: 'https://cdn/1.0.0', HOST: '0.0.0.0' })
   const board = { sources: {}, boards: { operations: { panels: [{ id: 'demo', type: 'x' }] } } }
 
@@ -238,6 +240,26 @@ describe('deployment security posture', () => {
         { ...board, security: 'required' },
       ),
     ).toBe('blocked')
+  })
+
+  it('passes the deployed authless warning through to the browser entrypoint', async () => {
+    vi.stubEnv('ASSET_PATH', 'https://assets.example.test/client')
+    vi.stubEnv('BOARD_CONFIG_URL', 'https://config.example.test/board.yaml')
+    vi.stubEnv('BOARD', 'operations')
+    vi.stubEnv('HOST', '0.0.0.0')
+    const fetcher = vi.fn(async (url: string | URL) =>
+      String(url).endsWith('/index.html')
+        ? new Response('<html><head></head><body></body></html>')
+        : new Response(
+            '# yaml-language-server: $schema=https://assets.example.test/client/board-config.schema.json\nboards: {operations: {panels: [{id: demo, type: http-value, url: https://example.invalid/value}]}}\nsources: {}',
+          ),
+    ) as unknown as typeof fetch
+
+    const { app } = await startup({ fetcher })
+    const entrypoint = await app.request('/')
+
+    expect(entrypoint.status).toBe(200)
+    expect(await entrypoint.text()).toContain('"security":"warning"')
   })
 
   it('blocks every API surface without reading source credentials or a client template', async () => {

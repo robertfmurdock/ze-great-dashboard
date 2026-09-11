@@ -10,15 +10,35 @@
 Ze Great Dashboard is a team-visible, stateless trust dashboard that reads current engineering
 signals from their authorities: a lens, not a system of record.
 
-![README panel-state gallery](docs/assets/readme-panel-states.png)
+## See it work
 
-The dashboard communicates seven states honestly: passed, warning, running, failed, cancelled,
-unknown, and a source error. Status is never color alone; each state is paired with a glyph and a
-readable label.
+### Status vocabulary
 
-![Animated Ze Great Dashboard preview](docs/assets/readme-demo.gif)
+[![A dashboard board displaying passed, running, failed, cancelled, unknown, warning, and source-unavailable states, each with a glyph and label.](docs/assets/readme-status-vocabulary.png)](docs/assets/readme-status-vocabulary.png)
 
-This preview shows the active pipeline treatments available on running pipeline panels.
+Every reading says what it means: passed, warning, running, failed, cancelled, unknown, or source unavailable. Status never relies on color alone. [Configure panels and sources.](docs/board-configuration.md)
+
+### Important attention
+
+[![A dashboard attention rail names a failed Build and an unreadable Production Deploy; both panels remain visible with their failure evidence.](docs/assets/readme-important-attention.png)](docs/assets/readme-important-attention.png)
+
+Opt-in attention keeps urgent failures visible in a header rail and anchored to their source panels, including when motion is reduced. [Configure attention for important panels.](docs/board-configuration.md)
+
+### Security posture
+
+[![An in-context dashboard warning states that the deployment has no authentication beside a visible passed Build panel.](docs/assets/readme-authless-warning.png)](docs/assets/readme-authless-warning.png)
+
+An unprotected deployed dashboard carries a persistent warning instead of quietly looking normal. [Set up authentication or explicitly acknowledge public access.](docs/oidc-authentication.md)
+
+[![A fail-closed screen stating Authentication configuration required and No dashboard data was loaded.](docs/assets/readme-authentication-required.png)](docs/assets/readme-authentication-required.png)
+
+When authentication is required but unavailable, the dashboard blocks before loading any board data. [Read the authentication guide.](docs/oidc-authentication.md)
+
+### Active work
+
+[![Animated Ze Great Dashboard preview](docs/assets/readme-demo.gif)](docs/assets/readme-demo.gif)
+
+Running pipeline panels can show an active treatment while their readable status remains clear. [Configure pipeline panels.](docs/board-configuration.md)
 
 It is for teams that want a big, visible answer to “are the things we rely on working now?” It is
 not a metrics warehouse, historical analytics product, hosted SaaS, or a replacement for the systems

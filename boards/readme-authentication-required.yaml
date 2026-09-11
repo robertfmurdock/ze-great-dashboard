@@ -1,8 +1,7 @@
 # yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/0.18.0/board-config.schema.json
-# Valid, inert boot shell for the README's deterministic gallery captures. The browser receives
-# each named fixture board by interception, so this panel's URL is never requested.
+# Source-free board used only to start the README's fail-closed security capture.
 boards:
-  readme-panel-states:
+  readme-authentication-required:
     panels:
       - id: capture-shell
         label: Capture shell
@@ -11,3 +10,4 @@ boards:
         position: { h: 1, w: 1, x: 0, y: 0 }
 
 sources: {}
+security: required
