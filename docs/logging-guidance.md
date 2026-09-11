@@ -36,6 +36,20 @@ unprotected condition, why the test differed, and the smallest correction that m
 representative. A test deliberately changed to match an intentional product change is not a test
 miss; it is a contract change and should explain the decision instead.
 
+### Defect-closure pause
+
+When debugging reveals a production or release-relevant defect, stop once its causal fix is known
+and ask before returning to the original task:
+
+1. What existing test passed while this defect existed?
+2. Which meaningful interface or execution boundary did that test fail to exercise?
+3. Does the correction now exercise that boundary?
+4. If so, append the test-miss record now, before the rest of the debugging work makes the gap easy
+   to misclassify as a routine fix.
+
+This is not a requirement to log every bug. It is a guard against treating a discovered evidence
+gap as ordinary green-test work merely because the final correction has a test.
+
 When recording a completed work slice, use these as lightweight prompts rather than mandatory
 headings:
 

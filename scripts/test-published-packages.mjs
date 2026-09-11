@@ -8,6 +8,8 @@ import { packageLayout } from './package-layout.mjs'
 import { testPackagedConfiguration } from './test-packaged-configuration.mjs'
 
 const root = resolve(new URL('..', import.meta.url).pathname)
+// This stays beneath the checkout so the unpacked package can resolve the test installation's
+// dependencies. `.gitignore` makes the directory unambiguously disposable to Git and Biome.
 const stagingRoot = join(root, '.publish-staging-test')
 const npmCache = await mkdtemp(join(tmpdir(), 'ze-great-dashboard-npm-cache-'))
 const useExistingArtifacts = process.argv.includes('--no-build')

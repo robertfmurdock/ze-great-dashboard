@@ -111,11 +111,11 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
     const cleaned = join(directory, 'cleaned')
     const childSource = `
       import { writeFileSync } from 'node:fs'
-      writeFileSync(${JSON.stringify(started)}, 'started')
       process.on(${JSON.stringify(signal)}, () => {
         writeFileSync(${JSON.stringify(cleaned)}, 'cleaned')
         setTimeout(() => process.exit(0), 30)
       })
+      writeFileSync(${JSON.stringify(started)}, 'started')
       setInterval(() => {}, 1000)
     `
     try {

@@ -10,6 +10,7 @@ aws-dashboard-release/
 *.tsbuildinfo
 lambda.zip
 release-build.tgz
+.publish-staging-test/
 
 # Local credentials — never commit. See .env.example for the variable names.
 .env

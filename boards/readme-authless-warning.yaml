@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/0.18.0/board-config.schema.json
+# Valid authless deployment fixture for the README warning capture. Its panel is replaced by the
+# browser-intercepted scenario, so this URL is never requested.
+boards:
+  security:
+    panels:
+      - id: capture-shell
+        label: Capture shell
+        type: http-value
+        url: https://example.invalid/readme-capture
+        position: { h: 1, w: 1, x: 0, y: 0 }
+
+sources: {}

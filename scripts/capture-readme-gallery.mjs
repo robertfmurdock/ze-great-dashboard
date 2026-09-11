@@ -20,11 +20,11 @@ const clientPort = 5174
 const serverPort = 3001 + scenarioOffset
 const clientOrigin = `http://127.0.0.1:${clientPort}`
 const serverOrigin = `http://127.0.0.1:${serverPort}`
-const browserBoard = scenarioName === 'warning' ? 'security' : 'readme-panel-states'
+const serverBoard = scenario.serverBoard ?? 'readme-panel-states'
 let processOutput = ''
 const bin = resolve(root, 'node_modules', '.bin')
 const client =
-  scenarioName === 'blocked'
+  scenario.requiresClient === false
     ? undefined
     : start(resolve(bin, 'vite'), [
         '--host',
@@ -36,7 +36,7 @@ const client =
 const server = start(resolve(bin, 'tsx'), [resolve(root, 'packages/server/src/node-server.ts')], {
   ASSET_PATH: `${clientOrigin}/__ASSET_PATH__`,
   BOARD_CONFIG_URL: resolve(root, scenario.boardConfig ?? 'boards/readme-panel-states.yaml'),
-  BOARD: scenarioName === 'blocked' ? 'readme-authentication-required' : 'readme-panel-states',
+  BOARD: serverBoard,
   PORT: String(serverPort),
   HOST: scenario.host ?? '127.0.0.1',
   TEMPLATE_WAIT_MS: '20000',
@@ -49,19 +49,6 @@ try {
   const page = await browser.newPage({ viewport: scenario.viewport, deviceScaleFactor: 1 })
   await page.clock.install({ time: new Date('2026-08-27T14:00:00.000Z') })
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  if (scenarioName === 'warning') {
-    await page.addInitScript(() => {
-      let configuredEnv
-      Object.defineProperty(window, 'env', {
-        configurable: true,
-        get: () => configuredEnv,
-        set: (value) => {
-          configuredEnv = { ...value, board: 'security', security: 'warning' }
-        },
-      })
-    })
-  }
-
   const unexpectedRequests = []
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url())
@@ -71,8 +58,7 @@ try {
       return
     }
     if (!url.pathname.startsWith('/api/')) return route.continue()
-    const board = scenarioName === 'blocked' ? 'readme-authentication-required' : browserBoard
-    if (url.pathname === `/api/boards/${board}`) {
+    if (url.pathname === `/api/boards/${serverBoard}`) {
       return route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify(scenario.board),
