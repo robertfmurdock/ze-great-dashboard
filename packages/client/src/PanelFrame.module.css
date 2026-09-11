@@ -47,8 +47,30 @@
 .content:has([data-running-progress="signal-field"]) {
   flex: 1 1 0;
 }
-.threeAnchor > [data-panel-anchor="status"],
-.threeAnchor > [data-panel-anchor="evidence"] {
+.statusBand {
+  display: grid;
+  flex: 1 1 0;
+  grid-template-rows: 2.6em minmax(0, 1fr) auto;
+  gap: 0;
+}
+.statusBand > [data-panel-anchor="status"] {
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  grid-row: 2;
+  align-self: center;
+  transform: translateY(-50%);
+}
+.statusBand > [data-panel-anchor="evidence"] {
+  display: block;
+  grid-row: 3;
+  align-self: end;
+}
+.content:not(.statusBand) > [data-panel-anchor="status"] {
+  display: contents;
+}
+.statusBand > [data-panel-anchor="status"],
+.statusBand > [data-panel-anchor="evidence"] {
   min-width: 0;
 }
 .error {
@@ -81,6 +103,9 @@
   font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--ink-secondary);
+}
+.statusBand .label {
+  grid-row: 1;
 }
 .typeGlyph {
   display: none;
@@ -330,23 +355,8 @@
     gap: 0.05em;
   }
 
-  /* Opt-in status tiles use the available height as three repeatable scan anchors. */
-  .threeAnchor {
-    display: grid;
-    flex: 1 1 0;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    gap: 0;
-  }
-  .threeAnchor .label {
-    grid-row: 1;
-  }
-  .threeAnchor > [data-panel-anchor="status"] {
-    grid-row: 2;
-    align-self: center;
-  }
-  .threeAnchor > [data-panel-anchor="evidence"] {
-    grid-row: 3;
-    align-self: end;
+  .statusBand {
+    grid-template-rows: 2.6em minmax(0, 1fr) 5em;
   }
 }
 @container panel (max-height: 4rem) {
@@ -439,17 +449,70 @@
     grid-row: 1;
     align-self: start;
   }
-  .threeAnchor {
-    grid-template-columns: repeat(2, minmax(0, max-content));
-    grid-template-rows: min-content;
+  /* Health tiles keep their upright identity while preserving the shared scan bands. */
+  .statusBand {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 2.8em minmax(0, 1fr) 5em;
+    align-content: stretch;
+    justify-content: stretch;
+    gap: 0;
   }
-  .threeAnchor .label {
+  .statusBand .label {
+    display: flex;
     grid-column: 1;
     grid-row: 1;
+    align-items: start;
+    justify-content: center;
+    gap: 0.28em;
+    font-size: 0.78em;
+    line-height: 1.15;
+    text-align: center;
   }
-  .threeAnchor > [data-panel-anchor="status"] {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: start;
+  .statusBand .identityText {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+  .statusBand > [data-panel-anchor="status"] {
+    position: static;
+    inset-inline: auto;
+    top: auto;
+    grid-column: 1;
+    grid-row: 2;
+    align-self: center;
+    justify-self: center;
+    transform: none;
+  }
+  .statusBand > [data-panel-anchor="evidence"] {
+    position: static;
+    display: block;
+    grid-column: 1;
+    grid-row: 3;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    clip: auto;
+    white-space: normal;
+  }
+  .statusBand .status {
+    font-size: 2.1em;
+  }
+  .statusBand .statusText {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 }

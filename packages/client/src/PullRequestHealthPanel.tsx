@@ -19,9 +19,11 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
   if (envelope.state === 'error') {
     const presentation = errorPresentation(envelope.error.kind)
     return (
-      <PanelFrame panel={panel} envelope={envelope} error>
-        <PanelEvidence>
+      <PanelFrame panel={panel} envelope={envelope} error layout="status-band">
+        <div data-panel-anchor="status">
           <PanelStatus glyph="⚠" label={presentation.label} emphasis={presentation.emphasis} />
+        </div>
+        <PanelEvidence anchor="evidence">
           <PanelHint>{envelope.error.message}</PanelHint>
         </PanelEvidence>
       </PanelFrame>
@@ -30,16 +32,19 @@ export function PullRequestHealthPanel({ panel, envelope, updateHealth }: PanelP
   const signal = pullRequestHealthSchema.safeParse(envelope.signal)
   if (!signal.success)
     return (
-      <PanelFrame panel={panel} envelope={envelope} error>
-        <PanelEvidence>
+      <PanelFrame panel={panel} envelope={envelope} error layout="status-band">
+        <div data-panel-anchor="status">
           <PanelStatus glyph="⚠" label="Invalid signal" />
+        </div>
+        <PanelEvidence anchor="evidence">
+          <PanelHint>The received pull-request health status could not be read.</PanelHint>
         </PanelEvidence>
       </PanelFrame>
     )
   const presentation = statusPresentation(signal.data.status, 'Healthy')
   const compactFacts = compactPullRequestHealthFacts(signal.data)
   return (
-    <PanelFrame panel={panel} envelope={envelope} layout="three-anchor">
+    <PanelFrame panel={panel} envelope={envelope} layout="status-band">
       <div className={styles.statusAnchor} data-panel-anchor="status">
         <PanelStatus
           status={signal.data.status}

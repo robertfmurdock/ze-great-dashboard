@@ -35,7 +35,7 @@ describe('PullRequestHealthPanel', () => {
 
     expect(rendered.textContent).toContain('✓ Healthy')
     expect(rendered.querySelector('[data-panel-layout]')?.getAttribute('data-panel-layout')).toBe(
-      'three-anchor',
+      'status-band',
     )
     expect(rendered.querySelector('[data-compact-facts]')?.textContent).toContain('1 workflow')
     expect(rendered.querySelector('[data-compact-facts]')?.textContent).toContain('0 open PRs')

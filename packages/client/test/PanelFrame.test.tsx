@@ -79,15 +79,15 @@ describe('PanelFrame', () => {
     expect(rendered.textContent).toContain('7m')
   })
 
-  it('exposes the opt-in three-anchor layout hook without changing default panels', () => {
+  it('exposes the opt-in status-band layout hook without changing default panels', () => {
     const rendered = render(
-      <PanelFrame panel={panel} layout="three-anchor">
+      <PanelFrame panel={panel} layout="status-band">
         <p>Value</p>
       </PanelFrame>,
     ).container
 
     expect(rendered.querySelector('[data-panel-content]')?.getAttribute('data-panel-layout')).toBe(
-      'three-anchor',
+      'status-band',
     )
   })
 

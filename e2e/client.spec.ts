@@ -407,7 +407,7 @@ test('keeps four independently sourced facts readable inside one compact portrai
     ).toHaveCount(1)
 })
 
-test('keeps pipeline and HTTP-value portrait tiles symbol-led without rotating accessible text', async ({
+test('keeps HTTP-value portrait tiles symbol-led while restoring an upright pipeline title', async ({
   page,
 }) => {
   const board = {
@@ -441,9 +441,9 @@ test('keeps pipeline and HTTP-value portrait tiles symbol-led without rotating a
   })
 
   await page.goto('/')
-  for (const [panelId, label] of [
-    ['build', 'Production build'],
-    ['version', 'Release version'],
+  for (const [panelId, label, identityVisible] of [
+    ['build', 'Production build', true],
+    ['version', 'Release version', false],
   ]) {
     const tile = page.locator(`[data-panel-id="${panelId}"]`)
     await expect(tile).toContainText(label)
@@ -452,17 +452,29 @@ test('keeps pipeline and HTTP-value portrait tiles symbol-led without rotating a
     const compact = await tile.evaluate((panel) => ({
       fits: panel.scrollHeight <= panel.clientHeight,
       writingMode: getComputedStyle(panel.querySelector('h2') as Element).writingMode,
-      typeGlyph: getComputedStyle(panel.querySelector('[data-panel-type-glyph]') as Element)
-        .display,
+      typeGlyphVisible:
+        getComputedStyle(panel.querySelector('[data-panel-type-glyph]') as Element).display !==
+        'none',
       stateGlyph: getComputedStyle(
         panel.querySelector('[data-panel-status] [aria-hidden="true"]') as Element,
       ).display,
+      identityVisible: (() => {
+        const identity = panel.querySelector('[data-panel-identity-text]') as Element
+        const style = getComputedStyle(identity)
+        const range = document.createRange()
+        range.selectNodeContents(identity)
+        return (
+          style.position !== 'absolute' &&
+          [...range.getClientRects()].some((rect) => rect.width > 0)
+        )
+      })(),
     }))
-    expect(compact).toEqual({
+    expect(compact).toMatchObject({
       fits: true,
       writingMode: 'horizontal-tb',
-      typeGlyph: 'inline-block',
+      typeGlyphVisible: true,
       stateGlyph: 'inline-block',
+      identityVisible,
     })
   }
 })
@@ -557,6 +569,7 @@ test('uses readable primary symbols in a narrow tall pull-request tile while ret
     panels: [
       {
         id: 'updates-tall',
+        label: 'Dependency update health',
         type: 'pull-request-health',
         position: { x: 0, y: 0, w: 1, h: 12 },
       },
@@ -620,8 +633,8 @@ test('uses readable primary symbols in a narrow tall pull-request tile while ret
             ? {
                 panelTop: panelRect.top,
                 panelHeight: panelRect.height,
-                labelRight: label.right,
-                statusLeft: status.left,
+                labelTop: label.top,
+                labelBottom: label.bottom,
                 statusTop: status.top,
                 statusBottom: status.bottom,
                 evidenceTop: evidence.top,
@@ -634,6 +647,16 @@ test('uses readable primary symbols in a narrow tall pull-request tile while ret
                   getComputedStyle(
                     panel.querySelector('[data-panel-status] [aria-hidden="true"]') as Element,
                   ).display !== 'none',
+                identityVisible: (() => {
+                  const identity = panel.querySelector('[data-panel-identity-text]') as Element
+                  const style = getComputedStyle(identity)
+                  const range = document.createRange()
+                  range.selectNodeContents(identity)
+                  return (
+                    style.position !== 'absolute' &&
+                    [...range.getClientRects()].some((rect) => rect.width > 0 && rect.height > 0)
+                  )
+                })(),
               }
             : undefined,
       }
@@ -646,10 +669,11 @@ test('uses readable primary symbols in a narrow tall pull-request tile while ret
     fits: true,
   })
   const tallAnchors = presentation.find((panel) => panel.id === 'updates-tall')?.anchors
-  expect(tallAnchors?.labelRight).toBeLessThan(tallAnchors?.statusLeft ?? Number.NEGATIVE_INFINITY)
+  expect(tallAnchors?.labelBottom).toBeLessThan(tallAnchors?.statusTop ?? Number.NEGATIVE_INFINITY)
   expect(tallAnchors?.labelWritingMode).toBe('horizontal-tb')
   expect(tallAnchors?.typeGlyphVisible).toBe(true)
   expect(tallAnchors?.statusGlyphVisible).toBe(true)
+  expect(tallAnchors?.identityVisible).toBe(true)
   expect(presentation.find((panel) => panel.id === 'updates-normal')).toMatchObject({
     facts: 'none',
     summary: 'static',
@@ -660,6 +684,88 @@ test('uses readable primary symbols in a narrow tall pull-request tile while ret
     summary: 'static',
     fits: true,
   })
+})
+
+test('aligns health-panel state markers while keeping unequal titles upright and contained', async ({
+  page,
+}) => {
+  const board = {
+    panels: [
+      {
+        id: 'build-health',
+        label: 'Production deployment verification',
+        type: 'pipeline-status',
+        position: { x: 0, y: 0, w: 6, h: 8 },
+      },
+      {
+        id: 'update-health',
+        label: 'Dependency update pull request health',
+        type: 'pull-request-health',
+        position: { x: 6, y: 0, w: 6, h: 8 },
+      },
+    ],
+  }
+  await page.setViewportSize({ width: 2400, height: 1200 })
+  await stubDashboard(page, board)
+  await page.route('**/api/panel/**', (route) => {
+    const path = new URL(route.request().url()).pathname
+    const panelId = decodeURIComponent(path.split('/').at(-2) ?? '')
+    if (path.endsWith('/pull-requests'))
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          panelId,
+          state: 'ok',
+          observedAt: '2026-08-29T12:00:00.000Z',
+          link: 'https://github.com/example/repo',
+          signal: { type: 'pull-request-candidates', pullRequests: [] },
+        }),
+      })
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify(
+        path.includes('update-health')
+          ? pullRequestHealthEnvelope(panelId)
+          : {
+              panelId,
+              state: 'error',
+              observedAt: '2026-09-11T12:00:00.000Z',
+              link: 'https://ci.example.com/production',
+              error: { kind: 'unreachable', message: 'Build authority is unavailable.' },
+            },
+      ),
+    })
+  })
+
+  await page.goto('/')
+  await expect(page.locator('[data-panel][aria-busy="true"]')).toHaveCount(0)
+  const geometry = await page.locator('[data-panel]').evaluateAll((panels) =>
+    panels.map((panel) => {
+      const panelRect = panel.getBoundingClientRect()
+      const marker = panel.querySelector<HTMLElement>('[data-panel-anchor="status"]')
+      const identity = panel.querySelector('[data-panel-identity-text]') as Element
+      const range = document.createRange()
+      range.selectNodeContents(identity)
+      const titleRects = [...range.getClientRects()]
+      const markerRect = marker?.getBoundingClientRect()
+      return {
+        fits: panel.scrollHeight <= panel.clientHeight,
+        titleVisible: titleRects.some((rect) => rect.width > 0 && rect.height > 0),
+        titleContained: titleRects.every(
+          (rect) => rect.left >= panelRect.left && rect.right <= panelRect.right,
+        ),
+        markerCenter: markerRect ? markerRect.top + markerRect.height / 2 : Number.NaN,
+      }
+    }),
+  )
+
+  expect(geometry.every((panel) => panel.fits && panel.titleVisible && panel.titleContained)).toBe(
+    true,
+  )
+  expect(geometry).toHaveLength(2)
+  const [pipeline, pullRequest] = geometry
+  if (!pipeline || !pullRequest) throw new Error('Expected both health panels to render')
+  expect(Math.abs(pipeline.markerCenter - pullRequest.markerCenter)).toBeLessThanOrEqual(2)
 })
 
 test('stacks build and pull-request evidence readably on narrow viewports', async ({ page }) => {

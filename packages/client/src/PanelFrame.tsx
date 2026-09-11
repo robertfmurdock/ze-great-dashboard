@@ -67,17 +67,21 @@ export function PanelEvidence({
   children,
   className,
   priority = 'secondary',
+  anchor,
 }: {
   children: ReactNode
   className?: string
   /** Evidence can be intentionally suppressed by a symbol-led compact composition. */
   priority?: 'primary' | 'secondary'
+  /** Place this evidence in an opt-in PanelFrame layout slot. */
+  anchor?: 'evidence'
 }) {
   return (
     <div
       className={`${styles.evidence} ${className ?? ''}`}
       data-panel-evidence
       data-panel-evidence-priority={priority}
+      data-panel-anchor={anchor}
     >
       {children}
     </div>
@@ -138,8 +142,8 @@ export function PanelFrame({
   error?: boolean
   /** Decorative active-run layer. It is intentionally a sibling of readable panel content. */
   field?: ReactNode
-  /** Opt-in slots for a panel with identity, status, and evidence anchors. */
-  layout?: 'three-anchor'
+  /** Opt-in slots for health panels with a shared identity, state, and evidence band. */
+  layout?: 'status-band'
   children: ReactNode
 }) {
   const density = panel.density ?? 'auto'
@@ -166,7 +170,7 @@ export function PanelFrame({
       {field}
       <PanelSourceLink panelId={panel.id} link={envelope?.link} />
       <div
-        className={`${styles.content} ${layout === 'three-anchor' ? styles.threeAnchor : ''}`}
+        className={`${styles.content} ${layout === 'status-band' ? styles.statusBand : ''}`}
         data-panel-content
         data-panel-layout={layout}
       >

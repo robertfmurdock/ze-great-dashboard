@@ -32,9 +32,11 @@ export function PipelinePanel({ panel, envelope, updateHealth }: PanelProps) {
   if (envelope.state === 'error') {
     const presentation = errorPresentation(envelope.error.kind)
     return (
-      <PanelFrame panel={panel} envelope={envelope} error>
-        <PanelEvidence>
+      <PanelFrame panel={panel} envelope={envelope} error layout="status-band">
+        <div data-panel-anchor="status">
           <PanelStatus glyph="⚠" label={presentation.label} emphasis={presentation.emphasis} />
+        </div>
+        <PanelEvidence anchor="evidence">
           <PanelHint>{envelope.error.message}</PanelHint>
         </PanelEvidence>
       </PanelFrame>
@@ -44,9 +46,12 @@ export function PipelinePanel({ panel, envelope, updateHealth }: PanelProps) {
   const signal = pipelineStatusSchema.safeParse(envelope.signal)
   if (!signal.success)
     return (
-      <PanelFrame panel={panel} envelope={envelope} error>
-        <PanelEvidence>
+      <PanelFrame panel={panel} envelope={envelope} error layout="status-band">
+        <div data-panel-anchor="status">
           <PanelStatus glyph="⚠" label="Invalid signal" />
+        </div>
+        <PanelEvidence anchor="evidence">
+          <PanelHint>The received pipeline status could not be read.</PanelHint>
         </PanelEvidence>
       </PanelFrame>
     )
@@ -92,6 +97,7 @@ function PipelineSignalPanel({
     <PanelFrame
       panel={panel}
       envelope={envelope}
+      layout={usesField || usesLegacyProgress ? undefined : 'status-band'}
       field={
         usesField ? (
           <RunningField
@@ -105,8 +111,10 @@ function PipelineSignalPanel({
         ) : undefined
       }
     >
-      <PanelEvidence className={styles.details}>
+      <div data-panel-anchor="status">
         <PanelStatus status={signal.status} glyph={presentation.glyph} label={presentation.label} />
+      </div>
+      <PanelEvidence className={styles.details} anchor="evidence">
         {signal.status === 'running' && (
           <PanelMetadata
             glyph="⚙"
