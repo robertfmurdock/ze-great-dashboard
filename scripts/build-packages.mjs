@@ -20,13 +20,13 @@ await rm(join(directories.aws, 'client'), { recursive: true, force: true })
 await rm(join(directories.aws, 'board-config.schema.json'), { force: true })
 
 await build({
-  entryPoints: [join(directories.shared, 'src/index.ts')],
+  entryPoints: ['index.ts', 'browser.ts'].map((entry) => join(directories.shared, 'src', entry)),
   bundle: true,
   format: 'esm',
   platform: 'node',
   target: 'node22',
   external: ['zod'],
-  outfile: join(directories.shared, 'dist/index.js'),
+  outdir: join(directories.shared, 'dist'),
 })
 declarations('shared')
 

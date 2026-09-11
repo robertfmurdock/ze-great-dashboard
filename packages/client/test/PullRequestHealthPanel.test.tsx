@@ -1,5 +1,5 @@
 import { cleanup, render } from '@testing-library/react'
-import type { Envelope, Panel, PullRequestHealth } from '@ze-great-dashboard/shared'
+import type { Envelope, Panel, PullRequestHealth } from '@ze-great-dashboard/shared/browser'
 import { afterEach, describe, expect, it } from 'vitest'
 import { PullRequestHealthPanel } from '../src/PullRequestHealthPanel.tsx'
 

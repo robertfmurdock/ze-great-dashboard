@@ -1,4 +1,4 @@
-import { type Panel, parseDuration } from '@ze-great-dashboard/shared'
+import { type Panel, parseDuration } from '@ze-great-dashboard/shared/browser'
 import { useEffect, useState } from 'react'
 import { PanelEvidence, PanelFrame, PanelStatus } from './PanelFrame.tsx'
 import styles from './PipelineAnimationDemoPanel.module.css'

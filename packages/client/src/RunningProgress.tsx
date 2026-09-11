@@ -1,4 +1,4 @@
-import type { RunningAnimation } from '@ze-great-dashboard/shared'
+import type { RunningAnimation } from '@ze-great-dashboard/shared/browser'
 import type { CSSProperties } from 'react'
 import { PhasedProgressMarker } from './PhasedProgressMarker.tsx'
 import styles from './RunningProgress.module.css'

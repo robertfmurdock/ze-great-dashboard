@@ -1,4 +1,4 @@
-import { readClientEnv } from '@ze-great-dashboard/shared'
+import { readClientEnv } from '@ze-great-dashboard/shared/browser'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App.tsx'

@@ -3,13 +3,13 @@ import type {
   PipelineStatus,
   PullRequestCandidate,
   PullRequestHealth,
-} from '@ze-great-dashboard/shared'
+} from '@ze-great-dashboard/shared/browser'
 import {
   pipelineStatusPriority,
   pullRequestBuildObservationSchema,
   pullRequestCandidatesSchema,
   pullRequestWorkflowObservationSchema,
-} from '@ze-great-dashboard/shared'
+} from '@ze-great-dashboard/shared/browser'
 
 type Observation = { envelope?: Envelope; error?: string }
 

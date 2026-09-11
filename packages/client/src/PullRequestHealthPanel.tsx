@@ -1,4 +1,4 @@
-import { pullRequestHealthSchema } from '@ze-great-dashboard/shared'
+import { pullRequestHealthSchema } from '@ze-great-dashboard/shared/browser'
 import { errorPresentation } from './error-presentation.ts'
 import { PanelEvidence, PanelFrame, PanelHint, PanelMetadata, PanelStatus } from './PanelFrame.tsx'
 import styles from './PullRequestHealthPanel.module.css'

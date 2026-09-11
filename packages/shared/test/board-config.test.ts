@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
-import { boardConfigSchema, credentialEnvironmentNames } from '../src/board-config.ts'
+import {
+  boardConfigSchema,
+  credentialEnvironmentNames,
+  serializeBoardConfigJsonSchema,
+} from '../src/board-config.ts'
 import { parseDuration } from '../src/duration.ts'
 import { resolvePollingSettings } from '../src/polling-policy.ts'
 
@@ -534,5 +538,16 @@ describe('duration parsing', () => {
     for (const bad of ['', 'soon', '30', '-5s', '0s', '5 s', '5S', '1d']) {
       expect(parseDuration(bad), bad).toBeNull()
     }
+  })
+})
+
+describe('the published board schema projection', () => {
+  it('is deterministic, valid JSON, and omits parser defaults', () => {
+    const first = serializeBoardConfigJsonSchema()
+
+    expect(serializeBoardConfigJsonSchema()).toBe(first)
+    expect(() => JSON.parse(first)).not.toThrow()
+    expect(first).not.toMatch(/"default"\s*:/)
+    expect(first).not.toMatch(/gitlab\.com/i)
   })
 })

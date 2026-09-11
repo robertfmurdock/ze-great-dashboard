@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import type { ClientEnv } from '@ze-great-dashboard/shared'
+import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BrowserDiagnosticStore } from '../src/diagnostics.ts'
 import type { PollingScheduleSnapshot } from '../src/polling-schedule.ts'

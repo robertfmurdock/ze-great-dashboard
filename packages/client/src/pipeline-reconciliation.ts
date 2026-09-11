@@ -1,5 +1,5 @@
-import type { Envelope, PipelineStatus } from '@ze-great-dashboard/shared'
-import { pipelineStatusSchema } from '@ze-great-dashboard/shared'
+import type { Envelope, PipelineStatus } from '@ze-great-dashboard/shared/browser'
+import { pipelineStatusSchema } from '@ze-great-dashboard/shared/browser'
 import type { AcceptedPipeline } from './panel-memory.ts'
 
 export type PipelineDurationSample = {

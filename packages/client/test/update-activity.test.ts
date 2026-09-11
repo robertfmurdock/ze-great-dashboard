@@ -1,4 +1,4 @@
-import type { PollingSettings } from '@ze-great-dashboard/shared'
+import type { PollingSettings } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, it } from 'vitest'
 import type { DiagnosticEvent, DiagnosticRetention } from '../src/diagnostics.ts'
 import type { PollingScheduleSnapshot } from '../src/polling-schedule.ts'

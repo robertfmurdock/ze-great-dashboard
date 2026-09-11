@@ -1,4 +1,4 @@
-import type { ClientEnv } from '@ze-great-dashboard/shared'
+import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { clientReleaseVersion } from './release-version.ts'
 
 export type DashboardAuth = {

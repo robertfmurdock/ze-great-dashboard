@@ -1,4 +1,4 @@
-import type { Envelope } from '@ze-great-dashboard/shared'
+import type { Envelope } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, it } from 'vitest'
 import { reconcilePipelineResponse } from '../src/pipeline-reconciliation.ts'
 

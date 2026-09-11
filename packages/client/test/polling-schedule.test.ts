@@ -1,4 +1,4 @@
-import type { Envelope, PollingSettings } from '@ze-great-dashboard/shared'
+import type { Envelope, PollingSettings } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, it } from 'vitest'
 import { nextPollDelayMillis } from '../src/polling-schedule.ts'
 

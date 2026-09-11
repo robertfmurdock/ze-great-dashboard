@@ -59,6 +59,18 @@ try {
     /__ASSET_PATH__/,
   )
   assert.ok(await stat(join(stagingRoot, 'client', 'client', 'board-config.schema.json')))
+  const publishedClientFiles = []
+  async function collectClientFiles(directory) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) await collectClientFiles(path)
+      else publishedClientFiles.push(path)
+    }
+  }
+  await collectClientFiles(join(stagingRoot, 'client', 'client'))
+  for (const file of publishedClientFiles) {
+    assert.doesNotMatch(await readFile(file, 'utf8'), /gitlab\.com/i, file)
+  }
   const clientBundle = (await readdir(join(stagingRoot, 'client', 'client', 'assets'))).find(
     (name) => name.endsWith('.js'),
   )

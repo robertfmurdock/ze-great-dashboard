@@ -1,4 +1,4 @@
-import type { PipelineStatus, PullRequestHealth } from '@ze-great-dashboard/shared'
+import type { PipelineStatus, PullRequestHealth } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, it } from 'vitest'
 import { formatCount } from '../src/panel-formatting.ts'
 import { compactPullRequestHealthFacts } from '../src/pull-request-health.ts'

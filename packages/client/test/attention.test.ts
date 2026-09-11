@@ -1,4 +1,4 @@
-import type { Board, Envelope } from '@ze-great-dashboard/shared'
+import type { Board, Envelope } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, it } from 'vitest'
 import { projectAttention } from '../src/attention.ts'
 

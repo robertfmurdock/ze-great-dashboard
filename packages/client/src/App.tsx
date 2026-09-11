@@ -3,7 +3,7 @@ import {
   type Board,
   type ClientEnv,
   isZeroPosition,
-} from '@ze-great-dashboard/shared'
+} from '@ze-great-dashboard/shared/browser'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
 import { projectAttention } from './attention.ts'

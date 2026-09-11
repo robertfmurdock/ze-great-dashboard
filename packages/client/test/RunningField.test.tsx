@@ -1,5 +1,5 @@
 import { cleanup, render } from '@testing-library/react'
-import type { Panel } from '@ze-great-dashboard/shared'
+import type { Panel } from '@ze-great-dashboard/shared/browser'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PipelinePanel } from '../src/PipelinePanel.tsx'
 import { RunningField, type RunningFieldAnimation } from '../src/RunningField.tsx'

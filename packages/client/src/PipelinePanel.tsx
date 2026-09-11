@@ -5,7 +5,7 @@ import {
   pipelineStatusSchema,
   type RunningAnimation,
   visibleRunningAnimations,
-} from '@ze-great-dashboard/shared'
+} from '@ze-great-dashboard/shared/browser'
 import { useRef, useState } from 'react'
 import { errorPresentation } from './error-presentation.ts'
 import { PanelEvidence, PanelFrame, PanelHint, PanelMetadata, PanelStatus } from './PanelFrame.tsx'

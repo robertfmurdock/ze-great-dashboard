@@ -1,4 +1,4 @@
-import type { ClientSecurityState } from '@ze-great-dashboard/shared'
+import type { ClientSecurityState } from '@ze-great-dashboard/shared/browser'
 import styles from './SecurityNotice.module.css'
 
 const authenticationGuide =

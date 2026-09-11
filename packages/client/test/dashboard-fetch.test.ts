@@ -1,4 +1,4 @@
-import type { ClientEnv } from '@ze-great-dashboard/shared'
+import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, it, vi } from 'vitest'
 import { dashboardFetch } from '../src/dashboard-fetch.ts'
 

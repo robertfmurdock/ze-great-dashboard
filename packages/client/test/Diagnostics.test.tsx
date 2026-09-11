@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { ClientEnv } from '@ze-great-dashboard/shared'
+import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Diagnostics } from '../src/Diagnostics.tsx'

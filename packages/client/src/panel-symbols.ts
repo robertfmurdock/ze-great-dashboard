@@ -1,4 +1,4 @@
-import type { PipelineStatus } from '@ze-great-dashboard/shared'
+import type { PipelineStatus } from '@ze-great-dashboard/shared/browser'
 
 /**
  * The compact tile contract. These are primary scan symbols, so a glyph has one meaning here.

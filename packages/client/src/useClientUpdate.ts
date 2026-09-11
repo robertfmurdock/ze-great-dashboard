@@ -1,4 +1,4 @@
-import { type ClientEnv, clientIdentityResponseSchema } from '@ze-great-dashboard/shared'
+import { type ClientEnv, clientIdentityResponseSchema } from '@ze-great-dashboard/shared/browser'
 import { useEffect } from 'react'
 import type { DashboardAuth } from './dashboard-fetch.ts'
 import { dashboardFetch } from './dashboard-fetch.ts'

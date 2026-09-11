@@ -3,7 +3,7 @@ import {
   type Panel,
   pipelineStatusSchema,
   pullRequestHealthSchema,
-} from '@ze-great-dashboard/shared'
+} from '@ze-great-dashboard/shared/browser'
 import type { RenderedPanelDiagnostic } from './diagnostics.ts'
 import type { HttpValueFactObservation } from './panel-props.ts'
 

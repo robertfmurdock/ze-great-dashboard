@@ -1,4 +1,4 @@
-import type { Board } from '@ze-great-dashboard/shared'
+import type { Board } from '@ze-great-dashboard/shared/browser'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { BrowserDiagnosticStore } from './diagnostics.ts'
 import type { PollingScheduleSnapshot } from './polling-schedule.ts'

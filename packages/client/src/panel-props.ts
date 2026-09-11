@@ -1,4 +1,4 @@
-import type { Envelope, Panel } from '@ze-great-dashboard/shared'
+import type { Envelope, Panel } from '@ze-great-dashboard/shared/browser'
 
 /** Client-only evidence that the dashboard has missed scheduled updates for a panel. */
 export type PanelUpdateHealth = {

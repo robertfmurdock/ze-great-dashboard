@@ -1,4 +1,4 @@
-import type { ErrorKind } from '@ze-great-dashboard/shared'
+import type { ErrorKind } from '@ze-great-dashboard/shared/browser'
 
 export function errorPresentation(kind: ErrorKind) {
   switch (kind) {

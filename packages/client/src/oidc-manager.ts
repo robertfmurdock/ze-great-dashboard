@@ -1,4 +1,4 @@
-import type { ClientEnv } from '@ze-great-dashboard/shared'
+import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { type StateStore, UserManager, WebStorageStateStore } from 'oidc-client-ts'
 
 class MemoryStore implements StateStore {

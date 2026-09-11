@@ -1,4 +1,4 @@
-import type { ClientEnv, Envelope } from '@ze-great-dashboard/shared'
+import type { ClientEnv, Envelope } from '@ze-great-dashboard/shared/browser'
 import {
   type BrowserStorageLike,
   browserLocalStorage,

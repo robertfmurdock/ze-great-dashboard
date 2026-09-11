@@ -3,7 +3,7 @@ import {
   type PipelineStatus,
   type PollingSettings,
   pipelineStatusSchema,
-} from '@ze-great-dashboard/shared'
+} from '@ze-great-dashboard/shared/browser'
 
 /** Ephemeral scheduling state; polling owns it and views may project it. */
 export type PollingScheduleSnapshot = {

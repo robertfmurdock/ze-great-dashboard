@@ -3,7 +3,7 @@ import {
   type ClientEnv,
   type Envelope,
   envelopeSchema,
-} from '@ze-great-dashboard/shared'
+} from '@ze-great-dashboard/shared/browser'
 import { useEffect, useRef, useState } from 'react'
 import type { DashboardAuth } from './dashboard-fetch.ts'
 import { dashboardFetch } from './dashboard-fetch.ts'

@@ -3,7 +3,7 @@ import {
   type ClientEnv,
   isZeroPosition,
   resolvePollingSettings,
-} from '@ze-great-dashboard/shared'
+} from '@ze-great-dashboard/shared/browser'
 import type { PollingScheduleSnapshot } from './polling-schedule.ts'
 
 type PollingPanel = Board['panels'][number] & {

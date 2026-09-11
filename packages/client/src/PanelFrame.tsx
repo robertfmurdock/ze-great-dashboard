@@ -1,4 +1,4 @@
-import type { Envelope, Panel, PipelineStatus } from '@ze-great-dashboard/shared'
+import type { Envelope, Panel, PipelineStatus } from '@ze-great-dashboard/shared/browser'
 import type { ReactNode } from 'react'
 import styles from './PanelFrame.module.css'
 import { panelLayout } from './panel-layout.ts'

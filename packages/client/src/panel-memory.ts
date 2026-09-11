@@ -1,4 +1,4 @@
-import type { Panel, PipelineStatus } from '@ze-great-dashboard/shared'
+import type { Panel, PipelineStatus } from '@ze-great-dashboard/shared/browser'
 import { browserLocalStorage, readBrowserJson, writeBrowserJson } from './browser-storage.ts'
 
 const storageKey = 'ze-great-dashboard.panel-memory.v1'

@@ -4,7 +4,7 @@ import {
   httpValueSchema,
   pipelineStatusSchema,
   pullRequestHealthSchema,
-} from '@ze-great-dashboard/shared'
+} from '@ze-great-dashboard/shared/browser'
 import type { HttpValueFactObservation, PanelUpdateHealth } from './panel-props.ts'
 
 export type AttentionDriver = {

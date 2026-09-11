@@ -1,4 +1,4 @@
-import type { RunningAnimation } from '@ze-great-dashboard/shared'
+import type { RunningAnimation } from '@ze-great-dashboard/shared/browser'
 import type { CSSProperties } from 'react'
 import { FallingShapesField } from './FallingShapesField.tsx'
 import { ReleaseTransitField } from './ReleaseTransitField.tsx'

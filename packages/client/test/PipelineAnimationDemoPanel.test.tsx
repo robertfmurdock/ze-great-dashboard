@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react'
-import type { Panel } from '@ze-great-dashboard/shared'
+import type { Panel } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PipelineAnimationDemoPanel } from '../src/PipelineAnimationDemoPanel.tsx'

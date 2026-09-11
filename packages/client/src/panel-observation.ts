@@ -1,4 +1,4 @@
-import { type Envelope, envelopeSchema } from '@ze-great-dashboard/shared'
+import { type Envelope, envelopeSchema } from '@ze-great-dashboard/shared/browser'
 import { cacheMetadata, type DiagnosticSink } from './diagnostics.ts'
 
 export type ComponentObservation = { envelope?: Envelope; error?: string }

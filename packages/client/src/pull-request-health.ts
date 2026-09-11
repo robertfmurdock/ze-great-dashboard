@@ -1,4 +1,4 @@
-import type { PullRequestHealth } from '@ze-great-dashboard/shared'
+import type { PullRequestHealth } from '@ze-great-dashboard/shared/browser'
 import { formatCount } from './panel-formatting.ts'
 
 export type PullRequestHealthCompactFacts = {

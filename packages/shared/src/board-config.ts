@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { durationSchema } from './duration.ts'
+import { type RunningAnimation, visibleRunningAnimations } from './running-animations.ts'
 
 /**
  * The board config schema.
@@ -71,21 +72,8 @@ export const httpValueGroupedPanelSchema = httpValuePanelIdentitySchema.extend({
 })
 export type HttpValueGroupedPanel = z.infer<typeof httpValueGroupedPanelSchema>
 
-/** A deliberately small, comparable set of visible active-run treatments. */
-export const visibleRunningAnimations = [
-  'radial',
-  'runway',
-  'orbit',
-  'signal-field',
-  'telemetry-bloom',
-  'release-transit',
-  'status-weather',
-  'falling-shapes',
-  'snowman',
-] as const
-
 export const runningAnimationSchema = z.enum([...visibleRunningAnimations, 'off'])
-export type RunningAnimation = z.infer<typeof runningAnimationSchema>
+export type { RunningAnimation }
 
 export const panelSchema = z
   .looseObject({
@@ -271,7 +259,7 @@ export const gitlabCiSourceSchema = z.looseObject({
   token_env: z.string().min(1),
   /** The branch or tag whose newest pipeline the dashboard represents. */
   branch: z.string().min(1).optional(),
-  /** HTTPS GitLab.com or a self-managed instance, optionally below a path prefix. */
+  /** HTTPS GitLab instance, optionally below a self-managed path prefix. */
   url: gitlabInstanceUrlSchema.optional().default('https://gitlab.com'),
 })
 
@@ -453,12 +441,23 @@ export const boardConfigRuntimeRules = [
 
 /** The immutable release schema consumed by YAML-aware editors. */
 export function boardConfigJsonSchema() {
-  return {
+  return withoutDefaults({
     ...z.toJSONSchema(boardConfigSchema, { target: 'draft-2020-12' }),
     $id: 'board-config.schema.json',
     title: 'Ze Great Dashboard board configuration',
     'x-dashboard-runtime-rules': boardConfigRuntimeRules.map((rule) => ({ ...rule })),
-  }
+  })
+}
+
+/** Server parsing may apply defaults; the browser-published editor schema must not advertise them. */
+function withoutDefaults(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutDefaults)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== 'default')
+      .map(([key, nested]) => [key, withoutDefaults(nested)]),
+  )
 }
 
 /** Keep the generated release artifact stable and readable across builds. */

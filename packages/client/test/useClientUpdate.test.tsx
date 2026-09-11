@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react'
-import type { ClientEnv } from '@ze-great-dashboard/shared'
+import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DiagnosticEventInput, DiagnosticSink } from '../src/diagnostics.ts'

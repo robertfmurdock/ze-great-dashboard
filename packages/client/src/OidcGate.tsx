@@ -1,4 +1,4 @@
-import type { ClientEnv } from '@ze-great-dashboard/shared'
+import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { AuthProvider, useAuth } from 'react-oidc-context'
 import styles from './AuthBoundary.module.css'

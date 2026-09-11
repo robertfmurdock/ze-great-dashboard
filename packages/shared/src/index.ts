@@ -40,7 +40,6 @@ export {
   securityPolicySchema,
   serializeBoardConfigJsonSchema,
   sourceSchema,
-  visibleRunningAnimations,
 } from './board-config.ts'
 export {
   boardSchemaFileName,
@@ -94,3 +93,4 @@ export {
   pollingDefaults,
   resolvePollingSettings,
 } from './polling-policy.ts'
+export { visibleRunningAnimations } from './running-animations.ts'

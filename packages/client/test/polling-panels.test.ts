@@ -1,4 +1,4 @@
-import type { Board, ClientEnv } from '@ze-great-dashboard/shared'
+import type { Board, ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, it } from 'vitest'
 import { initialPollingSchedule, panelProxyPath, pollingPanels } from '../src/polling-panels.ts'
 

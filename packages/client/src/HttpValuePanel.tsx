@@ -1,4 +1,4 @@
-import { httpValueSchema } from '@ze-great-dashboard/shared'
+import { httpValueSchema } from '@ze-great-dashboard/shared/browser'
 import { errorPresentation } from './error-presentation.ts'
 import styles from './HttpValuePanel.module.css'
 import { PanelEvidence, PanelFrame, PanelHint, PanelStatus, PanelValue } from './PanelFrame.tsx'

@@ -1,4 +1,4 @@
-import type { Panel } from '@ze-great-dashboard/shared'
+import type { Panel } from '@ze-great-dashboard/shared/browser'
 import type { CSSProperties } from 'react'
 
 /** Convert the advisory board position into CSS grid placement. */

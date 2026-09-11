@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render as rtlRender } from '@testing-library/react'
-import type { ClientEnv, PipelineStatus } from '@ze-great-dashboard/shared'
+import type { ClientEnv, PipelineStatus } from '@ze-great-dashboard/shared/browser'
 import { act, StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../src/App.tsx'
