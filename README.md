@@ -1,6 +1,7 @@
 # Ze Great Dashboard
 
 [![Build](https://github.com/robertfmurdock/ze-great-dashboard/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/robertfmurdock/ze-great-dashboard/actions/workflows/main.yml)
+[![Docker image](https://img.shields.io/badge/Docker%20image-ghcr.io%2Frobertfmurdock%2Fze--great--dashboard-2496ED?logo=docker&logoColor=white)](https://github.com/robertfmurdock/ze-great-dashboard/pkgs/container/ze-great-dashboard)
 [![AWS package](https://img.shields.io/npm/v/@continuous-excellence/ze-great-dashboard-aws?label=AWS%20package)](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
 [![AWS package security](https://socket.dev/api/badge/npm/package/@continuous-excellence/ze-great-dashboard-aws)](https://socket.dev/npm/package/@continuous-excellence/ze-great-dashboard-aws)
 [![Client package](https://img.shields.io/npm/v/@continuous-excellence/ze-great-dashboard-client?label=Client%20package)](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-client)
