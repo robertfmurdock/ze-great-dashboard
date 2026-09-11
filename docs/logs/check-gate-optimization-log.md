@@ -95,3 +95,10 @@ reset. The test now waits until both independently mounted CSS animations have r
 then verifies their animation instances survive progress renders and the alternate-direction
 iteration. This preserves the browser-level continuity contract without treating scheduler delay as
 an animation defect.
+
+Follow-up review found no further changes warranted by these patterns. Tests that combine fake
+timers with timestamp retention pin their clock or inject one; the remaining simulated-time loops
+either cover a small, distinct transition or intentionally prove replay determinism across browser
+cadences; and the phased-marker browser check is the only animation test using frame or animation
+events. The review deliberately retained those tests and did not increase timeouts: their timing or
+repetition is evidence for the behavior they cover, rather than incidental work.
