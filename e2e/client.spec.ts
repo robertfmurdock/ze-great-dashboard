@@ -1,7 +1,35 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 
 const browserTestOrigin = process.env.PW_TEST_ORIGIN ?? 'http://127.0.0.1:4173'
 const assetPath = `${browserTestOrigin}/__ASSET_PATH__`
+
+/** Reads browser text geometry for visibility, size, and panel-boundary assertions. */
+async function renderedTextGeometry(locator: Locator) {
+  return locator.evaluate((text) => {
+    const panel = text.closest<HTMLElement>('[data-panel]')
+    if (!panel) throw new Error('Expected text to be inside a panel')
+    const range = document.createRange()
+    range.selectNodeContents(text)
+    const fragments = [...range.getClientRects()]
+    const panelRect = panel.getBoundingClientRect()
+    const box = text.getBoundingClientRect()
+    const style = getComputedStyle(text)
+    return {
+      visible:
+        style.position !== 'absolute' &&
+        fragments.some((rect) => rect.width > 0 && rect.height > 0),
+      contained: fragments.every(
+        (rect) =>
+          rect.left >= panelRect.left &&
+          rect.right <= panelRect.right &&
+          rect.top >= panelRect.top &&
+          rect.bottom <= panelRect.bottom,
+      ),
+      width: box.width,
+      height: box.height,
+    }
+  })
+}
 
 test('the production client loads and renders with CDN modules', async ({ page }) => {
   const browserErrors: string[] = []
@@ -511,23 +539,15 @@ test('keeps HTTP-value portrait tiles symbol-led while restoring an upright pipe
       stateGlyph: getComputedStyle(
         panel.querySelector('[data-panel-status] [aria-hidden="true"]') as Element,
       ).display,
-      identityVisible: (() => {
-        const identity = panel.querySelector('[data-panel-identity-text]') as Element
-        const style = getComputedStyle(identity)
-        const range = document.createRange()
-        range.selectNodeContents(identity)
-        return (
-          style.position !== 'absolute' &&
-          [...range.getClientRects()].some((rect) => rect.width > 0)
-        )
-      })(),
     }))
     expect(compact).toMatchObject({
       fits: true,
       writingMode: 'horizontal-tb',
       typeGlyphVisible: true,
       stateGlyph: 'inline-block',
-      identityVisible,
+    })
+    expect(await renderedTextGeometry(tile.locator('[data-panel-identity-text]'))).toMatchObject({
+      visible: identityVisible,
     })
   }
 })
@@ -640,7 +660,8 @@ test('uses readable primary symbols in a narrow tall pull-request tile while ret
       },
     ],
   }
-  await page.setViewportSize({ width: 2400, height: 1200 })
+  // Match the narrow tiles on the wall display rather than only the roomier test viewport.
+  await page.setViewportSize({ width: 1728, height: 1728 })
   await stubDashboard(page, board)
   await page.route('**/api/panel/**', (route) => {
     const path = new URL(route.request().url()).pathname
@@ -700,16 +721,6 @@ test('uses readable primary symbols in a narrow tall pull-request tile while ret
                   getComputedStyle(
                     panel.querySelector('[data-panel-status] [aria-hidden="true"]') as Element,
                   ).display !== 'none',
-                identityVisible: (() => {
-                  const identity = panel.querySelector('[data-panel-identity-text]') as Element
-                  const style = getComputedStyle(identity)
-                  const range = document.createRange()
-                  range.selectNodeContents(identity)
-                  return (
-                    style.position !== 'absolute' &&
-                    [...range.getClientRects()].some((rect) => rect.width > 0 && rect.height > 0)
-                  )
-                })(),
               }
             : undefined,
       }
@@ -726,7 +737,12 @@ test('uses readable primary symbols in a narrow tall pull-request tile while ret
   expect(tallAnchors?.labelWritingMode).toBe('horizontal-tb')
   expect(tallAnchors?.typeGlyphVisible).toBe(true)
   expect(tallAnchors?.statusGlyphVisible).toBe(true)
-  expect(tallAnchors?.identityVisible).toBe(true)
+  const tallTitle = await renderedTextGeometry(
+    page.locator('[data-panel-id="updates-tall"] [data-panel-identity-text]'),
+  )
+  expect(tallTitle.visible).toBe(true)
+  expect(tallTitle.width).toBeGreaterThan(10)
+  expect(tallTitle.height).toBeGreaterThan(10)
   expect(presentation.find((panel) => panel.id === 'updates-normal')).toMatchObject({
     facts: 'none',
     summary: 'static',
@@ -794,27 +810,22 @@ test('aligns health-panel state markers while keeping unequal titles upright and
   await expect(page.locator('[data-panel][aria-busy="true"]')).toHaveCount(0)
   const geometry = await page.locator('[data-panel]').evaluateAll((panels) =>
     panels.map((panel) => {
-      const panelRect = panel.getBoundingClientRect()
       const marker = panel.querySelector<HTMLElement>('[data-panel-anchor="status"]')
-      const identity = panel.querySelector('[data-panel-identity-text]') as Element
-      const range = document.createRange()
-      range.selectNodeContents(identity)
-      const titleRects = [...range.getClientRects()]
       const markerRect = marker?.getBoundingClientRect()
       return {
         fits: panel.scrollHeight <= panel.clientHeight,
-        titleVisible: titleRects.some((rect) => rect.width > 0 && rect.height > 0),
-        titleContained: titleRects.every(
-          (rect) => rect.left >= panelRect.left && rect.right <= panelRect.right,
-        ),
         markerCenter: markerRect ? markerRect.top + markerRect.height / 2 : Number.NaN,
       }
     }),
   )
 
-  expect(geometry.every((panel) => panel.fits && panel.titleVisible && panel.titleContained)).toBe(
-    true,
+  expect(geometry.every((panel) => panel.fits)).toBe(true)
+  const titles = await Promise.all(
+    ['build-health', 'update-health'].map((panelId) =>
+      renderedTextGeometry(page.locator(`[data-panel-id="${panelId}"] [data-panel-identity-text]`)),
+    ),
   )
+  expect(titles.every((title) => title.visible && title.contained)).toBe(true)
   expect(geometry).toHaveLength(2)
   const [pipeline, pullRequest] = geometry
   if (!pipeline || !pullRequest) throw new Error('Expected both health panels to render')
