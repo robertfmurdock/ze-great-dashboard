@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://assets.example.test/client/board-config.schema.json
+security: required
+sources:
+  github:
+    type: github-actions
+    repo: example/project
+    token_env: SHOULD_NOT_BE_READ
+boards:
+  operations:
+    panels:
+      - id: build
+        type: pipeline-status
+        source: github
+        pipeline: ci.yml

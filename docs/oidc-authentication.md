@@ -2,6 +2,13 @@
 
 This dashboard can authenticate viewers directly with any OpenID Connect provider that supports discovery and Authorization Code with PKCE. The browser receives only the issuer, SPA client ID, and API audience. Source credentials, verification keys, and every upstream adapter remain server-side.
 
+For a deployed dashboard that must never serve unauthenticated data, pair this block with top-level
+`security: required`. That mode is fail-closed: if `auth` is removed or malformed, the server keeps
+health checks available but blocks dashboard pages and every API endpoint rather than starting an
+open proxy. `ALLOW_UNPROTECTED_DASHBOARD=true` only suppresses the soft `security: warn` notice; it
+cannot override required mode. See [board configuration](board-configuration.md#deployment-security-policy)
+for all three modes.
+
 Configure the board with stable OIDC subjects. An ID token is never accepted by the dashboard API: the SPA requests an access token for the separately registered API audience and the server validates its signature, issuer, expiry, audience, and `sub` against this allowlist.
 
 ```yaml

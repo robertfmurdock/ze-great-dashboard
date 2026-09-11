@@ -22,5 +22,8 @@ describe('the published board configuration schema', () => {
     expect(published).toMatch(
       /"facts":\s*\{[\s\S]*?"items":\s*\{[\s\S]*?"link":\s*\{\s*"type":\s*"string",\s*"format":\s*"uri"/,
     )
+    expect(published).toMatch(
+      /"security":\s*\{[\s\S]*?"enum":\s*\[\s*"warn",\s*"required",\s*"unsecured"/,
+    )
   })
 })

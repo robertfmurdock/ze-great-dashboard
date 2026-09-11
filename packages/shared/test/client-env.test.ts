@@ -33,6 +33,11 @@ describe('reading window.env', () => {
     expect(readClientEnv(valid).auth).toBeUndefined()
   })
 
+  it('accepts the public security boundary state', () => {
+    expect(readClientEnv({ ...valid, security: 'warning' }).security).toBe('warning')
+    expect(readClientEnv({ ...valid, security: 'blocked' }).security).toBe('blocked')
+  })
+
   it('explains itself when configuration never arrived', () => {
     // The alternative is a blank board, which for a trust radiator is the worst outcome.
     expect(() => readClientEnv(undefined)).toThrow(/window\.env is missing or invalid/)

@@ -14,6 +14,7 @@ import { BrowserDiagnosticStore, cacheMetadata } from './diagnostics.ts'
 import { OidcGate } from './OidcGate.tsx'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PanelRenderer } from './panel-registry.tsx'
+import { SecurityNotice } from './SecurityNotice.tsx'
 import { UpdateActivity } from './UpdateActivity.tsx'
 import { projectUpdateActivity } from './update-activity.ts'
 import { useClientUpdate } from './useClientUpdate.ts'
@@ -28,6 +29,7 @@ import { usePanelSignals } from './usePanelSignals.ts'
  * whole point of the Stage 1 exit criterion.
  */
 export function App({ env }: { env: ClientEnv }) {
+  if (env.security === 'blocked') return <SecurityNotice mode="blocked" />
   return env.auth ? (
     <OidcGate env={env} auth={env.auth}>
       {(accessToken, denied) => <Dashboard env={env} accessToken={accessToken} onDenied={denied} />}
@@ -147,6 +149,7 @@ function Dashboard({
     >
       <header className={styles.header}>
         <h1 className={styles.title}>{env.board}</h1>
+        {env.security === 'warning' && <SecurityNotice mode="warning" />}
         {attentionDrivers.length > 0 && (
           <aside
             className={styles.attentionRail}

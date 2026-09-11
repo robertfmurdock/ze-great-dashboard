@@ -34,7 +34,10 @@ export {
   type RunningAnimation,
   resolveRefreshMillis,
   runningAnimationSchema,
+  type SecurityPolicy,
   type Source,
+  securityPolicies,
+  securityPolicySchema,
   serializeBoardConfigJsonSchema,
   sourceSchema,
   visibleRunningAnimations,
@@ -48,8 +51,11 @@ export {
 export {
   type ClientEnv,
   type ClientIdentityResponse,
+  type ClientSecurityState,
   clientEnvSchema,
   clientIdentityResponseSchema,
+  clientSecurityStateSchema,
+  clientSecurityStates,
   readClientEnv,
 } from './client-env.ts'
 export { type Duration, durationSchema, parseDuration } from './duration.ts'

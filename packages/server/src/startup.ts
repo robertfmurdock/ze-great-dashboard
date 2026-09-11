@@ -6,12 +6,14 @@ import {
 import type { Hono } from 'hono'
 import { deriveValidatedAllowlist } from './allowlist.ts'
 import { type AppEnvironment, createApp } from './app.ts'
+import { createBlockedApp } from './blocked-app.ts'
 import { loadBoardConfig } from './board-config.ts'
 import { isLocalHost, loadConfig, type ServerConfig } from './config.ts'
 import { ConfigurationError } from './configuration-error.ts'
 import { createCredentialResolver } from './credentials.ts'
 import { consoleLogger, type ServerLogger } from './logger.ts'
 import { createAccessTokenVerifier } from './oidc-auth.ts'
+import { deploymentSecurityState } from './security-posture.ts'
 import { StartupFailure, type StartupFailureCategory } from './startup-failure.ts'
 import { type Fetcher, fetchTemplate } from './template.ts'
 
@@ -19,6 +21,8 @@ export type StartupResult = {
   app: Hono<AppEnvironment>
   config: ServerConfig
 }
+
+export { deploymentSecurityState } from './security-posture.ts'
 
 /**
  * Boots the app: validate configuration, prove the template is reachable, warn about anything
@@ -38,27 +42,48 @@ export async function startup(
     const config = loadConfig()
     const fetcher = options.fetcher ?? globalThis.fetch
 
-    // Fail at boot rather than serving a 500 per request. A typo'd ASSET_PATH should fail like the
-    // misconfiguration it is, while someone is still watching the logs.
-    // These independent reads happen together so a remote board config does not wait behind the
-    // client template fetch. Startup still completes only after both have succeeded.
-    const [, boardConfig] = await Promise.all([
-      waitForTemplate(config, fetcher).catch((error: unknown) => {
-        throw new StartupFailure('template', error)
-      }),
-      loadBoardConfig(
-        config.boardConfigUrl,
-        fetcher,
-        config.assetPath.includes('__ASSET_PATH__')
-          ? undefined
-          : schemaUrlForAssetPath(config.assetPath),
-      ).catch((error: unknown) => {
-        throw new StartupFailure('board-config', error)
-      }),
-    ])
+    // Local binds cannot enter the blocked posture, so retain the dev template-race behavior while
+    // deployed binds read policy first. Required mode must never load a client template or source
+    // capability before it can serve its safe configuration error.
+    const localTemplate = isLocalHost(config.host)
+      ? waitForTemplate(config, fetcher).then(
+          () => undefined,
+          (error: unknown) => new StartupFailure('template', error),
+        )
+      : undefined
+    const boardConfig = await loadBoardConfig(
+      config.boardConfigUrl,
+      fetcher,
+      config.assetPath.includes('__ASSET_PATH__')
+        ? undefined
+        : schemaUrlForAssetPath(config.assetPath),
+    ).catch((error: unknown) => {
+      throw new StartupFailure('board-config', error)
+    })
     category = 'board-config'
     const board = selectBoard(config.board, boardConfig)
     const resolvedConfig = { ...config, board }
+    const securityState = deploymentSecurityState(resolvedConfig, boardConfig)
+    if (securityState === 'blocked') {
+      logger.log({
+        event: 'server.required_auth_missing',
+        serverVersion: config.serverRelease,
+        host: config.host,
+        port: config.port,
+      })
+      return {
+        app: createBlockedApp(),
+        config: resolvedConfig,
+      }
+    }
+    if (localTemplate) {
+      const failure = await localTemplate
+      if (failure) throw failure
+    } else {
+      await waitForTemplate(config, fetcher).catch((error: unknown) => {
+        throw new StartupFailure('template', error)
+      })
+    }
     // Admission precedes credentials and all upstream access. The map is passed unchanged to the
     // app, so its immutable board config and its proxy capabilities are derived atomically.
     const allowlist = deriveValidatedAllowlist(boardConfig)
@@ -75,7 +100,7 @@ export async function startup(
       : undefined
 
     category = 'unknown'
-    warnAboutMissingAuth(resolvedConfig, logger)
+    if (securityState === 'warning') warnAboutMissingAuth(resolvedConfig, logger)
 
     return {
       app: createApp({
@@ -169,7 +194,6 @@ const RETRY_INTERVAL_MILLIS = 250
  * board config's `auth` block is wired in, the condition gains its second half.
  */
 function warnAboutMissingAuth(config: ServerConfig, logger: ServerLogger): void {
-  if (isLocalHost(config.host)) return
   logger.log({
     event: 'server.no_auth_warning',
     serverVersion: config.serverRelease,

@@ -33,6 +33,7 @@ import {
 } from './logger.ts'
 import { type AccessTokenVerifier, unauthorizedSubject } from './oidc-auth.ts'
 import { renderIndexHtml } from './render.ts'
+import type { DeploymentSecurityState } from './security-posture.ts'
 import { type Fetcher, TemplateCache } from './template.ts'
 import { type AdapterResult, adapterRouteResponse } from './upstream.ts'
 
@@ -51,6 +52,8 @@ export type AppDependencies = {
   logger?: ServerLogger
   /** Present only when the board explicitly enables direct OIDC authentication. */
   accessTokenVerifier?: AccessTokenVerifier
+  /** Public notice state resolved at startup. Blocked requests use createBlockedApp instead. */
+  securityState?: DeploymentSecurityState
 }
 
 export type AppEnvironment = { Variables: { dashboardRequestId: string } }
@@ -65,6 +68,8 @@ type ObservationContext = {
 
 export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
   const { config } = deps
+  const app = new Hono<AppEnvironment>()
+
   const templates = new TemplateCache(deps.fetcher ?? globalThis.fetch)
   const selectedBoard =
     config.board ?? Object.keys(deps.boardConfig?.boards ?? {})[0] ?? 'ze-great-team'
@@ -77,7 +82,6 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
     config.serverRelease,
     assetPathId(config.assetPath),
   )
-  const app = new Hono<AppEnvironment>()
 
   app.use('/api/*', async (c, next) => {
     const id = requestId()
@@ -175,6 +179,7 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
     const outputConfig = {
       sources,
       boards: { [boardName]: outputBoard },
+      ...(deps.boardConfig.security ? { security: deps.boardConfig.security } : {}),
       ...(deps.boardConfig.auth ? { auth: deps.boardConfig.auth } : {}),
     }
 
@@ -465,6 +470,7 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
             },
           }
         : {}),
+      ...(deps.securityState === 'warning' ? { security: 'warning' as const } : {}),
     }
 
     return new Response(renderIndexHtml(template, env), {

@@ -8,6 +8,25 @@ For direct OIDC authentication, see [OIDC authentication](oidc-authentication.md
 `auth` block requires an issuer, browser client ID, API audience, and at least one explicitly
 allowed stable subject.
 
+## Deployment security policy
+
+`security` is a top-level deployment policy, shared by every board in the configuration:
+
+```yaml
+# Default when omitted: warn
+security: required # warn, required, or unsecured
+```
+
+`warn` is the backward-compatible default. On a non-loopback server bind, an authless dashboard
+continues to work but carries a persistent critical notice. `required` fails closed: without the
+top-level `auth` block the dashboard serves a visible configuration error, loads no board or panel
+data, and every `/api/*` endpoint returns `503`. `unsecured` explicitly records intentional public
+access and suppresses the warning; it cannot be combined with `auth`.
+
+For a deliberately public, production-shaped local run, the server-only environment variable
+`ALLOW_UNPROTECTED_DASHBOARD=true` suppresses the `warn` notice. It is not browser configuration,
+does not change the YAML policy, and never weakens `security: required`. Loopback binds are quiet.
+
 ## Example
 
 Save a configuration such as this one as `board.yaml`. The GitHub repository in this first example

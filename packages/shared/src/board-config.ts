@@ -352,13 +352,27 @@ export const authSchema = z.strictObject({
 
 export type Auth = z.infer<typeof authSchema>
 
+/** Deployment-wide authentication posture. `warn` preserves the historic default. */
+export const securityPolicies = ['warn', 'required', 'unsecured'] as const
+export const securityPolicySchema = z.enum(securityPolicies)
+export type SecurityPolicy = z.infer<typeof securityPolicySchema>
+
 export const boardConfigSchema = z
   .object({
     sources: z.record(z.string().min(1), sourceSchema).default({}),
     boards: z.record(z.string().min(1), boardSchema),
     auth: authSchema.optional(),
+    security: securityPolicySchema.optional(),
   })
   .superRefine((config, ctx) => {
+    if (config.security === 'unsecured' && config.auth) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['security'],
+        message: 'security: unsecured cannot be combined with auth',
+        params: { constraint: 'Remove auth or select warn or required.' },
+      })
+    }
     for (const [sourceName, source] of Object.entries(config.sources)) {
       const sourceSchema =
         source.type === 'azure-devops'

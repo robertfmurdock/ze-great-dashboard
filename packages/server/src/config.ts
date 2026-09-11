@@ -44,6 +44,11 @@ const configSchema = z.object({
    * local loop is a race the developer loses about half the time.
    */
   templateWaitMillis: z.coerce.number().int().min(0).default(0),
+  /** Explicitly suppresses only the deployed authless warning, never required mode. */
+  allowUnprotectedDashboard: z
+    .enum(['true'])
+    .optional()
+    .transform((value) => value === 'true'),
 })
 
 export type ServerConfig = z.infer<typeof configSchema>
@@ -59,6 +64,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     port: env.PORT,
     host: env.HOST,
     templateWaitMillis: env.TEMPLATE_WAIT_MS,
+    allowUnprotectedDashboard: env.ALLOW_UNPROTECTED_DASHBOARD,
   })
 
   if (!result.success) {

@@ -74,6 +74,25 @@ describe('when configuration never arrived', () => {
   })
 })
 
+describe('deployment security boundary', () => {
+  it('keeps the unauthenticated deployment warning visible before board loading', () => {
+    const rendered = render(<App env={{ ...env, security: 'warning' }} />)
+    expect(rendered.querySelector('[role="alert"]')?.textContent).toMatch(/no authentication/i)
+    expect(rendered.textContent).toMatch(/security: unsecured/)
+    expect(rendered.textContent).toMatch(/take it down now/i)
+    expect(rendered.querySelector('a')?.href).toContain('docs/oidc-authentication.md')
+  })
+
+  it('renders the blocked boundary without fetching board or panel data', () => {
+    const fetcher = vi.fn()
+    vi.stubGlobal('fetch', fetcher)
+    const rendered = render(<App env={{ ...env, security: 'blocked' }} />)
+    expect(rendered.textContent).toMatch(/authentication.*required/i)
+    expect(rendered.textContent).toMatch(/No dashboard data was loaded/i)
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+})
+
 describe('pipeline-status refresh scheduling', () => {
   const okEnvelope = (panelId: string, status: PipelineStatus['status'], durationMs?: number) =>
     JSON.stringify({

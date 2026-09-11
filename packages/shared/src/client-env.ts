@@ -8,6 +8,10 @@ import { z } from 'zod'
  * shared package so the server's injection and the client's read are the same definition — a
  * typo'd key becomes a type error rather than an undefined at runtime.
  */
+export const clientSecurityStates = ['warning', 'blocked'] as const
+export const clientSecurityStateSchema = z.enum(clientSecurityStates)
+export type ClientSecurityState = z.infer<typeof clientSecurityStateSchema>
+
 export const clientEnvSchema = z.object({
   /** Where the immutable client assets live. The one variable that repoints the whole client. */
   assetPath: z.string().min(1),
@@ -25,6 +29,8 @@ export const clientEnvSchema = z.object({
       audience: z.string().min(1),
     })
     .optional(),
+  /** Public deployment posture; it contains no board, source, or credential details. */
+  security: clientSecurityStateSchema.optional(),
 })
 
 export type ClientEnv = z.infer<typeof clientEnvSchema>

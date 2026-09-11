@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { loadConfig } from '../src/config.ts'
 import { serverReadyEvent } from '../src/logger.ts'
-import { selectBoard, startup } from '../src/startup.ts'
+import { deploymentSecurityState, selectBoard, startup } from '../src/startup.ts'
 import { fetchTemplate, TemplateCache } from '../src/template.ts'
 
 /**
@@ -215,6 +215,50 @@ describe('server configuration', () => {
     // The retry window exists for the local dev race and nothing else. A deployment that quietly
     // retried would turn a typo'd ASSET_PATH into a slow start instead of an error.
     expect(loadConfig({ ASSET_PATH: 'https://cdn/1.0.0' }).templateWaitMillis).toBe(0)
+  })
+})
+
+describe('deployment security posture', () => {
+  const baseConfig = loadConfig({ ASSET_PATH: 'https://cdn/1.0.0', HOST: '0.0.0.0' })
+  const board = { sources: {}, boards: { operations: { panels: [{ id: 'demo', type: 'x' }] } } }
+
+  it('defaults deployed authless boards to a warning, while loopback remains quiet', () => {
+    expect(deploymentSecurityState(baseConfig, board)).toBe('warning')
+    expect(deploymentSecurityState({ ...baseConfig, host: '127.0.0.1' }, board)).toBe('normal')
+  })
+
+  it('honors explicit unsecured and suppression only for soft mode', () => {
+    expect(deploymentSecurityState(baseConfig, { ...board, security: 'unsecured' })).toBe('normal')
+    expect(deploymentSecurityState({ ...baseConfig, allowUnprotectedDashboard: true }, board)).toBe(
+      'normal',
+    )
+    expect(
+      deploymentSecurityState(
+        { ...baseConfig, allowUnprotectedDashboard: true },
+        { ...board, security: 'required' },
+      ),
+    ).toBe('blocked')
+  })
+
+  it('blocks every API surface without reading source credentials or a client template', async () => {
+    vi.stubEnv('ASSET_PATH', 'https://assets.example.test/client')
+    vi.stubEnv('BOARD_CONFIG_URL', 'packages/server/test/fixtures/security-required-board.yaml')
+    vi.stubEnv('HOST', '0.0.0.0')
+    vi.stubEnv('ALLOW_UNPROTECTED_DASHBOARD', 'true')
+    const fetcher = vi.fn() as unknown as typeof fetch
+
+    const { app } = await startup({ fetcher })
+    expect(fetcher).not.toHaveBeenCalled()
+    expect((await app.request('/health')).status).toBe(200)
+    for (const path of ['/api/client', '/api/boards/operations', '/api/panel/operations/build']) {
+      const response = await app.request(path)
+      expect(response.status).toBe(503)
+      expect(response.headers.get('cache-control')).toBe('no-store')
+    }
+    const entrypoint = await app.request('/')
+    expect(entrypoint.status).toBe(503)
+    expect(entrypoint.headers.get('cache-control')).toBe('no-store')
+    expect(await entrypoint.text()).toMatch(/No dashboard data was loaded/)
   })
 })
 

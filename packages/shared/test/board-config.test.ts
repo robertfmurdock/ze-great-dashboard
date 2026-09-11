@@ -39,6 +39,27 @@ describe('the board config schema', () => {
     },
   }
 
+  it('accepts the deployment security policies and leaves omission as the warn behavior', () => {
+    for (const security of ['warn', 'required', 'unsecured'] as const)
+      expect(boardConfigSchema.safeParse({ ...validConfig, security }).success).toBe(true)
+    expect(boardConfigSchema.parse(validConfig).security).toBeUndefined()
+  })
+
+  it('rejects contradictory explicit public access and authentication', () => {
+    const result = boardConfigSchema.safeParse({
+      ...validConfig,
+      security: 'unsecured',
+      auth: {
+        issuer: 'https://login.example.test',
+        client_id: 'dashboard',
+        audience: 'dashboard-api',
+        allow: { subjects: ['person'] },
+      },
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.message).toMatch(/unsecured.*auth/)
+  })
+
   it('rejects configuring a token and GitHub App on the same source', () => {
     const result = boardConfigSchema.safeParse({
       sources: {
