@@ -5,6 +5,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PipelineAnimationDemoPanel } from '../src/PipelineAnimationDemoPanel.tsx'
 import { panelRenderers } from '../src/panel-registry.tsx'
 
+vi.mock('../src/RunningField.tsx', async () => {
+  const actual =
+    await vi.importActual<typeof import('../src/RunningField.tsx')>('../src/RunningField.tsx')
+  return {
+    ...actual,
+    // The demo owns treatment scheduling; RunningField owns decorative rendering.
+    RunningField: ({ animation, overdue }: { animation: string; overdue: boolean }) => (
+      <div data-animation={animation} data-running-field data-overdue={overdue || undefined} />
+    ),
+  }
+})
+
 const panel: Panel = {
   id: 'active-run-treatments',
   type: 'pipeline-animation-demo',

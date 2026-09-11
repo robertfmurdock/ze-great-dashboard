@@ -102,3 +102,18 @@ either cover a small, distinct transition or intentionally prove replay determin
 cadences; and the phased-marker browser check is the only animation test using frame or animation
 events. The review deliberately retained those tests and did not increase timeouts: their timing or
 repetition is evidence for the behavior they cover, rather than incidental work.
+
+Recorded 2026-09-11 (clarification).
+
+The new parallel CI topology revealed a second incidental-cost test miss in the pipeline-animation
+demo suite. Its parent-level rotation test advanced 180 seconds of fake time while mounting the real
+`RunningField`, which also started the costly decorative field implementations. That duplicated the
+field suite's stable component-boundary evidence while making the demo's scheduling contract depend
+on unrelated canvas and simulation work.
+
+The demo suite now replaces `RunningField` with a minimal boundary that exposes field identity,
+selected animation, and overdue state. It still covers the full nine-treatment rotation, cycle
+reset, configured treatment timing, and overdue presentation; the real `RunningField`, snowman,
+and browser suites retain coverage for decorative markup, rendering, reduced motion, layout, and
+animation behavior. No production interface or runtime behavior changed, and the five-second
+Vitest timeout remains an honest constraint rather than a cost to mask.
