@@ -53,6 +53,20 @@ async function renderedPanelGrid(page: Page) {
   })
 }
 
+/** Reads a full-panel field's rendered bounds and the readable layer above it. */
+async function runningFieldGeometry(field: Locator) {
+  return field.evaluate((element) => {
+    const panel = element.closest<HTMLElement>('[data-panel]')
+    if (!panel) throw new Error('Expected running field to be inside a panel')
+    const content = panel.querySelector<HTMLElement>('[data-panel-content]')
+    return {
+      panel: panel.getBoundingClientRect().toJSON(),
+      field: element.getBoundingClientRect().toJSON(),
+      contentZIndex: content ? getComputedStyle(content).zIndex : 'auto',
+    }
+  })
+}
+
 /** Verifies that a compact status card presents its text in the intended reading order. */
 async function compactStatusReadingOrder(panel: Locator) {
   return panel.evaluate((element) => {
@@ -255,6 +269,18 @@ const signalFieldBoard = {
       running_animation: 'snowman',
       position: { x: 2, y: 26, w: 2, h: 2 },
     },
+    {
+      id: 'weather-medium-build',
+      type: 'pipeline-status',
+      running_animation: 'status-weather',
+      position: { x: 4, y: 26, w: 2, h: 5 },
+    },
+    {
+      id: 'weather-narrow-build',
+      type: 'pipeline-status',
+      running_animation: 'status-weather',
+      position: { x: 6, y: 26, w: 1, h: 5 },
+    },
   ],
 }
 
@@ -341,6 +367,31 @@ const pipelineEnvelope = (panelId: string) => ({
     sourceUpdatedAt: '2026-08-24T13:00:00.000Z',
   },
 })
+
+/** A live pipeline response with deliberate normal or overdue timing. */
+function runningPipelineEnvelope(
+  panelId: string,
+  {
+    elapsedMs = 0,
+    estimatedDurationMs = 300_000,
+  }: { elapsedMs?: number; estimatedDurationMs?: number } = {},
+) {
+  const now = Date.now()
+  return {
+    panelId,
+    state: 'ok' as const,
+    observedAt: new Date(now).toISOString(),
+    link: null,
+    signal: {
+      type: 'pipeline-status' as const,
+      status: 'running' as const,
+      rawStatus: 'in_progress',
+      name: 'Build',
+      runStartedAt: new Date(now - elapsedMs).toISOString(),
+      estimatedDurationMs,
+    },
+  }
+}
 
 const valueEnvelope = (panelId: string) => ({
   panelId,
@@ -1057,20 +1108,7 @@ test('stacks build and pull-request evidence readably on narrow viewports', asyn
 test('keeps panel-scale fields behind readable content, adapts them without overflow, and honors reduced motion', async ({
   page,
 }) => {
-  const runningSignal = {
-    panelId: 'live-build',
-    state: 'ok',
-    observedAt: '2026-08-24T14:00:00.000Z',
-    link: null,
-    signal: {
-      type: 'pipeline-status',
-      status: 'running',
-      rawStatus: 'in_progress',
-      name: 'Build',
-      runStartedAt: '2026-08-24T13:58:00.000Z',
-      estimatedDurationMs: 2_000,
-    },
-  }
+  const runningSignal = runningPipelineEnvelope('live-build')
   await stubDashboard(page, signalFieldBoard)
   await page.route('**/api/panel/**', (route) => {
     const panelId = decodeURIComponent(
@@ -1086,24 +1124,16 @@ test('keeps panel-scale fields behind readable content, adapts them without over
   await page.goto('/')
   const field = page.locator('[data-running-field][data-animation="telemetry-bloom"]').first()
   await expect(field).toBeVisible()
-  const large = await field.evaluate((element) => {
-    const panel = element.closest<HTMLElement>('[data-panel]')?.getBoundingClientRect()
-    const content = element
-      .closest<HTMLElement>('[data-panel]')
-      ?.querySelector<HTMLElement>('[data-panel-content]')
-    const packet = element.querySelector<HTMLElement>('[data-running-part="bloom-marker"]')
-    return {
-      panel,
-      field: element.getBoundingClientRect(),
-      content: content?.getBoundingClientRect(),
-      packetAnimation: packet && getComputedStyle(packet).animationName,
-    }
-  })
+  const large = await runningFieldGeometry(field)
+  const packetAnimation = await field
+    .locator('[data-running-part="bloom-marker"]')
+    .first()
+    .evaluate((element) => getComputedStyle(element).animationName)
   expect(large.panel).toBeTruthy()
-  expect(large.field?.left).toBeGreaterThanOrEqual(large.panel?.left ?? 0)
-  expect(large.field?.bottom).toBeLessThanOrEqual(large.panel?.bottom ?? Number.POSITIVE_INFINITY)
-  expect(large.content?.zIndex).not.toBe('auto')
-  expect(large.packetAnimation).not.toBe('none')
+  expect(large.field.left).toBeGreaterThanOrEqual(large.panel.left)
+  expect(large.field.bottom).toBeLessThanOrEqual(large.panel.bottom)
+  expect(large.contentZIndex).not.toBe('auto')
+  expect(packetAnimation).not.toBe('none')
 
   // The compact decision must follow the panel's rendered width, not the viewport width.
   const narrowBloom = page.locator('[data-running-field][data-animation="telemetry-bloom"]').nth(1)
@@ -1129,15 +1159,38 @@ test('keeps panel-scale fields behind readable content, adapts them without over
 
   const snowman = page.locator('[data-running-field][data-animation="snowman"]')
   await expect(snowman).toBeVisible()
-  const snowmanBounds = await snowman.evaluate((element) => {
-    const panel = element.closest<HTMLElement>('[data-panel]')?.getBoundingClientRect()
-    return { panel, field: element.getBoundingClientRect() }
-  })
-  expect(snowmanBounds.field.right).toBeLessThanOrEqual(snowmanBounds.panel?.right ?? 0)
-  expect(snowmanBounds.field.bottom).toBeLessThanOrEqual(snowmanBounds.panel?.bottom ?? 0)
+  const snowmanBounds = await runningFieldGeometry(snowman)
+  expect(snowmanBounds.field.right).toBeLessThanOrEqual(snowmanBounds.panel.right)
+  expect(snowmanBounds.field.bottom).toBeLessThanOrEqual(snowmanBounds.panel.bottom)
   await expect(snowman.locator('[data-running-part="snowman-canvas"]')).toBeVisible()
   // The figure is canvas snow, not replacement CSS circles or DOM flakes.
   await expect(snowman.locator('.body, .head')).toHaveCount(0)
+
+  const weather = page.locator('[data-running-field][data-animation="status-weather"]')
+  await expect(weather).toHaveCount(2)
+  const [mediumWeather, narrowWeather] = await Promise.all([
+    runningFieldGeometry(weather.nth(0)),
+    runningFieldGeometry(weather.nth(1)),
+  ])
+  const visibleTextureLayers = await weather.evaluateAll((fields) =>
+    fields.map(
+      (field) =>
+        // Full weather is one haze layer, three pressure bands, and five drifters.
+        [...field.querySelectorAll('span')].filter(
+          (part) => getComputedStyle(part).display !== 'none',
+        ).length,
+    ),
+  )
+  expect(mediumWeather.panel.width).toBeGreaterThan(10 * 16)
+  expect(mediumWeather.panel.width).toBeLessThan(40 * 16)
+  expect(mediumWeather.panel.height).toBeGreaterThan(6 * 16)
+  expect(visibleTextureLayers[0]).toBe(9)
+  expect(mediumWeather.field.left).toBeGreaterThanOrEqual(mediumWeather.panel.left)
+  expect(mediumWeather.field.right).toBeLessThanOrEqual(mediumWeather.panel.right)
+  expect(mediumWeather.contentZIndex).not.toBe('auto')
+  expect(narrowWeather.panel.width).toBeLessThan(10 * 16)
+  expect(narrowWeather.panel.height).toBeGreaterThan(6 * 16)
+  expect(visibleTextureLayers[1]).toBe(1)
 
   const legacySignal = page.locator('[data-running-progress="signal-field"]')
   await expect(legacySignal).toBeVisible()
@@ -1205,20 +1258,7 @@ test('keeps phased signal and bloom markers continuous while progress updates an
       },
     ],
   }
-  const runStartedAt = new Date(Date.now() - 120_000).toISOString()
-  const runningSignal = {
-    state: 'ok',
-    observedAt: new Date().toISOString(),
-    link: null,
-    signal: {
-      type: 'pipeline-status',
-      status: 'running',
-      rawStatus: 'in_progress',
-      name: 'Build',
-      runStartedAt,
-      estimatedDurationMs: 300_000,
-    },
-  }
+  const runningSignal = runningPipelineEnvelope('motion-build', { elapsedMs: 120_000 })
   await stubDashboard(page, motionBoard)
   await page.route('**/api/panel/**', (route) => {
     const panelId = decodeURIComponent(

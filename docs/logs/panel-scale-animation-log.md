@@ -3,6 +3,20 @@
 Written 2026-08-25 after implementing and visually reviewing active pipeline run treatments. This
 records the decisions and observations that are not obvious from the source alone.
 
+## Status-weather medium-card threshold (2026-09-14)
+
+`status-weather` keeps its full ambient scene — two haze layers, three pressure bands, and five
+drifters — until its own running field is narrower than `10rem`. The former `40rem` cutoff treated
+ordinary medium dashboard cards (about `15rem` wide in the wall layout) as compact and reduced
+them to a lower-corner haze speck, which no longer conveyed the intended full-panel weather.
+
+The existing `max-height: 6rem` condition remains: shallow cards still use the quiet compact
+treatment, as do genuinely narrow portrait tiles. This is intentionally a weather-only adjustment;
+the responsive thresholds for other active-run treatments remain unchanged. Browser evidence
+measures both card widths on a wide viewport, confirms the medium field retains its texture while
+the narrow field compacts, and preserves the field's clipping and readable-content layering
+contracts.
+
 ## What changed
 
 `running_animation` now accepts three panel-scale fields in addition to the retained inline
