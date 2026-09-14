@@ -69,6 +69,18 @@ contributor vocabulary such as “the repository currently,” implementation st
 capture scripts, internal roadmaps, or design archaeology; remove it unless it directly helps a
 consumer succeed.
 
+Audience focus is not a reason to erase useful depth. Preserve and make easy to find the evidence a
+prospective user needs to decide whether the product fits: feature and status examples, screenshots
+or demos, security behavior, measured operating costs, supported versions, and package/version
+badges near the top. Layer that proof after a concise introduction when necessary rather than
+removing it as non-procedural detail.
+
+Contributor and architecture documents have a different audience. They should retain test and
+release mechanics, capture procedures, compatibility contracts, design rationale, and implementation
+history when those details help a contributor change the project safely. Tighten stale or repeated
+material, but do not delete contributor information merely because it does not belong in a consumer
+guide; move it to the correctly named document when placement is the problem.
+
 **Tests justify themselves by running the code they test through its real interface.** A test that
 only checks source text or repeats an implementation detail has no meaningful behavioral value. For
 example, tests of SQL must execute the SQL against the database engine that interprets it; tests of

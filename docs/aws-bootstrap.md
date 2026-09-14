@@ -1,17 +1,17 @@
 # Bootstrap an AWS deployment
 
-This is the one-time setup for the AWS and GitHub administrator supporting a dashboard deployment.
-If bootstrap is already complete, continue with [Deploy the dashboard](aws-setup.md).
+This guide is for the AWS and GitHub administrators performing the one-time setup for a dashboard.
+If bootstrap is complete, continue with [Deploy the dashboard](aws-setup.md).
 
-Bootstrap creates two small CloudFormation stacks:
+Bootstrap creates two CloudFormation stacks:
 
-- The **core stack** owns a private Lambda artifact bucket and a restricted CloudFormation execution
-  role for one dashboard application stack.
-- The **GitHub OIDC stack** lets one protected GitHub Environment upload artifacts and operate that
-  application stack through the core execution role.
+- The **core stack** owns restricted deployment resources and a CloudFormation execution role for
+  one named dashboard application stack.
+- The **GitHub OIDC stack** lets one protected GitHub Environment deploy that application through
+  the core execution role.
 
-Routine CI cannot create, update, or delete either bootstrap stack. The CLI prepares each change,
-but the administrator runs and approves the AWS commands.
+Routine deployment credentials cannot create, update, or delete either bootstrap stack. The CLI
+prepares commands and files, but an administrator reviews and runs every AWS change.
 
 ## Before you start
 
@@ -19,27 +19,33 @@ You need:
 
 - Node.js 22 or newer, npm, the AWS CLI, and `jq`.
 - A short-lived AWS administrator session in the target account and Region.
-- A pre-existing account-level GitHub OIDC provider. This package does not create or modify it.
+- A pre-existing account-level GitHub OIDC provider; this package does not create or modify it.
 - A GitHub repository and a protected Environment for deployments.
 - GitHub CLI access if you want repository IDs and prerequisites discovered automatically.
 
-Choose one stable dashboard name. It becomes the application stack and Lambda name. Renaming it or
-the artifact bucket later is a migration.
+Choose one stable dashboard name and one compute mode:
 
-Create the GitHub Environment and its branch policy before running preflight. Whether it requires
+- **Lambda** is the default and requires a consumer-owned API Gateway, ALB, or other protected
+  gateway that can privately invoke the function.
+- **ECS** uses a long-lived Fargate service and requires consumer-owned subnets, security groups,
+  and a protected load-balancing or routing path. Select it with `--mode ecs` during initialization.
+
+The mode is persisted in the manifest. Changing the name, artifact bucket, or compute mode later is
+a reviewed migration, not a routine deployment.
+
+Create the protected GitHub Environment and its branch policy before preflight. Whether it requires
 reviewers is your deployment-policy decision.
 
 ## 1. Install an exact package version
 
-Run bootstrap from the repository that will own the dashboard deployment:
+Run bootstrap from the repository that will own the deployment:
 
 ```sh
 npm install --save-exact @continuous-excellence/ze-great-dashboard-aws
 ```
 
-Commit the exact version in `package.json` and the lockfile. The bootstrap templates remain inside
-that installed package, so a package upgrade is also a visible template upgrade. Append `@version`
-when installing a previously reviewed release rather than the current one.
+Commit the exact version in `package.json` and the lockfile. Append `@version` when installing a
+previously reviewed release rather than the current one.
 
 ## 2. Create the non-secret manifest
 
@@ -53,21 +59,19 @@ npm exec -- ze-great-dashboard-aws bootstrap init \
     arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com
 ```
 
+For ECS, add `--mode ecs`. If the deployment workflow must read outputs from one consumer-owned
+gateway stack, add `--consumer-gateway-stack gateway-stack-name`; this grants only
+`cloudformation:DescribeStacks` for that exact stack and does not create or configure the gateway.
+
 The command discovers the AWS account, configured Region, and GitHub numeric owner/repository IDs
-when possible. If discovery is unavailable, it tells you which of `--account-id`, `--region`,
-`--github-owner-id`, and `--github-repository-id` to supply. It refuses to overwrite an existing
+when possible. If discovery is unavailable, it names the required `--account-id`, `--region`,
+`--github-owner-id`, and `--github-repository-id` flags. It refuses to overwrite an existing
 manifest.
 
-Review and commit `dashboard-bootstrap.json`. It contains names and IDs, never credentials.
-It also records the installed package version and both bootstrap template contract/revision
-identities. This is desired state, not a capture of current AWS values.
+Review and commit `dashboard-bootstrap.json`. It records desired names, IDs, mode, package version,
+and template identities. It never contains credentials or captured AWS values.
 
-If the deployment workflow must read one consumer-owned gateway stack, add
-`--consumer-gateway-stack gateway-stack-name`. This grants only
-`cloudformation:DescribeStacks` for that exact stack; bootstrap still does not create or configure
-the gateway.
-
-## 3. Check the plan
+## 3. Verify prerequisites and inspect the plan
 
 ```sh
 npm exec -- ze-great-dashboard-aws bootstrap preflight \
@@ -77,27 +81,24 @@ npm exec -- ze-great-dashboard-aws bootstrap plan \
   --config dashboard-bootstrap.json --format text
 ```
 
-Preflight reads AWS and GitHub prerequisites when it can. `missing` and `mismatch` results must be
-resolved. `unverified` means a CLI, login, permission, or network was unavailable; it is not proof
-that the prerequisite exists.
+Resolve every `missing` or `mismatch` result. `unverified` means that a CLI, login, permission, or
+network was unavailable; it is not evidence that the prerequisite exists.
 
-The plan is fully local. It shows the manifest desired state beside each installed template's
-contract, revision, SHA-256, resources, and declared IAM actions without changing AWS. If the
-installed package's bootstrap template identity differs, intentionally run and review the repository
-mutation:
+The local plan shows desired state beside the installed templates' contracts, revisions, SHA-256
+values, resources, and declared IAM actions. If an intentional package upgrade changed a selected
+template identity, update and review the manifest metadata before deployment:
 
 ```sh
 npm exec -- ze-great-dashboard-aws bootstrap upgrade --config dashboard-bootstrap.json
 ```
 
-Commit that change before an approved administrator deployment process consumes it. Do not copy
-values from AWS into desired state. An installed package version difference by itself is
-informational and does not require this command or a bootstrap redeploy.
+A package-version difference alone does not require this command when the selected template
+contract and revision are unchanged.
 
-## 4. Run the guided core phase
+## 4. Create the core stack
 
-Generated parameters and stack captures are working files, not source configuration. Add
-`.bootstrap-work/` to `.gitignore`, then ask the installed package for the current phase:
+Generated parameters and stack captures are private working files, not source configuration. Add
+`.bootstrap-work/` to `.gitignore`, then request the current phase:
 
 ```sh
 mkdir -p .bootstrap-work
@@ -106,21 +107,19 @@ npm exec -- ze-great-dashboard-aws bootstrap guide \
   --work-dir .bootstrap-work
 ```
 
-The guide prints the parameter-generation command followed by explicit AWS change-set commands.
-Run them one at a time. Pause at `describe-change-set` and review the expanded change before running
-`execute-change-set`.
+Run the printed commands one at a time. At `describe-change-set`, pause and inspect the expanded
+change before running `execute-change-set`.
 
-For the core stack, confirm:
+Confirm:
 
 - `CAPABILITY_NAMED_IAM` is expected.
-- The artifact bucket blocks public access, requires TLS, and uses the intended encryption.
-- The execution role is limited to the named application stack, Lambda, log group, runtime role,
-  artifact prefix, and optional secret.
+- Storage blocks public access, requires TLS, and uses the intended encryption.
+- The execution role is limited to the named application resources and approved optional secret.
 - No retained bucket or role is being replaced.
 
-The last generated command writes `.bootstrap-work/core-deployed-stack.json`.
+The final generated command writes `.bootstrap-work/core-deployed-stack.json`.
 
-## 5. Run the guided GitHub phase
+## 5. Create the GitHub OIDC stack
 
 Pass the reviewed core capture back to the guide:
 
@@ -134,18 +133,18 @@ npm exec -- ze-great-dashboard-aws bootstrap guide \
 Before executing this change set, confirm:
 
 - The provider ARN and `sts.amazonaws.com` audience are exact.
-- The subject contains the immutable GitHub owner and repository IDs plus the protected Environment.
-- Access is limited to one bucket's `lambda/*` prefix, one application stack, and the core execution
-  role.
+- The subject contains immutable GitHub owner and repository IDs plus the protected Environment.
+- Access is limited to the expected deployment artifacts, one application stack, and the core
+  execution role.
 - No retained role is being replaced.
 
-If the guide reports `immutable-subject-required`, stop and coordinate that GitHub OIDC migration
-with the repository administrator. Changing the repository's OIDC subject can affect other AWS
-trust policies.
+If the guide reports `immutable-subject-required`, stop and coordinate the OIDC subject migration
+with the GitHub administrator. Changing the repository's OIDC subject can affect other AWS trust
+policies.
 
-The last generated command writes `.bootstrap-work/github-oidc-deployed-stack.json`.
+The final generated command writes `.bootstrap-work/github-oidc-deployed-stack.json`.
 
-## 6. Verify the handoff
+## 6. Verify and hand off
 
 ```sh
 npm exec -- ze-great-dashboard-aws bootstrap verify \
@@ -154,21 +153,20 @@ npm exec -- ze-great-dashboard-aws bootstrap verify \
   --github-oidc-stack-json .bootstrap-work/github-oidc-deployed-stack.json | jq .
 ```
 
-Verification checks both stack identities, Regions, contracts, parameters, outputs, and reviewed
-role ARNs. Its output includes the two GitHub Environment variables to set:
+Verification checks stack identities, Regions, contracts, parameters, outputs, and reviewed role
+ARNs. Give these two non-secret values from its output to the GitHub Environment administrator:
 
 - `AWS_DEPLOY_ROLE_ARN`
 - `AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN`
 
-The JSON also includes `gh variable set` argument arrays for an administrator who wants them. The
-CLI does not modify GitHub; a GitHub administrator owns the Environment policy and those values.
+The output also includes optional `gh variable set` argument arrays. The CLI does not modify GitHub;
+the GitHub administrator owns the Environment policy and variables.
 
-Bootstrap is now complete. Continue with [Deploy the dashboard](aws-setup.md).
+Bootstrap is complete. Continue with [Deploy the dashboard](aws-setup.md).
 
-## Routine checks
+## Operate bootstrap safely
 
-Every deployment should run the fast, read-only consistency gate after assuming the GitHub deploy
-role:
+Every deployment should run this read-only consistency gate after assuming the deploy role:
 
 ```sh
 npm exec -- ze-great-dashboard-aws bootstrap check \
@@ -176,69 +174,14 @@ npm exec -- ze-great-dashboard-aws bootstrap check \
 ```
 
 It fails on inaccessible or unhealthy stacks and on identity, Region, parameter, output, contract,
-or template-revision mismatches. Add `--resource-drift` only to a scheduled or manually triggered
-audit; CloudFormation drift detection is slower.
+or template-revision mismatches. Use `--resource-drift` only for a scheduled or manual audit because
+CloudFormation drift detection is slower.
 
-The JSON and text formats carry the same package-owned remediation model: failure summary, affected
-stacks, immediate and upgrade steps, a revalidation command, and the administrator safety boundary.
-Use JSON for automation and text for logs. The shell format is deliberately command-only and does
-not replace the remediation-bearing formats.
+A routine package upgrade uses the existing bootstrap unless this check or the release notes require
+an administrator-managed change. Lambda and ECS track mode-specific template revisions; a change to
+one mode does not normally require changing the other.
 
-## Bootstrap upgrade FAQ
-
-### Does every package release require a bootstrap upgrade?
-
-No. The package version controls the dashboard application and its immutable client assets; the
-bootstrap stacks have their own contract and template-revision markers. A routine package upgrade
-uses the existing bootstrap unless `bootstrap check` reports a bootstrap mismatch or the release
-notes call out a required migration.
-
-### How often will bootstrap upgrades happen?
-
-There is no fixed upgrade schedule. A template revision changes only when the bootstrap resources,
-permissions, parameters, or other administrator-managed behavior changes. Contract-version changes
-are reserved for coordinated migrations. Security fixes or newly required configuration can make an
-upgrade necessary sooner; `bootstrap check` is the read-only gate that detects this.
-
-### Can a Lambda bootstrap change force an ECS bootstrap upgrade?
-
-Normally, no. Lambda and ECS select separate core and GitHub OIDC bootstrap templates and track
-their revisions independently. A Lambda-only revision change is not checked against an ECS
-deployment, and an ECS-only change is not checked against Lambda. Both modes are affected only by
-an explicitly coordinated shared contract or schema migration.
-
-### Does changing compute mode happen automatically?
-
-No. The mode is persisted in `dashboard-bootstrap.json` and in generated application parameters.
-Changing from Lambda to ECS, or vice versa, requires regenerating the reviewed bootstrap and
-parameter artifacts and applying the resulting administrator-reviewed change sets. Existing
-manifests without a mode remain Lambda for compatibility.
-
-## Upgrading bootstrap
-
-For the complete administrator procedure, including captures, preserved parameters, change-set
-review, contract migrations, and recovery boundaries, use the
-[AWS bootstrap upgrade runbook](aws-bootstrap-upgrade.md).
-
-Contract versions change only for coordinated migrations. Template revisions identify compatible
-updates. When `bootstrap check` reports any mismatch, including a revision or newly required
-parameter:
-
-1. Install the target exact package version and review `bootstrap plan`.
-2. Capture the current stack with `aws cloudformation describe-stacks`.
-3. Generate parameters with `bootstrap parameters --deployed-stack-json` so existing values are
-   preserved.
-4. Use `bootstrap change-set --change-set-type UPDATE --format-shell` to produce the reviewed AWS
-   command.
-5. Inspect and execute the change set, capture the stack again, and rerun `bootstrap check`.
-6. Repeat the process for every affected bootstrap stack, then rerun `bootstrap check`.
-
-The GitHub OIDC v1-to-v2 change is a contract migration to immutable repository IDs. Generate fresh
-v2 parameters from the reviewed core capture; a v1 deployed capture is intentionally rejected as a
-parameter-merging source.
-
-Never delete the retained artifact bucket or bootstrap roles as part of an upgrade. An unexecuted
-change set can be cancelled with `aws cloudformation delete-change-set`.
-
-For an administrator working entirely in AWS CloudShell, see the focused
+When the check fails, stop application deployment and follow the
+[bootstrap upgrade or repair runbook](aws-bootstrap-upgrade.md). Never delete retained resources as
+an upgrade shortcut. Administrators working entirely in AWS CloudShell can use the focused
 [CloudShell runbook](aws-bootstrap-cloudshell.md).

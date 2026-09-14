@@ -1,189 +1,47 @@
-# Infrastructure
+# Published-service infrastructure
 
-`stack.yml` is the complete application stack. CloudFormation keeps its state in AWS; there is no
-Terraform state file or state bucket.
+The files in this directory operate the project's public distribution and reference environment.
+They are not the templates consumers use to deploy a dashboard.
 
-The release workflow deploys this stack before publishing the client and server. It then reads the
-bucket, CDN URL, function name, and release-role ARN from stack outputs, so deployment configuration
-does not duplicate infrastructure names.
+To deploy your own dashboard:
 
-## One-time bootstrap
+1. Install `@continuous-excellence/ze-great-dashboard-aws` at an exact reviewed version.
+2. Complete the [administrator bootstrap](../docs/aws-bootstrap.md).
+3. Follow the [Lambda deployment guide](../docs/aws-setup.md), or use the package's ECS mode with
+   consumer-owned networking and load balancing.
 
-Consumer bootstrap manifests are checked-in desired state. The approved consumer deployment
-process upgrades the pinned package first, runs `bootstrap upgrade --config dashboard-bootstrap.json`,
-reviews and commits that metadata, then generates/previews CloudFormation UPDATE change sets and
-executes approved changes. `bootstrap check` is rerun afterward. This package does not assume Git,
-CodePipeline, GitHub Actions, or any other version-control/deployment model; manual CLI commands
-are a portable fallback. AWS captures and generated parameter files are migration artifacts, not
-source configuration, and no credentials belong in the manifest.
+The installed package supplies the consumer bootstrap and application CloudFormation templates.
+Do not copy account IDs, role names, domains, or stack names from this directory into a consumer
+deployment.
 
-GitHub cannot create the AWS identity it needs to authenticate as. Before the first release, an AWS
-administrator must create `ZeGreatDashboardProvision` and allow GitHub OIDC tokens matching exactly:
+## Public distribution resources
 
-```text
-repo:robertfmurdock@6215634/ze-great-dashboard@1338375095:ref:refs/heads/main
-```
+`stack.yml` defines the persistent infrastructure used to publish Ze Great Dashboard releases:
 
-The shared OIDC provider `token.actions.githubusercontent.com` already exists in account
-`174159267544`. The administrator also creates `ze-great-dashboard-cloudformation`, which
-CloudFormation—not GitHub—assumes to operate the resources in `stack.yml`. The provisioning role can
-operate only the `ze-great-dashboard` stack and pass only that execution role. It must not trust pull
-requests, tags, or other branches.
+- A private, encrypted, versioned S3 asset bucket.
+- A CloudFront distribution with signed access to that bucket.
+- Restricted GitHub OIDC and CloudFormation roles for the named project stack.
 
-This role is the sole bootstrap boundary. The stack creates narrower roles for publishing candidate
-client assets and running the ephemeral Docker smoke test.
+CloudFormation retains its state in AWS; there is no Terraform state file or state bucket.
+`public-assets.zegreatrob.com` is the public client-asset endpoint. Its ACM validation CNAME must
+remain in DNS so the certificate can renew automatically.
 
-The bootstrap roles are declared in `bootstrap.yml`. Upload that file in AWS CloudShell and run:
+The asset host is intentionally browser-readable and CORS-permissive. It may contain only immutable,
+versioned browser artifacts with no credentials or environment-specific values. Dashboard runtime
+configuration and source credentials must never be published there.
 
-```sh
-aws cloudformation deploy \
-  --region us-east-1 \
-  --stack-name ze-great-dashboard-bootstrap \
-  --template-file bootstrap.yml \
-  --parameter-overrides \
-    GitHubRepository=robertfmurdock/ze-great-dashboard \
-    GitHubOwnerId=6215634 \
-    GitHubRepositoryId=1338375095 \
-    StackName=ze-great-dashboard \
-    AssetsBucketName=ze-great-dashboard-assets \
-    FunctionName=ze-great-dashboard \
-    ServerRoleName=ze-great-dashboard-server \
-    DeployRoleName=ZeGreatDashboardDeploy \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --tags Project=ze-great-dashboard ManagedBy=cloudformation
-```
+## Administrative boundaries
 
-This command is safe to rerun. It assumes the account's shared GitHub OIDC provider already exists.
+`bootstrap.yml` establishes the project's AWS deployment identity. It trusts only the immutable
+GitHub owner/repository identity and approved branch, limits deployment to named resources, and
+separates the GitHub role from the CloudFormation execution role. Pull requests, tags, and other
+branches must not receive these AWS privileges.
 
-## Resources
+`auth0-functional.yml` and the reference resources in `stack.yml` support the project's own
+published-service validation. They are not required for consumer installations and must not be used
+as credential or authentication templates. Consumer gateways, identity policy, source credentials,
+and secret rotation remain consumer-owned.
 
-- Private, encrypted, versioned `ze-great-dashboard-assets` S3 bucket, retained on stack deletion
-- CloudFront distribution with signed origin access to that bucket
-- Main-branch-only GitHub asset-publishing role `ZeGreatDashboardDeploy`
-
-`public-assets.zegreatrob.com` is the live CloudFront custom domain and the stable public package
-contract. Keep its ACM validation CNAME in DNS so the certificate can renew automatically.
-
-## Auth0 credentials for endpoint checks
-
-`auth0-functional.yml` is a separate, administrator-owned credential boundary for the live Auth0 endpoint
-evidence. It creates a rotating customer-managed KMS key and
-`ZeGreatDashboardAuth0FunctionalReader`. That role can read one fixed Parameter Store value and can
-decrypt it only through SSM with that parameter's encryption context. Its trust policy admits only
-the immutable-ID GitHub OIDC subject for `main` and the IAM role ARN supplied for the authorized
-local AWS SSO permission set.
-
-An administrator deploys the boundary after replacing the example SSO role ARN:
-
-```sh
-aws cloudformation deploy \
-  --region us-east-1 \
-  --stack-name ze-great-dashboard-auth0-functional \
-  --template-file infra/auth0-functional.yml \
-  --parameter-overrides \
-    LocalSsoPrincipalArn=arn:aws:iam::174159267544:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_EXAMPLE \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --tags Project=ze-great-dashboard ManagedBy=cloudformation
-```
-
-CloudFormation deliberately does not create the `SecureString`: doing so would put its value in a
-template parameter and deployment history. Retrieve the stack's `KeyArn`, then create or rotate the
-single JSON object from an administrator shell. The three JSON keys retain their former
-GitHub-secret names so their purpose remains recognizable.
-
-```sh
-read -rs 'AUTH0_FUNCTIONAL_TEST_RUNNER_CLIENT_SECRET?Runner client secret: '
-echo
-read -rs 'AUTH0_FUNCTIONAL_ALLOWED_PASSWORD?Allowed-user password: '
-echo
-read -rs 'AUTH0_FUNCTIONAL_UNLISTED_PASSWORD?Unlisted-user password: '
-echo
-key_arn="$(aws cloudformation describe-stacks \
-  --region us-east-1 \
-  --stack-name ze-great-dashboard-auth0-functional \
-  --query "Stacks[0].Outputs[?OutputKey=='KeyArn'].OutputValue" \
-  --output text)"
-value="$(jq -cn \
-  --arg runner "$AUTH0_FUNCTIONAL_TEST_RUNNER_CLIENT_SECRET" \
-  --arg allowed "$AUTH0_FUNCTIONAL_ALLOWED_PASSWORD" \
-  --arg unlisted "$AUTH0_FUNCTIONAL_UNLISTED_PASSWORD" \
-  '{AUTH0_FUNCTIONAL_TEST_RUNNER_CLIENT_SECRET:$runner,AUTH0_FUNCTIONAL_ALLOWED_PASSWORD:$allowed,AUTH0_FUNCTIONAL_UNLISTED_PASSWORD:$unlisted}')"
-aws ssm put-parameter \
-  --region us-east-1 \
-  --name /ze-great-dashboard/auth0-functional \
-  --type SecureString \
-  --key-id "$key_arn" \
-  --value "$value" \
-  --overwrite
-unset AUTH0_FUNCTIONAL_TEST_RUNNER_CLIENT_SECRET AUTH0_FUNCTIONAL_ALLOWED_PASSWORD \
-  AUTH0_FUNCTIONAL_UNLISTED_PASSWORD value
-```
-
-Local `npm run check` first tries the current AWS identity, then assumes the reader role with
-short-lived credentials. If neither is authorized, the endpoint checks still run and Auth0
-is visibly skipped. The Build workflow requires Auth0 endpoint checks on `main`; other refs explicitly skip them.
-The scheduled/manual workflow runs the same focused strict path. Once both paths have succeeded
-against Parameter Store, delete the three same-named secrets from the former
-`auth0-functional` GitHub environment. The runner reads only Parameter Store and does not accept
-direct secret environment values.
-
-## Consumer reference
-
-The normal infrastructure provision creates the persistent consumer reference resources alongside
-the asset CDN: a private, encrypted, versioned `ze-great-dashboard-reference-artifacts` bucket, a
-main-branch-only GitHub OIDC deployment role, and its scoped CloudFormation execution role. It also
-creates one fixed-name Secrets Manager value containing only a fake credential map. Because
-CloudFormation cannot create a Parameter Store `SecureString`, the narrowly scoped reference
-deployment role maintains one fixed-name fake SecureString too. The release workflow deploys the
-exact pre-publish tarball to `ze-great-dashboard-reference` first with each ARN and the credentialed
-smoke board, then invokes `/health` after each deployment to prove both cold-start credential paths.
-This is test infrastructure only; consumer credentials remain consumer-owned.
-
-The existing provider bootstrap boundary must be updated once before the first release containing
-this change: an AWS administrator reruns the **existing** `ze-great-dashboard-bootstrap` deployment
-with the updated `bootstrap.yml`. This extends its CloudFormation execution role only to the named
-reference bucket, three named reference roles, and the fixed fake credential smoke secret; it does
-not add another bootstrap stack or give GitHub broader access. The consumer core bootstrap is now
-revision `1.3`; its normal revision-check upgrade installs the matching ComputeMode, Parameter Store and
-KMS-context permissions alongside the existing Secrets Manager contract.
-
-The release workflow also assumes `ZeGreatDashboardReferenceSmoke` for an ephemeral ECS Fargate
-task. That task probes `/health` from inside the container and is stopped, deregistered, and removed
-from its temporary cluster by an unconditional cleanup trap. No ECS service or load balancer is
-left running after the smoke test.
-
-Before provisioning, the workflow performs a read-only provider bootstrap check against the
-CloudFormation execution-role policy. If that policy cannot manage the smoke-test role, the
-workflow stops with an explicit bootstrap remediation message instead of attempting the
-infrastructure update.
-
-### Repair the consumer-bootstrap validation stack
-
-For the package-generic procedure and the exact review boundary, start with the
-[versioned AWS bootstrap upgrade runbook](../docs/aws-bootstrap-upgrade.md). The consumer-specific
-repair script below remains the quickest handoff for this repository's fixed validation stacks.
-
-This repository-owned release gate uses fixed core and GitHub OIDC consumer bootstrap stacks. The
-release gate is deliberately a three-step workflow: a pushed release first performs a read-only
-consistency check; a stale bootstrap fails with the actual mismatches and this repair link; after an
-approved administrator updates every affected stack, rerunning the same action must pass. A code
-change is not required between the repair and the rerun.
-
-Use the repository repair script from the commit named by the failed action. Replace
-`FAILED_ACTION_SHA` with the commit SHA shown in the failed workflow:
-
-```sh
-git checkout FAILED_ACTION_SHA
-bash scripts/repair-consumer-bootstrap-validation.sh FAILED_ACTION_SHA
-```
-
-The script pauses twice: once before creating the change sets and again after printing their expanded
-contents, before executing either update. It waits for both updates, runs the final consistency check,
-and leaves all captured inputs and generated handoffs in a timestamped `.bootstrap-work` directory.
-After it reports success, rerun the failed action; it should pass without another source change.
-
-## Manual inspection
-
-To preview an infrastructure change without applying it, create a CloudFormation change set in AWS
-or run the workflow from a branch after temporarily adding a separate read-only planning job. Normal
-branch pushes deliberately receive no AWS credentials.
+Administrators changing this provider infrastructure should preview a CloudFormation change set and
+review every IAM, replacement, deletion, and retained-resource effect before execution. Never delete
+a retained bucket, role, OIDC provider, key, or secret as a repair shortcut.

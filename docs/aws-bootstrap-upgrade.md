@@ -1,45 +1,39 @@
-# AWS bootstrap upgrade runbook
+# Upgrade or repair AWS bootstrap
 
-Use this runbook when `bootstrap check` reports a stale desired state, contract, template revision, parameter,
-output, access, or drift problem. It is an administrator procedure: the dashboard package generates
-commands, but never creates, updates, executes, or deletes AWS resources.
+Use this administrator runbook when `bootstrap check` reports stale desired state, contract,
+template revision, parameters, outputs, access, or drift. Stop application deployment until the
+check passes again.
 
-## Identify the exact inputs
+The dashboard package generates files and AWS command arguments. It never creates, updates,
+executes, or deletes AWS resources; the administrator reviews and runs each AWS operation.
 
-Start with the failed action's recorded dashboard package version and the consumer's
-`dashboard-bootstrap.json`. Use the package version and configuration revision/provenance that the
-consumer's own release process records; consumers do not need to use Git commits as versions. If
-this repository's workflow produced the failure, its commit SHA is a useful way to reproduce the
-workflow inputs, but it is not a requirement for other consumers.
+## Confirm the intended version
+
+Install the exact package version approved by the deployment owner and use its
+`dashboard-bootstrap.json`:
 
 ```sh
 npm exec -- ze-great-dashboard-aws bootstrap plan --config dashboard-bootstrap.json --format text
 ```
 
-The installed package version and templates must match the package that produced the failure. Do not
-repair from an unpinned working tree. The failure report names the affected stacks and links back to
-this versioned document. Preserve the consumer's normal release evidence for the config and package
-alongside the repair artifacts; no particular source-control or versioning system is assumed.
+Do not repair from an unpinned working tree. Confirm that the plan names the expected compute mode,
+package, bootstrap contracts, template revisions, resources, and IAM actions.
 
-For an intentional package upgrade that changes bootstrap template identity, first update the
-pinned npm package. Then run the only command that mutates the manifest, review its package/template
-metadata, and commit it:
+If an intentional package upgrade changed a selected bootstrap template's identity, update the
+manifest metadata and review that change:
 
 ```sh
 npm exec -- ze-great-dashboard-aws bootstrap upgrade --config dashboard-bootstrap.json
 ```
 
-The manifest remains desired state; this command never reads AWS or adopts deployed values. Have
-the consumer's approved Git, CodePipeline, GitHub Actions, or other deployment process consume the
-committed package and manifest, generate and preview CloudFormation UPDATE change sets, and execute
-only approved changes. Manual CLI invocation is a portable fallback, not a required operating model.
-If the package version changes without changing either selected bootstrap template's contract or
-revision, no manifest update or bootstrap redeploy is required.
+This command changes desired-state metadata only. It does not read AWS or adopt deployed values. If
+neither selected template's contract nor revision changed, a package-version change alone requires
+no manifest update or bootstrap deployment.
 
-## Capture and preserve
+## Capture current stacks and preserve parameters
 
-Create a private work directory and capture both bootstrap stacks, even if only one is reported as
-affected. Use the exact stack names from the manifest:
+Use the exact stack names and Region from the manifest. Keep `.bootstrap-work/` private and out of
+source control:
 
 ```sh
 mkdir -p .bootstrap-work
@@ -57,14 +51,16 @@ npm exec -- ze-great-dashboard-aws bootstrap parameters --kind github-oidc \
   --output .bootstrap-work/github-oidc-bootstrap-parameters.json
 ```
 
-Review the captures and parameter files. Preserving values is not approval: verify that the
-parameters retain the intended bucket, names, IDs, mode, and optional integrations.
+Review both captures and parameter files. Preserved values are not automatically approved: verify
+the intended bucket, names, immutable GitHub IDs, protected Environment, compute mode, secret ARN,
+and optional gateway integration.
 
-## Generate, inspect, and execute updates
+## Create and review update change sets
 
-Create, inspect, and execute each change set only after the preceding review checkpoint passes.
+Create, inspect, and execute each change set separately so every AWS mutation remains visible at the
+administrator boundary.
 
-Generate one reviewed UPDATE change-set command for each affected stack:
+Generate a command for each affected stack:
 
 ```sh
 npm exec -- ze-great-dashboard-aws bootstrap change-set --kind core \
@@ -77,34 +73,37 @@ npm exec -- ze-great-dashboard-aws bootstrap change-set --kind github-oidc \
   --parameters .bootstrap-work/github-oidc-bootstrap-parameters.json
 ```
 
-The CLI emits the AWS `create-change-set` command only; inspect its template path, parameters,
-capabilities, region, and stack name before running it. In CloudFormation, wait for the change set,
-inspect every resource and IAM action, and then execute it explicitly. Do not execute an update whose
-replacement, deletion, trust policy, or retained-resource behavior is not understood. Capture the
-stack again after each successful update.
+The CLI emits each AWS `create-change-set` command but does not run it. Before invoking a command,
+inspect its template path, parameters, capabilities, Region, and stack name. In CloudFormation, wait
+for the change set, inspect every resource and IAM action, and execute it only when all replacement,
+deletion, trust-policy, and retained-resource effects are understood. Capture each stack again after
+its update completes.
 
-For a compatible template revision, preserve the existing parameters and apply the reviewed UPDATE.
-For a contract migration, stop and follow the migration's documented sequencing. In particular,
-GitHub OIDC migrations that require immutable repository IDs must use fresh, reviewed values; an old
-capture must not be used to silently invent those values. Compute-mode changes likewise require a
-deliberate regenerated manifest and review rather than an implicit switch.
+For a compatible template revision, preserve reviewed parameters and apply the update. For a
+contract migration, follow the migration sequencing reported by the package. GitHub OIDC migrations
+to immutable repository IDs require fresh, reviewed IDs; do not infer them from an old capture.
+Changing between Lambda and ECS likewise requires a deliberately regenerated manifest, bootstrap,
+and application parameters.
 
-## Validate again
+## Revalidate
 
-After both affected stacks are stable, capture both stacks and run the final read-only check:
+After every affected stack is stable, capture both stacks again and run:
 
 ```sh
 npm exec -- ze-great-dashboard-aws bootstrap check \
   --config dashboard-bootstrap.json --format text
 ```
 
-Do not proceed to application deployment until it passes. If it fails again, preserve the new report,
-compare the new captures with the expected package revision, and repeat the review—not a blind retry.
+Do not resume application deployment until this passes. If it fails, compare the new report and
+captures with the approved package and manifest rather than blindly retrying.
 
-## Never automate or delete
+## Recovery boundaries
 
-Never delete a bootstrap stack, retained artifact bucket, bootstrap role, OIDC provider, or secret as
-a repair shortcut. Never put credentials in the manifest or captured artifacts. Never grant CI the
-authority to update bootstrap stacks, and never make the workflow execute generated change sets.
-An unexecuted change set may be inspected and, if necessary, cancelled with
-`aws cloudformation delete-change-set`; that is not permission to delete the stack or its resources.
+Never delete a bootstrap stack, retained artifact bucket, bootstrap role, OIDC provider, or secret
+as a repair shortcut. Never put credentials in the manifest, captures, or generated parameters.
+Never grant deployment automation authority to update bootstrap stacks or execute generated
+bootstrap change sets.
+
+An unexecuted change set may be inspected and cancelled with
+`aws cloudformation delete-change-set`; this does not authorize deletion of the stack or its
+resources.

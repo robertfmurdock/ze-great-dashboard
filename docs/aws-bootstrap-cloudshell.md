@@ -1,13 +1,16 @@
 # Bootstrap from AWS CloudShell
 
-Use this runbook when the administrator wants to complete the
-[bootstrap process](aws-bootstrap.md) entirely in AWS CloudShell. It is not an automation script:
-the package prints AWS commands, and the administrator reviews and runs each one.
+This runbook is for the AWS administrator completing the one-time
+[AWS bootstrap](aws-bootstrap.md) entirely in CloudShell. The package prints AWS commands; it does
+not run them. It is not an automation script; review and execute each command separately with an
+approved administrator identity.
 
-## Prepare a working directory
+## Prepare CloudShell
 
-Open CloudShell in the target Region with an approved administrator identity, then install one exact
-package version in a dedicated directory:
+Open CloudShell in the target Region. You need an existing account-level GitHub OIDC provider, a
+GitHub repository, and its protected deployment Environment.
+
+Install one exact package version in a dedicated directory:
 
 ```sh
 mkdir dashboard-bootstrap
@@ -33,8 +36,11 @@ npm exec -- ze-great-dashboard-aws bootstrap preflight \
   --config dashboard-bootstrap.json --format text
 ```
 
-If discovery is unavailable, `bootstrap init` names the required offline flags. Copy the finished
-`dashboard-bootstrap.json` into the consumer repository; it contains no credentials.
+If discovery is unavailable, `bootstrap init` names the required offline flags. Resolve every
+`missing` or `mismatch` preflight result. Treat `unverified` as unknown, not success.
+
+Copy the completed `dashboard-bootstrap.json` into the repository that owns the deployment and
+commit it. It contains desired names and IDs, not credentials.
 
 ## Create the core stack
 
@@ -45,9 +51,9 @@ npm exec -- ze-great-dashboard-aws bootstrap guide \
   --work-dir .bootstrap-work
 ```
 
-Run each printed command separately. Stop at the review pause and inspect the CloudFormation change
-set before executing it. Confirm every IAM action, the `CAPABILITY_NAMED_IAM` acknowledgement, the
-retained bucket and role, and the bucket's TLS-only and public-access-block policies.
+Run each printed command separately. At the review pause, inspect the CloudFormation change set
+before executing it. Confirm every IAM action, the `CAPABILITY_NAMED_IAM` acknowledgement, retained
+bucket and role behavior, and the bucket's TLS-only and public-access-block policies.
 
 The final printed command captures the deployed core stack in
 `.bootstrap-work/core-deployed-stack.json`.
@@ -61,16 +67,16 @@ npm exec -- ze-great-dashboard-aws bootstrap guide \
   --core-stack-json .bootstrap-work/core-deployed-stack.json
 ```
 
-Again, run each command separately and review the change set before execution. Confirm the immutable
-GitHub owner/repository-ID subject, protected Environment, `sts.amazonaws.com` audience, one
-`lambda/*` artifact prefix, one application stack, and the core execution role.
+Review this change set before executing it. Confirm the immutable GitHub owner/repository-ID
+subject, protected Environment, `sts.amazonaws.com` audience, one permitted artifact prefix, one
+application stack, and the core execution role.
 
 If the guide reports `immutable-subject-required`, stop. A GitHub administrator must coordinate the
 repository OIDC subject migration before this role can be trusted safely.
 
 The final command captures `.bootstrap-work/github-oidc-deployed-stack.json`.
 
-## Verify the handoff
+## Verify and hand off
 
 ```sh
 npm exec -- ze-great-dashboard-aws bootstrap verify \
@@ -80,8 +86,9 @@ npm exec -- ze-great-dashboard-aws bootstrap verify \
 ```
 
 Give the verified `AWS_DEPLOY_ROLE_ARN` and `AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN` values to the
-GitHub Environment administrator. The JSON also contains optional `gh variable set` argument arrays,
-but the command does not change GitHub itself.
+GitHub Environment administrator. The JSON also contains optional `gh variable set` argument arrays;
+the command does not change GitHub.
 
-Gateway selection, private Lambda permission, authentication, and runtime health checks remain the
-consumer's responsibility.
+Keep `.bootstrap-work/` private and out of source control. Gateway or load-balancer selection,
+private Lambda permission, authentication, and health checks remain consumer-owned. Continue with
+[Deploy the dashboard](aws-setup.md).

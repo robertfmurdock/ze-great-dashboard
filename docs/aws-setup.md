@@ -1,45 +1,43 @@
-# Deploy a dashboard to AWS
+# Deploy a dashboard to AWS Lambda
 
-This guide is for the application owner after an administrator has completed
-[AWS bootstrap](aws-bootstrap.md). It packages a board as a private Lambda and deploys it through
-the restricted roles created during bootstrap.
+This guide is for the application owner after an administrator completes
+[AWS bootstrap](aws-bootstrap.md) in Lambda mode. It packages a board as a private Lambda and
+deploys it through the restricted bootstrap roles.
 
-The application template does not create a public URL. Before starting, know which consumer-owned
-API Gateway, ALB, or other protected gateway will invoke the Lambda.
-
-If you only want to evaluate the dashboard, use the [local setup](../README.md#run-it-locally)
-instead.
+The application template creates no public URL. Before starting, choose the consumer-owned API
+Gateway, ALB, or other protected gateway that will invoke the Lambda and enforce access. To evaluate
+the dashboard without AWS, use the [local setup](../README.md#try-it).
 
 ## Before you start
 
 You need:
 
 - Node.js 22 or newer, npm, the AWS CLI, and `jq`.
-- The checked-in `dashboard-bootstrap.json` from the administrator.
+- The administrator-reviewed `dashboard-bootstrap.json`.
 - AWS credentials that can assume the bootstrap-created deploy role, or an equivalent approved
   deployment session.
 - The reviewed `CloudFormationExecutionRoleArn` output from the core bootstrap stack.
 - A gateway integration plan for the returned Lambda ARN.
 
-The stock deployment supports public GitHub repositories and HTTP endpoints that require no
-credential. It does **not** load a credential-map value into arbitrary `token_env` variables. See
-[Private sources](#private-sources) before using a private repository or protected endpoint.
+Public GitHub repositories and unauthenticated HTTP endpoints need no source credential. Read
+[Private sources](#private-sources) before configuring a private repository or protected endpoint.
 
 ## 1. Install the package
 
-Choose a reviewed exact version and record it in the repository that owns the deployment:
+Pin the exact version approved for this deployment:
 
 ```sh
 npm install --save-exact @continuous-excellence/ze-great-dashboard-aws@REVIEWED_VERSION
 ```
 
-Replace `REVIEWED_VERSION` with the release approved for this deployment. The package includes the
-Lambda runtime, CLI, and CloudFormation template. The matching immutable browser client is selected
-from the default S3/CloudFront path; normal consumers do not publish client assets.
+Commit the package manifest and lockfile. The package contains the Lambda runtime, CLI, and
+CloudFormation template. Normal deployments use the matching immutable browser client from the
+versioned public asset path; they do not publish client assets.
 
-## 2. Create a board
+## 2. Create the board
 
-Save a board as `board.yaml`. This example reads a workflow from a public GitHub repository:
+Save the configuration as `board.yaml`. This example reads a workflow from a public GitHub
+repository:
 
 ```yaml
 sources:
@@ -59,12 +57,12 @@ boards:
         position: { x: 0, y: 0, w: 12, h: 6 }
 ```
 
-See [Board configuration](board-configuration.md) for HTTP value panels, refresh settings, multiple
-panels, and credential naming.
+See [Board configuration](board-configuration.md) for supported panels, sources, refresh settings,
+layout, and credential references.
 
-## 3. Generate and check deployment inputs
+## 3. Generate and verify deployment inputs
 
-Generate the CloudFormation parameters from the bootstrap manifest, then run the read-only doctor:
+Generate CloudFormation parameters from the bootstrap manifest, then run the read-only diagnostic:
 
 ```sh
 npm exec -- ze-great-dashboard-aws parameters \
@@ -76,19 +74,22 @@ npm exec -- ze-great-dashboard-aws doctor \
   --region "$(jq -r .region dashboard-bootstrap.json)"
 ```
 
-Commit `aws-dashboard-parameters.json`; it contains deployment settings, not secrets. The doctor
-checks local tools, AWS identity, parameter compatibility, the artifact bucket and Region, and the
-hosted browser client. It only performs read operations.
+Commit `aws-dashboard-parameters.json`; it contains deployment settings, not secrets. `doctor`
+checks local tools, AWS identity, parameter compatibility, artifact storage and Region, and the
+hosted browser client. It performs only read operations.
 
-Before every package or deploy, also check that the live bootstrap stacks still match the manifest
-and installed package:
+Before every package or deployment, verify that the live bootstrap still matches the manifest and
+installed package:
 
 ```sh
 npm exec -- ze-great-dashboard-aws bootstrap check \
   --config dashboard-bootstrap.json --format text
 ```
 
-## 4. Package the Lambda
+Stop if either check fails. Bootstrap changes require administrator review; routine application
+deployment must not update bootstrap implicitly.
+
+## 4. Package the release
 
 ```sh
 npm exec -- ze-great-dashboard-aws package \
@@ -97,10 +98,18 @@ npm exec -- ze-great-dashboard-aws package \
   --output aws-dashboard-release
 ```
 
-The package selects the immutable browser client with its default public asset path. To use an
-exact release from a different host, provide the complete URL instead. jsDelivr is a known
-alternative CDN for the published client package (verified with release `0.21.0`); internal CDNs
-and S3 prefixes are also supported:
+Packaging validates the board and writes:
+
+- `lambda.zip` — the private Lambda application.
+- `template.yml` — the application CloudFormation template.
+- `release.json` — artifact and release metadata.
+- `parameters.json` — complete release-specific CloudFormation parameters.
+- `deployment.json` — machine-readable upload and deployment command arguments.
+
+### Use a different asset host
+
+To select an exact client release from another host, provide its complete URL. This jsDelivr example
+uses release `0.21.0`:
 
 ```sh
 npm exec -- ze-great-dashboard-aws package \
@@ -110,30 +119,20 @@ npm exec -- ze-great-dashboard-aws package \
   --output aws-dashboard-release
 ```
 
-That URL must contain the matching `index.html` and `board-config.schema.json`; it is recorded in
-the board modeline and deployed as `ASSET_PATH`. The separately published client package is an
-immutable static artifact, so replace `0.21.0` with the exact client release you have reviewed—do
-not use a moving tag. The normal AWS path remains the matching versioned S3/CloudFront location.
-`--asset-domain` remains a deprecated shorthand for that layout.
+Replace `0.21.0` with the exact reviewed client release; never use a moving tag. The URL must contain
+the matching `index.html` and `board-config.schema.json`. It is recorded in the board modeline and
+deployed as `ASSET_PATH`. `--asset-domain` is a deprecated shorthand for the standard AWS layout.
 
-An alternate host is part of the deployment boundary: the server must be able to fetch its
-`index.html` and schema, and browsers must be able to fetch its hashed assets directly over HTTPS.
-For an internal CDN or S3, configure CORS to permit those browser asset requests; `Access-Control-Allow-Origin: *`
-is appropriate for these public, environment-free files. Keep every versioned directory immutable
-once it is deployed.
-
-This validates the board and writes:
-
-- `lambda.zip` — the private Lambda application.
-- `template.yml` — the application CloudFormation template.
-- `release.json` — the artifact key and release metadata.
-- `parameters.json` — the complete, release-specific CloudFormation parameters.
-- `deployment.json` — machine-readable upload and deployment command arguments.
+The server must be able to fetch `index.html` and the schema, while browsers fetch hashed assets
+directly over HTTPS. For an internal CDN or S3 prefix, configure CORS for browser asset requests;
+`Access-Control-Allow-Origin: *` is appropriate only because these immutable files contain no
+secrets or environment values. Never place configuration or credentials on this public asset host,
+and never modify a deployed version directory.
 
 ## 5. Upload and deploy
 
-Set the reviewed bootstrap values for this shell. The Region and stack name come from the manifest;
-the execution-role ARN comes from the core stack capture created by the bootstrap guide:
+Set the reviewed values for this shell. The Region and application stack name come from the manifest.
+The execution-role ARN comes from the reviewed core-stack capture:
 
 ```sh
 export AWS_REGION="$(jq -er .region dashboard-bootstrap.json)"
@@ -143,10 +142,10 @@ export AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN="$(jq -er \
   .bootstrap-work/core-deployed-stack.json)"
 ```
 
-If bootstrap was performed elsewhere, obtain that reviewed capture from the administrator or use
-the verified ARN they handed off. Do not substitute the current caller's role.
+If bootstrap occurred elsewhere, obtain the reviewed capture or verified ARN from the administrator.
+Do not substitute the current caller's role.
 
-Upload the generated artifact and deploy the generated template:
+Upload and deploy the generated artifacts:
 
 ```sh
 aws s3 cp aws-dashboard-release/lambda.zip \
@@ -164,52 +163,30 @@ aws cloudformation deploy \
   --no-cli-pager
 ```
 
-The stack creates the Lambda, its log group, and its runtime role. It outputs
-`ServerFunctionArn`, `ServerFunctionName`, and `AssetPath`.
+The stack creates the Lambda, its log group, and its runtime role. It outputs `ServerFunctionArn`,
+`ServerFunctionName`, and `AssetPath`.
 
-## 6. Connect the protected gateway
+## 6. Connect and verify the protected gateway
 
 Grant only the chosen gateway permission to invoke `ServerFunctionArn`, then request `/health`
 through that gateway. The application template intentionally creates no Function URL and no public
 Lambda invocation permission.
 
-Gateway selection, authentication, routing, and the invocation permission remain consumer-owned
-because those controls must fit the surrounding AWS environment.
-
-## Automate deployments
-
-Once the manual deployment works, use the [GitHub Actions example](aws-github-actions.md). The
-workflow consumes the two reviewed GitHub Environment variables emitted by `bootstrap verify` and
-repeats the same check, package, upload, and deploy sequence.
-
-## Update the dashboard
-
-For a board change, rerun steps 3 through 5. For a package upgrade, install the new exact version
-first, then use the same path. A bootstrap revision mismatch stops the deployment and requires the
-administrator to review a bootstrap update; routine deployment never updates bootstrap implicitly.
-
-## Bootstrap upgrades
-
-When `bootstrap check` reports a stale desired state, template revision, contract, parameter, or
-drift problem, stop application deployment and follow the
-[AWS bootstrap upgrade runbook](aws-bootstrap-upgrade.md). It preserves the separation of duties:
-the package generates commands and the administrator explicitly reviews and executes any AWS
-change set.
+Gateway selection, authentication, routing, and invocation permission remain consumer-owned so they
+can follow the surrounding AWS environment's security policy.
 
 ## Private sources
 
-Public GitHub sources need neither `token_env` nor `SecretReference`. For a private repository,
-create a repository-scoped fine-grained GitHub PAT with **Actions: read**. Add **Pull requests:
-read** only when the board uses `pull-request-health`; GitHub's workflow-runs API requires Actions
-read. Store the token locally in an ignored file, then create either a consumer-owned Secrets
-Manager secret or a Parameter Store `SecureString` whose value is a JSON credential map:
+For a private GitHub repository, create a repository-scoped fine-grained PAT with **Actions: read**.
+Add **Pull requests: read** only when the board uses `pull-request-health`. Store the token outside
+source control in either a consumer-owned Secrets Manager secret or a Parameter Store `SecureString`.
+Its value must be a JSON credential map:
 
 ```json
 {"GITHUB_TOKEN":"github_pat_…"}
 ```
 
-Reference that key from the board without placing the token in Git, parameters, or Lambda
-environment variables:
+Reference the key—not the token—from the board:
 
 ```yaml
 sources:
@@ -219,11 +196,8 @@ sources:
     token_env: GITHUB_TOKEN
 ```
 
-Set that resource's ARN as `SecretReference` in `aws-dashboard-parameters.json`. Packaging rejects
-a board with `token_env` when this parameter is absent. The Lambda role can read only that exact
-Secrets Manager secret or Parameter Store parameter; for Parameter Store, decrypt is constrained to
-SSM and that exact parameter's encryption context. At cold start it loads and validates the map,
-and fails closed if a configured key is missing.
+Set that resource's ARN as `SecretReference` in `aws-dashboard-parameters.json`. Packaging rejects a
+board with `token_env` when this parameter is absent. Use a Secrets Manager ARN:
 
 ```json
 {
@@ -232,7 +206,7 @@ and fails closed if a configured key is missing.
 }
 ```
 
-For the lower-cost Parameter Store option, use its parameter ARN instead:
+Or use a Parameter Store ARN:
 
 ```json
 {
@@ -241,30 +215,46 @@ For the lower-cost Parameter Store option, use its parameter ARN instead:
 }
 ```
 
-Credential maps are cached for the Lambda execution environment. A rotation or parameter update is
-used on the next cold start; for immediate uptake, deploy a configuration-only stack update or
-otherwise restart the Lambda execution environments after updating the value.
+The Lambda role can read only that exact resource. Parameter Store decryption is additionally
+restricted to SSM and the parameter's encryption context. At cold start, the runtime loads and
+validates the map and fails closed when a configured key is missing. Tokens are never placed in Git,
+CloudFormation parameters, Lambda environment variables, logs, API responses, or browser data.
+
+Credential maps are cached for the Lambda execution environment. Rotation is visible on the next
+cold start. For immediate uptake, deploy a configuration-only stack update or otherwise restart the
+Lambda execution environments after changing the value.
 
 See GitHub's [workflow-runs documentation](https://docs.github.com/en/rest/actions/workflow-runs)
-for the endpoint permission requirement.
+for endpoint permissions.
+
+## Updates and automation
+
+For a board change, repeat steps 3 through 5. For a package upgrade, install the new exact version
+first and follow the same path. If `bootstrap check` reports a mismatch or drift, stop and use the
+[AWS bootstrap upgrade runbook](aws-bootstrap-upgrade.md).
+
+After the manual deployment works, the [GitHub Actions example](aws-github-actions.md) can repeat the
+same check, package, upload, and deployment sequence with the two reviewed GitHub Environment role
+ARNs.
 
 ## Troubleshooting
 
-- **Doctor fails before packaging:** fix every failed tool, identity, bucket, parameter, or hosted
-  client check before continuing.
-- **Board validation fails:** see [Board configuration](board-configuration.md); packaging stops
-  before writing a deployable release.
-- **Bootstrap check fails:** ask the administrator to reconcile the manifest, installed package,
-  and live bootstrap stacks.
-- **Lambda is deployed but unreachable:** the application has no public endpoint; verify the gateway
-  integration and its scoped Lambda permission.
-- **A GitHub panel is unauthorized:** verify the fine-grained PAT's repository access and Actions
-  permission, then confirm its map key matches `token_env`.
+- **`doctor` fails:** fix every failed tool, identity, bucket, Region, parameter, or hosted-client
+  check before packaging.
+- **Board validation fails:** correct the reported file and field; no deployable release is written.
+- **`bootstrap check` fails:** ask the administrator to reconcile the manifest, package, and live
+  bootstrap stacks.
+- **Lambda is deployed but unreachable:** verify the protected gateway integration and its scoped
+  Lambda invocation permission; the application has no public endpoint.
+- **A GitHub panel is unauthorized:** verify the PAT's repository access and required permissions,
+  then confirm its map key exactly matches `token_env`.
 
-## Configuration failures
+A Lambda startup failure returns HTTP 503 with `Cache-Control: no-store`, code
+`dashboard_startup_failed`, and a `supportReference`. Find the matching `server.startup_failed` JSON
+event in CloudWatch Logs. Diagnostics identify the kind, location, and corrective constraint without
+including raw configuration, URLs, credential names, or values. Board, source, panel, and fact
+indexes are zero-based; YAML errors include a line and column when available.
 
-Lambda and ECS packaging reject invalid board configurations before writing release artifacts. Correct the filename and field reported by the CLI, then package and deploy again. These local checks use the installed tooling’s runtime contract; credentials, upstream availability, and compatibility with an independently selected ECS image still require runtime verification.
-
-A Lambda that cannot start returns HTTP 503 with `Cache-Control: no-store`, code `dashboard_startup_failed`, and a `supportReference`. Find the matching `server.startup_failed` JSON event in the function’s CloudWatch logs. For containers, find that event in the configured container logs; the process exits unsuccessfully. Configuration diagnostics include a kind, location, and corrective constraint. Board, source, panel, and fact indexes are zero-based in the loaded configuration. For example, `sources[1].repo` identifies the second source’s repository field without exposing its name. YAML errors report a line and column when available. Raw configuration, URLs, credential names and values are excluded.
-
-Correct the indicated configuration, repackage, and redeploy. Lambda retries startup on the next invocation after a failure, so a corrected remote configuration can recover without retaining the failed bootstrap. The dashboard admits configuration atomically; no partial board is served.
+Correct the configuration, repackage, and redeploy. Lambda retries startup on the next invocation,
+so a corrected remote configuration can recover without retaining failed startup state. A board is
+admitted atomically; the runtime never serves a partial configuration.

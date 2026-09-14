@@ -8,58 +8,53 @@
 [![Client package security](https://socket.dev/api/badge/npm/package/@continuous-excellence/ze-great-dashboard-client)](https://socket.dev/npm/package/@continuous-excellence/ze-great-dashboard-client)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Ze Great Dashboard is a team-visible, stateless trust dashboard that reads current engineering
-signals from their authorities: a lens, not a system of record.
+Ze Great Dashboard gives teams a large, visible answer to “are the things we rely on working now?”
+It reads current engineering signals from their authorities and presents every status with a label,
+glyph, and evidence.
 
-## See it work
+[Explore the feature tour](docs/feature-tour.md) · [Try it locally](#quick-start) ·
+[Deploy on AWS](#deploy-on-aws)
 
-### Status vocabulary
+[![A dashboard displaying passed, running, failed, cancelled, unknown, warning, and source-unavailable states.](docs/assets/readme-status-vocabulary.png)](docs/assets/readme-status-vocabulary.png)
 
-[![A dashboard board displaying passed, running, failed, cancelled, unknown, warning, and source-unavailable states, each with a glyph and label.](docs/assets/readme-status-vocabulary.png)](docs/assets/readme-status-vocabulary.png)
+## Features
 
-Every reading says what it means: passed, warning, running, failed, cancelled, unknown, or source unavailable. Status never relies on color alone. [Configure panels and sources.](docs/board-configuration.md)
+- GitHub Actions and GitLab CI pipeline status, plus incubating Azure DevOps Services support.
+- Scalar text and small JSON-path values from HTTP endpoints.
+- Independent polling, observation times, and links to source systems.
+- Honest source-unavailable states, opt-in attention for urgent failures, and accessible status cues.
+- OIDC authentication with fail-closed required mode.
+- Stateless operation with no server-side observation history.
 
-### Important attention
+See the [feature tour](docs/feature-tour.md) for demos of status, attention, authentication, and
+active pipelines.
 
-[![A dashboard attention rail names a failed Build and an unreadable Production Deploy; both panels remain visible with their failure evidence.](docs/assets/readme-important-attention.png)](docs/assets/readme-important-attention.png)
+## Quick start
 
-Opt-in attention keeps urgent failures visible in a header rail and anchored to their source panels, including when motion is reduced. [Configure attention for important panels.](docs/board-configuration.md)
+### Docker
 
-### Security posture
+Run the included public example:
 
-[![An in-context dashboard warning states that the deployment has no authentication beside a visible passed Build panel.](docs/assets/readme-authless-warning.png)](docs/assets/readme-authless-warning.png)
+```sh
+docker compose pull && docker compose up
+```
 
-An unprotected deployed dashboard carries a persistent warning instead of quietly looking normal. [Set up authentication or explicitly acknowledge public access.](docs/oidc-authentication.md)
+Open <http://localhost:3000>.
 
-[![A fail-closed screen stating Authentication configuration required and No dashboard data was loaded.](docs/assets/readme-authentication-required.png)](docs/assets/readme-authentication-required.png)
+To use your own `board.yaml`:
 
-When authentication is required but unavailable, the dashboard blocks before loading any board data. [Read the authentication guide.](docs/oidc-authentication.md)
+```sh
+docker pull ghcr.io/robertfmurdock/ze-great-dashboard:latest
+docker run --rm -p 3000:3000 \
+  --mount type=bind,src="$PWD/board.yaml",dst=/app/boards/board.yaml,readonly \
+  -e BOARD_CONFIG_URL=/app/boards/board.yaml \
+  ghcr.io/robertfmurdock/ze-great-dashboard:latest
+```
 
-### Active work
+Pass credentials named by `token_env` separately, for example with `-e GITHUB_TOKEN`. Pin
+`DASHBOARD_IMAGE` to a reviewed release tag for ongoing use; `latest` is intended for evaluation.
 
-[![Animated Ze Great Dashboard preview](docs/assets/readme-demo.gif)](docs/assets/readme-demo.gif)
-
-Running pipeline panels can show an active treatment while their readable status remains clear. [Configure pipeline panels.](docs/board-configuration.md)
-
-It is for teams that want a big, visible answer to “are the things we rely on working now?” It is
-not a metrics warehouse, historical analytics product, hosted SaaS, or a replacement for the systems
-that own the underlying facts.
-
-## What it can show
-
-You can configure GitHub Actions and GitLab CI `pipeline-status` panels and source-agnostic `http-value` panels
-for scalar text or small JSON-path lookups. Panels poll independently, show when their reading was
-observed, and report upstream failures instead of appearing healthy or blank.
-
-GitHub Actions and GitLab CI are supported, and Azure DevOps `pipeline-status` is supported but incubating.
-Historical analytics, hosted-SaaS operation, and server-side persistence are intentionally outside
-its scope.
-
-## Get started
-
-### Try it locally
-
-Clone the repository, install its dependencies, and start the dashboard:
+### From source
 
 ```sh
 git clone https://github.com/robertfmurdock/ze-great-dashboard.git
@@ -68,104 +63,41 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. Vite runs on port 5173 and the application server on port 3000.
+Open <http://localhost:3000>. Set `BOARD_CONFIG_URL` to load another local board.
 
-To use a local board other than the example, point the server at its YAML file:
+## Deploy on AWS
 
-```sh
-BOARD_CONFIG_URL="$PWD/boards/ze-great-team.yaml" npm run dev
-```
+The
+[`@continuous-excellence/ze-great-dashboard-aws`](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
+package provides Lambda and ECS runtimes, deployment tooling, and CloudFormation templates. A
+measured Lambda and HTTP API deployment projects to roughly **$0.80/month** for one always-open
+wallboard in `us-east-1`; see the [feature tour](docs/feature-tour.md#operating-cost) for the sample
+and assumptions.
 
-### Run it with Docker
+Follow the [AWS deployment guide](docs/aws-setup.md) to bootstrap the administrator-owned boundary
+and connect a protected gateway.
 
-With a `board.yaml` in the current directory, first pull the mutable evaluation tag, then run it:
+## Security
 
-```sh
-docker pull ghcr.io/robertfmurdock/ze-great-dashboard:latest
-docker run --rm -p 3000:3000 --mount type=bind,src="$PWD/board.yaml",dst=/app/boards/board.yaml,readonly -e BOARD_CONFIG_URL=/app/boards/board.yaml ghcr.io/robertfmurdock/ze-great-dashboard:latest
-```
+- Board YAML names credential environment variables; secret values stay in runtime secret handling.
+- Browser-visible configuration contains public values only.
+- `security: required` blocks dashboard pages and APIs when OIDC authentication is unavailable.
+- Each viewer can export or clear the bounded diagnostic record held in their browser.
 
-It serves the mounted board at <http://localhost:3000>. If the board names a source credential
-such as `GITHUB_TOKEN` through `token_env`, pass it to Docker too (for example, `-e GITHUB_TOKEN`).
-
-For the included example board, Compose needs no `.env` file:
-
-```sh
-docker compose pull && docker compose up
-```
-
-Compose uses `ghcr.io/robertfmurdock/ze-great-dashboard:latest` for evaluation. For an ongoing
-deployment, set `DASHBOARD_IMAGE` to a reviewed exact release tag. `latest` is mutable, so pull it
-explicitly before each evaluation. The selected immutable client remains independent of the server
-image; override `ASSET_PATH` only when you intentionally select another valid client version. See
-the [AWS deployment guide](docs/aws-setup.md) when you need to select a different client host or
-version. Local source builds are covered by the
-[contributor guide](docs/contributing.md).
-
-### Local Azure DevOps access with Entra
-
-**Experimental / incubating:** Azure DevOps Services boards can use your local Azure CLI login
-without placing a PAT or Azure CLI profile in a container. See
-[local Azure DevOps Entra access](docs/local-azure-devops-entra.md) for the host and Compose
-configuration. This is interactive local development, not a deployed identity mechanism; it has no
-live-tenant validation or compatibility promise.
-
-### Deploy on AWS
-
-The published [`@continuous-excellence/ze-great-dashboard-aws`](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
-package contains the Lambda runtime, CLI, and CloudFormation template. Its default client source is
-the matching immutable S3/CloudFront release; [`@continuous-excellence/ze-great-dashboard-client`](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-client)
-is a separately published browser artifact for alternate CDNs. jsDelivr is a known alternative for
-an exact client release; the
-[AWS deployment guide](docs/aws-setup.md) walks a consumer-managed deployment from bootstrap
-through a protected gateway and shows the pinned asset-path format.
-
-## Cost ballpark
-
-Ze Great Dashboard aims to make engineering visibility highly cloud-efficient and low-cost. The
-live dashboard is an example of that goal in practice: it recorded 80,477 invocations from August
-22–31, 2026, averaging 612 ms on a 256 MB Arm Lambda. At current us-east-1 rates, that projects to
-roughly **$0.80/month** for [Lambda](https://aws.amazon.com/lambda/pricing/) and
-[HTTP API Gateway](https://aws.amazon.com/api-gateway/pricing/), before account-wide free tier
-benefits or discounts. The smallest always-on ECS task (0.25 vCPU, 0.5 GB) is roughly **$9/month**
-for [Fargate compute](https://aws.amazon.com/fargate/pricing/) alone in us-east-1.
-
-The ECS figure excludes whatever ingress and networking its owner chooses. The Lambda figure
-projects one person's normal, always-open wallboard use, so it is a ballpark—not a price promise.
-
-## How it works
-
-The browser loads a versioned client, while a small stateless server reads named signals through a
-same-origin proxy. Board YAML describes what to show; it is not where credentials live.
-
-```text
-browser ──► stateless server ──► current signal authorities
-   │             │
-   │             └── reads board YAML and proxies named panel requests
-   └── immutable, versioned client assets from CDN
-```
-
-The client assets are immutable and contain no environment-specific values. The server supplies the
-entrypoint and public configuration at request time, so changing the selected client version does
-not require rebuilding it.
-
-## Trust and security principles
-
-- No server-side persistence: the dashboard renders what the authority says now and keeps no ledger. A bounded diagnostic record remains only in each viewer's browser, is never uploaded, and can be exported or cleared by that viewer.
-- Board YAML names credential environment variables; token values belong in runtime secret handling,
-  never in YAML or source control.
-- Browser-visible configuration is public-only. Secrets remain server-side.
-- An unreadable panel reports an error honestly; it never quietly appears healthy or blank.
+Read [OIDC authentication](docs/oidc-authentication.md) before exposing a dashboard beyond a trusted
+local environment.
 
 ## Documentation
 
-- [Board configuration](docs/board-configuration.md) — panel and source YAML schema.
-- [AWS deployment](docs/aws-setup.md) — deploy a private Lambda after administrator bootstrap.
-- [AWS bootstrap](docs/aws-bootstrap.md) — one-time setup for an AWS and GitHub administrator.
+- [Feature tour](docs/feature-tour.md) — see status, attention, security, and active-work behavior.
+- [Board configuration](docs/board-configuration.md) — define boards, panels, sources, and security.
+- [AWS deployment](docs/aws-setup.md) — deploy and operate a private dashboard.
+- [Server troubleshooting](docs/server-troubleshooting.md) — diagnose startup and panel failures.
+- [Contributor guide](docs/contributing.md) — develop and test the project.
 
 ## Contributing
 
-See the [contributor guide](docs/contributing.md) for local development and repository checks.
+Contributions are welcome. Start with the [contributor guide](docs/contributing.md).
 
 ## License
 

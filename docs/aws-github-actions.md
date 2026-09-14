@@ -1,29 +1,31 @@
-# Deploy from GitHub Actions
+# Deploy with GitHub Actions
 
-Add CI only after the [manual AWS deployment](aws-setup.md) works. This workflow packages the board,
-uploads the Lambda artifact, and updates the private application stack. It does not create or test a
-gateway unless you add a consumer-specific step.
+Use this example only after a [manual deployment](aws-setup.md) succeeds. It packages the board,
+uploads the Lambda artifact, and updates the private application stack. It does not create,
+configure, or test your protected gateway.
 
-## Repository inputs
+## Configure the repository
 
-Check in:
+Commit these non-secret deployment inputs:
 
 - `package.json` and its lockfile with an exact AWS package version.
 - `dashboard-bootstrap.json`.
 - `aws-dashboard-parameters.json`.
 - `board.yaml`.
 
-The administrator's `bootstrap verify` output provides two non-secret role ARNs. Add them as
-variables on the protected GitHub Environment named by `dashboard-bootstrap.json`:
+From the administrator's `bootstrap verify` output, add these two non-secret variables to the
+protected GitHub Environment named in `dashboard-bootstrap.json`:
 
 - `AWS_DEPLOY_ROLE_ARN`
 - `AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN`
 
-Do not store long-lived AWS access keys in GitHub.
+The Environment's protection rules govern deployment approval. Do not store long-lived AWS access
+keys in GitHub; the workflow uses GitHub OIDC to obtain short-lived credentials.
 
-## Workflow
+## Add the workflow
 
-Replace the Region, stack name, and Environment name below:
+Replace the Region, stack name, and Environment name below with the reviewed values from your
+bootstrap manifest:
 
 ```yaml
 name: Deploy dashboard
@@ -89,20 +91,23 @@ jobs:
             --no-cli-pager
 ```
 
-If this read-only gate fails, use the [AWS bootstrap upgrade runbook](aws-bootstrap-upgrade.md).
-It explains how to preserve current parameters and review each UPDATE change set; the workflow must
-not execute bootstrap mutations automatically.
+The OIDC role can upload only to the configured artifact prefix, operate only the configured
+application stack, and pass only the reviewed core execution role. The workflow cannot update the
+administrator-owned bootstrap stacks.
 
-The GitHub OIDC role can upload only to the configured artifact prefix, operate only the configured
-application stack, and pass only the reviewed core execution role.
+If `bootstrap check` fails, stop deployment and follow the
+[bootstrap upgrade or repair runbook](aws-bootstrap-upgrade.md). Do not add bootstrap mutation or
+change-set execution to this workflow.
 
-## Optional gateway check
+## Optional gateway and drift checks
 
-Add a health check only when the protected gateway is reachable from the runner. If the workflow
-must discover an endpoint from a gateway stack, configure that exact stack with
-`--consumer-gateway-stack` during bootstrap and review the GitHub OIDC stack update first. That
-option grants only `cloudformation:DescribeStacks`; it does not grant gateway access or bypass its
-authentication.
+Add a post-deployment health request only when the protected gateway is reachable and its
+authentication can be supplied safely by the runner.
 
-For occasional CloudFormation resource-drift audits, run `bootstrap check --resource-drift` in a
-manual or scheduled job rather than slowing every deployment.
+If the workflow must discover an endpoint from a consumer-owned gateway stack, configure that exact
+stack with `--consumer-gateway-stack` during bootstrap and review the resulting GitHub OIDC stack
+update. This grants only `cloudformation:DescribeStacks` for that stack; it grants no gateway access
+and bypasses no authentication.
+
+Run `bootstrap check --resource-drift` in a manual or scheduled job when you need CloudFormation
+resource-drift detection. Keep it out of routine deployments because drift detection is slower.
