@@ -8,26 +8,40 @@
 [![Client package security](https://socket.dev/api/badge/npm/package/@continuous-excellence/ze-great-dashboard-client)](https://socket.dev/npm/package/@continuous-excellence/ze-great-dashboard-client)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Ze Great Dashboard gives teams a large, visible answer to “are the things we rely on working now?”
-It reads current engineering signals from their authorities and presents every status with a label,
-glyph, and evidence.
+Ze Great Dashboard is a self-hosted wallboard for the engineering signals your team relies on. It
+turns the scattered answers in CI, deployment endpoints, and other HTTP sources into one large,
+legible answer to “are the things we rely on working now?”
+
+It is a lens, not a system of record: every panel identifies its authority, says when it observed a
+reading, links to the source, and shows unavailable data honestly rather than silently looking
+healthy or blank.
 
 [Explore the feature tour](docs/feature-tour.md) · [Try it locally](#quick-start) ·
 [Deploy on AWS](#deploy-on-aws)
 
 [![A dashboard displaying passed, running, failed, cancelled, unknown, warning, and source-unavailable states.](docs/assets/readme-status-vocabulary.png)](docs/assets/readme-status-vocabulary.png)
 
-## Features
+## Built for trust
 
-- GitHub Actions and GitLab CI pipeline status, plus incubating Azure DevOps Services support.
-- Scalar text and small JSON-path values from HTTP endpoints.
-- Independent polling, observation times, and links to source systems.
-- Honest source-unavailable states, opt-in attention for urgent failures, and accessible status cues.
-- OIDC authentication with fail-closed required mode.
-- Stateless operation with no server-side observation history.
+Engineering status often lives in several tools, each with its own vocabulary and access boundary.
+The dashboard makes that status readable at a glance without pretending to replace those systems,
+collect history, or send your team’s signals to a hosted analytics service.
 
-See the [feature tour](docs/feature-tour.md) for demos of status, attention, authentication, and
-active pipelines.
+- **Evidence over assertion.** It shows the authority, observation time, and path back to the
+  source; when a source cannot be read, that failure is the status. A reassuring blank panel is not
+  an acceptable answer.
+- **Ownership over extraction.** You run it in your own environment. Source credentials remain in
+  runtime secret handling, never in board YAML or browser configuration; OIDC can be required
+  fail-closed, and public access is an explicit deployment choice.
+- **Legibility over decoration.** A wallboard only works if everyone can read it. Status never
+  depends on color alone, attention preserves its meaning with reduced motion, and every state is
+  expressed in plain language.
+- **Value without lock-in.** The software is MIT-licensed: no hosted service, per-seat charge, or
+  license fee. You pay only for infrastructure you choose; one measured, always-open Lambda
+  wallboard projects to about **$0.80/month** in `us-east-1`, before free-tier benefits or
+  discounts. [See assumptions and ECS comparison.](docs/feature-tour.md#operating-cost)
+
+See the [feature tour](docs/feature-tour.md) for the dashboard in use.
 
 ## Quick start
 
@@ -69,29 +83,17 @@ Open <http://localhost:3000>. Set `BOARD_CONFIG_URL` to load another local board
 
 The
 [`@continuous-excellence/ze-great-dashboard-aws`](https://www.npmjs.com/package/@continuous-excellence/ze-great-dashboard-aws)
-package provides Lambda and ECS runtimes, deployment tooling, and CloudFormation templates. A
-measured Lambda and HTTP API deployment projects to roughly **$0.80/month** for one always-open
-wallboard in `us-east-1`; see the [feature tour](docs/feature-tour.md#operating-cost) for the sample
-and assumptions.
+package provides Lambda and ECS runtimes, deployment tooling, and CloudFormation templates.
 
 Follow the [AWS deployment guide](docs/aws-setup.md) to bootstrap the administrator-owned boundary
 and connect a protected gateway.
 
-## Security
-
-- Board YAML names credential environment variables; secret values stay in runtime secret handling.
-- Browser-visible configuration contains public values only.
-- `security: required` blocks dashboard pages and APIs when OIDC authentication is unavailable.
-- Each viewer can export or clear the bounded diagnostic record held in their browser.
-
-Read [OIDC authentication](docs/oidc-authentication.md) before exposing a dashboard beyond a trusted
-local environment.
-
 ## Documentation
 
-- [Feature tour](docs/feature-tour.md) — see status, attention, security, and active-work behavior.
+- [Feature tour](docs/feature-tour.md) — see the dashboard in use.
 - [Board configuration](docs/board-configuration.md) — define boards, panels, sources, and security.
 - [AWS deployment](docs/aws-setup.md) — deploy and operate a private dashboard.
+- [OIDC authentication](docs/oidc-authentication.md) — protect a dashboard before exposing it.
 - [Server troubleshooting](docs/server-troubleshooting.md) — diagnose startup and panel failures.
 - [Contributor guide](docs/contributing.md) — develop and test the project.
 

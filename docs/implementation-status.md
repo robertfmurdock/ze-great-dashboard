@@ -14,6 +14,31 @@ the earlier [Stage 2 GitHub Actions log](logs/stage2-github-actions-log.md), and
 package and deployment log](logs/dashboard-package-log.md). The current layout-resolution decisions
 and verification are recorded in the [layout resolution log](logs/layout-resolution-log.md).
 
+## Product principles
+
+The dashboard is an information radiator, not a convenient place to make unearned assertions. These
+principles govern changes to the product and the way it is introduced to prospective users:
+
+- **Evidence over assertion.** A panel identifies the authority behind a reading, says when it was
+  observed, and leads back to the source. Unreadable, unknown, stale, and failed states are evidence
+  to render, not gaps to hide or turn green.
+- **Ownership over extraction.** The operator keeps the dashboard, configuration, and credentials in
+  an environment they control. The project is not a hosted analytics service or a system of record;
+  secrets remain outside browser configuration and board files, and access is an explicit security
+  boundary.
+- **Legibility over decoration.** A wall display is only useful when its evidence is readable by the
+  people relying on it. Status is conveyed in words and glyphs as well as color, motion cannot be
+  the sole carrier of meaning, and the accessible representation retains the same evidence as the
+  visual one.
+- **Value without lock-in.** The software is MIT-licensed and carries no license or per-user fee.
+  It should remain modest to operate and straightforward to leave: infrastructure costs are the
+  operator's deliberate choice, and measured operating-cost examples are evidence rather than a
+  price promise.
+
+Supported integrations and presentation details will change. These commitments should not: a new
+capability earns its place by strengthening them or, where it creates a tradeoff, making that
+tradeoff explicit and reviewable.
+
 ## Deployment status
 
 `public-assets.zegreatrob.com` is live and is the stable public package contract. The release
