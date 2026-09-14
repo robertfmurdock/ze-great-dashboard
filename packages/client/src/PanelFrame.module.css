@@ -271,24 +271,66 @@
     font-size: 0.9em;
   }
 }
-/* Responsive layout may flow authored cells into one column; content never escapes its cell. */
-@media (max-width: 64rem) {
+/* Any responsive mode releases fixed desktop-cell height so evidence can remain readable. */
+@media (width <= 64rem) {
   .panel {
-    grid-column: 1 / -1;
     grid-row: auto;
-    min-height: 6em;
-    --stacked-card-reading-line-height: 1.25;
-    /* Desktop cells need size containment to honor their assigned grid height. Stacked cards
-       instead need their readable evidence to contribute to height; retain inline queries for
-       width-responsive treatments without containing the block axis. */
     container-type: inline-size;
   }
-  /* Stacked cards grow for their evidence; the panel still clips only its decorative field. */
   .content {
     flex-shrink: 0;
     min-height: auto;
     overflow: visible;
-    line-height: var(--stacked-card-reading-line-height);
+    line-height: 1.2;
+  }
+}
+
+/* Compact scan grid: each status band has a deliberate, non-overlapping reading order. */
+@media (48rem <= width <= 64rem) {
+  .panel {
+    grid-column: auto;
+    min-height: 9em;
+  }
+  .statusBand {
+    flex: 0 0 auto;
+    grid-template-areas:
+      "identity"
+      "status"
+      "evidence";
+    grid-template-rows: auto auto auto;
+    gap: 0.2em;
+  }
+  .statusBand .label {
+    grid-area: identity;
+  }
+  .statusBand > [data-panel-anchor="status"] {
+    position: static;
+    inset-inline: auto;
+    top: auto;
+    grid-area: status;
+    align-self: start;
+    transform: none;
+  }
+  .statusBand > [data-panel-anchor="evidence"] {
+    grid-area: evidence;
+    align-self: start;
+  }
+  .statusBand .status {
+    font-size: 1.2em;
+  }
+  .statusBand > [data-panel-anchor="evidence"] :is(.hint, .meta) {
+    font-size: 0.72em;
+  }
+}
+
+/* Narrow reading layout: every authored cell becomes one content-sized card. */
+@media (width < 48rem) {
+  .panel {
+    grid-column: 1 / -1;
+    min-height: 6em;
+  }
+  .content {
+    line-height: 1.25;
   }
   .density-comfortable .content,
   .density-compact .content,

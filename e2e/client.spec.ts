@@ -31,6 +31,52 @@ async function renderedTextGeometry(locator: Locator) {
   })
 }
 
+/** Reads the observable scan-grid contract without coupling the test to CSS implementation. */
+async function renderedPanelGrid(page: Page) {
+  return page.evaluate(() => {
+    const panels = [...document.querySelectorAll<HTMLElement>('[data-panel]')].map((panel) => {
+      const rect = panel.getBoundingClientRect()
+      const content = panel.querySelector<HTMLElement>('[data-panel-content]')
+      return {
+        id: panel.dataset.panelId,
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        right: rect.right,
+        readableContentFits: content ? content.scrollHeight <= content.clientHeight : false,
+      }
+    })
+    return {
+      panels,
+      viewport: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+    }
+  })
+}
+
+/** Verifies that a compact status card presents its text in the intended reading order. */
+async function compactStatusReadingOrder(panel: Locator) {
+  return panel.evaluate((element) => {
+    const rect = (selector: string) =>
+      element.querySelector<HTMLElement>(selector)?.getBoundingClientRect()
+    const title = rect('[data-panel-identity-text]')
+    const status = rect('[data-panel-status]')
+    const evidence = rect('[data-panel-meta]')
+    if (!title || !status || !evidence) return false
+    return title.bottom <= status.top && status.bottom <= evidence.top
+  })
+}
+
+/** A security warning occupies a header row rather than competing with the board title. */
+async function securityNoticeHasHeaderRow(page: Page) {
+  return page.evaluate(() => {
+    const title = document.querySelector('h1')?.getBoundingClientRect()
+    const notice = document
+      .querySelector<HTMLElement>('aside[role="alert"]')
+      ?.getBoundingClientRect()
+    return Boolean(title && notice && notice.top >= title.bottom)
+  })
+}
+
 test('the production client loads and renders with CDN modules', async ({ page }) => {
   const browserErrors: string[] = []
   page.on('pageerror', (error) => browserErrors.push(error.message))
@@ -384,6 +430,82 @@ test('fits a positioned board inside the desktop viewport', async ({ page }) => 
   expect(layout.panels[2].right - layout.panels[2].left).toBeGreaterThan(
     layout.panels[0].right - layout.panels[0].left,
   )
+})
+
+test('uses a compact two-column scan grid at intermediate widths', async ({ page }) => {
+  const board = {
+    panels: singleScreenBoard.panels
+      .slice(0, 8)
+      .map((panel) =>
+        panel.id === 'coupling-build' ? { ...panel, running_animation: 'telemetry-bloom' } : panel,
+      ),
+  }
+  await page.setViewportSize({ width: 1000, height: 1000 })
+  await stubDashboard(page, board)
+  await page.addInitScript(() => {
+    window.env = { ...window.env, security: 'warning' }
+  })
+  await page.route('**/api/panel/**', (route) => {
+    const panelId = decodeURIComponent(
+      new URL(route.request().url()).pathname.split('/').at(-1) ?? '',
+    )
+    const panel = board.panels.find((candidate) => candidate.id === panelId)
+    const completed = pipelineEnvelope(panelId)
+    const body =
+      panelId === 'coupling-build'
+        ? {
+            ...completed,
+            signal: {
+              ...completed.signal,
+              status: 'running',
+              rawStatus: 'in_progress',
+              runStartedAt: '2026-08-24T13:58:00.000Z',
+              estimatedDurationMs: 2_000,
+            },
+          }
+        : panel?.type === 'pipeline-status'
+          ? completed
+          : valueEnvelope(panelId)
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) })
+  })
+
+  await page.goto('/')
+  await expect(page.locator('[data-panel]')).toHaveCount(board.panels.length)
+  await expect(page.locator('[data-panel-link]')).toHaveCount(board.panels.length)
+  await expect(page.locator('[data-panel-id="coupling-build"]')).toContainText('Running')
+  await expect(
+    page.locator(
+      '[data-panel-id="coupling-build"] [data-running-field][data-animation="telemetry-bloom"]',
+    ),
+  ).toBeVisible()
+  await expect(page.getByText('Security: unsecured')).toBeVisible()
+
+  const layout = await renderedPanelGrid(page)
+
+  // The scan surface has two ordered columns and four rows, without clipping readable evidence.
+  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewport)
+  expect(layout.panels.map((panel) => panel.id)).toEqual(board.panels.map((panel) => panel.id))
+  expect(new Set(layout.panels.map((panel) => panel.left)).size).toBe(2)
+  expect(new Set(layout.panels.map((panel) => panel.top)).size).toBe(4)
+  expect(layout.panels.every((panel) => panel.right <= layout.viewport)).toBe(true)
+  expect(layout.panels.every((panel) => panel.readableContentFits)).toBe(true)
+
+  // Completed cards read top-to-bottom; the status no longer occupies the evidence band's space.
+  expect(await compactStatusReadingOrder(page.locator('[data-panel-id="jsmints-build"]'))).toBe(
+    true,
+  )
+
+  // A running field remains decorative: its readable text stays in its containing card.
+  const runningText = await Promise.all(
+    ['[data-panel-identity-text]', '[data-panel-status]', '[data-panel-meta]'].map((selector) =>
+      renderedTextGeometry(page.locator(`[data-panel-id="coupling-build"] ${selector}`).first()),
+    ),
+  )
+  expect(runningText.every((text) => text.visible && text.contained)).toBe(true)
+
+  // Deployment posture remains separate from the panel scan surface.
+  await expect(page.locator('aside[role="alert"]')).toBeVisible()
+  expect(await securityNoticeHasHeaderRow(page)).toBe(true)
 })
 
 test('opens update activity as a full-screen inspection without changing the primary grid', async ({
