@@ -14,6 +14,7 @@ import { BrowserDiagnosticStore, cacheMetadata } from './diagnostics.ts'
 import { OidcGate } from './OidcGate.tsx'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PanelRenderer } from './panel-registry.tsx'
+import { SecurityDetails } from './SecurityDetails.tsx'
 import { SecurityNotice } from './SecurityNotice.tsx'
 import { UpdateActivity } from './UpdateActivity.tsx'
 import { projectUpdateActivity } from './update-activity.ts'
@@ -190,6 +191,7 @@ function Dashboard({
       <footer className={styles.footer} data-board-footer>
         <span>Signals are read live from their configured authorities.</span>
         <div className={styles.footerTools}>
+          {auth && <SecurityDetails env={env} auth={auth} />}
           {layout && layout.issues.length > 0 && (
             <LayoutWarning board={env.board} layout={layout} env={env} auth={auth} />
           )}

@@ -1,4 +1,4 @@
-import type { Auth } from '@ze-great-dashboard/shared'
+import { type Auth, type Authorization, authorizationForAuth } from '@ze-great-dashboard/shared'
 import { createRemoteJWKSet, customFetch, jwtVerify } from 'jose'
 import type { Fetcher } from './template.ts'
 
@@ -37,13 +37,33 @@ export async function createAccessTokenVerifier(
     const { payload } = await jwtVerify(token, keys, { issuer, audience: auth.audience })
     if (typeof payload.sub !== 'string' || !payload.sub)
       throw new Error('Access token has no subject.')
-    if (!auth.allow.subjects.includes(payload.sub)) {
+    if (!permitsIdentity(authorizationForAuth(auth), payload.sub, payload)) {
       const error = new Error('Authenticated subject is not allowed to view this dashboard.')
-      error.name = 'UnauthorizedSubjectError'
+      error.name = 'AccessDeniedError'
       throw error
     }
     return { subject: payload.sub }
   }
+}
+
+function permitsIdentity(
+  policy: Authorization,
+  subject: string,
+  claims: Record<string, unknown>,
+): boolean {
+  if (policy.mode === 'authenticated') return true
+  if (policy.mode === 'subjects') return policy.subjects.includes(subject)
+  const value = claims[policy.claim]
+  const actual =
+    typeof value === 'string' && value.length > 0
+      ? [value]
+      : Array.isArray(value) && value.every((item) => typeof item === 'string' && item.length > 0)
+        ? value
+        : undefined
+  if (!actual) return false
+  return policy.match === 'any'
+    ? policy.values.some((expected) => actual.includes(expected))
+    : policy.values.every((expected) => actual.includes(expected))
 }
 
 async function fetchJson(
@@ -59,6 +79,6 @@ async function fetchJson(
   }
 }
 
-export function unauthorizedSubject(error: unknown): boolean {
-  return error instanceof Error && error.name === 'UnauthorizedSubjectError'
+export function accessDenied(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AccessDeniedError'
 }

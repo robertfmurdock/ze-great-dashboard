@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -31,14 +32,15 @@ afterEach(() => {
 })
 
 describe('Diagnostics control', () => {
-  it('discloses its retained count and keeps actions hidden until opened', () => {
+  it('discloses its retained count and keeps actions hidden until opened', async () => {
+    const user = userEvent.setup()
     const diagnosticLog = log()
     render(<Diagnostics log={diagnosticLog} />)
     expect(
       screen.getByRole('button', { name: /Diagnostics \(1\)/ }).getAttribute('aria-expanded'),
     ).toBe('false')
     expect(screen.queryByRole('button', { name: 'Download' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /Diagnostics/ }))
+    await user.click(screen.getByRole('button', { name: /Diagnostics/ }))
     expect(screen.getByRole('button', { name: 'Download' })).not.toBeNull()
     expect(screen.getByText(/Client dev · assets https:\/\/assets\.example\.com/)).not.toBeNull()
     expect(screen.getByText(/Update failures: 0; board fetch failures: 0/)).not.toBeNull()
@@ -53,6 +55,7 @@ describe('Diagnostics control', () => {
   })
 
   it('downloads its JSON evidence and only clears after confirmation', async () => {
+    const user = userEvent.setup()
     const diagnosticLog = log()
     const createObjectURL = vi.fn((_blob: Blob) => 'blob:test')
     const revokeObjectURL = vi.fn()
@@ -72,8 +75,8 @@ describe('Diagnostics control', () => {
         })}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: /Diagnostics/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Download' }))
+    await user.click(screen.getByRole('button', { name: /Diagnostics/ }))
+    await user.click(screen.getByRole('button', { name: 'Download' }))
     expect(createObjectURL).toHaveBeenCalled()
     const blob = createObjectURL.mock.calls[0]?.[0]
     if (!blob) throw new Error('Expected diagnostics download blob.')
@@ -81,18 +84,19 @@ describe('Diagnostics control', () => {
       updateActivity: { window: { from: '2026-08-21T11:50:00.000Z' }, schedules: [] },
     })
     expect(click).toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
     expect(diagnosticLog.count()).toBe(1)
     vi.stubGlobal(
       'confirm',
       vi.fn(() => true),
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
     expect(diagnosticLog.count()).toBe(0)
     click.mockRestore()
   })
 
-  it('warns when retention has pruned older evidence', () => {
+  it('warns when retention has pruned older evidence', async () => {
+    const user = userEvent.setup()
     const values = new Map<string, string>()
     values.set(
       'ze-great-dashboard.diagnostics.v2',
@@ -112,11 +116,12 @@ describe('Diagnostics control', () => {
       () => new Date('2026-08-21T12:00:00Z'),
     )
     render(<Diagnostics log={diagnosticLog} />)
-    fireEvent.click(screen.getByRole('button', { name: /Diagnostics/ }))
+    await user.click(screen.getByRole('button', { name: /Diagnostics/ }))
     expect(screen.getByRole('alert').textContent).toContain('Earlier evidence was pruned: 5')
   })
 
-  it('shows per-panel failures in its summary', () => {
+  it('shows per-panel failures in its summary', async () => {
+    const user = userEvent.setup()
     const diagnosticLog = log()
     diagnosticLog.record({
       kind: 'panel-fetch-failure',
@@ -125,7 +130,7 @@ describe('Diagnostics control', () => {
       message: 'offline',
     })
     render(<Diagnostics log={diagnosticLog} />)
-    fireEvent.click(screen.getByRole('button', { name: /Diagnostics/ }))
+    await user.click(screen.getByRole('button', { name: /Diagnostics/ }))
     expect(
       screen.getByText(
         (_content, element) =>

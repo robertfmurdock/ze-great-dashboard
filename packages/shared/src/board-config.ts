@@ -328,17 +328,58 @@ export const boardSchema = z
 
 export type Board = z.infer<typeof boardSchema>
 
-export const authSchema = z.strictObject({
-  issuer: z.url(),
-  /** Browser SPA client id. It is public, unlike every source credential. */
-  client_id: z.string().min(1),
-  /** The separately registered API resource accepted by the dashboard proxy. */
-  audience: z.string().min(1),
-  /** A deliberately portable, explicit identity boundary for the first direct-OIDC release. */
-  allow: z.strictObject({ subjects: z.array(z.string().min(1)).min(1) }),
-})
+export const authorizationSchema = z.discriminatedUnion('mode', [
+  z.strictObject({ mode: z.literal('authenticated') }),
+  z.strictObject({ mode: z.literal('subjects'), subjects: z.array(z.string().min(1)).min(1) }),
+  z.strictObject({
+    mode: z.literal('claim'),
+    /** Exact JWT payload key; namespaced provider claims are keys, never path expressions. */
+    claim: z.string().min(1),
+    values: z.array(z.string().min(1)).min(1),
+    match: z.enum(['any', 'all']),
+  }),
+])
+
+export type Authorization = z.infer<typeof authorizationSchema>
+
+const legacySubjectAllowSchema = z.strictObject({ subjects: z.array(z.string().min(1)).min(1) })
+
+export const authSchema = z
+  .strictObject({
+    issuer: z.url(),
+    /** Browser SPA client id. It is public, unlike every source credential. */
+    client_id: z.string().min(1),
+    /** The separately registered API resource accepted by the dashboard proxy. */
+    audience: z.string().min(1),
+    /** Canonical authorization policy. */
+    authorization: authorizationSchema.optional(),
+    /** Legacy subject policy retained only for a configuration migration. */
+    allow: legacySubjectAllowSchema.optional(),
+  })
+  .superRefine((auth, ctx) => {
+    if (!auth.authorization && !auth.allow)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['authorization'],
+        message: 'configure authorization, or the legacy allow.subjects migration policy',
+      })
+    if (auth.authorization && auth.allow)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['authorization'],
+        message: 'configure authorization or legacy allow.subjects, not both',
+      })
+  })
 
 export type Auth = z.infer<typeof authSchema>
+
+/** Converts the transitional subject allowlist into the one policy shape used at runtime. */
+export function authorizationForAuth(auth: Auth): Authorization {
+  if (auth.authorization) return auth.authorization
+  if (auth.allow) return { mode: 'subjects', subjects: auth.allow.subjects }
+  // Schema validation makes this unreachable; retain a fail-closed guard for direct callers.
+  throw new Error('OIDC authorization policy is missing.')
+}
 
 /** Deployment-wide authentication posture. `warn` preserves the historic default. */
 export const securityPolicies = ['warn', 'required', 'unsecured'] as const

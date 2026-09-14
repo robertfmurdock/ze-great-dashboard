@@ -1,10 +1,12 @@
 import {
+  authorizationForAuth,
   type BoardConfig,
   boardSchemaModeline,
   type ClientEnv,
   type ClientIdentityResponse,
   normalizeBoardLayout,
   schemaUrlForAssetPath,
+  securityDetailsResponseSchema,
 } from '@ze-great-dashboard/shared'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
@@ -31,7 +33,7 @@ import {
   type ServerLogger,
   serverDiagnosticContext,
 } from './logger.ts'
-import { type AccessTokenVerifier, unauthorizedSubject } from './oidc-auth.ts'
+import { type AccessTokenVerifier, accessDenied } from './oidc-auth.ts'
 import { renderIndexHtml } from './render.ts'
 import type { DeploymentSecurityState } from './security-posture.ts'
 import { type Fetcher, TemplateCache } from './template.ts'
@@ -102,8 +104,8 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
       await deps.accessTokenVerifier(authorization.slice('Bearer '.length))
     } catch (error) {
       return c.json(
-        { error: unauthorizedSubject(error) ? 'Access denied.' : 'Invalid access token.' },
-        unauthorizedSubject(error) ? 403 : 401,
+        { error: accessDenied(error) ? 'Access denied.' : 'Invalid access token.' },
+        accessDenied(error) ? 403 : 401,
       )
     }
     return next()
@@ -155,6 +157,20 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
       }),
     })
   })
+  app.get('/api/boards/:board/security', (c) => {
+    if (!deps.boardConfig?.boards[c.req.param('board')] || !deps.boardConfig.auth)
+      return c.notFound()
+    const policy = authorizationForAuth(deps.boardConfig.auth)
+    return c.json(
+      securityDetailsResponseSchema.parse({
+        oidc: true,
+        policy:
+          policy.mode === 'claim'
+            ? { mode: policy.mode, claim: policy.claim, match: policy.match }
+            : { mode: policy.mode },
+      }),
+    )
+  })
   const layoutDownload = (
     c: Context<AppEnvironment, '/api/boards/:board/rendered'>,
     mode: 'rendered' | 'authored',
@@ -180,7 +196,6 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
       sources,
       boards: { [boardName]: outputBoard },
       ...(deps.boardConfig.security ? { security: deps.boardConfig.security } : {}),
-      ...(deps.boardConfig.auth ? { auth: deps.boardConfig.auth } : {}),
     }
 
     const filenameBoard = safeDownloadFilename(boardName)

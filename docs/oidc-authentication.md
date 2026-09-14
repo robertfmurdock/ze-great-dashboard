@@ -9,31 +9,56 @@ open proxy. `ALLOW_UNPROTECTED_DASHBOARD=true` only suppresses the soft `securit
 cannot override required mode. See [board configuration](board-configuration.md#deployment-security-policy)
 for all three modes.
 
-Configure the board with stable OIDC subjects. An ID token is never accepted by the dashboard API: the SPA requests an access token for the separately registered API audience and the server validates its signature, issuer, expiry, audience, and `sub` against this allowlist.
+An ID token is never accepted by the dashboard API: the SPA requests an access token for the separately registered API audience and the server validates its signature, issuer, expiry, audience, and a non-empty `sub` before applying the configured authorization policy.
+
+`authorization` is the canonical policy declaration. `authenticated` admits any verified API access token with a non-empty subject; this is the portable meaning of user-delegated access here. JWTs do not standardize a grant-type claim, so it deliberately does not try to infer a grant type. Normal client-credentials tokens lack `sub` and are rejected.
 
 ```yaml
 auth:
   issuer: https://login.example.com/
   client_id: dashboard-spa-client-id
   audience: https://dashboard-api.example.com
-  allow:
-    subjects:
-      - auth0|0123456789abcdef
+  authorization:
+    mode: authenticated
 ```
 
-The issuer, client ID, and audience are intentionally public browser configuration. `subjects` are identity identifiers rather than secrets, but the complete board configuration remains behind the authenticated API. Do not put client secrets, source tokens, or refresh tokens in this file or in browser configuration.
+For a fixed set of identities, use `mode: subjects` and non-empty stable subjects. For a provider-issued top-level claim, use `mode: claim`; `claim` is an exact JWT payload key (including URI-namespaced Auth0 keys), `values` are non-empty strings, and `match` is required. `any` admits a token with at least one configured value; `all` requires every configured value. Claims that are not a string or an array of non-empty strings do not match.
+
+```yaml
+authorization:
+  mode: claim
+  claim: https://dashboard.example.com/roles
+  values: [dashboard-viewer, dashboard-operator]
+  match: any
+```
+
+The issuer, client ID, and audience are intentionally public browser configuration. Authorization values and subjects are not returned to browsers: admitted viewers can inspect only the policy mode and, for claim policy, its claim key and match mode. Do not put client secrets, source tokens, or refresh tokens in this file or in browser configuration.
 
 ## Auth0 setup
 
 Create a Single Page Application and register `https://dashboard.example.com/` as both its Allowed Callback URL and Allowed Logout URL. Enable refresh-token rotation for the SPA. Create a Dashboard API, use its Identifier as `audience`, and authorize the SPA to request it. The application asks for `openid profile offline_access`; configure the API permission policy accordingly.
 
-Find each viewer's stable subject in the Auth0 user record (`user_id`), then copy that exact value into `allow.subjects`. Test with one listed user and one authenticated but unlisted user: the latter should receive access denied from the API without any source request occurring.
+For role-based access, add an Auth0 Action that places the user's assigned dashboard roles in a namespaced **access-token** claim, then configure that exact claim key. For example, an Action can set `https://dashboard.example.com/roles` to an array of role names and the board can use the claim example above. Auth0 requires custom claims to be namespaced; do not use an ID-token-only claim because the proxy accepts API access tokens only. Test one role admitted by the policy and one authenticated role that is not; the latter must receive access denied before any source request occurs.
+
+## Okta groups
+
+Configure the authorization server to include `groups` in access tokens for the dashboard API audience, then match that exact top-level claim:
+
+```yaml
+authorization:
+  mode: claim
+  claim: groups
+  values: [dashboard-viewers, incident-commanders]
+  match: any
+```
+
+Use `all` only when membership in every listed group is genuinely required. Verify the claim is on the access token issued for this API, not merely on an ID token or userinfo response.
 
 ## Operations
 
 The callback and logout return to `/`. Tokens and rotated refresh tokens are held in memory only, so a browser refresh intentionally requires sign-in again. Provider discovery is checked at server startup; unavailable or malformed discovery prevents startup. Remote JWKS are refreshed by the verifier when an unfamiliar key ID appears, supporting normal signing-key rotation.
 
-Gateway token acquisition and provider-specific groups, roles, and custom-claim mapping are deliberately deferred. Use explicit stable subjects until a portability policy for those claims exists.
+Gateway token acquisition remains deferred. Provider-specific provisioning stays operator-owned, while the dashboard's claim evaluator is deliberately limited to exact top-level string or string-array claims.
 
 ## Auth0 endpoint API setup
 

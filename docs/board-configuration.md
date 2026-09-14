@@ -5,8 +5,32 @@ boards. A panel refers to a source, identifies the signal type to render, and ca
 refresh interval, concise wall label, and grid position.
 
 For direct OIDC authentication, see [OIDC authentication](oidc-authentication.md). The optional
-`auth` block requires an issuer, browser client ID, API audience, and at least one explicitly
-allowed stable subject.
+`auth` block requires an issuer, browser client ID, API audience, and an `authorization` declaration.
+
+## OIDC authorization policy
+
+Every enabled OIDC configuration declares one of these policies:
+
+```yaml
+auth:
+  issuer: https://login.example.com/
+  client_id: dashboard-spa-client-id
+  audience: https://dashboard-api.example.com
+  authorization:
+    mode: claim # authenticated, subjects, or claim
+    claim: groups
+    values: [dashboard-viewers]
+    match: any # any or all
+```
+
+`authenticated` permits a verified API access token with a non-empty `sub`; it rejects ordinary
+client-credentials tokens, which normally have no subject. `subjects` uses a non-empty list of
+stable subjects. `claim` matches an exact top-level JWT payload key: `any` needs one configured
+value and `all` needs every configured value. Claim values must be a string or an array of
+non-empty strings. The policy is enforced on every board and upstream request. The browser never
+receives subjects, allowed claim values, or raw token claims; admitted viewers can open the compact
+Security details control to see only the policy mode and, for a claim policy, its key and match
+mode.
 
 ## Deployment security policy
 

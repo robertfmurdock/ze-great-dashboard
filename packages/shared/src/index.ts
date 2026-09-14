@@ -1,9 +1,12 @@
 export {
   type AttentionTreatment,
   type Auth,
+  type Authorization,
   type AzureDevOpsSource,
   attentionTreatmentSchema,
   attentionTreatments,
+  authorizationForAuth,
+  authorizationSchema,
   authSchema,
   azureDevOpsSourceSchema,
   type Board,
@@ -94,3 +97,7 @@ export {
   resolvePollingSettings,
 } from './polling-policy.ts'
 export { visibleRunningAnimations } from './running-animations.ts'
+export {
+  type SecurityDetailsResponse,
+  securityDetailsResponseSchema,
+} from './security-details.ts'

@@ -1,9 +1,11 @@
-import { cleanup, fireEvent, render as rtlRender } from '@testing-library/react'
+import { cleanup, render as rtlRender, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ClientEnv, PipelineStatus } from '@ze-great-dashboard/shared/browser'
 import { act, StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../src/App.tsx'
 import { ConfigError } from '../src/ConfigError.tsx'
+import { SecurityDetails } from '../src/SecurityDetails.tsx'
 
 const env: ClientEnv = {
   assetPath: 'https://assets.example.com/dashboard/1.0.7',
@@ -44,10 +46,10 @@ describe('the board shell', () => {
     expect(render(<App env={env} />).textContent).toContain('ze-great-team')
   })
 
-  it('keeps deployment details available through Diagnostics', () => {
-    const rendered = render(<App env={env} />)
-    fireEvent.click(rendered.querySelector('button') as HTMLButtonElement)
-    const text = rendered.textContent
+  it('keeps deployment details available through Diagnostics', async () => {
+    render(<App env={env} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: /Diagnostics/ }))
+    const text = document.body.textContent
     expect(text).toContain('dev')
     expect(text).toContain('https://assets.example.com/dashboard/1.0.7')
   })
@@ -90,6 +92,73 @@ describe('deployment security boundary', () => {
     expect(rendered.textContent).toMatch(/authentication.*required/i)
     expect(rendered.textContent).toMatch(/No dashboard data was loaded/i)
     expect(fetcher).not.toHaveBeenCalled()
+  })
+})
+
+describe('security details', () => {
+  it('lazily fetches and renders only safe claim-policy metadata with the authenticated request', async () => {
+    const user = userEvent.setup()
+    const fetcher = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(
+        Response.json({
+          oidc: true,
+          policy: { mode: 'claim', claim: 'groups', match: 'any' },
+        }),
+      ),
+    )
+    vi.stubGlobal('fetch', fetcher)
+    render(
+      <SecurityDetails
+        env={env}
+        auth={{ accessToken: 'access-token', onAuthenticationFailure: vi.fn() }}
+      />,
+    )
+    expect(fetcher).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Security' }))
+    await act(async () => {})
+    expect(fetcher).toHaveBeenCalledOnce()
+    expect(new Headers(fetcher.mock.calls[0]?.[1]?.headers).get('authorization')).toBe(
+      'Bearer access-token',
+    )
+    expect(screen.getByRole('dialog').textContent).toContain('groups')
+    expect(screen.getByRole('dialog').textContent).toContain('any')
+    expect(screen.getByRole('dialog').textContent).not.toContain('access-token')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Security' }))
+  })
+
+  it('shows a safe failure without rendering policy details', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response(null, { status: 500 }))),
+    )
+    render(<SecurityDetails env={env} auth={{ accessToken: 'access-token' }} />)
+    await user.click(screen.getByRole('button', { name: 'Security' }))
+    await act(async () => {})
+    expect(screen.getByRole('alert').textContent).toContain('Security details are unavailable.')
+    expect(screen.getByRole('dialog').textContent).not.toContain('groups')
+  })
+
+  it('reports a denied security request through the supplied auth boundary', async () => {
+    const user = userEvent.setup()
+    const denied = vi.fn()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response(null, { status: 403 }))),
+    )
+    render(
+      <SecurityDetails
+        env={env}
+        auth={{ accessToken: 'access-token', onAuthenticationFailure: denied }}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Security' }))
+    await act(async () => {})
+    expect(denied).toHaveBeenCalledWith(403)
+    expect(screen.getByRole('dialog').textContent).not.toContain('groups')
   })
 })
 
@@ -808,6 +877,7 @@ describe('http-value panels', () => {
   })
 
   it('warns when panel positions exceed the intended canvas', async () => {
+    const user = userEvent.setup()
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL) =>
@@ -833,7 +903,7 @@ describe('http-value panels', () => {
       '[data-layout-warning] button[aria-label="Layout warnings (1)"]',
     ) as HTMLButtonElement
     expect(warningButton).not.toBeNull()
-    fireEvent.click(warningButton)
+    await user.click(warningButton)
     expect(rendered.textContent).toContain(
       '1 layout issue detected against the intended 12×12 space',
     )

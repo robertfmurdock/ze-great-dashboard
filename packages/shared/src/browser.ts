@@ -53,3 +53,7 @@ export {
 export { analyzeBoardLayout, isZeroPosition, normalizeBoardLayout } from './layout.ts'
 export { type PollingSettings, pollingDefaults, resolvePollingSettings } from './polling-policy.ts'
 export { type RunningAnimation, visibleRunningAnimations } from './running-animations.ts'
+export {
+  type SecurityDetailsResponse,
+  securityDetailsResponseSchema,
+} from './security-details.ts'

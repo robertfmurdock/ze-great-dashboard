@@ -1,0 +1,26 @@
+.control {
+  font: inherit;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: var(--gap);
+  background: rgb(0 0 0 / 62%);
+}
+
+.dialog {
+  width: min(32rem, 100%);
+  padding: 1rem;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--ink-primary);
+}
+
+.dialog h2 {
+  margin-top: 0;
+}

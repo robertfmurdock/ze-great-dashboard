@@ -93,6 +93,13 @@ composition relationship it owns. Do not repeat a child component's structural i
 or browser tests. Browser tests that observe animation should synchronize on browser frames or
 animation events; fixed-duration sleeps are not a reliable substitute for the event being tested.
 
+For browser-facing unit tests, model user behavior through Testing Library's `user-event` as the
+default: query by accessible role and drive clicks, typing, keyboard navigation, and focus as a user
+would. Use `fireEvent` only when the test intentionally asserts a low-level event contract that
+`user-event` does not express, such as a synthetic pointer event, or when controlled time makes
+user-event's own interaction timers part of the behavior under test. This makes tests readable
+examples of the accessible interface, not just proof that an event handler happened to run.
+
 Keep test bodies linear and easy to preview. Test-case tables should declare scenarios and expected
 outcomes; they should not require the reader to execute branching logic in the test definition to
 discover which path is under test. When cases have different observable contracts, use separate

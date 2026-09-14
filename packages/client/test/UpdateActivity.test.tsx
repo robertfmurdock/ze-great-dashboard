@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BrowserDiagnosticStore } from '../src/diagnostics.ts'
@@ -40,7 +41,8 @@ afterEach(() => {
 })
 
 describe('Update activity', () => {
-  it('keeps the footer compact until requested, then exposes the accessible timeline and returns on Close or Escape', () => {
+  it('keeps the footer compact until requested, then exposes the accessible timeline and returns on Close or Escape', async () => {
+    const user = userEvent.setup()
     const diagnosticLog = log()
     diagnosticLog.record({
       kind: 'panel-fetch-start',
@@ -50,7 +52,7 @@ describe('Update activity', () => {
     render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={diagnosticLog} />)
     const trigger = screen.getByRole('button', { name: 'Update activity' })
     expect(screen.queryByRole('dialog')).toBeNull()
-    fireEvent.click(trigger)
+    await user.click(trigger)
 
     const dialog = screen.getByRole('dialog', { name: 'Update activity' })
     expect(dialog.getAttribute('aria-modal')).toBe('true')
@@ -62,14 +64,14 @@ describe('Update activity', () => {
 
     const close = screen.getByRole('button', { name: 'Close' })
     expect(document.activeElement).toBe(close)
-    fireEvent.keyDown(close, { key: 'Tab' })
+    await user.tab()
     expect(document.activeElement).toBe(close)
-    fireEvent.click(close)
+    await user.click(close)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(trigger)
 
-    fireEvent.click(trigger)
-    fireEvent.keyDown(window, { key: 'Escape' })
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(trigger)
   })
@@ -78,6 +80,8 @@ describe('Update activity', () => {
     vi.useFakeTimers()
     render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={log()} />)
     const trigger = screen.getByRole('button', { name: 'Update activity' })
+    // This controlled-time scenario is about the component's minute timer; avoid user-event's
+    // own scheduled interaction timers becoming part of that clock contract.
     fireEvent.click(trigger)
     const dialog = screen.getByRole('dialog', { name: 'Update activity' })
 

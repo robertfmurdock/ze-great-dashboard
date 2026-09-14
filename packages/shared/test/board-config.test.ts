@@ -64,6 +64,43 @@ describe('the board config schema', () => {
     expect(result.error?.issues[0]?.message).toMatch(/unsecured.*auth/)
   })
 
+  it('accepts canonical authenticated, subject, and claim authorization policies and the legacy migration form', () => {
+    const auth = { issuer: 'https://login.example.test', client_id: 'dashboard', audience: 'api' }
+    const policies = [
+      { authorization: { mode: 'authenticated' } },
+      { authorization: { mode: 'subjects', subjects: ['person'] } },
+      {
+        authorization: {
+          mode: 'claim',
+          claim: 'https://example.test/roles',
+          values: ['viewer'],
+          match: 'any',
+        },
+      },
+      { allow: { subjects: ['legacy-person'] } },
+    ]
+    for (const policy of policies)
+      expect(
+        boardConfigSchema.safeParse({ ...validConfig, auth: { ...auth, ...policy } }).success,
+      ).toBe(true)
+  })
+
+  it('rejects absent, competing, empty, and malformed authorization policies', () => {
+    const auth = { issuer: 'https://login.example.test', client_id: 'dashboard', audience: 'api' }
+    const policies = [
+      {},
+      { authorization: { mode: 'authenticated' }, allow: { subjects: ['legacy-person'] } },
+      { authorization: { mode: 'subjects', subjects: [] } },
+      { authorization: { mode: 'claim', claim: '', values: ['viewer'], match: 'any' } },
+      { authorization: { mode: 'claim', claim: 'groups', values: [], match: 'all' } },
+      { authorization: { mode: 'claim', claim: 'groups', values: ['viewer'], match: 'either' } },
+    ]
+    for (const policy of policies)
+      expect(
+        boardConfigSchema.safeParse({ ...validConfig, auth: { ...auth, ...policy } }).success,
+      ).toBe(false)
+  })
+
   it('rejects configuring a token and GitHub App on the same source', () => {
     const result = boardConfigSchema.safeParse({
       sources: {
