@@ -120,6 +120,19 @@ an exact client release; the
 [AWS deployment guide](docs/aws-setup.md) walks a consumer-managed deployment from bootstrap
 through a protected gateway and shows the pinned asset-path format.
 
+## Cost ballpark
+
+Ze Great Dashboard aims to make engineering visibility highly cloud-efficient and low-cost. The
+live dashboard is an example of that goal in practice: it recorded 80,477 invocations from August
+22–31, 2026, averaging 612 ms on a 256 MB Arm Lambda. At current us-east-1 rates, that projects to
+roughly **$0.80/month** for [Lambda](https://aws.amazon.com/lambda/pricing/) and
+[HTTP API Gateway](https://aws.amazon.com/api-gateway/pricing/), before account-wide free tier
+benefits or discounts. The smallest always-on ECS task (0.25 vCPU, 0.5 GB) is roughly **$9/month**
+for [Fargate compute](https://aws.amazon.com/fargate/pricing/) alone in us-east-1.
+
+The ECS figure excludes whatever ingress and networking its owner chooses. The Lambda figure
+projects one person's normal, always-open wallboard use, so it is a ballpark—not a price promise.
+
 ## How it works
 
 The browser loads a versioned client, while a small stateless server reads named signals through a
