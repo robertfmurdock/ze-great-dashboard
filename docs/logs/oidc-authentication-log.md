@@ -33,3 +33,34 @@ event utility intentionally does not simulate. Client tests now use it as the de
 actions; direct `fireEvent` remains reserved for deliberate low-level event contracts. The small
 development dependency cost is justified by making accessibility behavior and examples of the
 public interaction surface part of release evidence.
+
+## 2026-09-15
+
+Reloads were needlessly presenting the dashboard's Sign in control even while an Auth0 session
+could have restored the viewer without interaction. The OIDC manager already keeps access and
+rotated refresh tokens in memory and can perform standards-based `prompt=none` authentication, but
+the gate invoked that mechanism only to renew a loaded user before expiry. It now makes one silent
+attempt after a memory-only reload, then leaves an unavailable or interaction-required provider
+session at the ordinary Sign in control. This preserves the deliberate no-token-persistence/XSS
+boundary while recovering the expected SSO experience where the provider cookie is available.
+
+Browser privacy controls can still prevent a cross-site provider cookie from being used, so a visible
+Sign in control remains a normal and necessary fallback.
+
+Follow-up review considered replacing the small startup effect with
+`react-oidc-context`'s `useAutoSignin`. That hook intentionally supports only redirect and popup
+flows; its public types reject `signinSilent`, and its runtime default for an unrecognized method is
+a full redirect. The generic `oidc-client-ts` manager remains responsible for the refresh-token and
+iframe protocol mechanics, while this narrow boundary retains the one application policy the React
+wrapper does not expose: attempt a silent session restoration once after reload. No new dependency
+or unsafe type escape was justified.
+
+Test miss, 2026-09-15: the existing OIDC client tests mocked the authentication context, and the
+Auth0 functional runner used a trusted Password grant to test server-side API admission. Neither
+loaded an authenticated Auth0 browser session and then reloaded the real dashboard, so they could
+not reveal that the in-memory OIDC user was never replaced with an initial silent request. The new
+component test proves the dashboard's no-user decision invokes `signinSilent`, but it cannot prove
+the provider cookie, hidden iframe, callback, and PKCE exchange in a browser. A future browser
+acceptance case against the configured Auth0 tenant should sign in through Universal Login, reload,
+and assert that the board returns without a visible interaction; its complementary no-session case
+should assert the Sign in control remains available.

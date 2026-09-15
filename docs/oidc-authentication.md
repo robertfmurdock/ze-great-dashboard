@@ -88,7 +88,10 @@ token for this API, not only on an ID token or userinfo response.
 ## Operational behavior
 
 The callback and logout return to `/`. Tokens and rotated refresh tokens are held in browser memory
-only, so refreshing the page requires sign-in again.
+only. After a reload, the browser first attempts a silent OIDC sign-in using the provider session;
+when the session is present this restores the dashboard without a visible prompt. If the provider
+requires interaction, has expired the session, or browser privacy controls block the provider
+cookie, the dashboard shows its ordinary Sign in control. No token is persisted in browser storage.
 
 Provider discovery is checked at server startup; unavailable or malformed discovery prevents
 startup. The verifier refreshes remote JWKS when it encounters an unfamiliar key ID, supporting

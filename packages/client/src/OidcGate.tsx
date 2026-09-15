@@ -1,6 +1,6 @@
 import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { AuthProvider, useAuth } from 'react-oidc-context'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AuthProvider, hasAuthParams, useAuth } from 'react-oidc-context'
 import styles from './AuthBoundary.module.css'
 import { createOidcManager } from './oidc-manager.ts'
 
@@ -35,10 +35,25 @@ function AuthScreen({
 }) {
   const auth = useAuth()
   const [denied, setDenied] = useState(false)
+  const attemptedSilentSignIn = useRef(false)
   const deny = useCallback(() => setDenied(true), [])
   useEffect(() => {
     if (!auth.isAuthenticated) setDenied(false)
   }, [auth.isAuthenticated])
+  useEffect(() => {
+    if (
+      attemptedSilentSignIn.current ||
+      auth.isLoading ||
+      auth.isAuthenticated ||
+      auth.activeNavigator ||
+      hasAuthParams()
+    )
+      return
+    attemptedSilentSignIn.current = true
+    // A provider session can re-establish this tab after a reload without retaining a bearer or
+    // refresh token in browser storage. `login_required` is the ordinary no-session outcome.
+    void auth.signinSilent()
+  }, [auth])
   if (auth.isLoading)
     return (
       <main className={styles.auth} aria-live="polite">
