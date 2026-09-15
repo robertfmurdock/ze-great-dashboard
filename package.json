@@ -67,11 +67,11 @@
     "@playwright/test": "^1.63.0",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.0",
     "concurrently": "^10.0.5",
     "npm-check-updates": "23.1.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,
