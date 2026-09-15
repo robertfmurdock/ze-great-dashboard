@@ -13,6 +13,8 @@ Detailed dated slices are recorded in [the Stage 4 HTTP value log](logs/stage4-h
 the earlier [Stage 2 GitHub Actions log](logs/stage2-github-actions-log.md), and the [dashboard
 package and deployment log](logs/dashboard-package-log.md). The current layout-resolution decisions
 and verification are recorded in the [layout resolution log](logs/layout-resolution-log.md).
+The current distinction between implementation and 1.0 readiness is recorded in the
+[1.0-readiness log](logs/1.0-readiness-log.md).
 
 ## Product principles
 
@@ -74,6 +76,8 @@ locally. The current implementation includes:
 - A bounded panel endpoint; the browser supplies a board and panel id, never an arbitrary URL.
 - GitHub Actions `pipeline-status` panels with normalized status, source links, timestamps, cache
   validator forwarding, and explicit upstream error envelopes.
+- GitLab CI `pipeline-status` panels with the same bounded server contract, including GitLab.com
+  and configured self-managed instances.
 - Azure DevOps `pipeline-status` panels with the same bounded server contract. This remains an
   incubating adapter until it is validated against redacted read-scoped fixtures.
 - Independent client polling with panel/board/default refresh precedence, adaptive active-run
@@ -118,6 +122,33 @@ npm connectivity and publish validation in dry-run mode. They do not publish cli
 references, npm packages, Docker images, or Git tags. The workflow keeps this as one release
 version source and gates only the externally visible boundary, so stable releases follow the same
 shared path. Other prerelease conventions are not part of the release contract.
+
+## Current gaps and next evidence
+
+The next integration milestone is to de-incubate all three CI adapters. For each provider, capture
+and redact representative real responses, replay them through the normal bounded panel route, and
+change support wording only when the full [1.0 integration contract](./1.0-commitment.md#product-and-integrations)
+is evidenced. A live functional experiment can complement that evidence, but cannot replace a
+replayable corpus.
+
+| Integration | Evidence now | Evidence still needed before 1.0 support |
+| --- | --- | --- |
+| GitHub Actions | Redacted real captures cover completed success, failure, cancelled, and in-progress lifecycle outcomes; controlled route tests cover cache and error handling. | Add redacted real-response evidence for unknown/no-run, unauthorized, and upstream-failure outcomes. |
+| GitLab CI | Controlled contract coverage plus one real self-managed GitLab CE success experiment through the bounded panel route. | Add a redacted replayable fixture corpus and non-happy-path evidence, including running, unknown, unauthorized, and upstream-error outcomes. |
+| Azure DevOps | A local read-scoped PAT verified the happy path; controlled-response tests cover Build List and Timeline behavior. The adapter remains incubating. | Capture legitimate, redacted Build List and Timeline responses for lifecycle and error variants, then replay them through the normal route before de-incubation. |
+
+Other 1.0 evidence gaps follow in priority order:
+
+1. Persistent verified AWS ECS evidence, including the required operational lifecycle, alongside the
+   existing Lambda reference path.
+2. Documented and verified Cloud Run and Cloud Functions paths, each with a live reference
+   deployment.
+3. The remote extension/widget trust contract and independently hosted examples required by the
+   extension commitment.
+4. Browser accessibility and resilience evidence across representative boards and every supported
+   panel state.
+5. A clearly fast local feedback tier if the 21-second unified gate becomes a workflow problem;
+   `npm run check` remains the release gate.
 
 ## Development workflow log
 
