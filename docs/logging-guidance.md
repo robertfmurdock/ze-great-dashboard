@@ -41,10 +41,13 @@ miss; it is a contract change and should explain the decision instead.
 When debugging reveals a production or release-relevant defect, stop once its causal fix is known
 and ask before returning to the original task:
 
-1. What existing test passed while this defect existed?
-2. Which meaningful interface or execution boundary did that test fail to exercise?
-3. Does the correction now exercise that boundary?
-4. If so, append the test-miss record now, before the rest of the debugging work makes the gap easy
+1. Before changing production code, can the smallest realistic test reproduce the known-bad behavior
+   on the prior implementation? Run it red. If not, record the unavailable interface or environment
+   and the closest representative evidence before selecting a correction.
+2. What existing test passed while this defect existed?
+3. Which meaningful interface or execution boundary did that test fail to exercise?
+4. Does the correction now exercise that boundary? Run the reproduction green with the correction.
+5. If so, append the test-miss record now, before the rest of the debugging work makes the gap easy
    to misclassify as a routine fix.
 
 This is not a requirement to log every bug. It is a guard against treating a discovered evidence

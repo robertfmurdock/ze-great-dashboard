@@ -37,6 +37,15 @@ fast-check budget on distinct real interfaces and failure modes, not duplicated 
 assertions, source-text checks, or coverage targets. When an update exposes a regression, add the
 smallest meaningful real-interface regression test that catches that class of breakage next time.
 
+**A test miss starts with reproduction, before a fix.** When a production or release-relevant
+defect exposes an evidence gap and a fix is being planned, first add or adapt the smallest realistic
+test that demonstrates the observed bad behavior on the prior implementation. Run it red before
+changing production code, then run it green with the correction. Use the closest meaningful
+interface—not a mock that merely mirrors the intended implementation. If reproducing the condition
+is not reasonably possible (for example, a real provider session or browser privacy policy), record
+that boundary and the nearest representative evidence before choosing the fix. A test that only
+looks plausible but still passes on the known-bad implementation is not regression evidence.
+
 Use relevant focused checks while iterating to get feedback quickly, but every commit must still run
 the unified `npm run check` gate so unrelated effects cannot evade release evidence.
 
