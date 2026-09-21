@@ -64,3 +64,40 @@ the provider cookie, hidden iframe, callback, and PKCE exchange in a browser. A 
 acceptance case against the configured Auth0 tenant should sign in through Universal Login, reload,
 and assert that the board returns without a visible interaction; its complementary no-session case
 should assert the Sign in control remains available.
+
+## 2026-09-21 — Auth0 browser reload investigation report
+
+This work began with a proposed fix—replace reload-time `signinSilent()` with a top-level
+`prompt=none` redirect—but the investigation established that the real browser condition had to be
+reproduced before that change could be accepted. The earlier client mocks and Password-grant API
+test did not exercise a provider browser cookie, hidden iframe, redirect callback, PKCE state, or
+the real server's authenticated board route. They were useful narrow checks, but not release
+evidence for browser-session restoration.
+
+The Auth0 tenant could not host an additional dedicated SPA because its Free-plan application limit
+had already been reached. Instead, the existing Coupling SPA received the narrowly scoped local
+callback and logout URL `http://host.docker.internal:3010/` and web origin
+`http://host.docker.internal:3010`; its existing test user was granted the dashboard API audience
+and `read:dashboard` scope. This reuses an existing public client rather than introducing hosted
+infrastructure. No browser state was written to AWS: a one-time interactive sign-in produced a
+mode-0600 local Playwright storage-state file, containing the Auth0 session cookie, for diagnosis.
+
+A branch, `auth0-browser-reload-evidence`, contains the in-progress acceptance harness and client
+experiment. It builds the immutable client, serves a minimal authenticated board through the real
+server, loads that local state into Docker Chromium with third-party-cookie phaseout enabled, and
+requires protected board content plus successful API responses. Building it exposed several
+important harness mismatches: generated boards require the normal schema modeline; the Compose
+browser requires the pinned Playwright version; results must go to a writable container directory
+rather than the read-only source mount; and cleanup must remove the named test container rather
+than only signal its Docker client. Those corrections make execution representative; they do not
+make a product claim.
+
+After those corrections, the old hidden-iframe `signinSilent()` behavior was demonstrably red: the
+seeded session did not restore the protected board under the privacy restriction. This is the first
+real reproduction of the issue. The top-level `prompt=none` experiment did not make the same case
+green: it rendered the restoring state but did not navigate to Auth0 during the observed test
+window. Therefore no Auth0 session seed should be stored in SSM as release evidence, and no
+redirect replacement should be presented as a fix. The next work must diagnose that pending
+redirect, then run the same real acceptance case green. The central lesson is procedural as well as
+technical: reproduce the real boundary first, and let that evidence select the fix instead of
+assuming a plausible protocol explanation is sufficient.
