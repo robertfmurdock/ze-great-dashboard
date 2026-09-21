@@ -9,7 +9,7 @@ const auth0 =
     : await resolveAuth0FunctionalEnvironment()
 const sensitiveValues = auth0.available ? [...auth0.credentials.secretValues] : []
 const tokens = auth0.available ? await requestAuth0Tokens(auth0.credentials) : undefined
-if (tokens) sensitiveValues.push(tokens.allowedToken, tokens.unlistedToken)
+if (tokens) sensitiveValues.push(tokens.allowedToken.accessToken, tokens.unlistedToken.accessToken)
 
 const fixtures = await startEndpointFixtures(tokens?.allowedToken)
 const container = createEndpointContainer({ assetOrigin: fixtures.assetOrigin, sensitiveValues })

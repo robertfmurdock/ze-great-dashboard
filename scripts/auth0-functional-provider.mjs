@@ -25,7 +25,12 @@ async function passwordToken(label, user, credentials) {
   if (!response.ok)
     throw new Error(`Auth0 ${label} token request failed with status ${response.status}.`)
   const json = await response.json()
-  if (typeof json.access_token !== 'string')
+  if (typeof json.access_token !== 'string' || typeof json.expires_in !== 'number')
     throw new Error('Auth0 did not return a user access token.')
-  return json.access_token
+  return {
+    accessToken: json.access_token,
+    expiresAt: Math.floor(Date.now() / 1000) + json.expires_in,
+    scope: typeof json.scope === 'string' ? json.scope : 'openid profile read:dashboard',
+    tokenType: typeof json.token_type === 'string' ? json.token_type : 'Bearer',
+  }
 }

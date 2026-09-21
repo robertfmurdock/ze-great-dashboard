@@ -16,6 +16,8 @@ export const auth0CredentialNames = [
 export const auth0Endpoint = {
   domain: 'zegreatrob.us.auth0.com',
   audience: 'ze-great-dashboard-test-api',
+  // Public SPA identifier: it is browser configuration, never a functional-test secret.
+  browserSpaClientId: 'syFqMSv0SmShh0tepv0WKJ50EoxgSr1t',
   connection: 'Username-Password-Authentication',
   testRunnerClientId: 'HdfdNR0ac5lxII2G3gbM9tTnkxexYtog',
   allowedLogin: 'ze-great-dashboard-test@continuousexcellence.io',

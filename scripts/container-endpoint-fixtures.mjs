@@ -40,7 +40,7 @@ export async function startEndpointFixtures(allowedToken) {
 export async function exercisePackagedServer(origin, fixtures, tokens) {
   equal((await fetch(`${origin}/health`)).status, 200, 'health endpoint')
   equal((await fetch(`${origin}/boards/${auth0Endpoint.board}`)).status, 200, 'rendered entrypoint')
-  const request = tokens ? bearer(tokens.allowedToken) : undefined
+  const request = tokens ? bearer(tokens.allowedToken.accessToken) : undefined
   if (tokens)
     equal((await fetch(`${origin}/api/boards/${auth0Endpoint.board}`)).status, 401, 'missing token')
   const board = await fetch(`${origin}/api/boards/${auth0Endpoint.board}`, request)
@@ -54,14 +54,22 @@ export async function exercisePackagedServer(origin, fixtures, tokens) {
   equal(fixtures.upstreamReads(), 1, 'allowed upstream reads')
   if (!tokens) return
   equal(
-    (await fetch(`${origin}/api/boards/${auth0Endpoint.board}`, bearer(tokens.unlistedToken)))
-      .status,
+    (
+      await fetch(
+        `${origin}/api/boards/${auth0Endpoint.board}`,
+        bearer(tokens.unlistedToken.accessToken),
+      )
+    ).status,
     403,
     'unlisted board',
   )
   equal(
-    (await fetch(`${origin}/api/panel/${auth0Endpoint.board}/value`, bearer(tokens.unlistedToken)))
-      .status,
+    (
+      await fetch(
+        `${origin}/api/panel/${auth0Endpoint.board}/value`,
+        bearer(tokens.unlistedToken.accessToken),
+      )
+    ).status,
     403,
     'unlisted panel',
   )
@@ -70,6 +78,8 @@ export async function exercisePackagedServer(origin, fixtures, tokens) {
 
 function tokenSubject(token) {
   try {
+    if (typeof token === 'object' && token !== null && 'accessToken' in token)
+      token = token.accessToken
     const subject = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')).sub
     if (typeof subject === 'string' && subject) return subject
   } catch {}

@@ -101,3 +101,25 @@ redirect replacement should be presented as a fix. The next work must diagnose t
 redirect, then run the same real acceptance case green. The central lesson is procedural as well as
 technical: reproduce the real boundary first, and let that evidence select the fix instead of
 assuming a plausible protocol explanation is sufficient.
+
+## 2026-09-21 — token-seeded browser admission acceptance
+
+The Auth0 functional check now adds a deliberately narrower browser slice: it obtains a fresh
+allowed-user API token through the confidential runner's Password grant, but uses the existing
+public SPA client ID in the browser-facing board configuration. The real packaged dashboard server
+verifies that bearer through Auth0 discovery and JWKS, and a one-panel `pipeline-animation-demo`
+board proves that the authenticated entrypoint, client gate, and protected board route all compose.
+The demo is intentional: this is evidence for post-login admission, not for a source adapter or
+an upstream signal.
+
+Playwright supplies the bearer and expiry metadata through a pre-module global. The OIDC manager
+consumes it once into the same private in-memory user store used by ordinary sign-in, then deletes
+the global immediately. It does not write a token to browser storage, `window.env`, URLs, server
+configuration, response bodies, fixture files, or logs. The runner passes the value only to its
+Playwright child and redacts it from packaged-server diagnostics. No bootstrap means the normal
+silent-sign-in and visible Sign in path is unchanged.
+
+This test is intentionally trusted-main-only. PRs and normal credential-less runs explicitly skip
+the live slice while retaining the ordinary browser suite; on trusted main, credential discovery,
+malformed credentials, and token-mint failures remain fatal. The existing standalone endpoint
+container runner remains independent so server-only evidence can run without a built client.
