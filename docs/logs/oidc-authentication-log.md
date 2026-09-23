@@ -123,3 +123,25 @@ This test is intentionally trusted-main-only. PRs and normal credential-less run
 the live slice while retaining the ordinary browser suite; on trusted main, credential discovery,
 malformed credentials, and token-mint failures remain fatal. The existing standalone endpoint
 container runner remains independent so server-only evidence can run without a built client.
+
+## 2026-09-22 — browser fixture network test miss
+
+The first two trusted-main runs of the token-seeded browser acceptance test failed before the
+dashboard or Auth0 boundary was exercised: the temporary packaged-dashboard container published
+its port on host loopback, while the remote Playwright browser navigated through
+`host.docker.internal`. Docker's host gateway cannot reach that loopback-only listener on the
+GitHub Linux runner, producing `ERR_CONNECTION_REFUSED`.
+
+The ordinary browser suite and the standalone packaged-server endpoint check both passed because
+neither exercised this exact browser-container-to-fixture-container route. The release-relevant
+evidence gap is therefore the fixture topology, not Auth0 admission behavior. The correction puts
+the packaged dashboard on the isolated Playwright Compose network under the stable service name
+`local.ze-great-dashboard.test`; the browser reaches that alias directly, without a published
+fixture port or host-gateway routing. This machine cannot obtain the trusted Auth0 runner
+credentials, so the pre-change red evidence is the two CI failures and green confirmation remains
+the next trusted-main run.
+
+Later in the repair session, a freshly authenticated AWS SSO session ran the live test green through
+the Docker alias. A second invocation could not re-assume the reader role and therefore skipped the
+live case, which is an environment-credential availability fluctuation rather than test evidence;
+the trusted-main run remains the durable confirmation.

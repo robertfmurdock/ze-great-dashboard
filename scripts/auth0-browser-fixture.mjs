@@ -7,9 +7,10 @@ import { fileURLToPath } from 'node:url'
 import { auth0Endpoint } from './auth0-functional-config.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const browserFixtureHostname = 'local.ze-great-dashboard.test'
 
 /** Starts an ephemeral immutable-client host and the real packaged server for browser admission. */
-export async function startAuth0BrowserFixture(sensitiveValues) {
+export async function startAuth0BrowserFixture({ sensitiveValues, network }) {
   const assets = await startAssets()
   const image = `ze-great-dashboard:auth0-browser-${process.pid}`
   const name = `ze-great-dashboard-auth0-browser-${process.pid}`
@@ -17,15 +18,16 @@ export async function startAuth0BrowserFixture(sensitiveValues) {
 
   try {
     await docker(['build', '--tag', image, '--build-arg', 'ASSET_PATH=unused', '.'])
-    const containerId = await docker([
+    const runArgs = [
       'run',
       '--detach',
       '--name',
       name,
-      '--publish',
-      '127.0.0.1::3000',
       '--add-host',
       'host.docker.internal:host-gateway',
+      ...(network
+        ? ['--network', network, '--network-alias', browserFixtureHostname]
+        : ['--publish', '127.0.0.1::3000']),
       '--env',
       `ASSET_PATH=${assets.dockerOrigin}/__ASSET_PATH__`,
       '--env',
@@ -41,14 +43,15 @@ export async function startAuth0BrowserFixture(sensitiveValues) {
       '--env',
       'TEMPLATE_WAIT_MS=20000',
       image,
-    ])
+    ]
+    const containerId = await docker(runArgs)
     containerStarted = true
-    const port = await docker(['port', containerId.trim(), '3000'])
-    const match = /(?:127\.0\.0\.1|0\.0\.0\.0|\[::1\]):(\d+)\s*$/.exec(port)
-    if (!match) throw new Error('Docker did not report the Auth0 browser server port.')
-    await waitForServer(`http://127.0.0.1:${match[1]}/health`, name, sensitiveValues)
+    const browserOrigin = network
+      ? `http://${browserFixtureHostname}:3000`
+      : await publishedOrigin(containerId.trim(), name, sensitiveValues)
+    if (network) await waitForHealthyContainer(name, sensitiveValues)
     return {
-      browserOrigin: `http://host.docker.internal:${match[1]}`,
+      browserOrigin,
       close: async () => {
         await docker(['rm', '--force', name], sensitiveValues, true)
         await docker(['image', 'rm', image], sensitiveValues, true)
@@ -61,6 +64,29 @@ export async function startAuth0BrowserFixture(sensitiveValues) {
     await assets.close()
     throw error
   }
+}
+
+async function publishedOrigin(containerId, container, sensitiveValues) {
+  const port = await docker(['port', containerId, '3000'])
+  const match = /(?:127\.0\.0\.1|0\.0\.0\.0|\[::1\]):(\d+)\s*$/.exec(port)
+  if (!match) throw new Error('Docker did not report the Auth0 browser server port.')
+  const origin = `http://127.0.0.1:${match[1]}`
+  await waitForServer(`${origin}/health`, container, sensitiveValues)
+  return origin
+}
+
+async function waitForHealthyContainer(container, sensitiveValues) {
+  // The image healthcheck runs every ten seconds; allow one complete interval after the server
+  // finishes loading its immutable template.
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (
+      (await docker(['inspect', '--format', '{{.State.Health.Status}}', container])) === 'healthy'
+    )
+      return
+    await new Promise((resolveWait) => setTimeout(resolveWait, 250))
+  }
+  const logs = await docker(['logs', container], sensitiveValues, true)
+  throw new Error(`Auth0 browser server did not become healthy.${logs ? `\n${logs}` : ''}`)
 }
 
 async function waitForServer(url, container, sensitiveValues) {

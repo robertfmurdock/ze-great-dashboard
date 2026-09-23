@@ -17,7 +17,9 @@ const playwrightArguments = process.argv.slice(2).filter((argument) => argument 
 const checkResultsDirectory = process.env.CHECK_RESULTS_DIR
 const playwrightVersion = require('@playwright/test/package.json').version
 const dockerBrowserOrigin = 'http://host.docker.internal:4173'
-const composeArgs = ['compose', '-f', 'compose.playwright.yml']
+const composeProject = `ze-great-dashboard-browser-${process.pid}`
+const composeNetwork = `${composeProject}_default`
+const composeArgs = ['compose', '--project-name', composeProject, '-f', 'compose.playwright.yml']
 const npmCli = process.env.npm_execpath
 const npmCommand = npmCli ? process.execPath : 'npm'
 // The standalone command builds; the aggregate test command opts into reuse after test:unit.
@@ -160,7 +162,10 @@ try {
   }
 
   if (exitCode === 0 && auth0Bootstrap) {
-    auth0Fixture = await startAuth0BrowserFixture(sensitiveValues)
+    auth0Fixture = await startAuth0BrowserFixture({
+      sensitiveValues,
+      network: useDocker ? composeNetwork : undefined,
+    })
     testEnvironment = {
       ...testEnvironment,
       PW_AUTH0_BROWSER_ORIGIN: auth0Fixture.browserOrigin,
