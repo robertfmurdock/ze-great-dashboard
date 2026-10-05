@@ -1,0 +1,15 @@
+{
+  "name": "testmints-agent-comprehension-task",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit && vitest run",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@continuous-excellence/testmints-js": "0.0.1",
+    "hono": "4.13.13",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

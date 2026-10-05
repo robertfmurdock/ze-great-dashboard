@@ -21,4 +21,8 @@ release-build.tgz
 # Disposable state for the local GitLab CI adapter compatibility experiment.
 experiments/gitlab-ci-functional/.state/
 
+# Generated, single-condition workspaces and coordinator outcomes for the Testmints evaluation.
+experiments/testmints-agent-comprehension/.workspaces/
+experiments/testmints-agent-comprehension/results/
+
 .DS_Store

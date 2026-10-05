@@ -39,6 +39,7 @@
     "test:installed": "node scripts/test-installed-package.mjs",
     "test:browser": "node scripts/test-browser.mjs",
     "test:browser:no-build": "node scripts/test-browser.mjs --no-build",
+    "test:experiment:testmints": "node experiments/testmints-agent-comprehension/create-task.mjs --help",
     "test:watch": "vitest",
     "test:endpoint": "node scripts/auth0-endpoint.mjs",
     "capture:readme": "node scripts/capture-readme-demo.mjs",
@@ -64,6 +65,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
     "@continuous-excellence/tagger": "3.6.22",
+    "@continuous-excellence/testmints-js": "0.0.1",
     "@playwright/test": "^1.63.0",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
