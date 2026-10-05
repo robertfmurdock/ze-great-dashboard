@@ -16,8 +16,12 @@ import {
 } from './panel-diagnostics.ts'
 import { BrowserPanelMemory, resolvePanelMemoryIdentity } from './panel-memory.ts'
 import { readPanelObservation } from './panel-observation.ts'
-import type { HttpValueFactObservation, PanelUpdateHealth } from './panel-props.ts'
-import { reconcilePipelineResponse } from './pipeline-reconciliation.ts'
+import type {
+  HttpValueFactObservation,
+  PanelUpdateHealth,
+  RejectedPipelinePresentation,
+} from './panel-props.ts'
+import { applyPipelinePresentation, reconcilePipelineResponse } from './pipeline-reconciliation.ts'
 import {
   initialPollingSchedule,
   panelProxyPath,
@@ -48,6 +52,9 @@ export function usePanelSignals({
     Record<string, Record<string, HttpValueFactObservation | undefined> | undefined>
   >({})
   const [schedules, setSchedules] = useState<PollingScheduleSnapshot[]>([])
+  const [rejectedPipelines, setRejectedPipelines] = useState<
+    Record<string, RejectedPipelinePresentation | undefined>
+  >({})
   const signalsRef = useRef<Record<string, Envelope | undefined>>({})
   const factSignalsRef = useRef<
     Record<string, Record<string, HttpValueFactObservation | undefined> | undefined>
@@ -62,6 +69,7 @@ export function usePanelSignals({
     setUpdateHealth({})
     setFactSignals({})
     setSchedules([])
+    setRejectedPipelines({})
     if (!board) return
 
     let cancelled = false
@@ -370,10 +378,32 @@ export function usePanelSignals({
                     cacheControl: result.cache?.cacheControl,
                   },
                 })
+                const presentation = applyPipelinePresentation({
+                  current: signalsRef.current[panel.id],
+                  reconciliation,
+                  accepted,
+                })
+                if (!cancelled)
+                  setRejectedPipelines((current) => ({
+                    ...current,
+                    [panel.id]: presentation.rejected,
+                  }))
                 return
               }
               if (reconciliation.kind === 'accepted') {
                 envelope = reconciliation.envelope
+                const presentation = applyPipelinePresentation({
+                  current: signalsRef.current[panel.id],
+                  reconciliation,
+                  accepted,
+                })
+                if (!cancelled && presentation.rejected === undefined)
+                  setRejectedPipelines((current) => {
+                    if (!current[panel.id]) return current
+                    const next = { ...current }
+                    delete next[panel.id]
+                    return next
+                  })
                 if (reconciliation.accepted)
                   memory.rememberLatest(identity, reconciliation.accepted)
                 if (reconciliation.durationSample) {
@@ -442,7 +472,7 @@ export function usePanelSignals({
     }
   }, [auth, board, diagnostics, env])
 
-  return { signals, updateHealth, factSignals, schedules }
+  return { signals, updateHealth, factSignals, schedules, rejectedPipelines }
 }
 
 function failedObservation(envelope: Extract<Envelope, { state: 'error' }>, response: Response) {

@@ -54,6 +54,7 @@ const runSchema = z.object({
   // Timestamp quality should only remove timing advice, never make an otherwise useful run unreadable.
   run_started_at: z.string().nullable().optional(),
   updated_at: z.string().optional(),
+  created_at: z.string().optional(),
 })
 
 const runsSchema = z.object({ workflow_runs: z.array(runSchema) })
@@ -305,12 +306,14 @@ function githubRunsCall(
   branch?: string,
   event?: string,
   perPage = 1,
+  created?: string,
 ): PermittedCall {
   const url = new URL(
     `https://api.github.com/repos/${source.repo}/actions/workflows/${encodeURIComponent(workflow)}/runs`,
   )
   if (branch) url.searchParams.set('branch', branch)
   if (event) url.searchParams.set('event', event)
+  if (created) url.searchParams.set('created', `>=${created}`)
   url.searchParams.set('per_page', String(perPage))
   return { url: url.toString(), headers: new Headers() }
 }
@@ -342,17 +345,46 @@ export async function fetchGithubActionsPipeline(args: {
   credentials?: CredentialResolver
 }): Promise<AdapterResult> {
   const parsedSource = githubActionsSourceSchema.parse(args.source)
-  const call = permittedGithubActionsCalls(args.panel, args.source)[0]
-  if (!call) throw new Error('GitHub Actions adapter declared no permitted call')
+  const parsedPanel = pipelinePanelSchema.parse(args.panel)
+  const githubClient = githubClientFor(args)
+  const recentCall = githubRunsCall(
+    parsedSource,
+    parsedPanel.pipeline,
+    parsedSource.branch,
+    undefined,
+    100,
+    recentRunsCreatedAt(),
+  )
 
   let upstream: Response
+  let runs: z.infer<typeof runSchema>[]
   try {
-    upstream = await githubFetch(call, {
+    upstream = await githubFetch(recentCall, {
       requestHeaders: args.requestHeaders,
       fetcher: args.fetcher,
       source: parsedSource,
-      githubClient: githubClientFor(args),
+      githubClient,
     })
+    if (upstream.status === 304) return { response: upstream }
+    if (!upstream.ok) return githubPipelineFailure(args, upstream)
+
+    runs = runsSchema.parse(await upstream.json()).workflow_runs
+    // GitHub's created filter mitigates a known stale-listing behavior. A dormant repository
+    // still needs its latest historical run, so only an empty bounded page falls back.
+    if (runs.length === 0) {
+      upstream = await githubFetch(
+        githubRunsCall(parsedSource, parsedPanel.pipeline, parsedSource.branch),
+        {
+          requestHeaders: args.requestHeaders,
+          fetcher: args.fetcher,
+          source: parsedSource,
+          githubClient,
+        },
+      )
+      if (upstream.status === 304) return { response: upstream }
+      if (!upstream.ok) return githubPipelineFailure(args, upstream)
+      runs = runsSchema.parse(await upstream.json()).workflow_runs
+    }
   } catch (error) {
     return {
       response: new Response(
@@ -373,28 +405,8 @@ export async function fetchGithubActionsPipeline(args: {
     }
   }
 
-  if (upstream.status === 304) return { response: upstream }
-  if (!upstream.ok) {
-    return {
-      response: new Response(
-        JSON.stringify(
-          errorEnvelope(
-            args.panel.id,
-            errorKind(upstream.status),
-            `${upstream.status} ${upstream.statusText}`,
-            sourceLink(args.panel, args.source),
-            observedAt(upstream.headers.get('date')),
-          ),
-        ),
-        { status: 200 },
-      ),
-      failure: { kind: errorKind(upstream.status), upstreamStatus: upstream.status },
-    }
-  }
-
   try {
-    const runs = runsSchema.parse(await upstream.json()).workflow_runs
-    const run = runs[0]
+    const run = newestGithubRun(runs)
     if (!run) {
       return {
         response: new Response(
@@ -462,6 +474,43 @@ export async function fetchGithubActionsPipeline(args: {
       failure: { kind: 'upstream-error', upstreamStatus: upstream.status },
     }
   }
+}
+
+function githubPipelineFailure(
+  args: { panel: Panel; source: Source },
+  upstream: Response,
+): AdapterResult {
+  return {
+    response: new Response(
+      JSON.stringify(
+        errorEnvelope(
+          args.panel.id,
+          errorKind(upstream.status),
+          `${upstream.status} ${upstream.statusText}`,
+          sourceLink(args.panel, args.source),
+          observedAt(upstream.headers.get('date')),
+        ),
+      ),
+      { status: 200 },
+    ),
+    failure: { kind: errorKind(upstream.status), upstreamStatus: upstream.status },
+  }
+}
+
+function recentRunsCreatedAt(now = new Date()) {
+  return new Date(now.valueOf() - 30 * 24 * 60 * 60 * 1_000).toISOString()
+}
+
+function newestGithubRun(runs: z.infer<typeof runSchema>[]) {
+  return runs.reduce<z.infer<typeof runSchema> | undefined>((newest, candidate) => {
+    if (!newest) return candidate
+    const candidateCreatedAt = Date.parse(candidate.created_at ?? '')
+    const newestCreatedAt = Date.parse(newest.created_at ?? '')
+    if (candidateCreatedAt > newestCreatedAt) return candidate
+    if (candidateCreatedAt < newestCreatedAt) return newest
+    // Equal timestamps are uncommon, but a stable id makes unordered API results deterministic.
+    return (candidate.id ?? 0) > (newest.id ?? 0) ? candidate : newest
+  }, undefined)
 }
 
 async function activeGithubActivity(args: {

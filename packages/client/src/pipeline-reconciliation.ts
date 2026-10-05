@@ -1,6 +1,7 @@
 import type { Envelope, PipelineStatus } from '@ze-great-dashboard/shared/browser'
 import { pipelineStatusSchema } from '@ze-great-dashboard/shared/browser'
 import type { AcceptedPipeline } from './panel-memory.ts'
+import type { RejectedPipelinePresentation } from './panel-props.ts'
 
 export type PipelineDurationSample = {
   link: string | null
@@ -23,6 +24,35 @@ export type PipelineReconciliation =
       accepted?: AcceptedPipeline
       durationSample?: PipelineDurationSample
     }
+
+/** The client display state after applying a newly observed pipeline response. */
+export type PipelinePresentation = {
+  envelope: Envelope | undefined
+  rejected?: RejectedPipelinePresentation
+}
+
+/**
+ * Preserve a current envelope on rejection, or make persisted accepted evidence readable when
+ * there is no envelope after a reload. An accepted result always ends the historical disclosure.
+ */
+export function applyPipelinePresentation(args: {
+  current: Envelope | undefined
+  reconciliation: PipelineReconciliation
+  accepted?: AcceptedPipeline
+}): PipelinePresentation {
+  if (args.reconciliation.kind === 'rejected' && args.accepted) {
+    return {
+      envelope: args.current,
+      rejected: {
+        status: args.accepted.status,
+        sourceUpdatedAt: args.accepted.sourceUpdatedAt,
+        link: args.accepted.link,
+        github: isGithubLink(args.reconciliation.envelope.link),
+      },
+    }
+  }
+  return { envelope: args.reconciliation.envelope }
+}
 
 export function reconcilePipelineResponse(args: {
   envelope: Envelope
@@ -73,4 +103,13 @@ export function pipelineStatus(envelope: Envelope): PipelineStatus | undefined {
   if (envelope.state !== 'ok') return undefined
   const result = pipelineStatusSchema.safeParse(envelope.signal)
   return result.success ? result.data : undefined
+}
+
+function isGithubLink(link: string | null) {
+  if (!link) return false
+  try {
+    return new URL(link).hostname === 'github.com'
+  } catch {
+    return false
+  }
 }

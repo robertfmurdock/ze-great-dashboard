@@ -42,6 +42,10 @@ export function UpdateHealth({ health }: { health: PanelUpdateHealth }) {
   )
 }
 
+export function LastConfirmedAge({ value }: { value: string }) {
+  return <TimeAge value={value} label="Last confirmed" />
+}
+
 function TimeAge({ value, label }: { value: string; label: string }) {
   const observed = new Date(value)
   const formatted = observed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

@@ -101,6 +101,72 @@ describe('the GitHub Actions adapter', () => {
     )
   })
 
+  it('first requests up to 100 workflow runs created in the last 30 UTC days', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-31T12:00:00.000Z'))
+    const fetcher = upstream('success')
+
+    await fetchGithubActionsPipeline({
+      panel,
+      source: { ...source, branch: 'trunk' },
+      requestHeaders: new Headers(),
+      fetcher,
+    })
+
+    expect(vi.mocked(fetcher).mock.calls[0]?.[0]).toBe(
+      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?branch=trunk&created=%3E%3D2026-08-01T12%3A00%3A00.000Z&per_page=100',
+    )
+    vi.useRealTimers()
+  })
+
+  it('selects the newest created run when GitHub returns an unordered bounded page', async () => {
+    const run = (id: number, createdAt: string, conclusion: 'success' | 'failure') => ({
+      id,
+      status: 'completed',
+      conclusion,
+      name: 'Build',
+      html_url: `https://github.com/example-org/example-repo/actions/runs/${id}`,
+      created_at: createdAt,
+    })
+    const result = await fetchGithubActionsPipeline({
+      panel,
+      source,
+      requestHeaders: new Headers(),
+      fetcher: upstreamRuns([
+        run(1, '2026-08-17T10:00:00Z', 'success'),
+        run(3, '2026-08-17T12:00:00Z', 'failure'),
+        run(2, '2026-08-17T11:00:00Z', 'success'),
+      ]),
+    })
+
+    expect(result.envelope).toMatchObject({
+      link: 'https://github.com/example-org/example-repo/actions/runs/3',
+      signal: { status: 'failed', sourceRunId: '3' },
+    })
+  })
+
+  it('falls back once to the original unbounded lookup only when the recent window is empty', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ workflow_runs: [] })))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ workflow_runs: [fixture('success')] })),
+      ) as unknown as typeof fetch
+
+    const result = await fetchGithubActionsPipeline({
+      panel,
+      source,
+      requestHeaders: new Headers(),
+      fetcher,
+    })
+
+    expect(result.envelope).toMatchObject({ state: 'ok', signal: { status: 'passed' } })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(fetcher).mock.calls[1]?.[0]).toBe(
+      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?per_page=1',
+    )
+  })
+
   it('exposes the actual run branch when the source is not branch-filtered', async () => {
     const result = await fetchGithubActionsPipeline({
       panel,

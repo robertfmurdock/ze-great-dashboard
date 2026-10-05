@@ -3,6 +3,7 @@ import type { Board, ClientEnv, Envelope, PipelineStatus } from '@ze-great-dashb
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DiagnosticEventInput, DiagnosticSink } from '../src/diagnostics.ts'
+import { BrowserPanelMemory } from '../src/panel-memory.ts'
 import type { HttpValueFactObservation, PanelUpdateHealth } from '../src/panel-props.ts'
 import type { PollingScheduleSnapshot } from '../src/polling-schedule.ts'
 import { usePanelSignals } from '../src/usePanelSignals.ts'
@@ -55,6 +56,8 @@ function Probe({
   onUpdateHealth,
   onFactSignals,
   onSchedules,
+  onRejectedPipelines,
+  memory,
 }: {
   diagnostics: DiagnosticSink
   currentBoard?: Board
@@ -64,24 +67,27 @@ function Probe({
     facts: Record<string, Record<string, HttpValueFactObservation | undefined> | undefined>,
   ) => void
   onSchedules?: (schedules: PollingScheduleSnapshot[]) => void
+  onRejectedPipelines?: (value: ReturnType<typeof usePanelSignals>['rejectedPipelines']) => void
+  memory?: BrowserPanelMemory
 }) {
-  const result = usePanelSignals({ board: currentBoard, env, diagnostics })
+  const result = usePanelSignals({ board: currentBoard, env, diagnostics, memory })
   onSignals?.(result.signals)
   onUpdateHealth?.(result.updateHealth)
   onFactSignals?.(result.factSignals)
   onSchedules?.(result.schedules)
+  onRejectedPipelines?.(result.rejectedPipelines)
   return null
 }
 
 function envelope(
   status: PipelineStatus['status'] = 'passed',
-  options: { durationMs?: number; sourceUpdatedAt?: string } = {},
+  options: { durationMs?: number; sourceUpdatedAt?: string; link?: string } = {},
 ) {
   return JSON.stringify({
     panelId: 'build',
     state: 'ok',
     observedAt: '2026-08-21T12:00:00.000Z',
-    link: 'https://example.com/build',
+    link: options.link ?? 'https://example.com/build',
     signal: {
       type: 'pipeline-status',
       status,
@@ -314,6 +320,69 @@ describe('usePanelSignals', () => {
 
     expect(fetcher).toHaveBeenCalledTimes(3)
     expect(healthSnapshots.at(-1)?.build).toBeUndefined()
+  })
+
+  it('retains a persisted accepted result for presentation while GitHub returns an older one', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
+    const diagnostics = recordingSink()
+    const storage = new Map<string, string>()
+    const memory = new BrowserPanelMemory({
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, value) => storage.set(key, value),
+    })
+    memory.rememberLatest(
+      { board: env.board, panelId: 'build', source: '', workflow: '', branch: '' },
+      {
+        status: 'failed',
+        sourceUpdatedAt: '2026-08-28T11:30:00.000Z',
+        link: 'https://github.com/example/repo/actions/runs/2',
+      },
+    )
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          envelope('passed', {
+            sourceUpdatedAt: '2026-08-28T11:00:00.000Z',
+            link: 'https://github.com/example/repo/actions/runs/1',
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          envelope('passed', {
+            sourceUpdatedAt: '2026-08-28T11:45:00.000Z',
+            link: 'https://github.com/example/repo/actions/runs/3',
+          }),
+        ),
+      )
+    vi.stubGlobal('fetch', fetcher)
+    let latestSignals: Record<string, Envelope | undefined> = {}
+    let rejected: ReturnType<typeof usePanelSignals>['rejectedPipelines'] = {}
+
+    render(
+      <Probe
+        diagnostics={diagnostics}
+        memory={memory}
+        onSignals={(value) => (latestSignals = value)}
+        onRejectedPipelines={(value) => (rejected = value)}
+      />,
+    )
+    await act(async () => {})
+
+    expect(latestSignals.build).toBeUndefined()
+    expect(rejected.build).toEqual({
+      status: 'failed',
+      sourceUpdatedAt: '2026-08-28T11:30:00.000Z',
+      link: 'https://github.com/example/repo/actions/runs/2',
+      github: true,
+    })
+    expect(diagnostics.recordGithubConsistencyIncident).toHaveBeenCalledTimes(1)
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(latestSignals.build).toMatchObject({ signal: { status: 'passed' } })
+    expect(rejected.build).toBeUndefined()
   })
 
   it('cleans up polling and never overlaps a pending request', async () => {

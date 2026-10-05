@@ -62,7 +62,7 @@ function Dashboard({
     [accessToken, onDenied],
   )
   useClientUpdate({ env, diagnostics, auth })
-  const { signals, updateHealth, factSignals, schedules } = usePanelSignals({
+  const { signals, updateHealth, factSignals, schedules, rejectedPipelines } = usePanelSignals({
     board: loadedBoardName === env.board ? board : undefined,
     env,
     diagnostics,
@@ -183,6 +183,7 @@ function Dashboard({
               envelope={signals[panel.id]}
               attentionActive={activeAttentionPanels.has(panel.id)}
               updateHealth={updateHealth[panel.id]}
+              rejectedPipeline={rejectedPipelines[panel.id]}
               facts={factSignals[panel.id]}
             />
           ))}

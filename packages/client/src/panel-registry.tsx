@@ -22,6 +22,7 @@ export function PanelRenderer({
   envelope,
   attentionActive,
   updateHealth,
+  rejectedPipeline,
   facts,
 }: PanelRendererProps) {
   const Renderer = panelRenderers[panel.type as RenderablePanelType]
@@ -31,6 +32,7 @@ export function PanelRenderer({
       envelope={envelope}
       attentionActive={attentionActive}
       updateHealth={updateHealth}
+      rejectedPipeline={rejectedPipeline}
       facts={facts}
     />
   ) : (

@@ -132,6 +132,8 @@ export function PanelValue({
 export function PanelFrame({
   panel,
   envelope,
+  sourceLink,
+  busy,
   attentionActive = false,
   error = false,
   field,
@@ -140,6 +142,10 @@ export function PanelFrame({
 }: {
   panel: Panel
   envelope?: Envelope
+  /** Retained source evidence may supply a link without inventing an upstream envelope. */
+  sourceLink?: string | null
+  /** Override loading semantics for retained, readable evidence. */
+  busy?: boolean
   attentionActive?: boolean
   error?: boolean
   /** Decorative active-run layer. It is intentionally a sibling of readable panel content. */
@@ -158,7 +164,7 @@ export function PanelFrame({
       className={`${styles.panel} ${styles[`density-${density}`]} ${shallow ? styles.shallow : ''} ${short ? styles.short : ''} ${error ? styles.error : ''} ${attentionActive ? styles.attentionActive : ''}`}
       id={`panel-${panel.id}`}
       style={panelLayout(panel)}
-      aria-busy={envelope ? undefined : true}
+      aria-busy={busy === true ? true : envelope || busy === false ? undefined : true}
       data-panel
       data-panel-id={panel.id}
       data-panel-position={
@@ -172,7 +178,7 @@ export function PanelFrame({
       data-attention-active={attentionActive || undefined}
     >
       {field}
-      <PanelSourceLink panelId={panel.id} link={envelope?.link} />
+      <PanelSourceLink panelId={panel.id} link={envelope?.link ?? sourceLink} />
       <div
         className={`${styles.content} ${layout === 'status-band' ? styles.statusBand : ''}`}
         data-panel-content

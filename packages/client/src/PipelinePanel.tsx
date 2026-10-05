@@ -17,10 +17,18 @@ import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
 import { RunningFieldTiming } from './RunningFieldTiming.tsx'
 import { isLegacyRunningAnimation, RunningProgress } from './RunningProgress.tsx'
 import { useRunningTiming } from './running-timing.ts'
-import { PipelineAge, UpdateHealth } from './TimeAge.tsx'
+import { LastConfirmedAge, PipelineAge, UpdateHealth } from './TimeAge.tsx'
 import { visualSeed } from './visual-seed.ts'
 
-export function PipelinePanel({ panel, envelope, attentionActive, updateHealth }: PanelProps) {
+export function PipelinePanel({
+  panel,
+  envelope,
+  attentionActive,
+  updateHealth,
+  rejectedPipeline,
+}: PanelProps) {
+  if (!envelope && rejectedPipeline)
+    return <RejectedPipelinePanel panel={panel} rejected={rejectedPipeline} />
   if (!envelope)
     return (
       <PanelFrame panel={panel} attentionActive={attentionActive}>
@@ -75,6 +83,45 @@ export function PipelinePanel({ panel, envelope, attentionActive, updateHealth }
       updateHealth={updateHealth}
       attentionActive={attentionActive}
     />
+  )
+}
+
+function RejectedPipelinePanel({
+  panel,
+  rejected,
+}: {
+  panel: Panel
+  rejected: NonNullable<PanelProps['rejectedPipeline']>
+}) {
+  const presentation = statusPresentation(rejected.status)
+  return (
+    <PanelFrame panel={panel} sourceLink={rejected.link} busy={false} layout="status-band">
+      <div data-panel-anchor="status">
+        <PanelStatus
+          status={rejected.status}
+          glyph={presentation.glyph}
+          label={presentation.label}
+        />
+      </div>
+      <PanelEvidence className={styles.details} anchor="evidence">
+        <PanelHint>
+          {rejected.github ? 'GitHub' : 'The source'} returned an older result; checking again
+          {rejected.github && (
+            <>
+              {' · '}
+              <a
+                href="https://github.com/orgs/community/discussions/206725"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                GitHub API report
+              </a>
+            </>
+          )}
+        </PanelHint>
+        <LastConfirmedAge value={rejected.sourceUpdatedAt} />
+      </PanelEvidence>
+    </PanelFrame>
   )
 }
 

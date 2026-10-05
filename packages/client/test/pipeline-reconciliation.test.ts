@@ -1,6 +1,9 @@
 import type { Envelope } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, it } from 'vitest'
-import { reconcilePipelineResponse } from '../src/pipeline-reconciliation.ts'
+import {
+  applyPipelinePresentation,
+  reconcilePipelineResponse,
+} from '../src/pipeline-reconciliation.ts'
 
 function envelope(
   options: {
@@ -44,6 +47,36 @@ describe('pipeline reconciliation', () => {
     })
 
     expect(result).toMatchObject({ kind: 'rejected', signal: { status: 'passed' } })
+  })
+
+  it('projects a rejected GitHub result as historical evidence and clears it on acceptance', () => {
+    const accepted = {
+      sourceUpdatedAt: '2026-08-28T11:30:00.000Z',
+      status: 'failed' as const,
+      link: 'https://github.com/example/repo/actions/runs/2',
+    }
+    const rejected = reconcilePipelineResponse({
+      envelope: envelope({
+        sourceUpdatedAt: '2026-08-28T11:00:00.000Z',
+        link: 'https://github.com/example/repo/actions/runs/1',
+      }),
+      accepted,
+    })
+
+    expect(
+      applyPipelinePresentation({ current: undefined, reconciliation: rejected, accepted }),
+    ).toEqual({
+      envelope: undefined,
+      rejected: { ...accepted, github: true },
+    })
+
+    const recovered = reconcilePipelineResponse({
+      envelope: envelope({ sourceUpdatedAt: '2026-08-28T11:45:00.000Z' }),
+      accepted,
+    })
+    expect(
+      applyPipelinePresentation({ current: undefined, reconciliation: recovered, accepted }),
+    ).toEqual(expect.objectContaining({ envelope: expect.any(Object) }))
   })
 
   it.each([
