@@ -29,4 +29,8 @@ experiments/testmints-agent-comprehension/results/
 experiments/testmints-refresh-failure-comprehension/.workspaces/
 experiments/testmints-refresh-failure-comprehension/results/
 
+# Generated workspaces, telemetry, and coordinator outcomes for the two-call boundary study.
+experiments/testmints-two-call-boundary-comprehension/.workspaces/
+experiments/testmints-two-call-boundary-comprehension/results/
+
 .DS_Store
