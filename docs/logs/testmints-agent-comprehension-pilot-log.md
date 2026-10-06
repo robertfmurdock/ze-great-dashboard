@@ -63,3 +63,26 @@ verifier, baseline snapshots, telemetry, and representation/profile-blind explan
 preflight proves both visible baselines pass while hidden acceptance fails, then that the minimal
 production-and-visible-test correction passes both boundaries. No outcome has been collected, so
 this is instrumentation rather than evidence that either representation is better.
+
+## Refresh-failure study result, 2026-10-06
+
+All sixteen locked runs completed: every agent-reported `npm run check` and every independently
+run hidden two-refresh verifier passed. The raw cells were uniform: native medium 4/4, native high
+4/4, Testmints medium 4/4, and Testmints high 4/4. The hidden verifier confirmed the public error
+outcome, byte-for-byte retained cache, unchanged publication count, and released lease in all
+workspaces.
+
+Two condition- and profile-blind reviewers agreed on every explanation score. Every explanation
+received 3/4: it unambiguously named the failed refresh and described retained evidence plus
+no-publication/lease-release behavior, but none explicitly characterized the prior successful
+refresh as cache-priming *setup*. This is a useful negative result for the hypothesis: the phased
+representation did not improve the boundary-focused explanation the task was designed to elicit,
+nor did it improve completion.
+
+The orchestration used to dispatch participants did not expose reliable per-run start/end times or
+tool-invocation counts, so those telemetry fields are deliberately reported as unavailable rather
+than reconstructed or invented. Consequently no median-time comparison is made. With equal
+completion, equal endpoint evidence, and equal reviewer scores, do not advance to a dashboard
+change from this directional result. Retain both synthetic studies; a future revision should make
+the requested explanation explicitly account for the setup/subject distinction if explanation
+quality remains the primary outcome.
