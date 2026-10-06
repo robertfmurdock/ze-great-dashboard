@@ -25,4 +25,8 @@ experiments/gitlab-ci-functional/.state/
 experiments/testmints-agent-comprehension/.workspaces/
 experiments/testmints-agent-comprehension/results/
 
+# Generated, single-condition workspaces and coordinator outcomes for the refresh-failure study.
+experiments/testmints-refresh-failure-comprehension/.workspaces/
+experiments/testmints-refresh-failure-comprehension/results/
+
 .DS_Store
