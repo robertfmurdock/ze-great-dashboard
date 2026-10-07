@@ -6,8 +6,13 @@ import { fileURLToPath } from 'node:url'
 
 const experiment = fileURLToPath(new URL('.', import.meta.url))
 const templates = resolve(experiment, 'templates')
-const workspaces = resolve(experiment, '.workspaces')
-const results = resolve(experiment, 'results')
+const stateRoot = process.env.TESTMINTS_STUDY_ROOT
+  ? resolve(process.env.TESTMINTS_STUDY_ROOT)
+  : experiment
+const workspaces = resolve(
+  process.env.TESTMINTS_WORKSPACES_ROOT ?? resolve(stateRoot, '.workspaces'),
+)
+const results = resolve(stateRoot, 'results')
 const seed = 'testmints-two-call-boundary-comprehension-2026-10-06'
 const args = process.argv.slice(2)
 const npmCache = process.env.TESTMINTS_NPM_CACHE ?? '/tmp/testmints-two-call-boundary-npm-cache'

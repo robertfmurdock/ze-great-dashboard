@@ -26,26 +26,37 @@ node experiments/testmints-two-call-boundary-comprehension/create-task.mjs --pre
 node experiments/testmints-two-call-boundary-comprehension/create-task.mjs --prepare --install
 ```
 
+For an isolated live attempt, set `TESTMINTS_STUDY_ROOT` to a new coordinator directory outside
+the repository (for example `/private/tmp/testmints-boundary-attempt-2026-10-07`) and
+`TESTMINTS_WORKSPACES_ROOT` to a separate sibling directory. The templates remain coordinator-owned
+in this repository, while generated participant workspaces and coordinator artifacts are physically
+separate. Do not use a directory beneath this repository for a live attempt.
+
 Preflight proves that each visible baseline fails at the supplied regression only, hidden acceptance
 fails, and the minimal production-only correction makes visible and hidden checks pass. Its hidden
 test is coordinator-only, uses different fixture values, and exercises only the public refresh
 interface. Generated task workspaces are checked for alternate representations and the verifier.
 Preparation snapshots every workspace and hashes its visible test.
 
-Dispatch only through the instrumented runner. The agent runtime must append one JSON object per
-tool event to `EXPERIMENT_AGENT_EVENTS_FILE`; every event has `type` and `monotonicNs`, and test
-commands use `type: "test-command"`. The runner will not create telemetry without that file. It
-captures immutable start/end wall and monotonic times, the declared model/profile, event-derived
-tool/test counts, final explanation, and completion status. The final explanation file must answer
-which public call establishes the precondition, which is the subject, and what observable outcome
-proves the distinction.
+Dispatch only through the instrumented runner. For Codex CLI participants, pass `--codex-json` and
+run `codex exec --json`; the runner captures its immutable JSONL stream and derives tool calls from
+completed command-execution items and test commands from their command text. Other runtimes must
+append one JSON object per tool event to `EXPERIMENT_AGENT_EVENTS_FILE`; every event has `type` and
+`monotonicNs`, and test commands use `type: "test-command"`. The runner will not create telemetry
+without that stream. It captures immutable start/end wall and monotonic times, the declared
+model/profile, event-derived tool/test counts, final explanation, and completion status. The final
+explanation file must answer which public call establishes the precondition, which is the subject,
+and what observable outcome proves the distinction. Codex JSON mode records that explanation from
+the final agent-message event when its output-file option does not create a file.
 
 ```sh
 node experiments/testmints-two-call-boundary-comprehension/run-participant.mjs \
   --run-id run-01 --model 'GPT-6.1 Sol' --reasoning medium \
   --workspace experiments/testmints-two-call-boundary-comprehension/.workspaces/run-01 \
   --events-file /absolute/path/run-01.events.ndjson \
-  --explanation-file /absolute/path/run-01-explanation.txt -- <instrumented-agent-command>
+  --explanation-file /absolute/path/run-01-explanation.txt --codex-json -- \
+  codex exec --ephemeral --json -m gpt-6.1-sol -C . -o /absolute/path/run-01-explanation.txt \
+  'Implement TASK.md, run npm run check, then answer its required question.'
 
 node experiments/testmints-two-call-boundary-comprehension/create-task.mjs --complete --run-id run-01
 ```

@@ -4,11 +4,11 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const directory = fileURLToPath(new URL('.', import.meta.url))
-const results = resolve(directory, 'results')
+const results = resolve(process.env.TESTMINTS_STUDY_ROOT ?? directory, 'results')
 const args = process.argv.slice(2)
 const usage = `Usage: node experiments/testmints-two-call-boundary-comprehension/run-participant.mjs
   --run-id <anonymous-id> --model "GPT-6.1 Sol" --reasoning medium|high
-  --workspace <path> --events-file <agent-event-ndjson> --explanation-file <path> -- <agent command>`
+  --workspace <path> --events-file <agent-event-ndjson> --explanation-file <path> [--codex-json] -- <agent command>`
 const value = (flag) => {
   const found = args.indexOf(flag)
   const result = found === -1 ? undefined : args[found + 1]
@@ -26,6 +26,7 @@ const workspace = resolve(value('--workspace'))
 const eventsFile = resolve(value('--events-file'))
 const explanationFile = resolve(value('--explanation-file'))
 const telemetryFile = resolve(results, 'telemetry', `${runId}.json`)
+const codexJson = args.includes('--codex-json')
 
 try {
   await stat(eventsFile)
@@ -46,11 +47,16 @@ const command = args.slice(separator + 1)
 const execution = spawnSync(command[0], command.slice(1), {
   cwd: workspace,
   env: { ...process.env, EXPERIMENT_AGENT_EVENTS_FILE: eventsFile },
-  stdio: 'inherit',
+  encoding: codexJson ? 'utf8' : undefined,
+  stdio: codexJson ? 'pipe' : 'inherit',
 })
 const endedAt = new Date().toISOString()
 const endedMonotonicNs = process.hrtime.bigint().toString()
 if (execution.error) throw execution.error
+if (codexJson) {
+  process.stdout.write(execution.stderr ?? '')
+  await writeFile(eventsFile, execution.stdout ?? '', { flag: 'wx' })
+}
 
 const lines = (await readFile(eventsFile, 'utf8')).trim().split('\n').filter(Boolean)
 const events = lines.map((line, index) => {
@@ -60,15 +66,33 @@ const events = lines.map((line, index) => {
     throw new Error(`Invalid event ${index + 1}`)
   }
 })
-if (
-  !events.every(
-    (event) => event && typeof event.type === 'string' && typeof event.monotonicNs === 'string',
-  )
-)
-  throw new Error('Every instrumented event requires type and monotonicNs')
-const toolCallCount = events.filter((event) => event.type === 'tool-call').length
-const testCommandCount = events.filter((event) => event.type === 'test-command').length
-const explanation = await readFile(explanationFile, 'utf8')
+if (!events.every((event) => event && typeof event.type === 'string'))
+  throw new Error('Every instrumented event requires a type')
+const commandItems = codexJson
+  ? events
+      .filter(
+        (event) => event.type === 'item.completed' && event.item?.type === 'command_execution',
+      )
+      .map((event) => event.item)
+  : events.filter((event) => event.type === 'tool-call')
+if (!codexJson && !events.every((event) => typeof event.monotonicNs === 'string'))
+  throw new Error('Every non-Codex event requires monotonicNs')
+const toolCallCount = commandItems.length
+const testCommandCount = codexJson
+  ? commandItems.filter((item) =>
+      /(?:npm\s+(?:run\s+)?(?:check|test)|vitest\b)/.test(item.command ?? ''),
+    ).length
+  : events.filter((event) => event.type === 'test-command').length
+let explanation
+try {
+  explanation = await readFile(explanationFile, 'utf8')
+} catch (error) {
+  if (!codexJson || error?.code !== 'ENOENT') throw error
+  explanation = [...events]
+    .reverse()
+    .find((event) => event.type === 'item.completed' && event.item?.type === 'agent_message')
+    ?.item?.text
+}
 if (!explanation.trim()) throw new Error('Final explanation is required')
 const telemetry = {
   schemaVersion: 1,
@@ -86,6 +110,7 @@ const telemetry = {
   completionStatus: execution.status === 0 ? 'completed' : 'failed',
   agentExitCode: execution.status,
   events,
+  telemetrySource: codexJson ? 'codex-exec-jsonl' : 'agent-event-ndjson',
 }
 await mkdir(dirname(telemetryFile), { recursive: true })
 await writeFile(telemetryFile, `${JSON.stringify(telemetry, null, 2)}\n`, { flag: 'wx' })
