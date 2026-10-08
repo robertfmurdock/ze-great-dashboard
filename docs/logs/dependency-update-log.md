@@ -36,3 +36,11 @@ allowlist that could silently drift as workspaces change.
 After the first manual runs, auto-merge was enabled and `main` gained its required **Build and
 check** branch-protection gate. The workflow now also removes its pushed update branch if PR creation
 fails, while preserving a branch once its PR exists for normal CI and recovery.
+
+Clarification, 2026-10-08: `@playwright/test` has a coupled, externally published browser-image
+artifact. The package update remains automated, but only when MCR exposes the exact
+`mcr.microsoft.com/playwright:v{version}-noble` manifest used by the Docker-backed browser checks.
+When npm publishes first, the updater restores the preceding Playwright constraint, regenerates the
+lockfile for the other updates, and reports the deferral. An MCR error other than an absent manifest
+fails the updater rather than treating an unavailable registry as a safe deferral. This retains the
+fast containerized browser evidence while making the release-artifact boundary explicit.

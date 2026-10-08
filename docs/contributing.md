@@ -56,8 +56,10 @@ small.
 The scheduled **Update npm dependencies** workflow runs daily at 17:00 UTC and can also be started
 manually from GitHub Actions. It updates direct dependencies in the root project and every npm
 workspace, regenerates `package-lock.json` without lifecycle scripts, and opens a pull request only
-when there is a change. Its rebase auto-merge waits on the normal required Build workflow; it does
-not create a shortcut around release checks. The same update can be prepared locally with:
+when there is a change. Playwright advances only after Microsoft publishes the matching pinned
+browser image; an unpublished image is deferred to a later run while other updates continue. Its
+rebase auto-merge waits on the normal required Build workflow; it does not create a shortcut around
+release checks. The same update can be prepared locally with:
 
 ```sh
 npm run update:dependencies
