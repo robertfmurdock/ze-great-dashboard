@@ -570,10 +570,7 @@ describe('pull-request-health observations', () => {
       expect.stringContaining('branch=cpr-gradle-update%2Fcreate-update-branch%2F42'),
       expect.anything(),
     )
-    expect(fetcher).toHaveBeenCalledWith(
-      expect.stringContaining('event=pull_request'),
-      expect.anything(),
-    )
+    expect(fetcher).toHaveBeenCalledWith(expect.not.stringContaining('event='), expect.anything())
   })
 
   it('uses the bearer header on private observation requests', async () => {
@@ -665,6 +662,75 @@ describe('pull-request-health observations', () => {
         type: 'pull-request-build',
         item: { status: 'failed' },
       },
+    })
+  })
+
+  it("uses the configured workflow's branch push as PR-build evidence by default", async () => {
+    const fetcher = vi.fn(
+      async (url: string) =>
+        new Response(
+          JSON.stringify({
+            workflow_runs: url.includes('event=pull_request')
+              ? []
+              : [{ ...successfulRun, event: 'push', conclusion: 'failure' }],
+          }),
+        ),
+    ) as unknown as typeof fetch
+
+    const result = await fetchGithubActionsPullRequestBuild({
+      panel: healthPanel,
+      source: healthSource,
+      branch: 'cpr-gradle-update/create-update-branch/42',
+      requestHeaders: new Headers(),
+      fetcher,
+    })
+
+    expect(result.envelope).toMatchObject({
+      signal: {
+        type: 'pull-request-build',
+        item: { status: 'failed', detail: expect.stringContaining('push') },
+      },
+    })
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.not.stringContaining('event=pull_request'),
+      expect.anything(),
+    )
+  })
+
+  it('uses only explicitly accepted events when a board restricts PR-build evidence', async () => {
+    const fetcher = upstreamRuns([
+      { ...successfulRun, event: 'push', conclusion: 'failure' },
+      { ...successfulRun, event: 'pull_request', conclusion: 'success' },
+    ])
+
+    const result = await fetchGithubActionsPullRequestBuild({
+      panel: { ...healthPanel, build_events: ['pull_request'] },
+      source: healthSource,
+      branch: 'cpr-gradle-update/create-update-branch/42',
+      requestHeaders: new Headers(),
+      fetcher,
+    })
+
+    expect(result.envelope).toMatchObject({
+      signal: {
+        type: 'pull-request-build',
+        item: { status: 'passed', detail: expect.stringContaining('pull_request') },
+      },
+    })
+    expect(fetcher).toHaveBeenCalledWith(expect.stringContaining('per_page=100'), expect.anything())
+  })
+
+  it('reports missing evidence when no run has an explicitly accepted event', async () => {
+    const result = await fetchGithubActionsPullRequestBuild({
+      panel: { ...healthPanel, build_events: ['workflow_dispatch'] },
+      source: healthSource,
+      branch: 'cpr-gradle-update/create-update-branch/42',
+      requestHeaders: new Headers(),
+      fetcher: upstreamRuns([{ ...successfulRun, event: 'push' }]),
+    })
+
+    expect(result.envelope).toMatchObject({
+      signal: { type: 'pull-request-build', item: { status: 'unknown' } },
     })
   })
 

@@ -188,6 +188,32 @@ readings. Facts share the panel's refresh setting. Fact IDs are stable addresses
 label rather than the ID when only the wall text changes. Do not combine `facts` with the
 single-value `url` or `json_path` fields.
 
+### GitHub update pull-request build evidence
+
+A GitHub Actions `pull-request-health` panel identifies its build evidence with `build_workflow`.
+By default, the newest run of that workflow on the update PR's branch counts, regardless of whether
+GitHub started it from a push, pull request, or manual dispatch. The panel displays the selected
+trigger beside the result so manual evidence remains visible.
+
+Set `build_events` only when a team wants to narrow that policy. It is a non-empty, duplicate-free
+list of supported GitHub Actions triggers; invalid names prevent startup rather than silently
+reporting missing evidence:
+
+```yaml
+- id: dependency-updates
+  type: pull-request-health
+  source: github
+  base_branch: main
+  build_workflow: main.yml
+  build_events: [push, workflow_dispatch]
+  update_workflows:
+    - workflow: dependency-update.yml
+      branch_prefixes: [automation/npm-dependencies-]
+```
+
+`build_events` is specific to GitHub Actions pull-request-health panels. It is not a generic
+workflow setting and does not broaden the proxy's source or branch allowlist.
+
 An Azure DevOps Services `pipeline-status` source names an organization, project, and exactly one
 runtime-only credential mode. A PAT uses `token_env` and Basic authentication. For local
 delegated-user development, `entra_token_file_env` names an environment variable containing a

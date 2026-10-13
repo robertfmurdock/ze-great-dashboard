@@ -31,8 +31,10 @@ are future scaling concerns, not reasons to put one tile per pull request on the
 
 `pull-request-health` covers automated update jobs and open pull requests whose head branches match
 configured prefixes. It combines the latest matching run of each declared update workflow with the
-latest `pull_request` build run for every matching open pull request. A workflow run on an unrelated
-branch, including the default branch, is not evidence for the panel.
+latest run of the configured build workflow for every matching open pull request. By default, build
+evidence accepts every GitHub Actions trigger; a panel may explicitly narrow that policy with its
+`build_events` list. A workflow run on an unrelated branch, including the default branch, is not
+evidence for the panel.
 
 The aggregate passes only when all required observations pass. Running, failed, cancelled, or
 unknown observations remain visible in the summary. No matching pull requests is valid, but the

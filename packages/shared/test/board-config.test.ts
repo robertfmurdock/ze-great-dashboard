@@ -64,6 +64,47 @@ describe('the board config schema', () => {
     expect(result.error?.issues[0]?.message).toMatch(/unsecured.*auth/)
   })
 
+  it('validates GitHub Actions-only pull-request build event restrictions', () => {
+    const config = {
+      sources: { github: { type: 'github-actions', repo: 'example-org/example-repo' } },
+      boards: {
+        team: {
+          panels: [
+            {
+              id: 'updates',
+              type: 'pull-request-health',
+              source: 'github',
+              build_events: ['push', 'workflow_dispatch'],
+            },
+          ],
+        },
+      },
+    }
+
+    expect(boardConfigSchema.safeParse(config).success).toBe(true)
+    for (const build_events of [[], ['push', 'push'], ['typo-event']])
+      expect(
+        boardConfigSchema.safeParse({
+          ...config,
+          boards: {
+            team: { panels: [{ ...config.boards.team.panels[0], build_events }] },
+          },
+        }).success,
+      ).toBe(false)
+    expect(
+      boardConfigSchema.safeParse({
+        ...config,
+        boards: {
+          team: {
+            panels: [
+              { id: 'build', type: 'pipeline-status', source: 'github', build_events: ['push'] },
+            ],
+          },
+        },
+      }).success,
+    ).toBe(false)
+  })
+
   it('accepts canonical authenticated, subject, and claim authorization policies and the legacy migration form', () => {
     const auth = { issuer: 'https://login.example.test', client_id: 'dashboard', audience: 'api' }
     const policies = [

@@ -32,6 +32,34 @@ export const panelDensities = ['auto', 'comfortable', 'compact'] as const
 export const panelDensitySchema = z.enum(panelDensities)
 export type PanelDensity = z.infer<typeof panelDensitySchema>
 
+/** GitHub Actions triggers that can be explicitly accepted as pull-request build evidence. */
+export const githubActionsBuildEvents = [
+  'push',
+  'pull_request',
+  'pull_request_target',
+  'pull_request_review',
+  'pull_request_review_comment',
+  'workflow_dispatch',
+  'workflow_run',
+  'merge_group',
+] as const
+export const githubActionsBuildEventSchema = z.enum(githubActionsBuildEvents)
+export const githubActionsBuildEventsSchema = z
+  .array(githubActionsBuildEventSchema)
+  .min(1)
+  .superRefine((events, ctx) => {
+    events.forEach((event, index) => {
+      if (events.indexOf(event) !== index)
+        ctx.addIssue({
+          code: 'custom',
+          path: [index],
+          message: `duplicate build event "${event}"`,
+          params: { constraint: 'Use each build event at most once.' },
+        })
+    })
+  })
+export type GithubActionsBuildEvent = z.infer<typeof githubActionsBuildEventSchema>
+
 /** Board-wide presentation selected when an important panel needs attention. */
 export const attentionTreatments = ['beacon', 'alarm', 'steady'] as const
 export const attentionTreatmentSchema = z.enum(attentionTreatments)
@@ -112,6 +140,8 @@ export const panelSchema = z
     json_path: httpValueJsonPathSchema.optional(),
     /** Up to four independently fetched source-agnostic readings in one visual panel. */
     facts: httpValueGroupedPanelSchema.shape.facts.optional(),
+    /** Optional GitHub Actions-only restriction on which workflow triggers count as build evidence. */
+    build_events: githubActionsBuildEventsSchema.optional(),
   })
   .superRefine((panel, ctx) => {
     if ('display' in panel) {
@@ -423,6 +453,21 @@ export const boardConfigSchema = z
     for (const [boardName, board] of Object.entries(config.boards)) {
       board.panels.forEach((panel, panelIndex) => {
         const source = panel.source ? config.sources[panel.source] : undefined
+        if (
+          panel.build_events !== undefined &&
+          (panel.type !== 'pull-request-health' || source?.type !== 'github-actions')
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['boards', boardName, 'panels', panelIndex, 'build_events'],
+            message:
+              'build_events is available only on pull-request-health panels using a github-actions source',
+            params: {
+              constraint:
+                'Configure build_events only for GitHub Actions pull-request health panels.',
+            },
+          })
+        }
         if (panel.type !== 'pipeline-status' || source?.type !== 'azure-devops') return
         if (
           typeof panel.pipeline !== 'number' ||

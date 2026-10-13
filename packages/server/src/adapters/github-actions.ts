@@ -6,7 +6,11 @@ import type {
   PipelineStatus,
   Source,
 } from '@ze-great-dashboard/shared'
-import { githubActionsSourceSchema } from '@ze-great-dashboard/shared'
+import {
+  githubActionsBuildEventSchema,
+  githubActionsBuildEventsSchema,
+  githubActionsSourceSchema,
+} from '@ze-great-dashboard/shared'
 import { z } from 'zod'
 import { type CredentialResolver, environmentCredentials } from '../credentials.ts'
 import { createGithubClient, GithubAuthenticationError, type GithubClient } from '../github-auth.ts'
@@ -41,6 +45,7 @@ const pullRequestHealthPanelSchema = z.object({
     )
     .min(1),
   build_workflow: z.string().min(1),
+  build_events: githubActionsBuildEventsSchema.optional(),
 })
 
 const runSchema = z.object({
@@ -49,6 +54,8 @@ const runSchema = z.object({
   conclusion: z.string().nullable(),
   name: z.string().min(1),
   html_url: z.url(),
+  /** The GitHub Actions trigger that started this run. */
+  event: z.string().min(1).optional(),
   /** The branch that produced this run; absent for some event types. */
   head_branch: z.string().min(1).nullable().optional(),
   // Timestamp quality should only remove timing advice, never make an otherwise useful run unreadable.
@@ -191,9 +198,19 @@ export async function fetchGithubActionsPullRequestBuild(
   return githubObservation(
     args,
     source,
-    githubRunsCall(source, panel.build_workflow, args.branch, 'pull_request'),
+    githubRunsCall(
+      source,
+      panel.build_workflow,
+      args.branch,
+      undefined,
+      panel.build_events ? 100 : 1,
+    ),
     (value, observedAt) => {
-      const run = runsSchema.parse(value).workflow_runs[0]
+      const run = runsSchema.parse(value).workflow_runs.find((candidate) => {
+        if (!panel.build_events) return true
+        const event = githubActionsBuildEventSchema.safeParse(candidate.event)
+        return event.success && panel.build_events.includes(event.data)
+      })
       return {
         panelId: panel.id,
         state: 'ok',
@@ -202,7 +219,7 @@ export async function fetchGithubActionsPullRequestBuild(
         signal: {
           type: 'pull-request-build',
           branch: args.branch,
-          item: healthItem(args.branch, run, args.branch),
+          item: healthItem(args.branch, run, args.branch, undefined, true),
         },
       } satisfies Envelope
     },
@@ -323,11 +340,14 @@ function healthItem(
   run: z.infer<typeof runSchema> | undefined,
   detail: string,
   link?: string,
+  includeEvent = false,
 ) {
   return {
     label,
     status: run ? normalizeStatus(run.status, run.conclusion) : ('unknown' as const),
-    detail: run ? `${detail} · ${run.conclusion ?? run.status}` : `${detail} · No run found`,
+    detail: run
+      ? `${detail}${includeEvent ? ` · ${run.event ?? 'unknown trigger'}` : ''} · ${run.conclusion ?? run.status}`
+      : `${detail} · No run found`,
     link: link ?? run?.html_url ?? null,
   }
 }
