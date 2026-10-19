@@ -64,7 +64,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
-    "@continuous-excellence/tagger": "3.6.24",
+    "@continuous-excellence/tagger": "3.6.25",
     "@continuous-excellence/testmints-js": "0.0.1",
     "@playwright/test": "^1.64.0",
     "@testing-library/react": "^16.3.3",
