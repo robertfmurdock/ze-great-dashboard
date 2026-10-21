@@ -84,6 +84,12 @@ const dependenciesOf = (entry: LockPackage): string[] => [
   ...Object.keys(entry.peerDependencies ?? {}),
 ]
 
+const cdnUrl = (name: string, version: string, peerDependencies: string[]): string => {
+  const externalPeers = peerDependencies.sort()
+  const external = externalPeers.length ? `?external=${externalPeers.join(',')}` : ''
+  return `https://esm.sh/${name}@${version}${external}`
+}
+
 const findWorkspaceRoot = (start: string): string => {
   let directory = resolve(start)
   while (!existsSync(resolve(directory, 'package-lock.json'))) {
@@ -106,7 +112,7 @@ export const readCdnDependencyGraph = (options: {
   const workspaces = workspacePackageNames(lock)
   const bundled = new Set(clientPackage.cdn?.bundle ?? [])
   const seen = new Set<string>()
-  const thirdParty = new Map<string, CdnDependency>()
+  const thirdParty = new Map<string, Omit<CdnDependency, 'url'> & { peerDependencies: string[] }>()
   const clientKey = relative(
     dirname(options.packageLockPath),
     dirname(options.clientPackageJsonPath),
@@ -139,7 +145,10 @@ export const readCdnDependencyGraph = (options: {
         thirdParty.set(name, {
           name,
           version: entry.version,
-          url: `https://esm.sh/${name}@${entry.version}`,
+          // esm.sh otherwise resolves a peer range to another URL, which can load a second copy
+          // of a singleton library such as React. Keep peer imports bare so the import map gives
+          // every CDN module the exact lockfile-resolved instance.
+          peerDependencies: Object.keys(entry.peerDependencies ?? {}),
         })
       }
     }
@@ -155,7 +164,17 @@ export const readCdnDependencyGraph = (options: {
   }
 
   return {
-    dependencies: [...thirdParty.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    dependencies: [...thirdParty.values()]
+      .map(({ name, version, peerDependencies }) => ({
+        name,
+        version,
+        url: cdnUrl(
+          name,
+          version,
+          peerDependencies.filter((peer) => thirdParty.has(peer)),
+        ),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     external,
   }
 }
@@ -164,10 +183,15 @@ export const importMapFor = (
   dependencies: CdnDependency[],
 ): Record<string, Record<string, string>> => ({
   imports: Object.fromEntries(
-    dependencies.flatMap(({ name, url }) => [
-      [name, url],
-      [`${name}/`, `${url}/`],
-    ]),
+    dependencies.flatMap(({ name, url }) => {
+      // A prefix import appends its subpath literally. It must not append `client`, for example,
+      // to esm.sh's `external` query parameter.
+      const prefixUrl = url.split('?')[0] ?? url
+      return [
+        [name, url],
+        [`${name}/`, `${prefixUrl}/`],
+      ]
+    }),
   ),
 })
 

@@ -11,7 +11,12 @@ const fixture = async (bundle: string[] = []) => {
     join(root, 'packages/client/package.json'),
     JSON.stringify({
       name: '@fixture/client',
-      dependencies: { '@fixture/shared': '*', react: '^19.2.8', bundled: '^1.0.0' },
+      dependencies: {
+        '@fixture/shared': '*',
+        react: '^19.2.8',
+        bundled: '^1.0.0',
+        'react-consumer': '^1.0.0',
+      },
       cdn: { bundle },
     }),
   )
@@ -29,6 +34,10 @@ const fixture = async (bundle: string[] = []) => {
         'node_modules/react': { version: '19.2.8' },
         'node_modules/zod': { version: '4.4.3' },
         'node_modules/bundled': { version: '1.0.0' },
+        'node_modules/react-consumer': {
+          version: '1.0.0',
+          peerDependencies: { react: '>=16.0.0' },
+        },
       },
     }),
   )
@@ -45,6 +54,11 @@ describe('CDN externalization graph', () => {
     expect(graph.dependencies).toEqual([
       { name: 'bundled', version: '1.0.0', url: 'https://esm.sh/bundled@1.0.0' },
       { name: 'react', version: '19.2.8', url: 'https://esm.sh/react@19.2.8' },
+      {
+        name: 'react-consumer',
+        version: '1.0.0',
+        url: 'https://esm.sh/react-consumer@1.0.0?external=react',
+      },
       { name: 'zod', version: '4.4.3', url: 'https://esm.sh/zod@4.4.3' },
     ])
     expect(graph.external('@fixture/shared')).toBe(false)
@@ -61,5 +75,20 @@ describe('CDN externalization graph', () => {
     expect(importMapFor(graph.dependencies).imports?.['react/']).toBe(
       'https://esm.sh/react@19.2.8/',
     )
+  })
+
+  it('keeps esm.sh external parameters off subpath mappings', () => {
+    expect(
+      importMapFor([
+        {
+          name: 'react-dom',
+          version: '19.2.8',
+          url: 'https://esm.sh/react-dom@19.2.8?external=react',
+        },
+      ]).imports,
+    ).toEqual({
+      'react-dom': 'https://esm.sh/react-dom@19.2.8?external=react',
+      'react-dom/': 'https://esm.sh/react-dom@19.2.8/',
+    })
   })
 })
