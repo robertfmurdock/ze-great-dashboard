@@ -109,3 +109,5 @@ mintTest('rejects an invalid access token before any adapter fetch', {
 Use this as a migration reference, not a mandate to introduce fixture factories everywhere. The
 important properties are a single input scenario, a visible arrange phase for meaningful structure,
 one intentional subject action in exercise, and all observable claims in verify.
+
+Reference implementation: commit `3dde983` (`test: migrate API auth scenarios to Testmints`).
