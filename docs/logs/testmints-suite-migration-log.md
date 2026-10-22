@@ -167,9 +167,62 @@ Potential compatibility or hardening refinements—case-insensitive Bearer-schem
 access-denied error, and rejecting implausibly near-expiry installation tokens—are independent
 future work, not prerequisites for more conversions.
 
+### Follow-up: GitLab CI pipeline-adapter boundary
+
+`packages/server/test/gitlab-ci.test.ts` is the next completed slice. Its public adapter boundary
+now makes its three forms of evidence explicit: safe configured-call derivation, one upstream
+pipeline observation, and the configured panel route. Status normalization, unsafe source
+configuration, and public error envelopes are separate named scenarios rather than parameterized
+registrations, so each setup describes one input and each exercise executes the relevant parser,
+adapter call, or HTTP route once.
+
+Expected synchronous failures use a small local `throws` prototype, matching the existing OIDC
+rejection boundary: an unexpected return fails the exercise phase and the caught error becomes
+verification evidence. The formerly combined configured-route and unsupported-combination test was
+split because those are different subjects and outcomes. The adapter keeps the important trust
+contracts intact: credentials appear only in the upstream `PRIVATE-TOKEN` header, upstream 304 and
+validator behavior remain observable, and all upstream failures render a non-disclosing HTTP-200
+error envelope instead of proxy failure.
+
+A follow-up readability review removed local helpers that registered whole Testmints scenarios. They
+made the parameterized cases named, but still forced a reader to leave a case to see its subject
+call and output. The suite now keeps every `mintTest` declaration explicit. Its remaining helpers
+only arrange a controlled upstream response or name a shared public-envelope assertion, so the
+input, real action, and scenario-specific expected status are visible together at each call site.
+
+That does not prohibit a data table when the scenarios really are a uniform mapping. The GitLab
+status-normalization and public-error matrices now use small, branch-free descriptor lists and
+`for...of` registration: each item names its input and expected public outcome, while the loop
+keeps the one visible adapter exercise and shared assertion contract together. Configuration
+rejection cases remain individually written because their input shapes are less uniform. This is
+the intended distinction: use a table to make a simple mapping easier to scan, not to conceal
+materially different setup or behavior behind a generic test factory.
+
 The pattern is now stable enough for independent suites to migrate in parallel. Each slice should
 own its test file and any directly related migration note, use the existing Vitest adapter without
 enabling reporting, and avoid introducing a shared Testmints abstraction merely to remove local
 fixture code. Keep expected-rejection wrappers local while the adapter lacks first-class rejected
 exercise semantics; their call sites should continue to show the actual operation. Coordinate only
 when two slices would edit the same suite, shared fixture, test configuration, or production code.
+
+### Reusable migration heuristics
+
+The GitLab follow-up clarifies the earlier advice: “named scenarios” does not require manually
+copying a Testmints declaration for every row. Use a typed, branch-free descriptor list plus
+`for...of` registration when every row has the same setup shape, one subject operation, one output
+contract, and a plainly named input-to-expected-output mapping. Name the fields by their role—for
+example `upstreamStatus` and `expectedStatus`—rather than as generic `name` or `status` values.
+Keep cases explicit when their setup shape, action, or observable contract differs materially.
+
+Fixtures may arrange real inputs and assertion helpers may name a stable, meaningful invariant
+(such as the public, non-disclosing upstream-error envelope). Neither should register a test or
+hide the subject action. A reader should be able to find each scenario’s input, actual operation,
+and expected evidence without following a generic local test factory.
+
+This migration did not justify a production refactor. In particular, `boardConfigSchema` validates
+source-specific configuration without replacing it with adapter-parsed/defaulted output; GitLab’s
+default instance URL is therefore an adapter-boundary behavior. Keep that distinction visible in
+tests unless repeated cross-adapter evidence establishes that normalization belongs in the shared
+configuration model. Treat first-class expected-rejection support as an upstream Testmints concern,
+not a dashboard abstraction. Continue migrating only where phase boundaries make a real contract
+easier to understand; existing synthetic studies did not establish a blanket Testmints advantage.
