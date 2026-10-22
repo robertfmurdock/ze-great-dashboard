@@ -140,3 +140,36 @@ The missing-subject and untrusted-key variants remain explicit named arrangement
 fixture plumbing from scenarios without hiding the subject action: successful exercises call
 `verifier(token)` directly, while the rejection cases pass that same visible operation to the local
 prototype.
+
+### Follow-up: GitHub App authentication boundary
+
+`packages/server/test/github-auth.test.ts` is the next completed slice. It retains the real RSA
+JWT signature check and the GitHub Actions adapter/client boundary while making their data flow
+explicit: setup arranges credentials, a deterministic clock, and recorded upstream responses;
+exercise creates a JWT, makes a client request, or invokes the adapter; verify inspects claims,
+requests, and responses.
+
+The installation-token reuse scenario intentionally executes the adapter twice. Repeated execution
+is the contract being proved: one exchange supplies two distinct GitHub Actions calls while the
+clock advances within the still-valid token window. By contrast, the 401 behavior remains one
+client `get` operation in exercise; the token refresh and replay are observable behavior of that
+single operation. The missing-credential case uses the same local expected-rejection prototype as
+OIDC so the generic, non-disclosing error becomes verification evidence rather than an assertion
+inside the action.
+
+### Continuation guidance after the first three suites
+
+A review across API authentication, OIDC verification, and GitHub App authentication found no
+production change required by the migrations. The current implementation boundaries remain
+appropriate: API auth maps access denial separately from invalid tokens, OIDC verifies against
+discovery and JWKS, and GitHub App credentials and installation-token reuse stay server-only.
+Potential compatibility or hardening refinements—case-insensitive Bearer-scheme handling, a typed
+access-denied error, and rejecting implausibly near-expiry installation tokens—are independent
+future work, not prerequisites for more conversions.
+
+The pattern is now stable enough for independent suites to migrate in parallel. Each slice should
+own its test file and any directly related migration note, use the existing Vitest adapter without
+enabling reporting, and avoid introducing a shared Testmints abstraction merely to remove local
+fixture code. Keep expected-rejection wrappers local while the adapter lacks first-class rejected
+exercise semantics; their call sites should continue to show the actual operation. Coordinate only
+when two slices would edit the same suite, shared fixture, test configuration, or production code.
