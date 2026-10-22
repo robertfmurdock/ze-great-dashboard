@@ -1,7 +1,12 @@
+import { mintTest } from '@continuous-excellence/testmints-js/vitest'
 import type { Auth } from '@ze-great-dashboard/shared'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
-import { describe, expect, it } from 'vitest'
-import { accessDenied, createAccessTokenVerifier } from '../src/oidc-auth.ts'
+import { describe, expect } from 'vitest'
+import {
+  type AccessTokenVerifier,
+  accessDenied,
+  createAccessTokenVerifier,
+} from '../src/oidc-auth.ts'
 
 const auth: Auth = {
   issuer: 'https://issuer.example.test',
@@ -17,191 +22,241 @@ const authenticatedAuth: Auth = {
   authorization: { mode: 'authenticated' },
 }
 
+const roleAuth: Auth = {
+  ...authenticatedAuth,
+  authorization: {
+    mode: 'claim',
+    claim: 'https://dashboard.example.test/roles',
+    values: ['viewer', 'operator'],
+    match: 'all',
+  },
+}
+
+const groupAuth: Auth = {
+  ...authenticatedAuth,
+  authorization: {
+    mode: 'claim',
+    claim: 'groups',
+    values: ['dashboard-viewers'],
+    match: 'any',
+  },
+}
+
 describe('OIDC API access-token verification', () => {
-  it('uses discovery and JWKS to accept only a correctly signed allowed API token', async () => {
-    const keys = await generateKeyPair('RS256')
-    const publicKey = await exportJWK(keys.publicKey)
-    publicKey.kid = 'key-1'
-    const calls: string[] = []
-    const fetcher = (async (input: string | URL) => {
-      calls.push(String(input))
-      if (String(input).endsWith('/.well-known/openid-configuration'))
-        return Response.json({ issuer: auth.issuer, jwks_uri: `${auth.issuer}/keys` })
-      return Response.json({ keys: [publicKey] })
-    }) as typeof fetch
-    const verifier = await createAccessTokenVerifier(auth, fetcher)
-    const token = await new SignJWT({})
-      .setProtectedHeader({ alg: 'RS256', kid: 'key-1' })
-      .setIssuer(auth.issuer)
-      .setAudience(auth.audience)
-      .setSubject('allowed-user')
-      .setIssuedAt()
-      .setExpirationTime('5m')
-      .sign(keys.privateKey)
+  describe('signed API token admission', () => {
+    mintTest('accepts a correctly signed allowed API token through discovery and JWKS', {
+      setup: () => verifierTokenFixture(auth, { subject: 'allowed-user' }),
+      exercise: ({ verifier, token }) => verifier(token),
+      verify: (identity, { calls }) => {
+        expect(identity).toEqual({ subject: 'allowed-user' })
+        expect(calls).toEqual([
+          `${auth.issuer}/.well-known/openid-configuration`,
+          `${auth.issuer}/keys`,
+        ])
+      },
+    })
 
-    await expect(verifier(token)).resolves.toEqual({ subject: 'allowed-user' })
-    expect(calls).toEqual([
-      `${auth.issuer}/.well-known/openid-configuration`,
-      `${auth.issuer}/keys`,
-    ])
-  })
+    mintTest('accepts a provider issuer with a trailing slash when configuration omits it', {
+      setup: () => {
+        const providerIssuer = `${auth.issuer}/`
+        return verifierTokenFixture(auth, {
+          discoveryIssuer: providerIssuer,
+          issuer: providerIssuer,
+          subject: 'allowed-user',
+        })
+      },
+      exercise: ({ verifier, token }) => verifier(token),
+      verify: (identity) => {
+        expect(identity).toEqual({ subject: 'allowed-user' })
+      },
+    })
 
-  it('distinguishes an authenticated but unlisted subject from an invalid token', async () => {
-    const keys = await generateKeyPair('RS256')
-    const publicKey = await exportJWK(keys.publicKey)
-    publicKey.kid = 'key-1'
-    const fetcher = (async (input: string | URL) =>
-      Response.json(
-        String(input).endsWith('configuration')
-          ? { issuer: auth.issuer, jwks_uri: `${auth.issuer}/keys` }
-          : { keys: [publicKey] },
-      )) as typeof fetch
-    const verifier = await createAccessTokenVerifier(auth, fetcher)
-    const token = await new SignJWT({})
-      .setProtectedHeader({ alg: 'RS256', kid: 'key-1' })
-      .setIssuer(auth.issuer)
-      .setAudience(auth.audience)
-      .setSubject('someone-else')
-      .setIssuedAt()
-      .setExpirationTime('5m')
-      .sign(keys.privateKey)
-    await verifier(token).catch((error: unknown) => expect(accessDenied(error)).toBe(true))
-  })
-
-  it('accepts a provider issuer with a trailing slash when configuration omits it', async () => {
-    const keys = await generateKeyPair('RS256')
-    const publicKey = await exportJWK(keys.publicKey)
-    publicKey.kid = 'key-1'
-    const providerIssuer = `${auth.issuer}/`
-    const fetcher = (async (input: string | URL) =>
-      String(input).endsWith('configuration')
-        ? Response.json({ issuer: providerIssuer, jwks_uri: `${providerIssuer}keys` })
-        : Response.json({ keys: [publicKey] })) as typeof fetch
-    const verifier = await createAccessTokenVerifier(auth, fetcher)
-    const token = await new SignJWT({})
-      .setProtectedHeader({ alg: 'RS256', kid: 'key-1' })
-      .setIssuer(providerIssuer)
-      .setAudience(auth.audience)
-      .setSubject('allowed-user')
-      .setIssuedAt()
-      .setExpirationTime('5m')
-      .sign(keys.privateKey)
-
-    await expect(verifier(token)).resolves.toEqual({ subject: 'allowed-user' })
-  })
-
-  it('admits an authenticated API token with a subject under authenticated policy', async () => {
-    const { verifier, keys } = await verifierFor(authenticatedAuth)
-    await expect(verifier(await signedToken(keys, authenticatedAuth, 'person'))).resolves.toEqual({
-      subject: 'person',
+    mintTest('admits a subject under the authenticated policy', {
+      setup: () => verifierTokenFixture(authenticatedAuth),
+      exercise: ({ verifier, token }) => verifier(token),
+      verify: (identity) => {
+        expect(identity).toEqual({ subject: 'person' })
+      },
     })
   })
 
-  it('rejects wrong issuer, audience, signature, expiry, and missing subject before authorization', async () => {
-    const { verifier, keys } = await verifierFor(authenticatedAuth)
-    const wrongIssuer = await signedToken(
-      keys,
-      { ...authenticatedAuth, issuer: 'https://other.test' },
-      'person',
-    )
-    const wrongAudience = await signedToken(
-      keys,
-      { ...authenticatedAuth, audience: 'other-api' },
-      'person',
-    )
-    const expired = await new SignJWT({})
-      .setProtectedHeader({ alg: 'RS256', kid: 'key-1' })
-      .setIssuer(authenticatedAuth.issuer)
-      .setAudience(authenticatedAuth.audience)
-      .setSubject('person')
-      .setIssuedAt()
-      .setExpirationTime('5 seconds ago')
-      .sign(keys.privateKey)
-    const noSubject = await new SignJWT({})
-      .setProtectedHeader({ alg: 'RS256', kid: 'key-1' })
-      .setIssuer(authenticatedAuth.issuer)
-      .setAudience(authenticatedAuth.audience)
-      .setIssuedAt()
-      .setExpirationTime('5m')
-      .sign(keys.privateKey)
-    const otherKeys = await generateKeyPair('RS256')
-    const wrongSignature = await signedToken(otherKeys, authenticatedAuth, 'person')
+  describe('invalid token rejection', () => {
+    mintTest('rejects a token with the wrong issuer before authorization', {
+      setup: () => verifierTokenFixture(authenticatedAuth, { issuer: 'https://other.test' }),
+      exercise: rejects(({ verifier, token }) => verifier(token)),
+      verify: (error) => {
+        expect(error).toBeInstanceOf(Error)
+      },
+    })
 
-    for (const token of [wrongIssuer, wrongAudience, expired, noSubject, wrongSignature])
-      await expect(verifier(token)).rejects.toBeInstanceOf(Error)
+    mintTest('rejects a token with the wrong audience before authorization', {
+      setup: () => verifierTokenFixture(authenticatedAuth, { audience: 'other-api' }),
+      exercise: rejects(({ verifier, token }) => verifier(token)),
+      verify: (error) => {
+        expect(error).toBeInstanceOf(Error)
+      },
+    })
+
+    mintTest('rejects an expired token before authorization', {
+      setup: () => verifierTokenFixture(authenticatedAuth, { expiration: '5 seconds ago' }),
+      exercise: rejects(({ verifier, token }) => verifier(token)),
+      verify: (error) => {
+        expect(error).toBeInstanceOf(Error)
+      },
+    })
+
+    mintTest('rejects a token without a subject before authorization', {
+      setup: () => verifierTokenFixture(authenticatedAuth, { subject: null }),
+      exercise: rejects(({ verifier, token }) => verifier(token)),
+      verify: (error) => {
+        expect(error).toBeInstanceOf(Error)
+      },
+    })
+
+    mintTest('rejects a token signed by an untrusted key before authorization', {
+      setup: () => untrustedVerifierTokenFixture(authenticatedAuth),
+      exercise: rejects(({ verifier, token }) => verifier(token)),
+      verify: (error) => {
+        expect(error).toBeInstanceOf(Error)
+      },
+    })
   })
 
-  it('evaluates exact Auth0-style role and Okta-style group claims with any and all matching', async () => {
-    const roleAuth: Auth = {
-      ...authenticatedAuth,
-      authorization: {
-        mode: 'claim',
-        claim: 'https://dashboard.example.test/roles',
-        values: ['viewer', 'operator'],
-        match: 'all',
+  describe('authorization policy', () => {
+    mintTest('denies an authenticated but unlisted subject', {
+      setup: () => verifierTokenFixture(auth, { subject: 'someone-else' }),
+      exercise: rejects(({ verifier, token }) => verifier(token)),
+      verify: (error) => {
+        expect(accessDenied(error)).toBe(true)
       },
-    }
-    const groupAuth: Auth = {
-      ...authenticatedAuth,
-      authorization: {
-        mode: 'claim',
-        claim: 'groups',
-        values: ['dashboard-viewers'],
-        match: 'any',
+    })
+
+    mintTest('admits every required Auth0-style role claim', {
+      setup: () =>
+        verifierTokenFixture(roleAuth, {
+          claims: { 'https://dashboard.example.test/roles': ['viewer', 'operator'] },
+        }),
+      exercise: ({ verifier, token }) => verifier(token),
+      verify: (identity) => {
+        expect(identity).toEqual({ subject: 'person' })
       },
-    }
-    const roles = await verifierFor(roleAuth)
-    await expect(
-      roles.verifier(
-        await signedToken(roles.keys, roleAuth, 'person', {
-          'https://dashboard.example.test/roles': ['viewer', 'operator'],
+    })
+
+    mintTest('admits an Okta-style group claim matching any allowed group', {
+      setup: () => verifierTokenFixture(groupAuth, { claims: { groups: ['dashboard-viewers'] } }),
+      exercise: ({ verifier, token }) => verifier(token),
+      verify: (identity) => {
+        expect(identity).toEqual({ subject: 'person' })
+      },
+    })
+
+    mintTest('denies a role claim missing a required role', {
+      setup: () =>
+        verifierTokenFixture(roleAuth, {
+          claims: { 'https://dashboard.example.test/roles': ['viewer'] },
         }),
-      ),
-    ).resolves.toEqual({ subject: 'person' })
-    const groups = await verifierFor(groupAuth)
-    await expect(
-      groups.verifier(
-        await signedToken(groups.keys, groupAuth, 'person', { groups: ['dashboard-viewers'] }),
-      ),
-    ).resolves.toEqual({ subject: 'person' })
-    await expect(
-      roles.verifier(
-        await signedToken(roles.keys, roleAuth, 'person', {
-          'https://dashboard.example.test/roles': ['viewer'],
-        }),
-      ),
-    ).rejects.toMatchObject({ name: 'AccessDeniedError' })
-    await expect(
-      groups.verifier(await signedToken(groups.keys, groupAuth, 'person', { groups: [1] })),
-    ).rejects.toMatchObject({ name: 'AccessDeniedError' })
+      exercise: rejects(({ verifier, token }) => verifier(token)),
+      verify: (error) => {
+        expect(accessDenied(error)).toBe(true)
+      },
+    })
+
+    mintTest('denies a group claim containing a non-string value', {
+      setup: () => verifierTokenFixture(groupAuth, { claims: { groups: [1] } }),
+      exercise: rejects(({ verifier, token }) => verifier(token)),
+      verify: (error) => {
+        expect(accessDenied(error)).toBe(true)
+      },
+    })
   })
 })
 
-async function verifierFor(config: Auth) {
+type VerificationInput = { token: string; verifier: AccessTokenVerifier }
+
+/**
+ * Local prototype of a Testmints expected-rejection exercise. A resolution violates the declared
+ * exercise contract and fails the exercise phase; a rejection becomes the output for verification.
+ */
+function rejects(exercise: (input: VerificationInput) => Promise<unknown>) {
+  return async (input: VerificationInput) => {
+    try {
+      await exercise(input)
+    } catch (error) {
+      return error
+    }
+    throw new Error('Expected OIDC token verification to reject.')
+  }
+}
+
+async function verifierFixture(config: Auth, providerIssuer = config.issuer) {
   const keys = await generateKeyPair('RS256')
   const publicKey = await exportJWK(keys.publicKey)
   publicKey.kid = 'key-1'
-  const fetcher = (async (input: string | URL) =>
-    Response.json(
+  const calls: string[] = []
+  const jwksUri = providerIssuer.endsWith('/') ? `${providerIssuer}keys` : `${providerIssuer}/keys`
+  const fetcher = (async (input: string | URL) => {
+    calls.push(String(input))
+    return Response.json(
       String(input).endsWith('configuration')
-        ? { issuer: config.issuer, jwks_uri: `${config.issuer}/keys` }
+        ? { issuer: providerIssuer, jwks_uri: jwksUri }
         : { keys: [publicKey] },
-    )) as typeof fetch
-  return { verifier: await createAccessTokenVerifier(config, fetcher), keys }
+    )
+  }) as typeof fetch
+  return { verifier: await createAccessTokenVerifier(config, fetcher), keys, calls }
+}
+
+type TokenOptions = {
+  audience?: string
+  claims?: Record<string, unknown>
+  discoveryIssuer?: string
+  expiration?: string
+  issuer?: string
+  signingKeys?: Awaited<ReturnType<typeof generateKeyPair>>
+  subject?: string | null
+}
+
+async function verifierTokenFixture(
+  verificationAuth: Auth,
+  {
+    audience = verificationAuth.audience,
+    claims = {},
+    discoveryIssuer = verificationAuth.issuer,
+    expiration = '5m',
+    issuer = verificationAuth.issuer,
+    signingKeys,
+    subject = 'person',
+  }: TokenOptions = {},
+) {
+  const fixture = await verifierFixture(verificationAuth, discoveryIssuer)
+  return {
+    ...fixture,
+    token: await signedToken(
+      signingKeys ?? fixture.keys,
+      { ...verificationAuth, audience, issuer },
+      subject ?? undefined,
+      claims,
+      expiration,
+    ),
+  }
+}
+
+async function untrustedVerifierTokenFixture(verificationAuth: Auth) {
+  return verifierTokenFixture(verificationAuth, { signingKeys: await generateKeyPair('RS256') })
 }
 
 function signedToken(
   keys: Awaited<ReturnType<typeof generateKeyPair>>,
   config: Auth,
-  subject: string,
+  subject: string | undefined,
   claims: Record<string, unknown> = {},
+  expiration = '5m',
 ) {
-  return new SignJWT(claims)
+  const token = new SignJWT(claims)
     .setProtectedHeader({ alg: 'RS256', kid: 'key-1' })
     .setIssuer(config.issuer)
     .setAudience(config.audience)
-    .setSubject(subject)
     .setIssuedAt()
-    .setExpirationTime('5m')
-    .sign(keys.privateKey)
+    .setExpirationTime(expiration)
+  if (subject !== undefined) token.setSubject(subject)
+  return token.sign(keys.privateKey)
 }

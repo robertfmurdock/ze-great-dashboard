@@ -111,3 +111,32 @@ important properties are a single input scenario, a visible arrange phase for me
 one intentional subject action in exercise, and all observable claims in verify.
 
 Reference implementation: commit `3dde983` (`test: migrate API auth scenarios to Testmints`).
+
+### Follow-up: OIDC verifier boundary
+
+`packages/server/test/oidc-auth.test.ts` is the next completed slice. It is the security boundary
+immediately beneath API authentication and uses the real discovery, JWKS, signature, issuer,
+audience, expiry, subject, and authorization-policy paths without introducing the remaining
+parameterized, DOM, fake-time, or shared static-server migration concerns.
+
+The former grouped invalid-token case is now five named scenarios, and the role/group policy case
+is now four. Each arranges its signing keys, discovery response, verifier, and one token in
+`setup`; `exercise` invokes the verifier once; `verify` owns every observable claim. For expected
+rejections, a local `rejects` prototype declares that shape at the call site. It fails the exercise
+if the verifier resolves, and otherwise passes the original error to `verify`. This keeps the
+expected-rejection contract visible without assertions during promise handling. The current
+Testmints adapter still reports this as an ordinary successful exercise after the wrapper captures
+the rejection; promoting the idea upstream would need first-class reporter semantics as well.
+
+The shared fixture owns only real OIDC arrangement: a signing key pair, public JWKS response,
+discovery metadata, and recorded network calls. It does not hide token verification or expected
+outcomes. The successful signed-token scenario retains the discovery/JWKS request evidence.
+
+The initial OIDC fixture made each setup spread an arranged verifier and manually sign a token.
+That was correct but needlessly repetitive. `verifierTokenFixture` now expresses the normal test
+world declaratively: the verifier policy is its required argument and a compact options object
+names only the token difference (issuer, audience, expiry, subject, claims, or discovery issuer).
+The missing-subject and untrusted-key variants remain explicit named arrangements. This removes
+fixture plumbing from scenarios without hiding the subject action: successful exercises call
+`verifier(token)` directly, while the rejection cases pass that same visible operation to the local
+prototype.
