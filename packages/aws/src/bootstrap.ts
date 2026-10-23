@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { parseDocument } from 'yaml'
 import { type ComputeMode, computeMode, resolveComputeMode } from './compute-mode.js'
 import { sha256 } from './release.ts'
 import { type BootstrapRemediation, bootstrapRemediation } from './remediation.js'
@@ -82,6 +83,13 @@ export type BootstrapDesiredStateComparison = {
 }
 
 export type BootstrapConsistency = { ok: boolean; mismatches: string[] }
+
+export type CloudFormationTemplateDocument = {
+  Metadata?: { PackageManagedParameters?: unknown }
+  Outputs?: Record<string, { Value?: unknown }>
+  Parameters?: Record<string, { Default?: unknown }>
+  Resources?: Record<string, { Type?: unknown }>
+}
 
 const templates: Record<BootstrapKind, Record<ComputeMode, string>> = {
   core: {
@@ -169,20 +177,36 @@ async function installedTemplateInspections(
   )
 }
 
+/**
+ * Reads the structural portions of a CloudFormation YAML template that this package owns.
+ * CloudFormation's short-form intrinsic tags are intentionally opaque here: this package only
+ * inspects scalar metadata and declarations, and does not evaluate a template.
+ */
+export function parseCloudFormationTemplate(template: string): CloudFormationTemplateDocument {
+  const document = parseDocument(template)
+  if (document.errors.length)
+    throw new Error(`Invalid CloudFormation template: ${document.errors[0]}`)
+  const parsed = document.toJS()
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    throw new Error('CloudFormation template must contain a YAML object')
+  return parsed as CloudFormationTemplateDocument
+}
+
+function outputValue(template: string, name: string): string | undefined {
+  const value = parseCloudFormationTemplate(template).Outputs?.[name]?.Value
+  return typeof value === 'string' ? value : undefined
+}
+
 export function bootstrapContractVersion(template: string): string {
-  const version = template.match(/BootstrapContractVersion:\s*\{\s*Value:\s*'([^']+)'\s*}/)?.[1]
+  const version = outputValue(template, 'BootstrapContractVersion')
   if (!version) throw new Error('Bootstrap template has no BootstrapContractVersion output')
   return version
 }
 
 export function bootstrapTemplateRevision(template: string): string {
-  const revision = template.match(/BootstrapTemplateRevision:\s*\{\s*Value:\s*'([^']+)'\s*}/)?.[1]
+  const revision = outputValue(template, 'BootstrapTemplateRevision')
   if (!revision) throw new Error('Bootstrap template has no BootstrapTemplateRevision output')
   return revision
-}
-
-function templateRevisionIfPresent(template: string): string | undefined {
-  return template.match(/BootstrapTemplateRevision:\s*\{\s*Value:\s*'([^']+)'\s*}/)?.[1]
 }
 
 function inspectTemplate(
@@ -190,23 +214,40 @@ function inspectTemplate(
   path: string,
   template: string,
 ): BootstrapTemplateInspection {
-  const resourcesBlock =
-    template.match(/^Resources:\n([\s\S]*?)(?=^[A-Za-z][A-Za-z0-9]*:\s*$)/m)?.[1] ?? ''
-  const resources = [
-    ...resourcesBlock.matchAll(/^ {2}([A-Za-z][A-Za-z0-9]+):\n {4}Type: ([^\n]+)$/gm),
-  ].map((match) => ({ logicalId: match[1] as string, type: match[2] as string }))
-  const iamActions = [...template.matchAll(/^\s+Action: (?:\[([^\]]+)\]|([^\n]+))$/gm)]
-    .flatMap(([, list, scalar]) => (list ?? scalar ?? '').split(',').map((action) => action.trim()))
-    .filter(Boolean)
+  const document = parseCloudFormationTemplate(template)
+  const contractVersion = document.Outputs?.BootstrapContractVersion?.Value
+  if (typeof contractVersion !== 'string' || !contractVersion)
+    throw new Error('Bootstrap template has no BootstrapContractVersion output')
+  const resources = Object.entries(document.Resources ?? {}).flatMap(([logicalId, resource]) =>
+    typeof resource?.Type === 'string' ? [{ logicalId, type: resource.Type }] : [],
+  )
+  const iamActions = declaredIamActions(document.Resources)
   return {
     kind,
     path,
-    contractVersion: bootstrapContractVersion(template),
-    templateRevision: templateRevisionIfPresent(template),
+    contractVersion,
+    templateRevision:
+      typeof document.Outputs?.BootstrapTemplateRevision?.Value === 'string'
+        ? document.Outputs.BootstrapTemplateRevision.Value
+        : undefined,
     sha256: sha256(template),
     resources,
     iamActions: [...new Set(iamActions)],
   }
+}
+
+function declaredIamActions(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(declaredIamActions)
+  if (!value || typeof value !== 'object') return []
+  const record = value as Record<string, unknown>
+  const actions = actionValues(record.Action)
+  return [...actions, ...Object.values(record).flatMap(declaredIamActions)]
+}
+
+function actionValues(value: unknown): string[] {
+  if (typeof value === 'string') return [value]
+  if (Array.isArray(value)) return value.flatMap(actionValues)
+  return []
 }
 
 /** Returns installed templates and a reviewable, non-secret plan without external calls. */

@@ -7,7 +7,6 @@ configure, or test your protected gateway.
 ## Configure the repository
 
 Commit these non-secret deployment inputs:
-
 - `package.json` and its lockfile with an exact AWS package version.
 - `dashboard-bootstrap.json`.
 - `aws-dashboard-parameters.json`.
@@ -15,7 +14,6 @@ Commit these non-secret deployment inputs:
 
 From the administrator's `bootstrap verify` output, add these two non-secret variables to the
 protected GitHub Environment named in `dashboard-bootstrap.json`:
-
 - `AWS_DEPLOY_ROLE_ARN`
 - `AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN`
 

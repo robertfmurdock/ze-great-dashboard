@@ -7,7 +7,6 @@ direction for three active-run treatments without depending on the current imple
 current source may be discarded and rebuilt from this brief.
 
 The treatments are:
-
 - `telemetry-bloom`
 - `release-transit`
 - `status-weather`
@@ -22,7 +21,6 @@ animation must not look like a large inline progress widget stretched until it f
 
 The panel also contains a calm, high-contrast text island. The following remain in ordinary,
 predictable document positions inside that island:
-
 - panel label
 - status glyph and status label (`↻ Running` for an active run)
 - supporting pipeline text
@@ -43,7 +41,6 @@ the reserved status palette without re-running the repository's contrast/CVD val
 ## Isolation rules (the most important section)
 
 The fresh implementation must make cross-treatment regressions structurally difficult.
-
 1. **Use a dedicated field component.** Keep the existing panel/text composition separate from the
    visual field. Prefer a shape such as:
 
@@ -114,7 +111,6 @@ The implementation may use different names, but keep these responsibilities dist
 ### Telemetry Bloom
 
 Visual metaphor: flowing telemetry through a layered trace field.
-
 - Use multiple staggered trace lanes across the panel interior.
 - Use multiple markers per lane or otherwise visibly distinct marker phases.
 - Markers travel continuously with independent durations and delays; they must not snap to the
@@ -140,7 +136,6 @@ running-field[data-animation=telemetry-bloom]
 ### Release Transit
 
 Visual metaphor: a route/map field carrying a release packet toward a fixed frontier.
-
 - Use two to four route lanes spanning the available panel interior.
 - Animate one bright packet continuously along its route.
 - Retain a dim trail behind the packet; the trail should not disappear between frames.
@@ -164,7 +159,6 @@ running-field[data-animation=release-transit]
 ### Status Weather
 
 Visual metaphor: slow ambient pressure/haze around a running status.
-
 - Use a restrained low-contrast texture: haze, pressure bands, sparse drifting lines, or similar.
 - Avoid dense moving objects under the text island.
 - Key the treatment to the running status token while retaining the explicit `↻ Running` glyph and
@@ -215,7 +209,6 @@ legacy treatment geometry from a new field query.
 ## Reduced motion
 
 Under `prefers-reduced-motion: reduce`:
-
 - freeze each field into a legible static composition;
 - preserve the progress frontier, fixed now marker, retained trail, and status contrast;
 - disable panel surface motion, copy illumination animation, marker travel, packet travel, and
@@ -240,7 +233,6 @@ application animations.
 ### Unit/component tests
 
 Add focused tests for the new field root and verify:
-
 - telemetry has multiple lanes and independently animated marker elements;
 - transit has two to four lanes, packet, retained trail, and fixed now marker;
 - weather has sparse texture layers;
@@ -254,7 +246,6 @@ Add focused tests for the new field root and verify:
 ### Browser tests
 
 Cover at least:
-
 - wide/tall field bounds equal the panel interior bounds;
 - text island remains readable and in normal flow;
 - compact mode hides dense lanes/markers without clipping timing or links;

@@ -5,7 +5,6 @@ Recorded 2026-08-21 after implementing the security-focused consumer bootstrap p
 ## What was implemented
 
 The AWS package now ships versioned, consumer-owned bootstrap templates:
-
 - `bootstrap/core-v1.yml` creates a retained Lambda-artifact bucket with bucket-owner-enforced
   ownership, all S3 public-access blocks, TLS-only access, and SSE-S3 or an optional customer CMK.
   It creates a restricted CloudFormation execution role for one application stack, function, log
@@ -246,3 +245,21 @@ The release path therefore proved the updated bootstrap stacks, Lambda reference
 packaging/template validation, ephemeral ECS runtime path, and release promotion together. Local
 `npm run check` also passed with 249 unit tests, 9 browser tests, Docker health validation, board
 validation, and published-package staging smoke validation.
+
+## YAML template inspection boundary — 2026-10-23
+
+The bootstrap plan originally obtained CloudFormation output markers, resource types, and IAM
+actions with regular expressions over the package templates. The CLI parameter reader and deployment
+doctor similarly extracted YAML sections before parsing them. A formatting-only change from
+single-quoted inline values to double-quoted or multiline values left valid templates semantically
+unchanged but made the package report its required contract and revision outputs as absent. Unit and
+published-package tests failed, so the prior tests did not protect the formatting-independent
+CloudFormation-template interface they were meant to cover.
+
+The package already carries `yaml`; it now parses the complete document once at each inspection
+boundary, rejects YAML parse errors, and treats CloudFormation intrinsic tags as opaque because it
+only needs declarations and scalar metadata rather than template evaluation. The raw template bytes
+remain the provenance hash, so a formatting change still produces a distinct reviewed artifact.
+The CLI and doctor use the same document inspection, and focused contract tests now exercise
+multiline double-quoted metadata plus parsed policy values. Several exact-source-spelling policy
+assertions exposed by the same formatting change were converted to parsed-template assertions.

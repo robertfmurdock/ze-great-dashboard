@@ -8,11 +8,63 @@ import {
   coreBootstrapOutputs,
   deployedBootstrapStack,
   mergeBootstrapParameters,
+  parseCloudFormationTemplate,
   requiredBootstrapParameters,
   resolveComputeMode,
 } from '../src/index.ts'
 
+type PolicyStatement = {
+  Sid?: string
+  Action?: string | string[]
+  Condition?: Record<string, Record<string, unknown>>
+  Resource?: unknown
+}
+
+function policyStatements(
+  template: ReturnType<typeof parseCloudFormationTemplate>,
+  resource: string,
+): PolicyStatement[] {
+  const properties = template.Resources?.[resource] as
+    | { Properties?: { Policies?: { PolicyDocument?: { Statement?: PolicyStatement[] } }[] } }
+    | undefined
+  return (
+    properties?.Properties?.Policies?.flatMap(
+      ({ PolicyDocument }) => PolicyDocument?.Statement ?? [],
+    ) ?? []
+  )
+}
+
 describe('AWS consumer bootstrap contract', () => {
+  it('inspects CloudFormation metadata independent of YAML presentation', () => {
+    const template = `
+Metadata:
+  PackageManagedParameters:
+    - Managed
+Parameters:
+  Managed:
+    Type: String
+Resources:
+  Example:
+    Type: AWS::IAM::Role
+    Properties:
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - sts:AssumeRole
+                  - sts:TagSession
+Outputs:
+  BootstrapContractVersion:
+    Value: "2"
+  BootstrapTemplateRevision:
+    Value: "2.4"
+`
+
+    expect(bootstrapContractVersion(template)).toBe('2')
+    expect(bootstrapTemplateRevision(template)).toBe('2.4')
+    expect(parseCloudFormationTemplate(template).Parameters).toHaveProperty('Managed')
+  })
+
   it('has one authoritative mode resolver for manifests, artifacts, and CLI assertions', () => {
     expect(resolveComputeMode()).toBe('lambda')
     expect(resolveComputeMode({ artifact: 'ecs', explicit: 'ecs' })).toBe('ecs')
@@ -82,6 +134,7 @@ describe('AWS consumer bootstrap contract', () => {
 
   it('locks down the core artifact bucket and execution role', async () => {
     const template = await bootstrapTemplate('core')
+    const document = parseCloudFormationTemplate(template)
     expect(bootstrapContractVersion(template)).toBe('1')
     expect(bootstrapTemplateRevision(template)).toBe('1.3')
     expect(template).toContain('BucketOwnerEnforced')
@@ -89,9 +142,20 @@ describe('AWS consumer bootstrap contract', () => {
     expect(template).toContain('BlockPublicPolicy: true')
     expect(template).toContain('RestrictPublicBuckets: true')
     expect(template).toContain('DenyInsecureTransport')
-    expect(template).toContain("'aws:SecureTransport': false")
+    const bucketPolicy = document.Resources?.ArtifactBucketPolicy as
+      | { Properties?: { PolicyDocument?: { Statement?: PolicyStatement[] } } }
+      | undefined
+    expect(
+      bucketPolicy?.Properties?.PolicyDocument?.Statement?.[0]?.Condition?.Bool?.[
+        'aws:SecureTransport'
+      ],
+    ).toBe(false)
     expect(template).toMatch(/ArtifactBucket\.Arn}\/lambda\/\*/)
-    expect(template).toContain("'iam:PassedToService': lambda.amazonaws.com")
+    expect(
+      policyStatements(document, 'CloudFormationExecutionRole').find(
+        ({ Sid }) => Sid === 'PassRuntimeRoleToLambdaOnly',
+      )?.Condition?.StringEquals?.['iam:PassedToService'],
+    ).toBe('lambda.amazonaws.com')
     expect(template).toMatch(/DashboardFunctionName}-server/)
     expect(template).not.toContain('RuntimeRoleName')
     expect(template).not.toMatch(/Effect: Allow[\s\S]*?Action: s3:\*/)
@@ -102,10 +166,17 @@ describe('AWS consumer bootstrap contract', () => {
 
   it('requires the exact immutable GitHub repository/environment subject, audience, stack and prefix', async () => {
     const template = await bootstrapTemplate('github-oidc')
+    const document = parseCloudFormationTemplate(template)
     expect(bootstrapContractVersion(template)).toBe('2')
     expect(bootstrapTemplateRevision(template)).toBe('2.3')
     expect(template).toContain('Federated: !Ref GitHubOidcProviderArn')
-    expect(template).toContain("'token.actions.githubusercontent.com:aud': sts.amazonaws.com")
+    const deployRole = document.Resources?.GitHubDeployRole as
+      | { Properties?: { AssumeRolePolicyDocument?: { Statement?: PolicyStatement[] } } }
+      | undefined
+    const trustStatement = deployRole?.Properties?.AssumeRolePolicyDocument?.Statement?.[0]
+    expect(
+      trustStatement?.Condition?.StringEquals?.['token.actions.githubusercontent.com:aud'],
+    ).toBe('sts.amazonaws.com')
     expect(template).toMatch(
       /repo:\$\{Owner}@\$\{GitHubOwnerId}\/\$\{Repository}@\$\{GitHubRepositoryId}:environment:\$\{GitHubEnvironment}/,
     )
@@ -126,13 +197,26 @@ describe('AWS consumer bootstrap contract', () => {
     expect(diagnosticPolicy).toContain('cloudformation:DescribeStackResourceDrifts')
     expect(diagnosticPolicy).toContain('stack/$' + '{CoreBootstrapStackName}/*')
     expect(diagnosticPolicy).toContain('stack/$' + '{AWS::StackName}/*')
-    expect(template.match(/Resource: '\*'/g)).toHaveLength(1)
+    expect(
+      policyStatements(document, 'GitHubDeployRole').filter(({ Resource }) => Resource === '*'),
+    ).toHaveLength(1)
     expect(template).toContain('InspectBootstrapBucketConfiguration')
-    expect(template).toContain(
-      "Resource: !Sub 'arn:$" + '{AWS::Partition}:s3:::$' + "{ArtifactBucketName}'",
-    )
+    expect(
+      policyStatements(document, 'GitHubDeployRole').find(
+        ({ Sid }) => Sid === 'InspectBootstrapBucketConfiguration',
+      )?.Resource,
+    ).toBe('arn:$' + '{AWS::Partition}:s3:::$' + '{ArtifactBucketName}')
     expect(template).toContain('InspectBootstrapRoleConfiguration')
-    expect(template).toContain('role/$' + "{ApplicationStackName}-github-deploy'")
+    expect(
+      policyStatements(document, 'GitHubDeployRole').find(
+        ({ Sid }) => Sid === 'InspectBootstrapRoleConfiguration',
+      )?.Resource,
+    ).toContain(
+      'arn:$' +
+        '{AWS::Partition}:iam::$' +
+        '{AWS::AccountId}:role/$' +
+        '{ApplicationStackName}-github-deploy',
+    )
   })
 
   it('requires inputs and reconciles explicitly defaulted parameters during upgrades', () => {

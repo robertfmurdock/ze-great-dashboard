@@ -38,6 +38,11 @@
   background: currentColor;
   box-shadow: 0 0 0.6em currentColor;
 }
+[data-overdue="true"] .markerBody {
+  --phased-marker-travel: -22.5cqw;
+  animation-duration: 0.72s;
+  animation-timing-function: ease-in-out;
+}
 .lane:nth-child(2) .markerBody {
   opacity: 0.7;
 }
@@ -76,11 +81,6 @@
   background: radial-gradient(ellipse, currentColor 0, transparent 68%);
   transform: translateX(-50%);
   animation: bloom-flare 1.6s ease-in-out infinite alternate;
-}
-[data-overdue="true"] .markerBody {
-  --phased-marker-travel: -22.5cqw;
-  animation-duration: 0.72s;
-  animation-timing-function: ease-in-out;
 }
 @media (prefers-reduced-motion: reduce) {
   .frontier {

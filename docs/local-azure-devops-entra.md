@@ -63,7 +63,7 @@ services:
   server:
     image: ${DASHBOARD_IMAGE:-ghcr.io/robertfmurdock/ze-great-dashboard:latest}
     ports:
-      - '3000:3000'
+      - "3000:3000"
     environment:
       BOARD_CONFIG_URL: /app/board.yaml
       ADO_ENTRA_TOKEN_FILE: /run/dashboard/ado-token.json
@@ -73,7 +73,7 @@ services:
     volumes:
       - ./board.yaml:/app/board.yaml:ro
       - ./.dashboard-entra:/run/dashboard:ro
-    restart: 'no'
+    restart: "no"
 ```
 
 Before using that configuration, sign in and write the mounted token:
@@ -95,7 +95,6 @@ the local token.
 ## Authentication modes and boundaries
 
 An Azure DevOps source must use exactly one mode:
-
 - `token_env`: a Build (read)-scoped PAT, sent using Basic authentication.
 - `entra_token_file_env`: a local short-lived delegated Entra token file, sent using Bearer authentication.
 

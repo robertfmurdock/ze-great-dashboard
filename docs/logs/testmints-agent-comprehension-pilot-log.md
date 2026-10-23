@@ -75,7 +75,7 @@ workspaces.
 Two condition- and profile-blind reviewers agreed on every explanation score. Every explanation
 received 3/4: it unambiguously named the failed refresh and described retained evidence plus
 no-publication/lease-release behavior, but none explicitly characterized the prior successful
-refresh as cache-priming *setup*. This is a useful negative result for the hypothesis: the phased
+refresh as cache-priming _setup_. This is a useful negative result for the hypothesis: the phased
 representation did not improve the boundary-focused explanation the task was designed to elicit,
 nor did it improve completion.
 

@@ -6,7 +6,6 @@ Recorded 2026-08-17 during the first data-plane implementation, at the user's re
 
 The repository now contains the first end-to-end `pipeline-status` slice using GitHub Actions as
 the source:
-
 - `packages/server/src/adapters/github-actions.ts` builds a workflow-runs URL from board config,
   attaches an optional environment token, forwards browser cache validators, normalizes GitHub's
   status/conclusion vocabulary, and returns the shared signal envelope.
@@ -73,7 +72,6 @@ default board file from `import.meta.url`; an explicit `BOARD_CONFIG_URL` remain
 deployed/remote configuration.
 
 After that correction, the real local path was verified:
-
 - `GET /` returned 200 and injected `window.env` before the module scripts.
 - `GET /api/panel/ze-great-team/web-build` returned 200 with a live GitHub response normalized to
   `passed`, including `ETag`, `Cache-Control`, `Date`, and the GitHub run link. GitHub's HTTP
@@ -85,7 +83,6 @@ After that correction, the real local path was verified:
 ## Verification checkpoint
 
 At this checkpoint `npm run check` passes:
-
 - Biome lint: 51 files
 - Typecheck: root, shared, server, and client all pass
 - Vitest: 9 files, 59 tests passing

@@ -2,9 +2,9 @@ name: Build
 on:
   push:
     branches:
-      - '**'
+      - "**"
     tags:
-      - '*'
+      - "*"
   workflow_dispatch:
 
 concurrency:
@@ -155,8 +155,8 @@ jobs:
           BOOTSTRAP_SERVER_ROLE_NAME: ze-great-dashboard-server
           BOOTSTRAP_DEPLOY_ROLE_NAME: ZeGreatDashboardDeploy
           GITHUB_SERVER_URL: ${{ github.server_url }}
-          GITHUB_OWNER_ID: '6215634'
-          GITHUB_REPOSITORY_ID: '1338375095'
+          GITHUB_OWNER_ID: "6215634"
+          GITHUB_REPOSITORY_ID: "1338375095"
         run: bash scripts/check-provider-bootstrap.sh
 
       - name: Provision AWS infrastructure
@@ -164,8 +164,8 @@ jobs:
         id: infrastructure
         env:
           CLOUDFORMATION_ROLE_ARN: arn:aws:iam::174159267544:role/ze-great-dashboard-cloudformation
-          GITHUB_OWNER_ID: '6215634'
-          GITHUB_REPOSITORY_ID: '1338375095'
+          GITHUB_OWNER_ID: "6215634"
+          GITHUB_REPOSITORY_ID: "1338375095"
         run: npm run --silent release:provision
 
       # Candidate asset publishing does not retain the more powerful provisioning credentials.

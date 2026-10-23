@@ -8,7 +8,6 @@ client, and the subsequent browser test invoked the client `test:browser` script
 Vite build before starting Playwright.
 
 The client now has two browser-test paths:
-
 - `test:browser` remains self-contained for standalone use: it builds the client and then runs the
   browser tests.
 - `test:browser:no-build` runs only Playwright against an existing client build.

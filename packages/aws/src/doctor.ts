@@ -1,8 +1,7 @@
 import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
-import { parse } from 'yaml'
-import { type ComputeMode, computeMode } from './bootstrap.ts'
+import { type ComputeMode, computeMode, parseCloudFormationTemplate } from './bootstrap.ts'
 import { bootstrapTemplate, bootstrapTemplateRevision, cloudFormationTemplate } from './index.ts'
 import { type BootstrapRemediation, bootstrapRemediation } from './remediation.js'
 
@@ -57,20 +56,9 @@ async function templateContract(parameters: ParameterValue[]) {
     parameters.map((item) => [item.ParameterKey, item.ParameterValue]),
   )
   const mode = computeMode({ mode: values.ComputeMode as ComputeMode | undefined })
-  const template = await cloudFormationTemplate(mode)
-  const parametersBlock = template.match(
-    /^Parameters:\n[\s\S]*?(?=^[A-Za-z][A-Za-z0-9]*:\s*$)/m,
-  )?.[0]
-  const metadataBlock = template.match(/^Metadata:\n[\s\S]*?(?=^Parameters:\s*$)/m)?.[0]
-  if (!parametersBlock) throw new Error('template has no Parameters block')
-  const parsedParameters = parse(parametersBlock) as {
-    Parameters?: Record<string, { Default?: unknown }>
-  }
-  const parsedMetadata = metadataBlock
-    ? (parse(metadataBlock) as { Metadata?: { PackageManagedParameters?: unknown } })
-    : {}
-  const definitions = parsedParameters.Parameters ?? {}
-  const managedValue = parsedMetadata.Metadata?.PackageManagedParameters ?? []
+  const template = parseCloudFormationTemplate(await cloudFormationTemplate(mode))
+  const definitions = template.Parameters ?? {}
+  const managedValue = template.Metadata?.PackageManagedParameters ?? []
   if (!Array.isArray(managedValue) || !managedValue.every((key) => typeof key === 'string'))
     throw new Error('template has invalid PackageManagedParameters metadata')
   const managed = new Set(managedValue)

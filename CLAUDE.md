@@ -25,7 +25,7 @@ Under ten seconds is a budget to defend as tests accumulate — it is the entire
 
 **2. New dependencies need justification.** A tool whose pitch is trustworthiness should not accrete
 packages. Say what it buys and what it costs in the change that adds it. This is the design doc's
-*curated dependencies* constraint, and it is why there is no test-HTTP library (Hono's
+_curated dependencies_ constraint, and it is why there is no test-HTTP library (Hono's
 `app.request()` covers it), no husky (`core.hooksPath` covers it), and no separate formatter (Biome
 does both).
 
@@ -53,7 +53,6 @@ README files and setup, deployment, and configuration guides are for people deci
 the dashboard or trying to use it—not for contributors reconstructing the repository. Before
 editing one, name its audience and the decision or task the reader needs to complete. Review the
 result as a first-time consumer with no repository context:
-
 - Does it say what the product does, what is supported, what is out of scope, and what the reader
   should do next?
 - Do every command, link, version, default, and configuration example match the current product and
@@ -83,14 +82,14 @@ guide; move it to the correctly named document when placement is the problem.
 
 ## Commands
 
-| | |
-|---|---|
-| `npm run check` | The gate. Lint + typecheck + test. |
-| `npm run dev` | Vite on 5173 + server on 3000, HMR through the real rendering path. |
-| `npm run test:watch` | Vitest in watch mode. |
-| `npm run format` | Biome, writing fixes. |
-| `npm run build` | Production client build. |
-| `docker compose up` | The deployed shape, against a published `ASSET_PATH`. |
+|                      |                                                                     |
+| -------------------- | ------------------------------------------------------------------- |
+| `npm run check`      | The gate. Lint + typecheck + test.                                  |
+| `npm run dev`        | Vite on 5173 + server on 3000, HMR through the real rendering path. |
+| `npm run test:watch` | Vitest in watch mode.                                               |
+| `npm run format`     | Biome, writing fixes.                                               |
+| `npm run build`      | Production client build.                                            |
+| `docker compose up`  | The deployed shape, against a published `ASSET_PATH`.               |
 
 ## The one mechanism to understand first
 
@@ -104,11 +103,10 @@ and prod alike. The server's only rewriting is replacing that sentinel with the 
 uses the identical code path because Vite's dev server also serves under the sentinel prefix.
 
 Things that follow, and are load-bearing:
-
 - `index.html` is **deployable configuration**, not a build artifact to bake in. It is fetched from
   `{assetPath}/index.html` at runtime. Baking it into the server image would serve one version's
   assets under another version's hashed filenames — the most confusing available failure.
-- `<base href>` is **not** an option. It would repoint *every* relative URL including `/api`, sending
+- `<base href>` is **not** an option. It would repoint _every_ relative URL including `/api`, sending
   proxy calls to the CDN.
 - `window.env` is injected as the **first** element of `<head>`, because the client's modules read it
   during initial evaluation. Later is a race.
@@ -147,7 +145,6 @@ path, that test is the one that matters.
 ## Design constraints for the cosmetic work
 
 Most of the work ahead is visual, and `npm run dev` is the loop for it.
-
 - Sized for a wall: `font-size` scales with the viewport, so the same board reads on a laptop and on
   a TV across the room.
 - **Status is never color alone.** Every status pairs with a glyph and a label. The palette in

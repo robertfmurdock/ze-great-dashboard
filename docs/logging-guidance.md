@@ -40,7 +40,6 @@ miss; it is a contract change and should explain the decision instead.
 
 When debugging reveals a production or release-relevant defect, stop once its causal fix is known
 and ask before returning to the original task:
-
 1. Before changing production code, can the smallest realistic test reproduce the known-bad behavior
    on the prior implementation? Run it red. If not, record the unavailable interface or environment
    and the closest representative evidence before selecting a correction.
@@ -55,7 +54,6 @@ gap as ordinary green-test work merely because the final correction has a test.
 
 When recording a completed work slice, use these as lightweight prompts rather than mandatory
 headings:
-
 - What were we trying to accomplish?
 - What consequential choices or tradeoffs mattered?
 - What did execution or review reveal?

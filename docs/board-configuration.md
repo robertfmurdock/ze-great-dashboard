@@ -367,7 +367,6 @@ modeline selects the release schema, and enforce relationships that JSON Schema 
 such as unique IDs, paired or exclusive fields, panel/source compatibility, supported proxy
 operations, environment-selected boards, credential lookup, and external availability. In
 particular, check that:
-
 - `boards` is a map containing at least one board.
 - Each board contains at least one panel.
 - Panel IDs are unique within each board.

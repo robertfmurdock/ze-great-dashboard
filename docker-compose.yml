@@ -14,7 +14,7 @@ services:
       - path: .env
         required: false
     ports:
-      - '3000:3000'
+      - "3000:3000"
     environment:
       - PROXY_PATH=${PROXY_PATH:-/api}
       - BOARD_CONFIG_URL=${BOARD_CONFIG_URL:-./boards/example.yaml}
@@ -22,4 +22,4 @@ services:
       - PORT=3000
     # A refused start is a configuration error to read and fix, not something to retry into a
     # crash loop that buries the message.
-    restart: 'no'
+    restart: "no"

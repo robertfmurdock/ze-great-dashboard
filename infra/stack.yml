@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Description: Ze Great Dashboard application infrastructure
 
 Parameters:
@@ -25,13 +25,13 @@ Parameters:
 
 Rules:
   AssetsDomainRequiresCertificate:
-    RuleCondition: !Not [!Equals [!Ref AssetsDomain, '']]
+    RuleCondition: !Not [!Equals [!Ref AssetsDomain, ""]]
     Assertions:
-      - Assert: !Not [!Equals [!Ref AssetsCertificateArn, '']]
+      - Assert: !Not [!Equals [!Ref AssetsCertificateArn, ""]]
         AssertDescription: AssetsCertificateArn is required when AssetsDomain is set
 
 Conditions:
-  HasAssetsDomain: !Not [!Equals [!Ref AssetsDomain, '']]
+  HasAssetsDomain: !Not [!Equals [!Ref AssetsDomain, ""]]
 
 Resources:
   AssetsBucket:
@@ -39,16 +39,16 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !Sub '${Name}-assets'
+      BucketName: !Sub "${Name}-assets"
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
       CorsConfiguration:
         CorsRules:
-          - AllowedHeaders: ['*']
+          - AllowedHeaders: ["*"]
             AllowedMethods: [GET, HEAD]
-            AllowedOrigins: ['*']
+            AllowedOrigins: ["*"]
             MaxAge: 3600
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
@@ -63,7 +63,7 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub '${Name}-assets'
+        Name: !Sub "${Name}-assets"
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
@@ -76,7 +76,7 @@ Resources:
           - HasAssetsDomain
           - [!Ref AssetsDomain]
           - !Ref AWS::NoValue
-        Comment: !Sub '${Name} client assets'
+        Comment: !Sub "${Name} client assets"
         Enabled: true
         HttpVersion: http2
         IPV6Enabled: true
@@ -86,7 +86,7 @@ Resources:
             Id: assets
             OriginAccessControlId: !Ref AssetsOriginAccessControl
             S3OriginConfig:
-              OriginAccessIdentity: ''
+              OriginAccessIdentity: ""
         DefaultCacheBehavior:
           TargetOriginId: assets
           ViewerProtocolPolicy: redirect-to-https
@@ -107,48 +107,48 @@ Resources:
     Properties:
       Bucket: !Ref AssetsBucket
       PolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Sid: AllowCloudFrontRead
             Effect: Allow
             Principal:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
-            Resource: !Sub '${AssetsBucket.Arn}/*'
+            Resource: !Sub "${AssetsBucket.Arn}/*"
             Condition:
               StringEquals:
-                AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${AssetsDistribution}'
+                AWS:SourceArn: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${AssetsDistribution}"
 
   DeployRole:
     Type: AWS::IAM::Role
     Properties:
       # Kept stable for the one-time bootstrap policy and exposed as the deployment contract.
       RoleName: ZeGreatDashboardDeploy
-      Description: !Sub 'GitHub Actions release role for ${GitHubRepository}'
+      Description: !Sub "GitHub Actions release role for ${GitHubRepository}"
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+              Federated: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
-                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
-                'token.actions.githubusercontent.com:sub': !Sub
-                  - 'repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:ref:refs/heads/main'
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub
+                  - "repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:ref:refs/heads/main"
                   - Owner:
                       Fn::Select:
                         - 0
-                        - Fn::Split: ['/', !Ref GitHubRepository]
+                        - Fn::Split: ["/", !Ref GitHubRepository]
                     Repository:
                       Fn::Select:
                         - 1
-                        - Fn::Split: ['/', !Ref GitHubRepository]
+                        - Fn::Split: ["/", !Ref GitHubRepository]
       Policies:
         - PolicyName: deploy
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Sid: PublishAssets
                 Effect: Allow
@@ -160,7 +160,7 @@ Resources:
                   - s3:DeleteObject
                 Resource:
                   - !GetAtt AssetsBucket.Arn
-                  - !Sub '${AssetsBucket.Arn}/*'
+                  - !Sub "${AssetsBucket.Arn}/*"
 
   ReferenceArtifactBucket:
     Type: AWS::S3::Bucket
@@ -199,7 +199,7 @@ Resources:
       RoleName: ZeGreatDashboardReferenceCloudFormationExecution
       Description: CloudFormation execution role for the consumer reference
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal: { Service: cloudformation.amazonaws.com }
@@ -207,22 +207,22 @@ Resources:
       Policies:
         - PolicyName: ReferenceStackResources
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Sid: ReferenceLambda
                 Effect: Allow
                 Action: lambda:*
-                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:ze-great-dashboard-reference-*'
+                Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:ze-great-dashboard-reference-*"
               - Sid: ReferenceLogs
                 Effect: Allow
                 Action: logs:*
-                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ze-great-dashboard-reference-*:*'
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ze-great-dashboard-reference-*:*"
               - Sid: ReadReferenceArtifact
                 Effect: Allow
                 Action: s3:GetObject
                 Resource:
-                  - !Sub '${ReferenceArtifactBucket.Arn}/lambda/*'
-                  - !Sub '${ReferenceArtifactBucket.Arn}/templates/*'
+                  - !Sub "${ReferenceArtifactBucket.Arn}/lambda/*"
+                  - !Sub "${ReferenceArtifactBucket.Arn}/templates/*"
               - Sid: ReferenceNestedStacks
                 Effect: Allow
                 Action:
@@ -233,14 +233,14 @@ Resources:
                   - cloudformation:DescribeStackEvents
                   - cloudformation:GetTemplate
                   - cloudformation:GetTemplateSummary
-                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ze-great-dashboard-reference-*/*'
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ze-great-dashboard-reference-*/*"
               - Sid: PassReferenceExecutionRoleToNestedStacks
                 Effect: Allow
                 Action: iam:PassRole
-                Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceCloudFormationExecution'
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceCloudFormationExecution"
                 Condition:
                   StringEquals:
-                    'iam:PassedToService': cloudformation.amazonaws.com
+                    "iam:PassedToService": cloudformation.amazonaws.com
               - Sid: ReferenceServerRoles
                 Effect: Allow
                 Action:
@@ -258,39 +258,39 @@ Resources:
                   - iam:TagRole
                   - iam:UntagRole
                   - iam:PassRole
-                Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ze-great-dashboard-reference-*'
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ze-great-dashboard-reference-*"
 
   GitHubReferenceDeployRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: ZeGreatDashboardReferenceDeploy
-      Description: !Sub 'Main-only GitHub consumer reference role for ${GitHubRepository}'
+      Description: !Sub "Main-only GitHub consumer reference role for ${GitHubRepository}"
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+              Federated: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
-                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
-                'token.actions.githubusercontent.com:sub': !Sub
-                  - 'repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:ref:refs/heads/main'
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub
+                  - "repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:ref:refs/heads/main"
                   - Owner:
-                      Fn::Select: [0, { Fn::Split: ['/', !Ref GitHubRepository] }]
+                      Fn::Select: [0, { Fn::Split: ["/", !Ref GitHubRepository] }]
                     Repository:
-                      Fn::Select: [1, { Fn::Split: ['/', !Ref GitHubRepository] }]
+                      Fn::Select: [1, { Fn::Split: ["/", !Ref GitHubRepository] }]
       Policies:
         - PolicyName: DeployReferenceConsumer
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Sid: UploadReferenceArtifact
                 Effect: Allow
                 Action: [s3:PutObject, s3:GetObject]
-                Resource: !Sub '${ReferenceArtifactBucket.Arn}/*'
+                Resource: !Sub "${ReferenceArtifactBucket.Arn}/*"
               - Sid: InspectReferenceArtifactBucket
                 Effect: Allow
                 Action: [s3:GetBucketLocation, s3:ListBucket]
@@ -308,25 +308,25 @@ Resources:
                   - cloudformation:GetTemplate
                   - cloudformation:GetTemplateSummary
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ze-great-dashboard-reference/*'
-                  - !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ze-great-dashboard-reference-*/*'
+                  - !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ze-great-dashboard-reference/*"
+                  - !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ze-great-dashboard-reference-*/*"
               - Sid: PassReferenceExecutionRole
                 Effect: Allow
                 Action: iam:PassRole
                 Resource: !GetAtt ReferenceCloudFormationExecutionRole.Arn
                 Condition:
                   StringEquals:
-                    'iam:PassedToService': cloudformation.amazonaws.com
+                    "iam:PassedToService": cloudformation.amazonaws.com
               - Sid: TestReferencePrivateLambda
                 Effect: Allow
                 Action: lambda:InvokeFunction
-                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:ze-great-dashboard-reference-*'
+                Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:ze-great-dashboard-reference-*"
               # CloudFormation cannot create SecureString parameters. The release workflow writes
               # this fixed fake map directly so the reference smoke test covers Parameter Store too.
               - Sid: MaintainReferenceCredentialSmokeParameter
                 Effect: Allow
                 Action: ssm:PutParameter
-                Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ze-great-dashboard-reference-credentials-smoke'
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ze-great-dashboard-reference-credentials-smoke"
 
   GitHubReferenceSmokeRole:
     Type: AWS::IAM::Role
@@ -335,62 +335,62 @@ Resources:
       Description: Main-only GitHub role for the ephemeral Docker smoke test
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+              Federated: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
-                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
-                'token.actions.githubusercontent.com:sub': !Sub
-                  - 'repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:ref:refs/heads/main'
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub
+                  - "repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:ref:refs/heads/main"
                   - Owner:
-                      Fn::Select: [0, { Fn::Split: ['/', !Ref GitHubRepository] }]
+                      Fn::Select: [0, { Fn::Split: ["/", !Ref GitHubRepository] }]
                     Repository:
-                      Fn::Select: [1, { Fn::Split: ['/', !Ref GitHubRepository] }]
+                      Fn::Select: [1, { Fn::Split: ["/", !Ref GitHubRepository] }]
       Policies:
         - PolicyName: RunEphemeralDashboardSmoke
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Sid: DiscoverSmokeSubnets
                 Effect: Allow
                 Action: ec2:DescribeSubnets
-                Resource: '*'
+                Resource: "*"
               - Sid: CreateSmokeCluster
                 Effect: Allow
                 Action: ecs:CreateCluster
-                Resource: '*'
+                Resource: "*"
               - Sid: OperateSmokeCluster
                 Effect: Allow
                 Action:
                   - ecs:DescribeTasks
                   - ecs:StopTask
-                Resource: '*'
+                Resource: "*"
                 Condition:
                   ArnLike:
-                    'ecs:cluster': !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/ze-great-dashboard-smoke-*'
+                    "ecs:cluster": !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/ze-great-dashboard-smoke-*"
               - Sid: DeleteSmokeCluster
                 Effect: Allow
                 Action: ecs:DeleteCluster
-                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/ze-great-dashboard-smoke-*'
+                Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/ze-great-dashboard-smoke-*"
               - Sid: RunSmokeTask
                 Effect: Allow
                 Action: ecs:RunTask
-                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/ze-great-dashboard-smoke-*'
+                Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/ze-great-dashboard-smoke-*"
                 Condition:
                   ArnLike:
-                    'ecs:cluster': !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/ze-great-dashboard-smoke-*'
+                    "ecs:cluster": !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/ze-great-dashboard-smoke-*"
               - Sid: RegisterSmokeTaskDefinition
                 Effect: Allow
                 Action: ecs:RegisterTaskDefinition
-                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/ze-great-dashboard-smoke-*:*'
+                Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/ze-great-dashboard-smoke-*:*"
               - Sid: DeregisterSmokeTaskDefinition
                 Effect: Allow
                 Action: ecs:DeregisterTaskDefinition
-                Resource: '*'
+                Resource: "*"
 
 Outputs:
   AssetsBucket:
@@ -398,8 +398,8 @@ Outputs:
   AssetsBaseUrl:
     Value: !If
       - HasAssetsDomain
-      - !Sub 'https://${AssetsDomain}'
-      - !Sub 'https://${AssetsDistribution.DomainName}'
+      - !Sub "https://${AssetsDomain}"
+      - !Sub "https://${AssetsDistribution.DomainName}"
   AssetsDistributionDomain:
     Value: !GetAtt AssetsDistribution.DomainName
   DeployRoleArn:
@@ -415,4 +415,4 @@ Outputs:
   ReferenceCredentialSmokeSecretArn:
     Value: !Ref ReferenceCredentialSmokeSecret
   ReferenceCredentialSmokeParameterArn:
-    Value: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ze-great-dashboard-reference-credentials-smoke'
+    Value: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ze-great-dashboard-reference-credentials-smoke"

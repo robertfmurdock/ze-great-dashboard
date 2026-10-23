@@ -66,7 +66,6 @@ coordinator's hidden verifier pass.
 **Secondary outcomes.** Record elapsed wall time, tool/test invocations, changed-line count, and
 the agent's one-paragraph explanation of the protected behavior. Two reviewers, blinded to
 condition and agent profile, score the explanation against four binary items:
-
 1. `sourceUpdatedAt` mirrors `updatedAt` when supplied.
 2. `sourceUpdatedAt` is absent when upstream omits `updatedAt`.
 3. The public response remains successful and preserves its canonical link and cache policy.

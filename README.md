@@ -26,7 +26,6 @@ healthy or blank.
 Engineering status often lives in several tools, each with its own vocabulary and access boundary.
 The dashboard makes that status readable at a glance without pretending to replace those systems,
 collect history, or send your team’s signals to a hosted analytics service.
-
 - **Evidence over assertion.** It shows the authority, observation time, and path back to the
   source; when a source cannot be read, that failure is the status. A reassuring blank panel is not
   an acceptable answer.

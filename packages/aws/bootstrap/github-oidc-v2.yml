@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Description: Ze Great Dashboard GitHub OIDC adapter v2. Administrator-managed; requires a central OIDC provider.
 
 Parameters:
@@ -16,13 +16,13 @@ Parameters:
   ApplicationStackName: { Type: String }
   ConsumerGatewayStackName:
     Type: String
-    Default: ''
+    Default: ""
     Description: Optional consumer-owned gateway stack whose outputs the deploy role may read
   ArtifactBucketName: { Type: String }
   CloudFormationExecutionRoleArn: { Type: String }
 
 Conditions:
-  HasConsumerGatewayStack: !Not [!Equals [!Ref ConsumerGatewayStackName, '']]
+  HasConsumerGatewayStack: !Not [!Equals [!Ref ConsumerGatewayStackName, ""]]
 
 Resources:
   GitHubDeployRole:
@@ -30,77 +30,107 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      RoleName: !Sub '${ApplicationStackName}-github-deploy'
+      RoleName: !Sub "${ApplicationStackName}-github-deploy"
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal: { Federated: !Ref GitHubOidcProviderArn }
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
-                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
-                'token.actions.githubusercontent.com:sub': !Sub
-                  - 'repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:environment:${GitHubEnvironment}'
-                  - Owner: !Select [0, !Split ['/', !Ref GitHubRepository]]
-                    Repository: !Select [1, !Split ['/', !Ref GitHubRepository]]
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub
+                  - "repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:environment:${GitHubEnvironment}"
+                  - Owner: !Select [0, !Split ["/", !Ref GitHubRepository]]
+                    Repository: !Select [1, !Split ["/", !Ref GitHubRepository]]
       Policies:
         - PolicyName: DeployOneDashboard
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Sid: UploadLambdaArtifacts
                 Effect: Allow
                 Action: [s3:PutObject, s3:GetObject]
-                Resource: !Sub 'arn:${AWS::Partition}:s3:::${ArtifactBucketName}/lambda/*'
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${ArtifactBucketName}/lambda/*"
               - Sid: InspectArtifactBucket
                 Effect: Allow
                 Action: [s3:GetBucketLocation, s3:ListBucket]
-                Resource: !Sub 'arn:${AWS::Partition}:s3:::${ArtifactBucketName}'
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${ArtifactBucketName}"
               - Sid: OperateOneApplicationStack
                 Effect: Allow
-                Action: [cloudformation:CreateChangeSet, cloudformation:DescribeChangeSet, cloudformation:ExecuteChangeSet, cloudformation:DeleteChangeSet, cloudformation:DescribeStacks, cloudformation:DescribeStackEvents, cloudformation:GetTemplate, cloudformation:GetTemplateSummary]
-                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ApplicationStackName}/*'
+                Action:
+                  [
+                    cloudformation:CreateChangeSet,
+                    cloudformation:DescribeChangeSet,
+                    cloudformation:ExecuteChangeSet,
+                    cloudformation:DeleteChangeSet,
+                    cloudformation:DescribeStacks,
+                    cloudformation:DescribeStackEvents,
+                    cloudformation:GetTemplate,
+                    cloudformation:GetTemplateSummary,
+                  ]
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ApplicationStackName}/*"
               - Sid: InspectBootstrapStacks
                 Effect: Allow
-                Action: [cloudformation:DescribeStacks, cloudformation:DetectStackDrift, cloudformation:DescribeStackResourceDrifts]
+                Action:
+                  [
+                    cloudformation:DescribeStacks,
+                    cloudformation:DetectStackDrift,
+                    cloudformation:DescribeStackResourceDrifts,
+                  ]
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${CoreBootstrapStackName}/*'
-                  - !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*'
+                  - !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${CoreBootstrapStackName}/*"
+                  - !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*"
               # Detection-status requests are keyed by an opaque detection id, so AWS does not
               # support scoping this one read action to a stack ARN.
               - Sid: ReadBootstrapDriftDetectionStatus
                 Effect: Allow
                 Action: cloudformation:DescribeStackDriftDetectionStatus
-                Resource: '*'
+                Resource: "*"
               # CloudFormation uses the caller's read permissions when these administrator-created
               # stacks have no service role. Keep resource inspection on the exact bootstrap bucket
               # and roles whose properties drift detection evaluates.
               - Sid: InspectBootstrapBucketConfiguration
                 Effect: Allow
-                Action: [s3:GetBucketAcl, s3:GetBucketPolicy, s3:GetBucketPublicAccessBlock, s3:GetEncryptionConfiguration, s3:GetBucketOwnershipControls, s3:GetBucketTagging]
-                Resource: !Sub 'arn:${AWS::Partition}:s3:::${ArtifactBucketName}'
+                Action:
+                  [
+                    s3:GetBucketAcl,
+                    s3:GetBucketPolicy,
+                    s3:GetBucketPublicAccessBlock,
+                    s3:GetEncryptionConfiguration,
+                    s3:GetBucketOwnershipControls,
+                    s3:GetBucketTagging,
+                  ]
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${ArtifactBucketName}"
               - Sid: InspectBootstrapRoleConfiguration
                 Effect: Allow
-                Action: [iam:GetRole, iam:GetRolePolicy, iam:ListRolePolicies, iam:ListAttachedRolePolicies, iam:ListRoleTags]
+                Action:
+                  [
+                    iam:GetRole,
+                    iam:GetRolePolicy,
+                    iam:ListRolePolicies,
+                    iam:ListAttachedRolePolicies,
+                    iam:ListRoleTags,
+                  ]
                 Resource:
                   - !Ref CloudFormationExecutionRoleArn
-                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ApplicationStackName}-github-deploy'
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ApplicationStackName}-github-deploy"
               - !If
                 - HasConsumerGatewayStack
                 - Sid: ReadConsumerGatewayStack
                   Effect: Allow
                   Action: cloudformation:DescribeStacks
-                  Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ConsumerGatewayStackName}/*'
+                  Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ConsumerGatewayStackName}/*"
                 - !Ref AWS::NoValue
               - Sid: PassCoreExecutionRole
                 Effect: Allow
                 Action: iam:PassRole
                 Resource: !Ref CloudFormationExecutionRoleArn
-                Condition: { StringEquals: { 'iam:PassedToService': cloudformation.amazonaws.com } }
+                Condition: { StringEquals: { "iam:PassedToService": cloudformation.amazonaws.com } }
 
 Outputs:
-  BootstrapContractVersion: { Value: '2' }
-  BootstrapTemplateRevision: { Value: '2.3' }
+  BootstrapContractVersion: { Value: "2" }
+  BootstrapTemplateRevision: { Value: "2.3" }
   GitHubDeployRoleArn: { Value: !GetAtt GitHubDeployRole.Arn }

@@ -117,10 +117,10 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-overdue="true"] .trail,
-  [data-overdue="true"] .packet,
   .trail,
-  .packet {
+  .packet,
+  [data-overdue="true"] .trail,
+  [data-overdue="true"] .packet {
     animation: none;
   }
   .frontier {
