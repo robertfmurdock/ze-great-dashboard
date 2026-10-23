@@ -265,3 +265,23 @@ requests remain within an exercise only where they are the behavior of one adapt
 bounded fallback lookup and active-run jobs lookup). Shared helpers arrange only fixtures and apps;
 they do not register scenarios or hide the adapter/route call. No production behavior, dependency,
 or reporting configuration changed.
+
+### Follow-up: cross-provider pipeline route contract
+
+`packages/server/test/pipeline-adapter-contract.test.ts` now expresses its shared GitHub Actions,
+GitLab CI, and Azure DevOps route evidence as Testmints scenarios. This is a genuinely uniform
+matrix: each provider arranges its controlled source response, performs one named panel request,
+and checks the same public contract for successful evidence, cache validation, upstream 304,
+non-disclosing authorization failure, and closed-panel admission. The provider fixture remains
+typed and branch-free, while each Testmints declaration leaves the request and its observable
+evidence visible. Provider suites retain ownership of source-specific response shapes and behavior.
+No production behavior, dependency, or reporting configuration changed.
+
+A follow-up moved `pipelineAdapterApp` construction from `exercise` to `setup`. It creates the
+controlled app and is therefore scenario arrangement; the named route request is the single
+observable operation that belongs in `exercise`. This makes the public HTTP boundary easier to
+identify without changing the evidence.
+
+The follow-up also inlined fetchers that no verification observes. Only the cache-validator and
+undeclared-panel scenarios retain named fetchers, because their assertions inspect upstream call
+history; the remaining mocks are implementation details of the arranged app.
