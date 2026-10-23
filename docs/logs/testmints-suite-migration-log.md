@@ -219,6 +219,13 @@ Fixtures may arrange real inputs and assertion helpers may name a stable, meanin
 hide the subject action. A reader should be able to find each scenario’s input, actual operation,
 and expected evidence without following a generic local test factory.
 
+Group Testmints scenarios by the contract boundary they exercise—such as permitted-call derivation,
+observation, credential behavior, failure disclosure, and routing—rather than leaving one broad
+adapter block. A typed assertion helper is appropriate when a uniform matrix otherwise repeats a
+large, stable public envelope; keep the subject call at each scenario and use the helper only in
+`verify`. Descriptor tables should hold fresh-input factories, not already-created mocks: construct
+the mock in `setup` so each scenario owns its isolated interaction history.
+
 This migration did not justify a production refactor. In particular, `boardConfigSchema` validates
 source-specific configuration without replacing it with adapter-parsed/defaulted output; GitLab’s
 default instance URL is therefore an adapter-boundary behavior. Keep that distinction visible in
@@ -226,3 +233,14 @@ tests unless repeated cross-adapter evidence establishes that normalization belo
 configuration model. Treat first-class expected-rejection support as an upstream Testmints concern,
 not a dashboard abstraction. Continue migrating only where phase boundaries make a real contract
 easier to understand; existing synthetic studies did not establish a blanket Testmints advantage.
+
+### Follow-up: Azure DevOps pipeline-adapter boundary
+
+`packages/server/test/azure-devops.test.ts` now separates permitted-call derivation, normalized
+pipeline observations, renewable Entra file credentials, public upstream failures, and panel-route
+security into Testmints scenarios. The status, invalid-token-file, and public-failure mappings use
+branch-free descriptors. The Entra-refresh exercise intentionally reads the token file twice after
+changing it, because fresh credentials on repeated adapter calls are the contract; its temporary
+directory uses scoped cleanup. Configured and rejected panel routes, plus API and entrypoint
+credential redaction, are distinct requests and therefore distinct scenarios. No production
+behavior, reporting configuration, or dependency changed.
