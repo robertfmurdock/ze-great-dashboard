@@ -244,3 +244,19 @@ changing it, because fresh credentials on repeated adapter calls are the contrac
 directory uses scoped cleanup. Configured and rejected panel routes, plus API and entrypoint
 credential redaction, are distinct requests and therefore distinct scenarios. No production
 behavior, reporting configuration, or dependency changed.
+
+### Follow-up: GitHub Actions adapter and pull-request-health boundaries
+
+`packages/server/test/github-actions.test.ts` is now fully migrated to `mintTest`. Its recorded
+workflow-run normalization remains a typed, branch-free fixture-to-signal matrix; every other
+scenario visibly arranges its controlled upstream response or app, executes one adapter operation
+or one named route request, then verifies public evidence. The controlled clock used for the
+30-day bounded lookup now uses Testmints scoped cleanup, so it is restored even if an exercise or
+verification fails.
+
+The former multi-action activity fallback, credential-redaction, pull-request-health observation,
+and named-route registrations were split into independently named scenarios. Multiple upstream
+requests remain within an exercise only where they are the behavior of one adapter operation (the
+bounded fallback lookup and active-run jobs lookup). Shared helpers arrange only fixtures and apps;
+they do not register scenarios or hide the adapter/route call. No production behavior, dependency,
+or reporting configuration changed.

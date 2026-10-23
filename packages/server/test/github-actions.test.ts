@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import type { BoardConfig } from '@ze-great-dashboard/shared'
-import { describe, expect, it, vi } from 'vitest'
+import { mintTest } from '@continuous-excellence/testmints-js/vitest'
+import type { BoardConfig, PipelineStatus } from '@ze-great-dashboard/shared'
+import { describe, expect, vi } from 'vitest'
 import {
   fetchGithubActionsPipeline,
   fetchGithubActionsPullRequestBuild,
@@ -60,118 +61,152 @@ function upstreamRunWithJobs(run: unknown, jobs: unknown[], jobsStatus = 200): t
 }
 
 describe('the GitHub Actions adapter', () => {
-  it.each([
-    ['success', 'passed', 134_000],
-    ['failure', 'failed', 53_000],
-    ['in-progress', 'running', undefined],
-    ['cancelled', 'cancelled', 550_000],
-  ])('normalizes the recorded %s run as %s', async (name, expected, durationMs) => {
-    const result = await fetchGithubActionsPipeline({
-      panel,
-      source,
-      requestHeaders: new Headers(),
-      fetcher: upstream(name),
-    })
-
-    expect(result.envelope).toMatchObject({
-      panelId: 'web-build',
-      state: 'ok',
-      observedAt: '2026-08-17T14:32:05.000Z',
-      signal: {
-        type: 'pipeline-status',
-        status: expected,
-        ...(name === 'success' ? { sourceRunId: expect.any(String) } : {}),
+  const recordedRunCases: ReadonlyArray<{
+    fixtureName: string
+    expectedSignal: Partial<PipelineStatus>
+  }> = [
+    {
+      fixtureName: 'success',
+      expectedSignal: {
+        status: 'passed',
+        durationMs: 134_000,
+        sourceRunId: expect.any(String),
         sourceUpdatedAt: expect.any(String),
-        ...(durationMs === undefined ? {} : { durationMs }),
+      },
+    },
+    {
+      fixtureName: 'failure',
+      expectedSignal: {
+        status: 'failed',
+        durationMs: 53_000,
+        sourceUpdatedAt: expect.any(String),
+      },
+    },
+    {
+      fixtureName: 'in-progress',
+      expectedSignal: { status: 'running', sourceUpdatedAt: expect.any(String) },
+    },
+    {
+      fixtureName: 'cancelled',
+      expectedSignal: {
+        status: 'cancelled',
+        durationMs: 550_000,
+        sourceUpdatedAt: expect.any(String),
+      },
+    },
+  ]
+
+  for (const { fixtureName, expectedSignal } of recordedRunCases)
+    mintTest(`normalizes the recorded ${fixtureName} run as ${expectedSignal.status}`, {
+      setup: () => ({ fetcher: upstream(fixtureName) }),
+      exercise: ({ fetcher }) =>
+        fetchGithubActionsPipeline({
+          panel,
+          source,
+          requestHeaders: new Headers(),
+          fetcher,
+        }),
+      verify: (result) => {
+        expect(result.envelope).toMatchObject({
+          panelId: 'web-build',
+          state: 'ok',
+          observedAt: '2026-08-17T14:32:05.000Z',
+          signal: {
+            type: 'pipeline-status',
+            ...expectedSignal,
+          },
+        })
       },
     })
+
+  mintTest('uses the configured workflow without filtering when no branch is configured', {
+    setup: () => ({ panel, source }),
+    exercise: ({ panel, source }) => permittedGithubActionsCalls(panel, source),
+    verify: ([call]) => {
+      expect(call?.url).toBe(
+        'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?per_page=1',
+      )
+    },
   })
 
-  it('uses the configured workflow without filtering when no branch is configured', () => {
-    const [call] = permittedGithubActionsCalls(panel, source)
-    expect(call?.url).toBe(
-      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?per_page=1',
-    )
+  mintTest('filters workflow runs to the configured branch', {
+    setup: () => ({ panel, source: { ...source, branch: 'trunk' } }),
+    exercise: ({ panel, source }) => permittedGithubActionsCalls(panel, source),
+    verify: ([call]) => {
+      expect(call?.url).toBe(
+        'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?branch=trunk&per_page=1',
+      )
+    },
   })
 
-  it('filters workflow runs to the configured branch', () => {
-    const [call] = permittedGithubActionsCalls(panel, { ...source, branch: 'trunk' })
-    expect(call?.url).toBe(
-      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?branch=trunk&per_page=1',
-    )
+  mintTest('first requests up to 100 workflow runs created in the last 30 UTC days', {
+    setup: ({ scope }) => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-08-31T12:00:00.000Z'))
+      scope.defer('real clock', () => vi.useRealTimers())
+      return { fetcher: upstream('success'), source: { ...source, branch: 'trunk' } }
+    },
+    exercise: ({ fetcher, source }) =>
+      fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher }),
+    verify: (_, { fetcher }) => {
+      expect(vi.mocked(fetcher).mock.calls[0]?.[0]).toBe(
+        'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?branch=trunk&created=%3E%3D2026-08-01T12%3A00%3A00.000Z&per_page=100',
+      )
+    },
   })
 
-  it('first requests up to 100 workflow runs created in the last 30 UTC days', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-31T12:00:00.000Z'))
-    const fetcher = upstream('success')
-
-    await fetchGithubActionsPipeline({
-      panel,
-      source: { ...source, branch: 'trunk' },
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-
-    expect(vi.mocked(fetcher).mock.calls[0]?.[0]).toBe(
-      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?branch=trunk&created=%3E%3D2026-08-01T12%3A00%3A00.000Z&per_page=100',
-    )
-    vi.useRealTimers()
+  mintTest('selects the newest created run when GitHub returns an unordered bounded page', {
+    setup: () => {
+      const run = (id: number, createdAt: string, conclusion: 'success' | 'failure') => ({
+        id,
+        status: 'completed',
+        conclusion,
+        name: 'Build',
+        html_url: `https://github.com/example-org/example-repo/actions/runs/${id}`,
+        created_at: createdAt,
+      })
+      return {
+        fetcher: upstreamRuns([
+          run(1, '2026-08-17T10:00:00Z', 'success'),
+          run(3, '2026-08-17T12:00:00Z', 'failure'),
+          run(2, '2026-08-17T11:00:00Z', 'success'),
+        ]),
+      }
+    },
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher }),
+    verify: (result) =>
+      expect(result.envelope).toMatchObject({
+        link: 'https://github.com/example-org/example-repo/actions/runs/3',
+        signal: { status: 'failed', sourceRunId: '3' },
+      }),
   })
 
-  it('selects the newest created run when GitHub returns an unordered bounded page', async () => {
-    const run = (id: number, createdAt: string, conclusion: 'success' | 'failure') => ({
-      id,
-      status: 'completed',
-      conclusion,
-      name: 'Build',
-      html_url: `https://github.com/example-org/example-repo/actions/runs/${id}`,
-      created_at: createdAt,
-    })
-    const result = await fetchGithubActionsPipeline({
-      panel,
-      source,
-      requestHeaders: new Headers(),
-      fetcher: upstreamRuns([
-        run(1, '2026-08-17T10:00:00Z', 'success'),
-        run(3, '2026-08-17T12:00:00Z', 'failure'),
-        run(2, '2026-08-17T11:00:00Z', 'success'),
-      ]),
-    })
+  mintTest(
+    'falls back once to the original unbounded lookup only when the recent window is empty',
+    {
+      setup: () => ({
+        fetcher: vi
+          .fn()
+          .mockResolvedValueOnce(new Response(JSON.stringify({ workflow_runs: [] })))
+          .mockResolvedValueOnce(
+            new Response(JSON.stringify({ workflow_runs: [fixture('success')] })),
+          ) as unknown as typeof fetch,
+      }),
+      exercise: ({ fetcher }) =>
+        fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher }),
+      verify: (result, { fetcher }) => {
+        expect(result.envelope).toMatchObject({ state: 'ok', signal: { status: 'passed' } })
+        expect(fetcher).toHaveBeenCalledTimes(2)
+        expect(vi.mocked(fetcher).mock.calls[1]?.[0]).toBe(
+          'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?per_page=1',
+        )
+      },
+    },
+  )
 
-    expect(result.envelope).toMatchObject({
-      link: 'https://github.com/example-org/example-repo/actions/runs/3',
-      signal: { status: 'failed', sourceRunId: '3' },
-    })
-  })
-
-  it('falls back once to the original unbounded lookup only when the recent window is empty', async () => {
-    const fetcher = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ workflow_runs: [] })))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ workflow_runs: [fixture('success')] })),
-      ) as unknown as typeof fetch
-
-    const result = await fetchGithubActionsPipeline({
-      panel,
-      source,
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-
-    expect(result.envelope).toMatchObject({ state: 'ok', signal: { status: 'passed' } })
-    expect(fetcher).toHaveBeenCalledTimes(2)
-    expect(vi.mocked(fetcher).mock.calls[1]?.[0]).toBe(
-      'https://api.github.com/repos/example-org/example-repo/actions/workflows/build.yml/runs?per_page=1',
-    )
-  })
-
-  it('exposes the actual run branch when the source is not branch-filtered', async () => {
-    const result = await fetchGithubActionsPipeline({
-      panel,
-      source,
-      requestHeaders: new Headers(),
+  mintTest('exposes the actual run branch when the source is not branch-filtered', {
+    setup: () => ({
       fetcher: upstreamRuns([
         {
           status: 'completed',
@@ -181,182 +216,177 @@ describe('the GitHub Actions adapter', () => {
           head_branch: 'feature/ship-it',
         },
       ]),
-    })
-
-    expect(result.envelope).toMatchObject({ signal: { branch: 'feature/ship-it' } })
+    }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher }),
+    verify: (result) =>
+      expect(result.envelope).toMatchObject({ signal: { branch: 'feature/ship-it' } }),
   })
 
-  it('keeps credentials out of the pure permitted-call declaration', () => {
-    const [call] = permittedGithubActionsCalls(
-      panel,
-      { ...source, token_env: 'GITHUB_TOKEN' },
-      githubCredentials,
-    )
-    expect(call?.headers.get('authorization')).toBeNull()
+  mintTest('keeps credentials out of the pure permitted-call declaration', {
+    setup: () => ({ panel, source: { ...source, token_env: 'GITHUB_TOKEN' } }),
+    exercise: ({ panel, source }) => permittedGithubActionsCalls(panel, source, githubCredentials),
+    verify: ([call]) => expect(call?.headers.get('authorization')).toBeNull(),
   })
 
-  it('forwards validators upstream', async () => {
-    const fetcher = upstream('success')
-    await fetchGithubActionsPipeline({
-      panel,
-      source,
+  mintTest('forwards validators upstream', {
+    setup: () => ({
+      fetcher: upstream('success'),
       requestHeaders: new Headers({ 'if-none-match': 'W/"fixture"' }),
-      fetcher,
-    })
-
-    expect(fetcher).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ headers: expect.any(Headers) }),
-    )
-    const options = vi.mocked(fetcher).mock.calls[0]?.[1]
-    expect(options?.headers).toBeInstanceOf(Headers)
-    expect((options?.headers as Headers | undefined)?.get('if-none-match')).toBe('W/"fixture"')
+    }),
+    exercise: ({ fetcher, requestHeaders }) =>
+      fetchGithubActionsPipeline({ panel, source, requestHeaders, fetcher }),
+    verify: (_, { fetcher }) => {
+      expect(fetcher).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ headers: expect.any(Headers) }),
+      )
+      const options = vi.mocked(fetcher).mock.calls[0]?.[1]
+      expect(options?.headers).toBeInstanceOf(Headers)
+      expect((options?.headers as Headers | undefined)?.get('if-none-match')).toBe('W/"fixture"')
+    },
   })
 
-  it('uses the newest run without deriving client timing history on the server', async () => {
-    const run = (status: string, started: string | null, updated: string | undefined) => ({
-      status,
-      conclusion: status === 'completed' ? 'success' : null,
-      name: 'Build',
-      html_url: 'https://github.com/example-org/example-repo/actions/runs/1',
-      run_started_at: started,
-      ...(updated ? { updated_at: updated } : {}),
-    })
-    const result = await fetchGithubActionsPipeline({
-      panel,
-      source,
-      requestHeaders: new Headers(),
-      fetcher: upstreamRuns([
-        run('in_progress', '2026-08-17T14:00:00Z', '2026-08-17T14:32:00Z'),
-        run('completed', '2026-08-17T12:00:00Z', '2026-08-17T12:01:40Z'),
-        run('completed', '2026-08-17T12:00:00Z', '2026-08-17T12:03:20Z'),
-        run('completed', '2026-08-17T12:00:00Z', '2026-08-17T12:05:00Z'),
-        run('completed', 'not-a-date', '2026-08-17T12:05:00Z'),
-      ]),
-    })
-
-    expect(result.envelope).toMatchObject({
-      signal: {
-        status: 'running',
-        runStartedAt: '2026-08-17T14:00:00Z',
-      },
-    })
-    expect(result.envelope?.state === 'ok' ? result.envelope.signal : undefined).not.toHaveProperty(
-      'estimatedDurationMs',
-    )
+  mintTest('uses the newest run without deriving client timing history on the server', {
+    setup: () => {
+      const run = (status: string, started: string | null, updated: string | undefined) => ({
+        status,
+        conclusion: status === 'completed' ? 'success' : null,
+        name: 'Build',
+        html_url: 'https://github.com/example-org/example-repo/actions/runs/1',
+        run_started_at: started,
+        ...(updated ? { updated_at: updated } : {}),
+      })
+      return {
+        fetcher: upstreamRuns([
+          run('in_progress', '2026-08-17T14:00:00Z', '2026-08-17T14:32:00Z'),
+          run('completed', '2026-08-17T12:00:00Z', '2026-08-17T12:01:40Z'),
+          run('completed', '2026-08-17T12:00:00Z', '2026-08-17T12:03:20Z'),
+          run('completed', '2026-08-17T12:00:00Z', '2026-08-17T12:05:00Z'),
+          run('completed', 'not-a-date', '2026-08-17T12:05:00Z'),
+        ]),
+      }
+    },
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher }),
+    verify: (result) => {
+      expect(result.envelope).toMatchObject({
+        signal: { status: 'running', runStartedAt: '2026-08-17T14:00:00Z' },
+      })
+      expect(
+        result.envelope?.state === 'ok' ? result.envelope.signal : undefined,
+      ).not.toHaveProperty('estimatedDurationMs')
+    },
   })
 
-  it('extracts the active job and step from one bounded jobs request', async () => {
-    const run = {
-      id: 42,
-      status: 'in_progress',
-      conclusion: null,
-      name: 'Build',
-      html_url: 'https://github.com/example-org/example-repo/actions/runs/42',
-      run_started_at: '2026-08-17T14:00:00Z',
-      updated_at: '2026-08-17T14:32:00Z',
-    }
-    const fetcher = upstreamRunWithJobs(run, [
-      { name: 'deploy', status: 'queued', steps: [] },
-      {
-        name: 'build',
-        status: 'in_progress',
-        steps: [
-          { name: 'checkout', status: 'completed' },
-          { name: 'integration tests', status: 'in_progress' },
-        ],
-      },
-    ])
-
-    const result = await fetchGithubActionsPipeline({
-      panel,
-      source,
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-
-    expect(result.envelope).toMatchObject({
-      signal: {
-        status: 'running',
-        activity: { kind: 'step', name: 'integration tests', parent: 'build' },
-      },
-    })
-    expect(fetcher).toHaveBeenCalledTimes(2)
-    expect(fetcher).toHaveBeenCalledWith(
-      'https://api.github.com/repos/example-org/example-repo/actions/runs/42/jobs?per_page=100',
-      expect.anything(),
-    )
-  })
-
-  it('falls back to a queued job or the job name when no step is active', async () => {
-    const run = {
-      id: 42,
-      status: 'in_progress',
-      conclusion: null,
-      name: 'Build',
-      html_url: 'https://github.com/example-org/example-repo/actions/runs/42',
-    }
-    const queued = await fetchGithubActionsPipeline({
-      panel,
-      source,
-      requestHeaders: new Headers(),
-      fetcher: upstreamRunWithJobs(run, [{ name: 'integration tests', status: 'queued' }]),
-    })
-    expect(queued.envelope).toMatchObject({
-      signal: { activity: { kind: 'job', name: 'integration tests' } },
-    })
-
-    const jobOnly = await fetchGithubActionsPipeline({
-      panel,
-      source,
-      requestHeaders: new Headers(),
-      fetcher: upstreamRunWithJobs(run, [
-        { name: 'build', status: 'in_progress', steps: [{ name: 'setup', status: 'completed' }] },
-      ]),
-    })
-    expect(jobOnly.envelope).toMatchObject({ signal: { activity: { kind: 'job', name: 'build' } } })
-  })
-
-  it('keeps the running signal when the jobs request fails', async () => {
-    const run = {
-      id: 42,
-      status: 'in_progress',
-      conclusion: null,
-      name: 'Build',
-      html_url: 'https://github.com/example-org/example-repo/actions/runs/42',
-    }
-    const result = await fetchGithubActionsPipeline({
-      panel,
-      source,
-      requestHeaders: new Headers(),
-      fetcher: upstreamRunWithJobs(run, [], 503),
-    })
-    expect(result.envelope).toMatchObject({ signal: { status: 'running' } })
-    expect(result.envelope?.state === 'ok' ? result.envelope.signal : undefined).not.toHaveProperty(
-      'activity',
-    )
-  })
-
-  it('does not request jobs for completed runs', async () => {
-    const fetcher = upstreamRunWithJobs(
-      {
+  mintTest('extracts the active job and step from one bounded jobs request', {
+    setup: () => {
+      const run = {
         id: 42,
-        status: 'completed',
-        conclusion: 'success',
+        status: 'in_progress',
+        conclusion: null,
         name: 'Build',
         html_url: 'https://github.com/example-org/example-repo/actions/runs/42',
-      },
-      [{ name: 'should not be read', status: 'in_progress' }],
-    )
-    await fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher })
-    expect(fetcher).toHaveBeenCalledTimes(1)
+        run_started_at: '2026-08-17T14:00:00Z',
+        updated_at: '2026-08-17T14:32:00Z',
+      }
+      return {
+        fetcher: upstreamRunWithJobs(run, [
+          { name: 'deploy', status: 'queued', steps: [] },
+          {
+            name: 'build',
+            status: 'in_progress',
+            steps: [
+              { name: 'checkout', status: 'completed' },
+              { name: 'integration tests', status: 'in_progress' },
+            ],
+          },
+        ]),
+      }
+    },
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher }),
+    verify: (result, { fetcher }) => {
+      expect(result.envelope).toMatchObject({
+        signal: {
+          status: 'running',
+          activity: { kind: 'step', name: 'integration tests', parent: 'build' },
+        },
+      })
+      expect(fetcher).toHaveBeenCalledTimes(2)
+      expect(fetcher).toHaveBeenCalledWith(
+        'https://api.github.com/repos/example-org/example-repo/actions/runs/42/jobs?per_page=100',
+        expect.anything(),
+      )
+    },
   })
 
-  it('omits timing advice when completed history has missing or invalid timestamps', async () => {
-    const result = await fetchGithubActionsPipeline({
-      panel,
-      source,
-      requestHeaders: new Headers(),
+  const activeRun = {
+    id: 42,
+    status: 'in_progress',
+    conclusion: null,
+    name: 'Build',
+    html_url: 'https://github.com/example-org/example-repo/actions/runs/42',
+  }
+
+  mintTest('falls back to a queued job when no step is active', {
+    setup: () => ({
+      fetcher: upstreamRunWithJobs(activeRun, [{ name: 'integration tests', status: 'queued' }]),
+    }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher }),
+    verify: (result) =>
+      expect(result.envelope).toMatchObject({
+        signal: { activity: { kind: 'job', name: 'integration tests' } },
+      }),
+  })
+
+  mintTest('falls back to the active job name when its steps are complete', {
+    setup: () => ({
+      fetcher: upstreamRunWithJobs(activeRun, [
+        { name: 'build', status: 'in_progress', steps: [{ name: 'setup', status: 'completed' }] },
+      ]),
+    }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher }),
+    verify: (result) =>
+      expect(result.envelope).toMatchObject({
+        signal: { activity: { kind: 'job', name: 'build' } },
+      }),
+  })
+
+  mintTest('keeps the running signal when the jobs request fails', {
+    setup: () => ({ fetcher: upstreamRunWithJobs(activeRun, [], 503) }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher }),
+    verify: (result) => {
+      expect(result.envelope).toMatchObject({ signal: { status: 'running' } })
+      expect(
+        result.envelope?.state === 'ok' ? result.envelope.signal : undefined,
+      ).not.toHaveProperty('activity')
+    },
+  })
+
+  mintTest('does not request jobs for completed runs', {
+    setup: () => ({
+      fetcher: upstreamRunWithJobs(
+        {
+          id: 42,
+          status: 'completed',
+          conclusion: 'success',
+          name: 'Build',
+          html_url: 'https://github.com/example-org/example-repo/actions/runs/42',
+        },
+        [{ name: 'should not be read', status: 'in_progress' }],
+      ),
+    }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher }),
+    verify: (_, { fetcher }) => expect(fetcher).toHaveBeenCalledTimes(1),
+  })
+
+  mintTest('omits timing advice when completed history has missing or invalid timestamps', {
+    setup: () => ({
       fetcher: upstreamRuns([
         {
           status: 'in_progress',
@@ -374,53 +404,61 @@ describe('the GitHub Actions adapter', () => {
           updated_at: '2026-08-17T12:05:00Z',
         },
       ]),
-    })
-    expect(result.envelope).toMatchObject({ signal: { status: 'running' } })
-    expect(result.envelope?.state === 'ok' && result.envelope.signal).not.toHaveProperty(
-      'estimatedDurationMs',
-    )
+    }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher }),
+    verify: (result) => {
+      expect(result.envelope).toMatchObject({ signal: { status: 'running' } })
+      expect(result.envelope?.state === 'ok' && result.envelope.signal).not.toHaveProperty(
+        'estimatedDurationMs',
+      )
+    },
   })
 
-  it('reports an unreachable upstream as data, not a proxy 5xx', async () => {
-    const fetcher = vi.fn(async () => {
-      throw new Error('offline')
-    }) as unknown as typeof fetch
-    const result = await fetchGithubActionsPipeline({
-      panel,
-      source,
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-
-    expect(result.response.status).toBe(200)
-    await expect(result.response.json()).resolves.toMatchObject({
-      state: 'error',
-      link: 'https://github.com/example-org/example-repo/actions/workflows/build.yml',
-      error: { kind: 'unreachable' },
-    })
+  mintTest('reports an unreachable upstream as data, not a proxy 5xx', {
+    setup: () => ({
+      fetcher: vi.fn(async () => {
+        throw new Error('offline')
+      }) as unknown as typeof fetch,
+    }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPipeline({ panel, source, requestHeaders: new Headers(), fetcher }),
+    verify: async (result) => {
+      expect(result.response.status).toBe(200)
+      await expect(result.response.json()).resolves.toMatchObject({
+        state: 'error',
+        link: 'https://github.com/example-org/example-repo/actions/workflows/build.yml',
+        error: { kind: 'unreachable' },
+      })
+    },
   })
 
-  it('identifies an empty branch result without exposing a schema error', async () => {
-    const fetcher = vi.fn(
-      async () =>
-        new Response(JSON.stringify({ workflow_runs: [] }), {
-          headers: { date: '2026-08-17T14:32:05Z' },
-        }),
-    ) as unknown as typeof fetch
-    const result = await fetchGithubActionsPipeline({
-      panel,
-      source: { ...source, branch: 'master' },
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-
-    await expect(result.response.json()).resolves.toMatchObject({
-      state: 'error',
-      error: {
-        kind: 'no-runs',
-        message: 'No matching workflow runs were found. Check the configured workflow and branch.',
-      },
-    })
+  mintTest('identifies an empty branch result without exposing a schema error', {
+    setup: () => ({
+      fetcher: vi.fn(
+        async () =>
+          new Response(JSON.stringify({ workflow_runs: [] }), {
+            headers: { date: '2026-08-17T14:32:05Z' },
+          }),
+      ) as unknown as typeof fetch,
+    }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPipeline({
+        panel,
+        source: { ...source, branch: 'master' },
+        requestHeaders: new Headers(),
+        fetcher,
+      }),
+    verify: async (result) => {
+      await expect(result.response.json()).resolves.toMatchObject({
+        state: 'error',
+        error: {
+          kind: 'no-runs',
+          message:
+            'No matching workflow runs were found. Check the configured workflow and branch.',
+        },
+      })
+    },
   })
 })
 
@@ -430,36 +468,39 @@ describe('the panel route', () => {
     boards: { 'ze-great-team': { panels: [panel] } },
   }
 
-  it('serves a normalized envelope and relays cache metadata', async () => {
-    const app = createApp({
-      config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
-      boardConfig,
-      fetcher: upstream(
-        'success',
-        new Headers({
-          date: '2026-08-17T14:32:05Z',
-          etag: 'W/"fixture"',
-          'cache-control': 'max-age=60',
-        }),
-      ),
-    })
-    const response = await app.request('/api/panel/ze-great-team/web-build')
-
-    expect(response.status).toBe(200)
-    expect(response.headers.get('etag')).toBe('W/"fixture"')
-    expect(response.headers.get('cache-control')).toBe('max-age=60')
-    await expect(response.json()).resolves.toMatchObject({
-      state: 'ok',
-      signal: { status: 'passed' },
-    })
+  mintTest('serves a normalized envelope and relays cache metadata', {
+    setup: () => ({
+      app: createApp({
+        config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
+        boardConfig,
+        fetcher: upstream(
+          'success',
+          new Headers({
+            date: '2026-08-17T14:32:05Z',
+            etag: 'W/"fixture"',
+            'cache-control': 'max-age=60',
+          }),
+        ),
+      }),
+    }),
+    exercise: ({ app }) => app.request('/api/panel/ze-great-team/web-build'),
+    verify: async (response) => {
+      expect(response.status).toBe(200)
+      expect(response.headers.get('etag')).toBe('W/"fixture"')
+      expect(response.headers.get('cache-control')).toBe('max-age=60')
+      await expect(response.json()).resolves.toMatchObject({
+        state: 'ok',
+        signal: { status: 'passed' },
+      })
+    },
   })
 
-  it('keeps a resolved token server-only', async () => {
+  function privateGithubAppFixture() {
     const fetcher = vi.fn(async (url: string) => {
       if (url === 'https://assets.example.com/1.0.0/index.html') return new Response(TEMPLATE)
       return new Response(JSON.stringify({ workflow_runs: [fixture('success')] }))
     }) as unknown as typeof fetch
-    const app = createApp({
+    return createApp({
       config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
       boardConfig: {
         sources: { github: { ...source, token_env: 'GITHUB_TOKEN' } },
@@ -468,24 +509,40 @@ describe('the panel route', () => {
       credentials: githubCredentials,
       fetcher,
     })
-    const panelResponse = await app.request('/api/panel/ze-great-team/web-build')
-    const html = await (await app.request('/')).text()
+  }
 
-    expect(panelResponse.status).toBe(200)
-    expect(await panelResponse.text()).not.toContain('secret-token')
-    expect(html).not.toContain('secret-token')
+  mintTest('keeps a resolved token out of the panel response', {
+    setup: () => ({ app: privateGithubAppFixture() }),
+    exercise: ({ app }) => app.request('/api/panel/ze-great-team/web-build'),
+    verify: async (response) => {
+      expect(response.status).toBe(200)
+      expect(await response.text()).not.toContain('secret-token')
+    },
   })
 
-  it('does not turn unknown panel names into arbitrary upstream calls', async () => {
-    const fetcher = upstream('success')
-    const app = createApp({
-      config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
-      boardConfig,
-      fetcher,
-    })
+  mintTest('keeps a resolved token out of the entrypoint document', {
+    setup: () => ({ app: privateGithubAppFixture() }),
+    exercise: ({ app }) => app.request('/'),
+    verify: async (response) => expect(await response.text()).not.toContain('secret-token'),
+  })
 
-    expect((await app.request('/api/panel/ze-great-team/not-configured')).status).toBe(404)
-    expect(fetcher).not.toHaveBeenCalled()
+  mintTest('does not turn unknown panel names into arbitrary upstream calls', {
+    setup: () => {
+      const fetcher = upstream('success')
+      return {
+        fetcher,
+        app: createApp({
+          config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
+          boardConfig,
+          fetcher,
+        }),
+      }
+    },
+    exercise: ({ app }) => app.request('/api/panel/ze-great-team/not-configured'),
+    verify: (response, { fetcher }) => {
+      expect(response.status).toBe(404)
+      expect(fetcher).not.toHaveBeenCalled()
+    },
   })
 })
 
@@ -509,8 +566,8 @@ describe('pull-request-health observations', () => {
     head_branch: 'cpr-gradle-update/create-update-branch/42',
   }
 
-  it('normalizes candidates, configured update workflows, and prefix-authorized PR builds', async () => {
-    const fetcher = vi.fn(async (url: string) => {
+  function healthObservationFetcher(): typeof fetch {
+    return vi.fn(async (url: string) => {
       if (url.includes('/pulls?'))
         return new Response(
           JSON.stringify([
@@ -530,218 +587,254 @@ describe('pull-request-health observations', () => {
         )
       return new Response(JSON.stringify({ workflow_runs: [successfulRun] }))
     }) as unknown as typeof fetch
+  }
 
-    const candidates = await fetchGithubActionsPullRequestCandidates({
-      panel: healthPanel,
-      source: healthSource,
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-    const workflow = await fetchGithubActionsUpdateWorkflow({
-      panel: healthPanel,
-      source: healthSource,
-      workflow: 'dependency-update.yml',
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-    const build = await fetchGithubActionsPullRequestBuild({
-      panel: healthPanel,
-      source: healthSource,
-      branch: 'cpr-gradle-update/create-update-branch/42',
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-    expect(candidates.envelope).toMatchObject({
-      state: 'ok',
-      link: 'https://github.com/example-org/example-repo',
-      signal: { type: 'pull-request-candidates', pullRequests: [{ number: 42 }] },
-    })
-    expect(workflow.envelope).toMatchObject({
-      signal: { type: 'pull-request-workflow', item: { status: 'passed' } },
-    })
-    expect(build.envelope).toMatchObject({
-      signal: {
-        type: 'pull-request-build',
+  mintTest('normalizes configured pull-request candidates', {
+    setup: () => ({ fetcher: healthObservationFetcher() }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPullRequestCandidates({
+        panel: healthPanel,
+        source: healthSource,
+        requestHeaders: new Headers(),
+        fetcher,
+      }),
+    verify: (result) =>
+      expect(result.envelope).toMatchObject({
+        state: 'ok',
+        link: 'https://github.com/example-org/example-repo',
+        signal: { type: 'pull-request-candidates', pullRequests: [{ number: 42 }] },
+      }),
+  })
+
+  mintTest('normalizes the configured update workflow', {
+    setup: () => ({ fetcher: healthObservationFetcher() }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsUpdateWorkflow({
+        panel: healthPanel,
+        source: healthSource,
+        workflow: 'dependency-update.yml',
+        requestHeaders: new Headers(),
+        fetcher,
+      }),
+    verify: (result) =>
+      expect(result.envelope).toMatchObject({
+        signal: { type: 'pull-request-workflow', item: { status: 'passed' } },
+      }),
+  })
+
+  mintTest('normalizes a prefix-authorized pull-request build', {
+    setup: () => ({ fetcher: healthObservationFetcher() }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPullRequestBuild({
+        panel: healthPanel,
+        source: healthSource,
         branch: 'cpr-gradle-update/create-update-branch/42',
-        item: { status: 'passed' },
-      },
-    })
-    expect(fetcher).toHaveBeenCalledWith(
-      expect.stringContaining('branch=cpr-gradle-update%2Fcreate-update-branch%2F42'),
-      expect.anything(),
-    )
-    expect(fetcher).toHaveBeenCalledWith(expect.not.stringContaining('event='), expect.anything())
+        requestHeaders: new Headers(),
+        fetcher,
+      }),
+    verify: (result, { fetcher }) => {
+      expect(result.envelope).toMatchObject({
+        signal: {
+          type: 'pull-request-build',
+          branch: 'cpr-gradle-update/create-update-branch/42',
+          item: { status: 'passed' },
+        },
+      })
+      expect(fetcher).toHaveBeenCalledWith(
+        expect.stringContaining('branch=cpr-gradle-update%2Fcreate-update-branch%2F42'),
+        expect.anything(),
+      )
+      expect(fetcher).toHaveBeenCalledWith(expect.not.stringContaining('event='), expect.anything())
+    },
   })
 
-  it('uses the bearer header on private observation requests', async () => {
-    const fetcher = vi.fn(async (url: string) =>
-      url.includes('/pulls?')
-        ? new Response(JSON.stringify([]))
-        : new Response(JSON.stringify({ workflow_runs: [successfulRun] })),
-    ) as unknown as typeof fetch
-    await fetchGithubActionsPullRequestCandidates({
-      panel: healthPanel,
-      source: { ...healthSource, token_env: 'GITHUB_TOKEN' },
-      requestHeaders: new Headers(),
-      fetcher,
-      credentials: githubCredentials,
-    })
-    for (const [, options] of vi.mocked(fetcher).mock.calls) {
-      const headers = options?.headers
-      if (!(headers instanceof Headers)) throw new Error('GitHub call had no Headers')
-      expect(headers.get('authorization')).toBe('Bearer secret-token')
-    }
+  mintTest('uses the bearer header on private observation requests', {
+    setup: () => ({
+      fetcher: vi.fn(async (url: string) =>
+        url.includes('/pulls?')
+          ? new Response(JSON.stringify([]))
+          : new Response(JSON.stringify({ workflow_runs: [successfulRun] })),
+      ) as unknown as typeof fetch,
+    }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPullRequestCandidates({
+        panel: healthPanel,
+        source: { ...healthSource, token_env: 'GITHUB_TOKEN' },
+        requestHeaders: new Headers(),
+        fetcher,
+        credentials: githubCredentials,
+      }),
+    verify: (_, { fetcher }) => {
+      for (const [, options] of vi.mocked(fetcher).mock.calls) {
+        const headers = options?.headers
+        if (!(headers instanceof Headers)) throw new Error('GitHub call had no Headers')
+        expect(headers.get('authorization')).toBe('Bearer secret-token')
+      }
+    },
   })
 
-  it('uses an update workflow run only when its branch matches that workflow prefix', async () => {
-    const fetcher = vi.fn(async (url: string) =>
-      url.includes('/pulls?')
-        ? new Response(JSON.stringify([]))
-        : new Response(
+  mintTest('uses an update workflow run only when its branch matches that workflow prefix', {
+    setup: () => ({
+      fetcher: vi.fn(async (url: string) =>
+        url.includes('/pulls?')
+          ? new Response(JSON.stringify([]))
+          : new Response(
+              JSON.stringify({
+                workflow_runs: [
+                  { ...successfulRun, conclusion: 'failure', head_branch: 'master' },
+                  {
+                    ...successfulRun,
+                    html_url: 'https://github.com/example-org/example-repo/actions/runs/2',
+                    head_branch: 'cpr-gradle-update/create-update-branch/42',
+                  },
+                ],
+              }),
+            ),
+      ) as unknown as typeof fetch,
+    }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsUpdateWorkflow({
+        panel: healthPanel,
+        source: healthSource,
+        workflow: 'dependency-update.yml',
+        requestHeaders: new Headers(),
+        fetcher,
+      }),
+    verify: (result, { fetcher }) => {
+      expect(result.envelope).toMatchObject({
+        state: 'ok',
+        signal: { type: 'pull-request-workflow', item: { status: 'passed' } },
+      })
+      expect(fetcher).toHaveBeenCalledWith(
+        expect.stringContaining('dependency-update.yml/runs?per_page=100'),
+        expect.anything(),
+      )
+    },
+  })
+
+  mintTest('normalizes a failing PR build from an allowed update branch', {
+    setup: () => ({
+      fetcher: vi.fn(async (url: string) => {
+        if (url.includes('/pulls?'))
+          return new Response(
+            JSON.stringify([
+              {
+                number: 42,
+                html_url: 'https://github.com/example-org/example-repo/pull/42',
+                head: { ref: 'cpr-gradle-update/create-update-branch/42' },
+                base: { ref: 'master' },
+              },
+            ]),
+          )
+        const run = url.includes('branch=')
+          ? { ...successfulRun, conclusion: 'failure' }
+          : successfulRun
+        return new Response(JSON.stringify({ workflow_runs: [run] }))
+      }) as unknown as typeof fetch,
+    }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPullRequestBuild({
+        panel: healthPanel,
+        source: healthSource,
+        branch: 'cpr-gradle-update/create-update-branch/42',
+        requestHeaders: new Headers(),
+        fetcher,
+      }),
+    verify: (result) =>
+      expect(result.envelope).toMatchObject({
+        state: 'ok',
+        signal: { type: 'pull-request-build', item: { status: 'failed' } },
+      }),
+  })
+
+  mintTest("uses the configured workflow's branch push as PR-build evidence by default", {
+    setup: () => ({
+      fetcher: vi.fn(
+        async (url: string) =>
+          new Response(
             JSON.stringify({
-              workflow_runs: [
-                { ...successfulRun, conclusion: 'failure', head_branch: 'master' },
-                {
-                  ...successfulRun,
-                  html_url: 'https://github.com/example-org/example-repo/actions/runs/2',
-                  head_branch: 'cpr-gradle-update/create-update-branch/42',
-                },
-              ],
+              workflow_runs: url.includes('event=pull_request')
+                ? []
+                : [{ ...successfulRun, event: 'push', conclusion: 'failure' }],
             }),
           ),
-    ) as unknown as typeof fetch
-
-    const result = await fetchGithubActionsUpdateWorkflow({
-      panel: healthPanel,
-      source: healthSource,
-      workflow: 'dependency-update.yml',
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-
-    expect(result.envelope).toMatchObject({
-      state: 'ok',
-      signal: { type: 'pull-request-workflow', item: { status: 'passed' } },
-    })
-    expect(fetcher).toHaveBeenCalledWith(
-      expect.stringContaining('dependency-update.yml/runs?per_page=100'),
-      expect.anything(),
-    )
+      ) as unknown as typeof fetch,
+    }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPullRequestBuild({
+        panel: healthPanel,
+        source: healthSource,
+        branch: 'cpr-gradle-update/create-update-branch/42',
+        requestHeaders: new Headers(),
+        fetcher,
+      }),
+    verify: (result, { fetcher }) => {
+      expect(result.envelope).toMatchObject({
+        signal: {
+          type: 'pull-request-build',
+          item: { status: 'failed', detail: expect.stringContaining('push') },
+        },
+      })
+      expect(fetcher).toHaveBeenCalledWith(
+        expect.not.stringContaining('event=pull_request'),
+        expect.anything(),
+      )
+    },
   })
 
-  it('normalizes a failing PR build and rejects non-prefix branch reads at the route boundary', async () => {
-    const fetcher = vi.fn(async (url: string) => {
-      if (url.includes('/pulls?'))
-        return new Response(
-          JSON.stringify([
-            {
-              number: 42,
-              html_url: 'https://github.com/example-org/example-repo/pull/42',
-              head: { ref: 'cpr-gradle-update/create-update-branch/42' },
-              base: { ref: 'master' },
-            },
-          ]),
-        )
-      const run = url.includes('branch=')
-        ? { ...successfulRun, conclusion: 'failure' }
-        : successfulRun
-      return new Response(JSON.stringify({ workflow_runs: [run] }))
-    }) as unknown as typeof fetch
-
-    const result = await fetchGithubActionsPullRequestBuild({
-      panel: healthPanel,
-      source: healthSource,
-      branch: 'cpr-gradle-update/create-update-branch/42',
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-
-    expect(result.envelope).toMatchObject({
-      state: 'ok',
-      signal: {
-        type: 'pull-request-build',
-        item: { status: 'failed' },
-      },
-    })
+  mintTest('uses only explicitly accepted events when a board restricts PR-build evidence', {
+    setup: () => ({
+      fetcher: upstreamRuns([
+        { ...successfulRun, event: 'push', conclusion: 'failure' },
+        { ...successfulRun, event: 'pull_request', conclusion: 'success' },
+      ]),
+    }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPullRequestBuild({
+        panel: { ...healthPanel, build_events: ['pull_request'] },
+        source: healthSource,
+        branch: 'cpr-gradle-update/create-update-branch/42',
+        requestHeaders: new Headers(),
+        fetcher,
+      }),
+    verify: (result, { fetcher }) => {
+      expect(result.envelope).toMatchObject({
+        signal: {
+          type: 'pull-request-build',
+          item: { status: 'passed', detail: expect.stringContaining('pull_request') },
+        },
+      })
+      expect(fetcher).toHaveBeenCalledWith(
+        expect.stringContaining('per_page=100'),
+        expect.anything(),
+      )
+    },
   })
 
-  it("uses the configured workflow's branch push as PR-build evidence by default", async () => {
-    const fetcher = vi.fn(
-      async (url: string) =>
-        new Response(
-          JSON.stringify({
-            workflow_runs: url.includes('event=pull_request')
-              ? []
-              : [{ ...successfulRun, event: 'push', conclusion: 'failure' }],
-          }),
-        ),
-    ) as unknown as typeof fetch
-
-    const result = await fetchGithubActionsPullRequestBuild({
-      panel: healthPanel,
-      source: healthSource,
-      branch: 'cpr-gradle-update/create-update-branch/42',
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-
-    expect(result.envelope).toMatchObject({
-      signal: {
-        type: 'pull-request-build',
-        item: { status: 'failed', detail: expect.stringContaining('push') },
-      },
-    })
-    expect(fetcher).toHaveBeenCalledWith(
-      expect.not.stringContaining('event=pull_request'),
-      expect.anything(),
-    )
+  mintTest('reports missing evidence when no run has an explicitly accepted event', {
+    setup: () => ({ fetcher: upstreamRuns([{ ...successfulRun, event: 'push' }]) }),
+    exercise: ({ fetcher }) =>
+      fetchGithubActionsPullRequestBuild({
+        panel: { ...healthPanel, build_events: ['workflow_dispatch'] },
+        source: healthSource,
+        branch: 'cpr-gradle-update/create-update-branch/42',
+        requestHeaders: new Headers(),
+        fetcher,
+      }),
+    verify: (result) =>
+      expect(result.envelope).toMatchObject({
+        signal: { type: 'pull-request-build', item: { status: 'unknown' } },
+      }),
   })
 
-  it('uses only explicitly accepted events when a board restricts PR-build evidence', async () => {
-    const fetcher = upstreamRuns([
-      { ...successfulRun, event: 'push', conclusion: 'failure' },
-      { ...successfulRun, event: 'pull_request', conclusion: 'success' },
-    ])
-
-    const result = await fetchGithubActionsPullRequestBuild({
-      panel: { ...healthPanel, build_events: ['pull_request'] },
-      source: healthSource,
-      branch: 'cpr-gradle-update/create-update-branch/42',
-      requestHeaders: new Headers(),
-      fetcher,
-    })
-
-    expect(result.envelope).toMatchObject({
-      signal: {
-        type: 'pull-request-build',
-        item: { status: 'passed', detail: expect.stringContaining('pull_request') },
-      },
-    })
-    expect(fetcher).toHaveBeenCalledWith(expect.stringContaining('per_page=100'), expect.anything())
-  })
-
-  it('reports missing evidence when no run has an explicitly accepted event', async () => {
-    const result = await fetchGithubActionsPullRequestBuild({
-      panel: { ...healthPanel, build_events: ['workflow_dispatch'] },
-      source: healthSource,
-      branch: 'cpr-gradle-update/create-update-branch/42',
-      requestHeaders: new Headers(),
-      fetcher: upstreamRuns([{ ...successfulRun, event: 'push' }]),
-    })
-
-    expect(result.envelope).toMatchObject({
-      signal: { type: 'pull-request-build', item: { status: 'unknown' } },
-    })
-  })
-
-  it('exposes only named observation routes and relays their validators', async () => {
+  function healthRoutesFixture() {
     const fetcher = vi.fn(
       async () =>
         new Response(JSON.stringify([]), {
           headers: { etag: 'W/"prs"', date: '2026-08-29T12:00:00Z' },
         }),
     ) as unknown as typeof fetch
-    const app = createApp({
+    return createApp({
       config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
       boardConfig: {
         sources: { github: healthSource },
@@ -749,18 +842,31 @@ describe('pull-request-health observations', () => {
       },
       fetcher,
     })
-    const response = await app.request('/api/panel/team/updates/pull-requests')
-    expect(response.status).toBe(200)
-    expect(response.headers.get('etag')).toBe('W/"prs"')
-    await expect(response.json()).resolves.toMatchObject({
-      signal: { type: 'pull-request-candidates' },
-    })
-    expect(
-      (await app.request('/api/panel/team/updates/pull-request-build?branch=feature/manual'))
-        .status,
-    ).toBe(404)
-    expect(
-      (await app.request('/api/panel/team/updates/update-workflow/not-configured.yml')).status,
-    ).toBe(404)
+  }
+
+  mintTest('serves the named pull-request observation route and relays validators', {
+    setup: () => ({ app: healthRoutesFixture() }),
+    exercise: ({ app }) => app.request('/api/panel/team/updates/pull-requests'),
+    verify: async (response) => {
+      expect(response.status).toBe(200)
+      expect(response.headers.get('etag')).toBe('W/"prs"')
+      await expect(response.json()).resolves.toMatchObject({
+        signal: { type: 'pull-request-candidates' },
+      })
+    },
+  })
+
+  mintTest('rejects a pull-request build route for a non-authorized branch', {
+    setup: () => ({ app: healthRoutesFixture() }),
+    exercise: ({ app }) =>
+      app.request('/api/panel/team/updates/pull-request-build?branch=feature/manual'),
+    verify: (response) => expect(response.status).toBe(404),
+  })
+
+  mintTest('rejects an unconfigured update-workflow route', {
+    setup: () => ({ app: healthRoutesFixture() }),
+    exercise: ({ app }) =>
+      app.request('/api/panel/team/updates/update-workflow/not-configured.yml'),
+    verify: (response) => expect(response.status).toBe(404),
   })
 })
