@@ -5,7 +5,6 @@ Recorded 2026-08-26 after applying the layout-resolution behavior to `boards/exa
 ## What was implemented
 
 The dashboard now separates layout evidence from live rendering behavior:
-
 - The live CSS Grid still honors authored coordinates. Overflow continues in implicit rows and
   overlaps remain visible according to normal DOM painting order.
 - The shared layout analyzer reports explicit positions outside the intended 12×12 canvas and

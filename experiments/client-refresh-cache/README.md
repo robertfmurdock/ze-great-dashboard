@@ -15,7 +15,6 @@ node experiments/client-refresh-cache/experiment.mjs
 
 The browser scenario shortens the production updater's 60-second interval only inside the test
 page, so the production code path is exercised without waiting a minute. It reports:
-
 - the cached-entrypoint case: the identity changes to B, but reloads continue to initialize A;
 - the no-store control case: one reload initializes B and then stabilizes.
 

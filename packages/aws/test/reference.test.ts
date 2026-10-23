@@ -122,20 +122,57 @@ describe('persistent consumer reference', () => {
       ['$', '{AWS::AccountId}'].join(''),
       ':cluster/ze-great-dashboard-smoke-*',
     ].join('')
-    expect(infrastructure).toContain(
-      `Action: ecs:DeleteCluster\n                Resource: !Sub '${smokeClusterArn}'`,
-    )
-    expect(infrastructure).toContain(`task-definition/ze-great-dashboard-smoke-*:*'`)
-    expect(infrastructure).toContain(
-      "Sid: DeregisterSmokeTaskDefinition\n                Effect: Allow\n                Action: ecs:DeregisterTaskDefinition\n                Resource: '*'",
-    )
+    const infrastructureDocument = parse(infrastructure, { customTags: cloudFormationTags }) as {
+      Resources: {
+        GitHubReferenceSmokeRole: {
+          Properties: {
+            Policies: {
+              PolicyDocument: {
+                Statement: { Sid?: string; Action?: unknown; Resource?: unknown }[]
+              }
+            }[]
+          }
+        }
+      }
+    }
+    expect(
+      infrastructureDocument.Resources.GitHubReferenceSmokeRole.Properties.Policies[0]?.PolicyDocument.Statement.find(
+        ({ Sid }) => Sid === 'DeleteSmokeCluster',
+      ),
+    ).toMatchObject({ Action: 'ecs:DeleteCluster', Resource: { Sub: smokeClusterArn } })
+    const smokeStatements =
+      infrastructureDocument.Resources.GitHubReferenceSmokeRole.Properties.Policies[0]
+        ?.PolicyDocument.Statement ?? []
+    expect(smokeStatements.find(({ Sid }) => Sid === 'RegisterSmokeTaskDefinition')).toMatchObject({
+      Action: 'ecs:RegisterTaskDefinition',
+      Resource: {
+        Sub:
+          'arn:$' +
+          '{AWS::Partition}:ecs:$' +
+          '{AWS::Region}:$' +
+          '{AWS::AccountId}:task-definition/ze-great-dashboard-smoke-*:*',
+      },
+    })
+    expect(
+      smokeStatements.find(({ Sid }) => Sid === 'DeregisterSmokeTaskDefinition'),
+    ).toMatchObject({ Action: 'ecs:DeregisterTaskDefinition', Resource: '*' })
     expect(infrastructure).toContain('ReferenceSmokeRoleArn')
     expect(infrastructure).toContain('ReferenceCredentialSmokeSecretArn')
     expect(infrastructure).toContain('ReferenceCredentialSmokeParameterArn')
     expect(infrastructure).toContain('MaintainReferenceCredentialSmokeParameter')
     expect(infrastructure).toContain('ssm:PutParameter')
     expect(bootstrap).toContain('iam:GetRolePolicy')
-    expect(infrastructure).toContain(`'\${ReferenceArtifactBucket.Arn}/lambda/*'`)
+    const executionStatements = (
+      (infrastructureDocument.Resources as Record<string, unknown>)
+        .ReferenceCloudFormationExecutionRole as {
+        Properties: {
+          Policies: { PolicyDocument: { Statement: { Sid?: string; Resource?: unknown }[] } }[]
+        }
+      }
+    ).Properties.Policies[0]?.PolicyDocument.Statement
+    expect(
+      executionStatements?.find(({ Sid }) => Sid === 'ReadReferenceArtifact')?.Resource,
+    ).toContainEqual({ Sub: '$' + '{ReferenceArtifactBucket.Arn}/lambda/*' })
     expect(bootstrap).toContain('ze-great-dashboard-reference-artifacts')
     expect(bootstrap).toContain('ZeGreatDashboardReferenceCloudFormationExecution')
     expect(bootstrap).toContain('ZeGreatDashboardReferenceDeploy')

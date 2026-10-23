@@ -2,7 +2,6 @@
 import { execFile } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
-import { parse } from 'yaml'
 import { runDoctor } from './doctor.ts'
 import {
   type BootstrapConfig,
@@ -26,6 +25,7 @@ import {
   type PackagedRelease,
   packageEcs,
   packageLambda,
+  parseCloudFormationTemplate,
   requireComputeMode,
   requiredBootstrapParameters,
   resolveComputeMode,
@@ -218,16 +218,9 @@ const preflightRunner = {
 }
 
 async function templateParameters(mode: ComputeMode = 'lambda'): Promise<TemplateParameterData> {
-  const template = await cloudFormationTemplate(mode)
-  const block = template.match(/^Parameters:\n[\s\S]*?(?=^[A-Za-z][A-Za-z0-9]*:\s*$)/m)?.[0]
-  if (!block) throw new Error('Unable to read Parameters from the CloudFormation template')
-  const parsed = parse(block) as { Parameters?: Record<string, CloudFormationParameter> }
-  if (!parsed.Parameters) throw new Error('CloudFormation template has no Parameters')
-  const metadataBlock = template.match(/^Metadata:\n[\s\S]*?(?=^Parameters:\s*$)/m)?.[0]
-  const metadata = metadataBlock
-    ? ((parse(metadataBlock) as { Metadata?: { PackageManagedParameters?: unknown } }).Metadata ??
-      {})
-    : {}
+  const template = parseCloudFormationTemplate(await cloudFormationTemplate(mode))
+  if (!template.Parameters) throw new Error('CloudFormation template has no Parameters')
+  const metadata = template.Metadata ?? {}
   if (
     metadata.PackageManagedParameters !== undefined &&
     (!Array.isArray(metadata.PackageManagedParameters) ||
@@ -236,13 +229,13 @@ async function templateParameters(mode: ComputeMode = 'lambda'): Promise<Templat
     throw new Error('CloudFormation template has invalid PackageManagedParameters metadata')
   const packageManaged = new Set<string>(metadata.PackageManagedParameters ?? [])
   const unknownManaged = [...packageManaged].filter(
-    (key) => !Object.hasOwn(parsed.Parameters ?? {}, key),
+    (key) => !Object.hasOwn(template.Parameters ?? {}, key),
   )
   if (unknownManaged.length)
     throw new Error(
       `CloudFormation template has unknown package-managed parameters: ${unknownManaged.join(', ')}`,
     )
-  return { definitions: parsed.Parameters, packageManaged }
+  return { definitions: template.Parameters, packageManaged }
 }
 
 function validateConsumerParameters(

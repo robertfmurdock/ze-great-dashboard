@@ -1,13 +1,13 @@
 # Initialization log
 
 Written at the end of the session that created this repo (commit `8eabe0f`, 2026-08-17), while the
-reasoning was still in hand. It records what was decided, what was *discovered by running things*,
+reasoning was still in hand. It records what was decided, what was _discovered by running things_,
 and — most importantly — what has never been executed and is therefore still a guess.
 
 Read this before the first deploy, and before "cleaning up" anything listed under Quirks.
 
-Design doc: `ze-great-idea-pit/tool-ideas/trust-dashboard.md`. The doc explains *what* and *why*;
-this file explains *how it turned out* and where reality pushed back.
+Design doc: `ze-great-idea-pit/tool-ideas/trust-dashboard.md`. The doc explains _what_ and _why_;
+this file explains _how it turned out_ and where reality pushed back.
 
 ---
 
@@ -22,7 +22,6 @@ Immutable Web Application rendering path, the commit and push hooks.
 
 **Original unproven deployment state (at initialization; later evidence may supersede it).** Never
 executed during the initialization session, and therefore unproven by that session:
-
 - **The CI workflow has never run.** Not once, on any branch. There is no remote.
 - **`terraform apply` has never run.** Only `init -backend=false`, `validate`, and `fmt -check`.
   Never even `plan` — the session's AWS credentials were `ReadOnlyAccess` throughout.
@@ -73,7 +72,7 @@ enumerating those would mean editing infrastructure to onboard a developer.
 Widening Coupling's CORS to get that would have traded another project's security posture for
 convenience here. A separate bucket costs approximately nothing.
 
-The `*` is safe *because of what the bucket holds*: immutable build artifacts with zero environment
+The `*` is safe _because of what the bucket holds_: immutable build artifacts with zero environment
 values and zero secrets. That safety is a property of the content, not of the header — so it stops
 being true the moment anything environment-specific gets published there. Don't.
 
@@ -206,7 +205,7 @@ Every deployment leaves it at 0, so a typo'd `ASSET_PATH` still fails on the fir
 deployment that quietly retried would turn a misconfiguration into a slow start instead of an
 error, which is the opposite of what this project is for. There is a test asserting the default.
 
-### A template with no `<head>` fails at boot *and* 500s per request
+### A template with no `<head>` fails at boot _and_ 500s per request
 
 Both, deliberately. Startup catches it so a broken build fails in the deploy's logs; the per-request
 path still returns 500 as the belt to that suspenders. The 500 is correct under the doc's rule that
@@ -214,7 +213,7 @@ path still returns 500 as the belt to that suspenders. The 500 is correct under 
 unable to do its job, not a report about an upstream.
 
 This was originally a test expecting a rejection; Hono converts the throw to a 500, and the right
-fix was to accept the 500 *and* add the boot check, rather than to weaken the assertion.
+fix was to accept the 500 _and_ add the boot check, rather than to weaken the assertion.
 
 ### `vi.stubEnv` survives `vi.restoreAllMocks()`
 
@@ -246,7 +245,7 @@ single mutable object in the bucket.
 
 ### `index.html` is cached 60s; everything else is `immutable`
 
-The entrypoint document names *this version's* hashed filenames and is fetched by the server at
+The entrypoint document names _this version's_ hashed filenames and is fetched by the server at
 runtime, so it must not be cached hard. The server's own response is `no-store`. The assets are
 `max-age=31536000, immutable`.
 
@@ -256,14 +255,14 @@ runtime, so it must not be cached hard. The server's own response is `no-store`.
 
 Worth recording because re-verifying them costs API calls and console time:
 
-| | |
-|---|---|
-| AWS account | `174159267544` |
-| Session role | `AWSReservedSSO_ReadOnlyAccess` — could not apply anything |
-| GitHub OIDC provider | Already exists (`token.actions.githubusercontent.com`); looked up, not created |
-| Route53 hosted zones | None. ACM certs: none |
-| Terraform | 1.15.8, darwin_arm64 |
-| Tagger | `@continuous-excellence/tagger` 3.6.14, bin `tagger`, `calculate-version -q` prints the version to stdout |
+|                                           |                                                                                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| AWS account                               | `174159267544`                                                                                                            |
+| Session role                              | `AWSReservedSSO_ReadOnlyAccess` — could not apply anything                                                                |
+| GitHub OIDC provider                      | Already exists (`token.actions.githubusercontent.com`); looked up, not created                                            |
+| Route53 hosted zones                      | None. ACM certs: none                                                                                                     |
+| Terraform                                 | 1.15.8, darwin_arm64                                                                                                      |
+| Tagger                                    | `@continuous-excellence/tagger` 3.6.14, bin `tagger`, `calculate-version -q` prints the version to stdout                 |
 | `esbuild` under `npm ci --ignore-scripts` | Works — its binary ships as an optional dependency, not a postinstall download. This is why CI can use `--ignore-scripts` |
 
 Also verified before writing any code that depended on it: **Vite's dev server serves cleanly under

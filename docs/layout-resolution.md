@@ -12,7 +12,6 @@ obscure earlier content. Panels without positions continue to use CSS Grid auto-
 The board reports issues with a warning icon beside Diagnostics. Clicking it lists the authored
 coordinates and the complete report. The warning is a configuration fact, not an upstream signal
 state. It offers two YAML downloads containing the selected board and its referenced sources:
-
 - The legal rendered layout scales the full explicit rendered bounding box into 12×12, then makes
   the nearest deterministic integer-cell adjustments needed to eliminate overflow and overlaps.
 - The authored layout preserves the coordinates currently passed to CSS Grid, including overflow

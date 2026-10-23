@@ -21,7 +21,6 @@ contracts.
 
 `running_animation` now accepts three panel-scale fields in addition to the retained inline
 treatments:
-
 - `telemetry-bloom` — layered trace lanes, phased markers, and a progress bloom.
 - `release-transit` — route lanes, a packet and retained trail, a fixed now marker, and a separate
   progress frontier.
@@ -54,7 +53,6 @@ retaining static field geometry. No dependency was added.
 ## Visual review findings
 
 The implementation was adjusted from real visual review, not only tests:
-
 - Telemetry marker position changes initially snapped on the one-second timing update. Progress now
   updates at a 20ms visual cadence, while displayed elapsed time still rounds to seconds. Progress
   geometry is updated directly rather than relying on repeatedly restarted CSS transitions.

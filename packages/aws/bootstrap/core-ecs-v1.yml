@@ -1,16 +1,21 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Description: Ze Great Dashboard ECS bootstrap core v1. Administrator-managed; do not grant this authority to CI.
 
 Parameters:
   ComputeMode: { Type: String, Default: ecs, AllowedValues: [ecs] }
-  ArtifactBucketName: { Type: String, Description: Compatibility artifact bucket; ECS packages use the published image }
+  ArtifactBucketName:
+    {
+      Type: String,
+      Description: Compatibility artifact bucket; ECS packages use the published image,
+    }
   ApplicationStackName: { Type: String }
-  DashboardFunctionName: { Type: String, Description: Compatibility name retained by the bootstrap manifest }
-  RuntimeSecretArn: { Type: String, Default: '' }
-  ArtifactKmsKeyArn: { Type: String, Default: '' }
+  DashboardFunctionName:
+    { Type: String, Description: Compatibility name retained by the bootstrap manifest }
+  RuntimeSecretArn: { Type: String, Default: "" }
+  ArtifactKmsKeyArn: { Type: String, Default: "" }
 
 Conditions:
-  HasRuntimeSecret: !Not [!Equals [!Ref RuntimeSecretArn, '']]
+  HasRuntimeSecret: !Not [!Equals [!Ref RuntimeSecretArn, ""]]
 
 Resources:
   ArtifactBucket:
@@ -20,38 +25,85 @@ Resources:
     Properties:
       BucketName: !Ref ArtifactBucketName
       OwnershipControls: { Rules: [{ ObjectOwnership: BucketOwnerEnforced }] }
-      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
+      PublicAccessBlockConfiguration:
+        {
+          BlockPublicAcls: true,
+          BlockPublicPolicy: true,
+          IgnorePublicAcls: true,
+          RestrictPublicBuckets: true,
+        }
   CloudFormationExecutionRole:
     Type: AWS::IAM::Role
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      RoleName: !Sub '${ApplicationStackName}-execution'
+      RoleName: !Sub "${ApplicationStackName}-execution"
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement: [{ Effect: Allow, Principal: { Service: cloudformation.amazonaws.com }, Action: sts:AssumeRole }]
+        Version: "2012-10-17"
+        Statement:
+          [
+            {
+              Effect: Allow,
+              Principal: { Service: cloudformation.amazonaws.com },
+              Action: sts:AssumeRole,
+            },
+          ]
       Policies:
         - PolicyName: DashboardEcsApplicationResources
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Sid: DashboardEcs
                 Effect: Allow
-                Action: [ecs:CreateCluster, ecs:DescribeClusters, ecs:UpdateCluster, ecs:DeleteCluster, ecs:CreateService, ecs:DescribeServices, ecs:UpdateService, ecs:DeleteService, ecs:RegisterTaskDefinition, ecs:DeregisterTaskDefinition, ecs:DescribeTaskDefinition, ecs:TagResource, ecs:UntagResource]
-                Resource: '*'
+                Action:
+                  [
+                    ecs:CreateCluster,
+                    ecs:DescribeClusters,
+                    ecs:UpdateCluster,
+                    ecs:DeleteCluster,
+                    ecs:CreateService,
+                    ecs:DescribeServices,
+                    ecs:UpdateService,
+                    ecs:DeleteService,
+                    ecs:RegisterTaskDefinition,
+                    ecs:DeregisterTaskDefinition,
+                    ecs:DescribeTaskDefinition,
+                    ecs:TagResource,
+                    ecs:UntagResource,
+                  ]
+                Resource: "*"
               - Sid: DashboardEcsLogs
                 Effect: Allow
-                Action: [logs:CreateLogGroup, logs:DeleteLogGroup, logs:DescribeLogGroups, logs:PutRetentionPolicy, logs:TagResource, logs:UntagResource]
-                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/ecs/${ApplicationStackName}:*'
+                Action:
+                  [
+                    logs:CreateLogGroup,
+                    logs:DeleteLogGroup,
+                    logs:DescribeLogGroups,
+                    logs:PutRetentionPolicy,
+                    logs:TagResource,
+                    logs:UntagResource,
+                  ]
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/ecs/${ApplicationStackName}:*"
               - Sid: ManageEcsRuntimeRoles
                 Effect: Allow
-                Action: [iam:CreateRole, iam:GetRole, iam:DeleteRole, iam:UpdateAssumeRolePolicy, iam:PutRolePolicy, iam:GetRolePolicy, iam:DeleteRolePolicy, iam:TagRole, iam:UntagRole]
-                Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ApplicationStackName}-*'
+                Action:
+                  [
+                    iam:CreateRole,
+                    iam:GetRole,
+                    iam:DeleteRole,
+                    iam:UpdateAssumeRolePolicy,
+                    iam:PutRolePolicy,
+                    iam:GetRolePolicy,
+                    iam:DeleteRolePolicy,
+                    iam:TagRole,
+                    iam:UntagRole,
+                  ]
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ApplicationStackName}-*"
               - Sid: PassRuntimeRolesToEcsOnly
                 Effect: Allow
                 Action: iam:PassRole
-                Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ApplicationStackName}-*'
-                Condition: { StringEquals: { 'iam:PassedToService': ecs-tasks.amazonaws.com } }
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ApplicationStackName}-*"
+                Condition: { StringEquals: { "iam:PassedToService": ecs-tasks.amazonaws.com } }
               - !If
                 - HasRuntimeSecret
                 - Sid: ReadConfiguredRuntimeCredentials
@@ -71,15 +123,15 @@ Resources:
                 - Sid: DecryptConfiguredRuntimeParameter
                   Effect: Allow
                   Action: kms:Decrypt
-                  Resource: '*'
+                  Resource: "*"
                   Condition:
                     StringEquals:
-                      'kms:ViaService': !Sub 'ssm.${AWS::Region}.amazonaws.com'
-                      'kms:EncryptionContext:PARAMETER_ARN': !Ref RuntimeSecretArn
+                      "kms:ViaService": !Sub "ssm.${AWS::Region}.amazonaws.com"
+                      "kms:EncryptionContext:PARAMETER_ARN": !Ref RuntimeSecretArn
                 - !Ref AWS::NoValue
 Outputs:
-  BootstrapContractVersion: { Value: '1' }
-  BootstrapTemplateRevision: { Value: '1.0-ecs' }
+  BootstrapContractVersion: { Value: "1" }
+  BootstrapTemplateRevision: { Value: "1.0-ecs" }
   ArtifactBucketName: { Value: !Ref ArtifactBucket }
   ArtifactBucketArn: { Value: !GetAtt ArtifactBucket.Arn }
   CloudFormationExecutionRoleArn: { Value: !GetAtt CloudFormationExecutionRole.Arn }

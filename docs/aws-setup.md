@@ -11,7 +11,6 @@ the dashboard without AWS, use the [local setup](../README.md#try-it).
 ## Before you start
 
 You need:
-
 - Node.js 22 or newer, npm, the AWS CLI, and `jq`.
 - The administrator-reviewed `dashboard-bootstrap.json`.
 - AWS credentials that can assume the bootstrap-created deploy role, or an equivalent approved
@@ -99,7 +98,6 @@ npm exec -- ze-great-dashboard-aws package \
 ```
 
 Packaging validates the board and writes:
-
 - `lambda.zip` — the private Lambda application.
 - `template.yml` — the application CloudFormation template.
 - `release.json` — artifact and release metadata.
@@ -183,7 +181,7 @@ source control in either a consumer-owned Secrets Manager secret or a Parameter 
 Its value must be a JSON credential map:
 
 ```json
-{"GITHUB_TOKEN":"github_pat_…"}
+{ "GITHUB_TOKEN": "github_pat_…" }
 ```
 
 Reference the key—not the token—from the board:

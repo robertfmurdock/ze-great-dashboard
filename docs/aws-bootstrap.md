@@ -4,7 +4,6 @@ This guide is for the AWS and GitHub administrators performing the one-time setu
 If bootstrap is complete, continue with [Deploy the dashboard](aws-setup.md).
 
 Bootstrap creates two CloudFormation stacks:
-
 - The **core stack** owns restricted deployment resources and a CloudFormation execution role for
   one named dashboard application stack.
 - The **GitHub OIDC stack** lets one protected GitHub Environment deploy that application through
@@ -16,7 +15,6 @@ prepares commands and files, but an administrator reviews and runs every AWS cha
 ## Before you start
 
 You need:
-
 - Node.js 22 or newer, npm, the AWS CLI, and `jq`.
 - A short-lived AWS administrator session in the target account and Region.
 - A pre-existing account-level GitHub OIDC provider; this package does not create or modify it.
@@ -24,7 +22,6 @@ You need:
 - GitHub CLI access if you want repository IDs and prerequisites discovered automatically.
 
 Choose one stable dashboard name and one compute mode:
-
 - **Lambda** is the default and requires a consumer-owned API Gateway, ALB, or other protected
   gateway that can privately invoke the function.
 - **ECS** uses a long-lived Fargate service and requires consumer-owned subnets, security groups,
@@ -111,7 +108,6 @@ Run the printed commands one at a time. At `describe-change-set`, pause and insp
 change before running `execute-change-set`.
 
 Confirm:
-
 - `CAPABILITY_NAMED_IAM` is expected.
 - Storage blocks public access, requires TLS, and uses the intended encryption.
 - The execution role is limited to the named application resources and approved optional secret.
@@ -131,7 +127,6 @@ npm exec -- ze-great-dashboard-aws bootstrap guide \
 ```
 
 Before executing this change set, confirm:
-
 - The provider ARN and `sts.amazonaws.com` audience are exact.
 - The subject contains immutable GitHub owner and repository IDs plus the protected Environment.
 - Access is limited to the expected deployment artifacts, one application stack, and the core
@@ -155,7 +150,6 @@ npm exec -- ze-great-dashboard-aws bootstrap verify \
 
 Verification checks stack identities, Regions, contracts, parameters, outputs, and reviewed role
 ARNs. Give these two non-secret values from its output to the GitHub Environment administrator:
-
 - `AWS_DEPLOY_ROLE_ARN`
 - `AWS_CLOUDFORMATION_EXECUTION_ROLE_ARN`
 

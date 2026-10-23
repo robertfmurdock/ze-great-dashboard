@@ -4,13 +4,19 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { strFromU8, unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
-import { cloudFormationTemplate, packageEcs, packageLambda } from '../src/index.ts'
+import {
+  cloudFormationTemplate,
+  packageEcs,
+  packageLambda,
+  parseCloudFormationTemplate,
+} from '../src/index.ts'
 
 const secretReference = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dashboard'
 
 describe('AWS deployment contract', () => {
   it('is parameterized and leaves public gateway exposure to the consumer', async () => {
     const template = await cloudFormationTemplate()
+    const document = parseCloudFormationTemplate(template)
     expect(template).toContain('LambdaArtifactBucket')
     expect(template).toContain('BoardConfigPath')
     expect(template).toContain('AssetPath')
@@ -20,7 +26,10 @@ describe('AWS deployment contract', () => {
     expect(template).not.toContain("Principal: '*'")
     expect(template).not.toContain('AuthType: NONE')
     expect(template).toContain('ServerFunctionArn')
-    expect(template).toContain(`RoleName: !Sub '\${Name}-server'`)
+    expect(
+      (document.Resources?.ServerRole as { Properties?: { RoleName?: unknown } } | undefined)
+        ?.Properties?.RoleName,
+    ).toBe('$' + '{Name}-server')
     expect(template).toContain('ze-great-dashboard-no-secret-configured')
     expect(template).toContain('ssm:GetParameter')
     expect(template).toContain('kms:EncryptionContext:PARAMETER_ARN')

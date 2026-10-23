@@ -6,7 +6,6 @@ historical pitch from the living implementation record.
 ## What was implemented
 
 The dashboard now supports `http-value` panels alongside GitHub Actions pipeline panels:
-
 - `packages/shared/src/board-config.ts` accepts an HTTP(S) URL and an optional small JSON path.
 - `packages/shared/src/envelope.ts` defines the normalized `http-value` signal payload.
 - `packages/server/src/adapters/http-value.ts` fetches the configured endpoint, extracts scalar
@@ -29,7 +28,6 @@ Coverage includes nested extraction, plain text, validator forwarding, missing p
 sources, 304 responses, source-less routing, unknown-panel rejection, and client rendering.
 
 Verification passed:
-
 - `npm run check`
 - 73 tests across 10 test files
 - Client production build

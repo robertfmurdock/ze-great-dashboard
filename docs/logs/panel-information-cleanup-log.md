@@ -6,7 +6,6 @@ Recorded 2026-08-28 during the in-progress pipeline information cleanup and foll
 
 Pipeline panels should make the current work legible at a glance without changing their active-run
 visual treatments. The intended hierarchy is:
-
 - status as the dominant signal;
 - one concise live-activity line, such as `build › integration tests`;
 - branch as compact metadata;

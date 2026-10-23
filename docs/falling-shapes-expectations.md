@@ -24,7 +24,6 @@ never appear filled immediately after the animation starts.
 
 Each arriving piece should be visually distinct from the pieces already at
 rest. A viewer should be able to follow the active piece through these stages:
-
 1. It enters at the visible edge of the field.
 2. It moves into alignment with an available destination.
 3. It visibly falls or slides into that destination.
@@ -42,7 +41,6 @@ intentional pieces rather than isolated dots or an amorphous fill pattern.
 ## Direction follows the visible panel
 
 The animation should respond to the panel’s rendered shape:
-
 - In a vertically oriented panel, pieces enter from above and travel
   top-to-bottom.
 - In a horizontally oriented panel, pieces enter from the far right inside the
@@ -115,7 +113,6 @@ remaining suitable for a trust dashboard and its other status content.
 ## Explicit anti-goals
 
 The treatment is not successful if it looks like any of the following:
-
 - The whole panel fills with blocks immediately.
 - A uniform bar grows across the panel with no individual piece lifecycle.
 - Blocks appear already placed with no visible entry, alignment, or drop/slide.

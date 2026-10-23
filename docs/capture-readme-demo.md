@@ -8,12 +8,12 @@ development path, fixes browser time, requests reduced motion, intercepts every 
 and blocks any browser request outside localhost. They use no credentials and never contact a live
 signal authority.
 
-| Artifact | Scenario evidence | Regenerate |
-| --- | --- | --- |
-| `docs/assets/readme-status-vocabulary.png` | Seven visible states: passed, warning, running, failed, cancelled, unknown, and source unavailable. | `npm run capture:readme:status` |
-| `docs/assets/readme-important-attention.png` | Reduced-motion attention rail with a failed panel and an unreadable panel, each retaining anchored evidence. | `npm run capture:readme:attention` |
-| `docs/assets/readme-authless-warning.png` | A persistent unauthenticated-deployment warning beside ordinary board content. | `npm run capture:readme:warning` |
-| `docs/assets/readme-authentication-required.png` | Fail-closed authentication-required boundary with no board data. | `npm run capture:readme:blocked` |
+| Artifact                                         | Scenario evidence                                                                                            | Regenerate                         |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| `docs/assets/readme-status-vocabulary.png`       | Seven visible states: passed, warning, running, failed, cancelled, unknown, and source unavailable.          | `npm run capture:readme:status`    |
+| `docs/assets/readme-important-attention.png`     | Reduced-motion attention rail with a failed panel and an unreadable panel, each retaining anchored evidence. | `npm run capture:readme:attention` |
+| `docs/assets/readme-authless-warning.png`        | A persistent unauthenticated-deployment warning beside ordinary board content.                               | `npm run capture:readme:warning`   |
+| `docs/assets/readme-authentication-required.png` | Fail-closed authentication-required boundary with no board data.                                             | `npm run capture:readme:blocked`   |
 
 Each command checks its intended visible text before writing its PNG. Inspect an output with:
 
@@ -36,7 +36,6 @@ engineering data. The board holds each treatment explicitly, including the stabl
 `signal-field` and `falling-shapes` panels; the status glyphs and “Running” labels remain visible.
 
 The capture settings are deliberately fixed:
-
 - Browser viewport: 1440 × 900 CSS pixels, device scale factor 1, animations enabled.
 - Duration and cadence: 6 seconds at 10 frames per second, beginning 750 ms after the first field
   appears.
@@ -102,7 +101,6 @@ The repository's AWS application template deliberately creates no public endpoin
 with no credentials, and use the generated `AssetPath` for the matching immutable client.
 
 Verify the handoff before editing the README link:
-
 1. `GET /health` succeeds through the public URL.
 2. The dashboard opens anonymously and renders the `animation-showcase` board.
 3. The browser-visible configuration contains no secrets or private URLs.

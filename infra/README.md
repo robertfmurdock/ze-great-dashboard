@@ -4,7 +4,6 @@ The files in this directory operate the project's public distribution and refere
 They are not the templates consumers use to deploy a dashboard.
 
 To deploy your own dashboard:
-
 1. Install `@continuous-excellence/ze-great-dashboard-aws` at an exact reviewed version.
 2. Complete the [administrator bootstrap](../docs/aws-bootstrap.md).
 3. Follow the [Lambda deployment guide](../docs/aws-setup.md), or use the package's ECS mode with
@@ -17,7 +16,6 @@ deployment.
 ## Public distribution resources
 
 `stack.yml` defines the persistent infrastructure used to publish Ze Great Dashboard releases:
-
 - A private, encrypted, versioned S3 asset bucket.
 - A CloudFront distribution with signed access to that bucket.
 - Restricted GitHub OIDC and CloudFormation roles for the named project stack.

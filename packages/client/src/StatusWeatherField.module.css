@@ -171,13 +171,11 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-overdue="true"] .pressure,
   .haze,
   .band,
-  .drift {
-    animation: none;
-  }
-  .pressure {
+  .drift,
+  .pressure,
+  [data-overdue="true"] .pressure {
     animation: none;
   }
 }

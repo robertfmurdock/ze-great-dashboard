@@ -7,11 +7,11 @@ observable.
 
 ## What happened
 
-| Study | Endpoint result | Explanation result | Supported conclusion |
-| --- | --- | --- | --- |
-| Route-contract pilot | Native 8/8; Testmints 8/8 | Every score 4/4 | Both forms were sufficient for a direct mapping task. |
-| Refresh-failure study | Every cell 4/4 | Every score 3/4 in both forms | Neither form produced the evaluator's requested framing. |
-| Two-call boundary study | Native 8/8; Testmints 8/8 | Every score 4/4 | The selected repair and prompts saturated both measures. |
+| Study                   | Endpoint result           | Explanation result            | Supported conclusion                                     |
+| ----------------------- | ------------------------- | ----------------------------- | -------------------------------------------------------- |
+| Route-contract pilot    | Native 8/8; Testmints 8/8 | Every score 4/4               | Both forms were sufficient for a direct mapping task.    |
+| Refresh-failure study   | Every cell 4/4            | Every score 3/4 in both forms | Neither form produced the evaluator's requested framing. |
+| Two-call boundary study | Native 8/8; Testmints 8/8 | Every score 4/4               | The selected repair and prompts saturated both measures. |
 
 The studies rule out an easy claim of a large advantage on these tasks. They do not show Testmints
 has no value for agent comprehension generally, nor that native Vitest is equally effective for
@@ -43,12 +43,11 @@ assertion and protect against hard-coded fixture values. In these studies, howev
 different data to recheck consequences already named by the visible test. They did not distinguish
 an agent that understood a call boundary from one that followed the conspicuous local mutation.
 
-There is a fundamental tension to resolve before another study. If the visible test is the *complete
-behavioral specification*, a hidden verifier must not impose extra semantics merely to create a
+There is a fundamental tension to resolve before another study. If the visible test is the _complete
+behavioral specification_, a hidden verifier must not impose extra semantics merely to create a
 difference: that would mean the visible specification was incomplete. But a hidden verifier that
 only repeats visible semantics is unlikely to measure deeper comprehension. Future work must choose
 one honest construct:
-
 - For correctness against a complete visible test, use hidden tests as robustness checks and do not
   interpret a tie as a phase-comprehension result.
 - For recovery of a broader invariant, expose that compact public contract visibly and let hidden
@@ -129,7 +128,6 @@ calling the review independent.
 ## Gates before a fourth study
 
 Do not spend another 16-run budget until a disposable pilot clears every gate below.
-
 1. Name the proposed mechanism: why should `setup`/`exercise`/`verify` change a decision compared
    with linear native code, and which plausible incorrect decision should it prevent?
 2. Write a wrong-repair catalogue before the visible test. For each repair, show whether it passes

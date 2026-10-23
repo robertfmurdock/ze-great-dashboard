@@ -7,7 +7,6 @@ the reason to trust the dashboard should remain recognizable.
 
 The README should therefore establish four commitments before it directs a prospective user to
 setup or the feature tour:
-
 - **Evidence over assertion:** the dashboard is a lens onto named authorities. Observation time,
   source links, and explicit unreadable or stale states keep it from claiming more certainty than
   the underlying systems provide.

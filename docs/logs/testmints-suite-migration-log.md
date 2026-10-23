@@ -77,13 +77,18 @@ Vitest callback. The setup, actions, and assertions were interleaved:
 ```ts
 it('rejects missing, invalid, and unauthorized access before any adapter fetch', async () => {
   const fetcher = vi.fn<typeof fetch>()
-  const app = createApp({ /* protected board and verifier */ })
+  const app = createApp({
+    /* protected board and verifier */
+  })
 
   expect((await app.request('/api/boards/ops')).status).toBe(401)
-  expect((await app.request('/api/boards/ops', { headers: { authorization: 'Bearer wrong' } })).status)
-    .toBe(401)
-  expect((await app.request('/api/boards/ops', { headers: { authorization: 'Bearer unlisted' } })).status)
-    .toBe(403)
+  expect(
+    (await app.request('/api/boards/ops', { headers: { authorization: 'Bearer wrong' } })).status,
+  ).toBe(401)
+  expect(
+    (await app.request('/api/boards/ops', { headers: { authorization: 'Bearer unlisted' } }))
+      .status,
+  ).toBe(403)
   expect(fetcher).not.toHaveBeenCalled()
 })
 ```

@@ -1,7 +1,6 @@
 # Upstream response fixtures
 
 There are two deliberately distinct evidence levels for CI adapters:
-
 - **Controlled conformance** is required for every registered adapter. The shared server route
   contract exercises deterministic, minimal upstream responses through
   `/api/panel/{board}/{panelId}`. It proves the browser-visible proxy envelope, cache relay,
@@ -16,7 +15,6 @@ redact identifying values without changing its structure, and commit one file pe
 ## Required scenarios
 
 For each signal source, capture distinct responses for:
-
 - a successful run;
 - warning or partial-success states such as Azure DevOps `succeededWithIssues`;
 - cancelled and in-progress runs;
@@ -40,8 +38,8 @@ and `cancelled`; its README records the capture details.
 Azure DevOps captures still require a read-scoped token and a suitable project and pipeline. Add
 them only after recording real responses, including the distinct `succeededWithIssues` result.
 
-| Adapter | Controlled conformance | Fixture qualification |
-| --- | --- | --- |
-| GitHub Actions | Required and covered | Partial: success, failure, in-progress, and cancelled runs are captured; warning/partial success and failure responses remain. |
-| GitLab CI | Required and covered | Not yet captured. |
-| Azure DevOps | Required and covered | Not yet captured; begin with success, `succeededWithIssues`, lifecycle states, and failure responses. |
+| Adapter        | Controlled conformance | Fixture qualification                                                                                                          |
+| -------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| GitHub Actions | Required and covered   | Partial: success, failure, in-progress, and cancelled runs are captured; warning/partial success and failure responses remain. |
+| GitLab CI      | Required and covered   | Not yet captured.                                                                                                              |
+| Azure DevOps   | Required and covered   | Not yet captured; begin with success, `succeededWithIssues`, lifecycle states, and failure responses.                          |

@@ -7,7 +7,6 @@ templates. The matching immutable browser client is published separately as
 another exact asset URL.
 
 This package is for teams that already operate AWS and can provide a protected entry path:
-
 - Lambda requires a consumer-owned API Gateway, ALB, or equivalent gateway with private invocation
   permission.
 - ECS requires consumer-owned subnets, security groups, and protected load balancing or routing for
@@ -82,7 +81,7 @@ sources, set `SecretReference` to the ARN of one consumer-owned Secrets Manager 
 Parameter Store `SecureString`, for example:
 
 ```json
-{"GITHUB_TOKEN":"github_pat_…"}
+{ "GITHUB_TOKEN": "github_pat_…" }
 ```
 
 The board references `GITHUB_TOKEN` through `token_env`; the credential value never belongs in the
@@ -93,14 +92,14 @@ when a key is absent.
 
 ## Ownership boundaries
 
-| Package responsibility | Consumer responsibility |
-| --- | --- |
-| Board validation and release packaging | Board content and source permissions |
-| Server runtime and application templates | AWS account and network administration |
-| Restricted bootstrap templates | Reviewing and executing AWS changes |
-| Default immutable client asset selection | Approval of alternate asset hosts |
-| Read-only preflight, doctor, and consistency checks | Gateway, authentication, and health checks |
-| Exact secret-resource integration | Secret values, rotation, and credential-map ARN |
+| Package responsibility                              | Consumer responsibility                         |
+| --------------------------------------------------- | ----------------------------------------------- |
+| Board validation and release packaging              | Board content and source permissions            |
+| Server runtime and application templates            | AWS account and network administration          |
+| Restricted bootstrap templates                      | Reviewing and executing AWS changes             |
+| Default immutable client asset selection            | Approval of alternate asset hosts               |
+| Read-only preflight, doctor, and consistency checks | Gateway, authentication, and health checks      |
+| Exact secret-resource integration                   | Secret values, rotation, and credential-map ARN |
 
 Bootstrap commands do not perform mutating AWS operations. They emit plans, parameters, captures,
 and command arguments for an administrator to review and invoke. `bootstrap check` is the read-only

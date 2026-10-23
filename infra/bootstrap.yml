@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Description: One-time GitHub OIDC bootstrap for Ze Great Dashboard
 
 Parameters:
@@ -23,10 +23,10 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      RoleName: !Sub '${StackName}-cloudformation'
+      RoleName: !Sub "${StackName}-cloudformation"
       Description: CloudFormation execution role for Ze Great Dashboard
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
@@ -35,26 +35,26 @@ Resources:
       Policies:
         - PolicyName: ZeGreatDashboardResources
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Sid: AssetsBucket
                 Effect: Allow
                 Action: s3:*
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:s3:::${AssetsBucketName}'
-                  - !Sub 'arn:${AWS::Partition}:s3:::${AssetsBucketName}/*'
+                  - !Sub "arn:${AWS::Partition}:s3:::${AssetsBucketName}"
+                  - !Sub "arn:${AWS::Partition}:s3:::${AssetsBucketName}/*"
               - Sid: CloudFront
                 Effect: Allow
                 Action: cloudfront:*
-                Resource: '*'
+                Resource: "*"
               - Sid: DashboardLambda
                 Effect: Allow
                 Action: lambda:*
-                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}'
+                Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}"
               - Sid: DashboardLogs
                 Effect: Allow
                 Action: logs:*
-                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${FunctionName}:*'
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${FunctionName}:*"
               - Sid: DashboardRoles
                 Effect: Allow
                 Action:
@@ -73,14 +73,14 @@ Resources:
                   - iam:UntagRole
                   - iam:PassRole
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ServerRoleName}'
-                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${DeployRoleName}'
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ServerRoleName}"
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${DeployRoleName}"
               - Sid: ReferenceArtifactBucket
                 Effect: Allow
                 Action: s3:*
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:s3:::ze-great-dashboard-reference-artifacts'
-                  - !Sub 'arn:${AWS::Partition}:s3:::ze-great-dashboard-reference-artifacts/*'
+                  - !Sub "arn:${AWS::Partition}:s3:::ze-great-dashboard-reference-artifacts"
+                  - !Sub "arn:${AWS::Partition}:s3:::ze-great-dashboard-reference-artifacts/*"
               - Sid: ReferenceRoles
                 Effect: Allow
                 Action:
@@ -99,9 +99,9 @@ Resources:
                   - iam:UntagRole
                   - iam:PassRole
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceCloudFormationExecution'
-                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceDeploy'
-                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceSmoke'
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceCloudFormationExecution"
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceDeploy"
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ZeGreatDashboardReferenceSmoke"
               # Reference-only test infrastructure. This is not a consumer credential-management
               # permission: the fixed secret contains only a fake smoke value.
               - Sid: ReferenceCredentialSmokeSecret
@@ -114,7 +114,7 @@ Resources:
                   - secretsmanager:TagResource
                   - secretsmanager:UntagResource
                   - secretsmanager:UpdateSecret
-                Resource: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ze-great-dashboard-reference-credentials-smoke-*'
+                Resource: !Sub "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ze-great-dashboard-reference-credentials-smoke-*"
 
   GitHubProvisionRole:
     Type: AWS::IAM::Role
@@ -125,29 +125,29 @@ Resources:
       Description: Main-only GitHub CloudFormation role for Ze Great Dashboard
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+              Federated: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
-                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
-                'token.actions.githubusercontent.com:sub': !Sub
-                  - 'repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:ref:refs/heads/main'
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub
+                  - "repo:${Owner}@${GitHubOwnerId}/${Repository}@${GitHubRepositoryId}:ref:refs/heads/main"
                   - Owner:
                       Fn::Select:
                         - 0
-                        - Fn::Split: ['/', !Ref GitHubRepository]
+                        - Fn::Split: ["/", !Ref GitHubRepository]
                     Repository:
                       Fn::Select:
                         - 1
-                        - Fn::Split: ['/', !Ref GitHubRepository]
+                        - Fn::Split: ["/", !Ref GitHubRepository]
       Policies:
         - PolicyName: ZeGreatDashboardCloudFormation
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Sid: OperateDashboardStack
                 Effect: Allow
@@ -160,14 +160,14 @@ Resources:
                   - cloudformation:DescribeStackEvents
                   - cloudformation:GetTemplate
                   - cloudformation:GetTemplateSummary
-                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${StackName}/*'
+                Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${StackName}/*"
               - Sid: PassCloudFormationExecutionRole
                 Effect: Allow
                 Action: iam:PassRole
                 Resource: !GetAtt CloudFormationExecutionRole.Arn
                 Condition:
                   StringEquals:
-                    'iam:PassedToService': cloudformation.amazonaws.com
+                    "iam:PassedToService": cloudformation.amazonaws.com
               - Sid: InspectCloudFormationExecutionRole
                 Effect: Allow
                 Action: iam:GetRolePolicy

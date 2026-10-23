@@ -39,7 +39,7 @@
   display: contents;
 }
 /* The source link owns its corner, so the label and evidence never render beneath it. */
-.panel:has(.sourceAction) .content {
+:where(.panel:has(.sourceAction)) .content {
   padding-inline-end: 2.25em;
 }
 .content > *,
@@ -70,12 +70,12 @@
   grid-row: 3;
   align-self: end;
 }
-.content:not(.statusBand) > [data-panel-anchor="status"] {
-  display: contents;
-}
 .statusBand > [data-panel-anchor="status"],
 .statusBand > [data-panel-anchor="evidence"] {
   min-width: 0;
+}
+.content:not(.statusBand) > [data-panel-anchor="status"] {
+  display: contents;
 }
 .error {
   border-color: var(--status-serious);
@@ -293,26 +293,22 @@
   }
   .statusBand {
     flex: 0 0 auto;
-    grid-template-areas:
-      "identity"
-      "status"
-      "evidence";
     grid-template-rows: auto auto auto;
     gap: 0.2em;
   }
   .statusBand .label {
-    grid-area: identity;
+    grid-row: 1;
   }
   .statusBand > [data-panel-anchor="status"] {
     position: static;
     inset-inline: auto;
     top: auto;
-    grid-area: status;
+    grid-row: 2;
     align-self: start;
     transform: none;
   }
   .statusBand > [data-panel-anchor="evidence"] {
-    grid-area: evidence;
+    grid-row: 3;
     align-self: start;
   }
   .statusBand .status {

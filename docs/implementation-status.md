@@ -20,7 +20,6 @@ The current distinction between implementation and 1.0 readiness is recorded in 
 
 The dashboard is an information radiator, not a convenient place to make unearned assertions. These
 principles govern changes to the product and the way it is introduced to prospective users:
-
 - **Evidence over assertion.** A panel identifies the authority behind a reading, says when it was
   observed, and leads back to the source. Unreadable, unknown, stale, and failed states are evidence
   to render, not gaps to hide or turn green.
@@ -70,7 +69,6 @@ while ECS validation remains an ephemeral task with no service or load balancer.
 
 The repository has the immutable web application shell and the first live data slices working
 locally. The current implementation includes:
-
 - Immutable client assets with a server-rendered, no-store entrypoint and injected `window.env`.
 - YAML board configuration validated once at startup.
 - A bounded panel endpoint; the browser supplies a board and panel id, never an arbitrary URL.
@@ -131,14 +129,14 @@ change support wording only when the full [1.0 integration contract](./1.0-commi
 is evidenced. A live functional experiment can complement that evidence, but cannot replace a
 replayable corpus.
 
-| Integration | Evidence now | Evidence still needed before 1.0 support |
-| --- | --- | --- |
-| GitHub Actions | Redacted real captures cover completed success, failure, cancelled, and in-progress lifecycle outcomes; controlled route tests cover cache and error handling. | Add redacted real-response evidence for unknown/no-run, unauthorized, and upstream-failure outcomes. |
-| GitLab CI | Controlled contract coverage plus one real self-managed GitLab CE success experiment through the bounded panel route. | Add a redacted replayable fixture corpus and non-happy-path evidence, including running, unknown, unauthorized, and upstream-error outcomes. |
-| Azure DevOps | A local read-scoped PAT verified the happy path; controlled-response tests cover Build List and Timeline behavior. The adapter remains incubating. | Capture legitimate, redacted Build List and Timeline responses for lifecycle and error variants, then replay them through the normal route before de-incubation. |
+<!-- biome-ignore format: Biome's Markdown table formatter is non-idempotent for this table. -->
+| Integration    | Evidence now                                                                                                                                                   | Evidence still needed before 1.0 support                                                                                                                         |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub Actions | Redacted real captures cover completed success, failure, cancelled, and in-progress lifecycle outcomes; controlled route tests cover cache and error handling. | Add redacted real-response evidence for unknown/no-run, unauthorized, and upstream-failure outcomes.                                                             |
+| GitLab CI      | Controlled contract coverage plus one real self-managed GitLab CE success experiment through the bounded panel route.                                          | Add a redacted replayable fixture corpus and non-happy-path evidence, including running, unknown, unauthorized, and upstream-error outcomes.                     |
+| Azure DevOps   | A local read-scoped PAT verified the happy path; controlled-response tests cover Build List and Timeline behavior. The adapter remains incubating.             | Capture legitimate, redacted Build List and Timeline responses for lifecycle and error variants, then replay them through the normal route before de-incubation. |
 
 Other 1.0 evidence gaps follow in priority order:
-
 1. Persistent verified AWS ECS evidence, including the required operational lifecycle, alongside the
    existing Lambda reference path.
 2. Documented and verified Cloud Run and Cloud Functions paths, each with a live reference
@@ -192,7 +190,6 @@ from the exact configured URL, and it has no named source or stored credential i
 ### The roadmap is execution-oriented here
 
 The original pitch's stages remain unchanged. This repository's practical sequence is:
-
 1. Immutable shell and local deployment.
 2. GitHub Actions pipeline status.
 3. Independent live polling.
