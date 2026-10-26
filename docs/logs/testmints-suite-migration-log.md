@@ -402,3 +402,13 @@ because they exercise distinct failure boundaries. Local expected-throw and expe
 wrappers leave the parser or resolver call visible in each exercise, while verification owns the
 public error and redaction evidence. No production behavior, dependency, or reporting configuration
 changed.
+
+### Follow-up: browser diagnostics evidence boundary
+
+`packages/client/test/diagnostics.test.ts` now uses `mintTest` for persisted browser evidence,
+GitHub consistency-incident lifecycle, and retained-evidence summary projection. Setup arranges
+isolated storage, clocks, persisted payloads, and diagnostic events; exercise visibly records,
+constructs/reloads, clears, or summarizes once; verification owns the exported, retained, and
+redaction evidence. Malformed persisted values remain a branch-free descriptor list because they
+share the same reconstruction and reset contract. Incident persistence and explicit clearing are
+separate lifecycle scenarios. No production behavior, dependency, or reporting configuration changed.
