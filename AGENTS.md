@@ -126,6 +126,55 @@ discover which path is under test. When cases have different observable contract
 tests or named case tables. Put shared branching in production-facing helpers or small test helpers,
 not in a conditional decision tree inside the assertion flow.
 
+## Testmints migrations
+
+When porting a test to Testmints, use the installed Vitest adapter only; do not enable reporting or
+add shared Testmints infrastructure. Preserve the scenario's real data flow: `setup` arranges
+isolated inputs, apps, mocks, clocks, and scoped resources; `exercise` visibly performs the
+meaningful subject action; `verify` owns every observable assertion, including collaborator calls.
+Do not assert while the action is in progress.
+
+One input scenario has one visible exercise. Split cases with materially different inputs, actions,
+or contracts; repeat an exercise only when repetition is itself the behavior under test. Group
+scenarios by contract boundary with `describe`. A typed, branch-free descriptor table is appropriate
+only for a genuinely uniform mapping; construct fresh mocks in `setup` rather than putting them in
+the descriptor.
+
+Fixtures may arrange reusable world state and assertion helpers may name a stable invariant, but
+neither may register a test or hide its subject action. Keep expected-rejection wrappers local until
+the adapter supports them natively: fail if the action resolves, return the error to `verify` if it
+rejects. Use `scope.using()` for resources that must be released after any phase.
+
+```ts
+mintTest('rejects an invalid access token before any adapter fetch', {
+  setup: () => ({ ...protectedValueFixture(), headers: { authorization: 'Bearer wrong' } }),
+  exercise: ({ app, headers }) => app.request('/api/boards/ops', { headers }),
+  verify: (response, { fetcher }) => {
+    expect(response.status).toBe(401)
+    expect(fetcher).not.toHaveBeenCalled()
+  },
+})
+```
+
+```ts
+function rejects<Input>(action: (input: Input) => Promise<unknown>) {
+  return async (input: Input) => {
+    try {
+      await action(input)
+    } catch (error) {
+      return error
+    }
+    throw new Error('Expected the exercise to reject.')
+  }
+}
+
+mintTest('denies an untrusted token', {
+  setup: tokenFixture,
+  exercise: rejects(({ verifier, token }) => verifier(token)),
+  verify: (error) => expect(accessDenied(error)).toBe(true),
+})
+```
+
 ## Commands
 
 |                      |                                                                     |

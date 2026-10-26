@@ -296,3 +296,13 @@ are likewise distinct valid, malformed, and invalid-asset cases; this keeps norm
 redaction evidence local to each input rather than relying on a shared event history. Fixture
 helpers arrange only the grouped panel, canonical source-agnostic app, and controlled logger. No production behavior,
 dependency, or reporting configuration changed.
+
+### Follow-up: canonical migration standard
+
+The completed server-suite ports are now condensed into identical, brief Testmints migration
+guidance in `AGENTS.md` and `CLAUDE.md`. It defines the setup/exercise/verify boundary, scenario
+granularity, legitimate descriptor tables, fixture and helper limits, local expected-rejection
+wrappers, and scoped cleanup, with ordinary-route and expected-rejection few-shot examples. This is
+guidance for migrations, not a claim that Testmints is preferable for every future native Vitest
+test; the synthetic studies remain insufficient for that claim. No production behavior, dependency,
+or reporting configuration changed.
