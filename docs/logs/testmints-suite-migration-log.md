@@ -448,3 +448,21 @@ environment contract. Auth presence, each admitted security posture, missing inj
 incomplete configuration are separate input scenarios; each arranges its source once, invokes
 `readClientEnv` once, and verifies its parsed projection or captured validation error. No runtime,
 dependency, or reporting behavior changed.
+
+### Follow-up: OIDC gate UI boundary
+
+`packages/client/test/OidcGate.test.tsx` now uses `mintTest` for its two browser-facing OIDC
+scenarios. Rendering the unauthenticated gate remains the one exercise that initiates silent
+session restoration; clicking the admitted protected-content action remains the one exercise that
+enters the denied view. Setup owns OIDC state, user interaction, and rendered admitted content as
+appropriate, while verification owns the visible UI and collaborator evidence. No runtime,
+dependency, or reporting behavior changed.
+
+### Follow-up: PanelFrame presentation boundary
+
+`packages/client/test/PanelFrame.test.tsx` now uses `mintTest` for its direct presentational
+component contracts. Each scenario arranges its panel, envelope, or metadata input in `setup`,
+renders the frame once in `exercise`, and checks the resulting layout, loading, density,
+accessibility, and source-link evidence in `verify`. The former two-render density registration is
+now separate default and explicit-density scenarios, matching their distinct input and output
+contracts. No runtime, dependency, or reporting behavior changed.
