@@ -1,71 +1,155 @@
-import { describe, expect, it, vi } from 'vitest'
+import { mintTest } from '@continuous-excellence/testmints-js/vitest'
+import { describe, expect, vi } from 'vitest'
 import { createCredentialResolver, parseCredentialMap } from '../src/credentials.ts'
 
-describe('credential maps', () => {
-  it('accepts only JSON objects with non-empty string values', () => {
-    expect(parseCredentialMap('{"GITHUB_TOKEN":"token"}')).toEqual({ GITHUB_TOKEN: 'token' })
-    for (const value of [undefined, 'not json', '[]', '{"GITHUB_TOKEN":""}', '{"GITHUB_TOKEN":1}'])
-      expect(() => parseCredentialMap(value)).toThrow(
-        'Credential reference must be a JSON object of non-empty string values',
-      )
+describe('credential map parsing', () => {
+  mintTest('accepts a JSON object with non-empty string credential values', {
+    setup: () => ({ credentialMap: '{"GITHUB_TOKEN":"token"}' }),
+    exercise: ({ credentialMap }) => parseCredentialMap(credentialMap),
+    verify: (credentials) => {
+      expect(credentials).toEqual({ GITHUB_TOKEN: 'token' })
+    },
   })
 
-  it('loads only the configured names from one secret map', async () => {
-    const send = vi.fn(async () => ({ SecretString: '{"GITHUB_TOKEN":"private","UNUSED":"x"}' }))
-    const credentials = await createCredentialResolver({
-      secretReference: 'arn:aws:secretsmanager:region:account:secret:credentials',
-      credentialNames: ['GITHUB_TOKEN'],
-      secretsManager: { send },
+  for (const { name, value } of [
+    { name: 'is absent', value: undefined },
+    { name: 'is not JSON', value: 'not json' },
+    { name: 'is an array', value: '[]' },
+    { name: 'has an empty credential value', value: '{"GITHUB_TOKEN":""}' },
+    { name: 'has a non-string credential value', value: '{"GITHUB_TOKEN":1}' },
+  ] as const) {
+    mintTest(`rejects a credential map that ${name}`, {
+      setup: () => ({ credentialMap: value }),
+      exercise: throws(({ credentialMap }) => parseCredentialMap(credentialMap)),
+      verify: (error) => {
+        expect(error).toMatchObject({
+          message: 'Credential reference must be a JSON object of non-empty string values',
+        })
+      },
     })
+  }
+})
 
-    expect(credentials.get('GITHUB_TOKEN')).toBe('private')
-    expect(credentials.get('UNUSED')).toBeUndefined()
-    expect(send).toHaveBeenCalledTimes(1)
-  })
-
-  it('loads a SecureString parameter map with decryption', async () => {
-    const send = vi.fn(async () => ({ Parameter: { Value: '{"GITHUB_TOKEN":"private"}' } }))
-    const credentials = await createCredentialResolver({
-      secretReference: 'arn:aws:ssm:region:account:parameter/dashboard/credentials',
-      credentialNames: ['GITHUB_TOKEN'],
-      parameterStore: { send },
-    })
-
-    expect(credentials.get('GITHUB_TOKEN')).toBe('private')
-    expect(send).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: {
-          Name: 'arn:aws:ssm:region:account:parameter/dashboard/credentials',
-          WithDecryption: true,
+describe('remote credential resolution', () => {
+  mintTest('loads only the configured names from one secret map', {
+    setup: () => {
+      const send = vi.fn(async () => ({
+        SecretString: '{"GITHUB_TOKEN":"private","UNUSED":"x"}',
+      }))
+      return {
+        send,
+        options: {
+          secretReference: 'arn:aws:secretsmanager:region:account:secret:credentials',
+          credentialNames: ['GITHUB_TOKEN'],
+          secretsManager: { send },
         },
-      }),
-    )
+      }
+    },
+    exercise: ({ options }) => createCredentialResolver(options),
+    verify: (credentials, { send }) => {
+      expect(credentials.get('GITHUB_TOKEN')).toBe('private')
+      expect(credentials.get('UNUSED')).toBeUndefined()
+      expect(send).toHaveBeenCalledTimes(1)
+    },
   })
 
-  it('fails closed without exposing secret content', async () => {
-    await expect(
-      createCredentialResolver({
+  mintTest('loads a SecureString parameter map with decryption', {
+    setup: () => {
+      const send = vi.fn(async () => ({ Parameter: { Value: '{"GITHUB_TOKEN":"private"}' } }))
+      return {
+        send,
+        options: {
+          secretReference: 'arn:aws:ssm:region:account:parameter/dashboard/credentials',
+          credentialNames: ['GITHUB_TOKEN'],
+          parameterStore: { send },
+        },
+      }
+    },
+    exercise: ({ options }) => createCredentialResolver(options),
+    verify: (credentials, { send }) => {
+      expect(credentials.get('GITHUB_TOKEN')).toBe('private')
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: {
+            Name: 'arn:aws:ssm:region:account:parameter/dashboard/credentials',
+            WithDecryption: true,
+          },
+        }),
+      )
+    },
+  })
+
+  mintTest('fails closed when a credential reference omits a configured key', {
+    setup: () => ({
+      options: {
         secretReference: 'arn:aws:secretsmanager:region:account:secret:credentials',
         credentialNames: ['GITHUB_TOKEN'],
         secretsManager: { send: async () => ({ SecretString: '{"OTHER":"private-value"}' }) },
-      }),
-    ).rejects.toThrow('Credential reference is missing configured keys: GITHUB_TOKEN')
-    await expect(
-      createCredentialResolver({
+      },
+    }),
+    exercise: rejects(({ options }) => createCredentialResolver(options)),
+    verify: (error) => {
+      expect(error).toMatchObject({
+        message: 'Credential reference is missing configured keys: GITHUB_TOKEN',
+      })
+    },
+  })
+
+  mintTest('fails closed without exposing a credential value when the reference cannot be read', {
+    setup: () => ({
+      options: {
         secretReference: 'arn:aws:secretsmanager:region:account:secret:credentials',
         credentialNames: ['GITHUB_TOKEN'],
         secretsManager: {
           send: async () => Promise.reject(new Error('access denied: private-value')),
         },
-      }),
-    ).rejects.toThrow('Unable to read credential reference for configured keys: GITHUB_TOKEN')
-  })
-
-  it('preserves environment credentials when no secret ARN is configured', async () => {
-    const credentials = await createCredentialResolver({
-      credentialNames: ['GITHUB_TOKEN'],
-      env: { GITHUB_TOKEN: 'local-token' },
-    })
-    expect(credentials.get('GITHUB_TOKEN')).toBe('local-token')
+      },
+    }),
+    exercise: rejects(({ options }) => createCredentialResolver(options)),
+    verify: (error) => {
+      expect(error).toMatchObject({
+        message: 'Unable to read credential reference for configured keys: GITHUB_TOKEN',
+      })
+      expect(String(error)).not.toContain('private-value')
+    },
   })
 })
+
+describe('environment credential resolution', () => {
+  mintTest('preserves environment credentials when no secret ARN is configured', {
+    setup: () => ({
+      options: {
+        credentialNames: ['GITHUB_TOKEN'],
+        env: { GITHUB_TOKEN: 'local-token' },
+      },
+    }),
+    exercise: ({ options }) => createCredentialResolver(options),
+    verify: (credentials) => {
+      expect(credentials.get('GITHUB_TOKEN')).toBe('local-token')
+    },
+  })
+})
+
+/** Captures expected synchronous failure as Testmints exercise output for verification. */
+function throws<Input>(exercise: (input: Input) => unknown) {
+  return (input: Input) => {
+    try {
+      exercise(input)
+    } catch (error) {
+      return error
+    }
+    throw new Error('Expected the exercise to throw.')
+  }
+}
+
+/** Captures expected asynchronous failure as Testmints exercise output for verification. */
+function rejects<Input, Output>(exercise: (input: Input) => Promise<Output>) {
+  return async (input: Input): Promise<unknown> => {
+    try {
+      await exercise(input)
+    } catch (error) {
+      return error
+    }
+    throw new Error('Expected the exercise to reject.')
+  }
+}

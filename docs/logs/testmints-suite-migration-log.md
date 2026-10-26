@@ -391,3 +391,14 @@ estimates. The previous mixed rejected/recovered presentation case is two scenar
 its reconciliation input and exercises `applyPipelinePresentation` once. The timestamp and completed
 status mappings remain branch-free scenario lists. No production behavior, dependency, or reporting
 configuration changed.
+
+### Follow-up: credential resolver boundary
+
+`packages/server/test/credentials.test.ts` now uses `mintTest` for credential-map parsing, Secrets
+Manager and SSM retrieval, fail-closed missing-key and unreadable-reference behavior, and local
+environment fallback. The malformed-map inputs are a typed, branch-free matrix because they share
+one parser action and one rejection contract; the two resolver failures are separate scenarios
+because they exercise distinct failure boundaries. Local expected-throw and expected-rejection
+wrappers leave the parser or resolver call visible in each exercise, while verification owns the
+public error and redaction evidence. No production behavior, dependency, or reporting configuration
+changed.
