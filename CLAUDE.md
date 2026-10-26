@@ -88,6 +88,11 @@ isolated inputs, apps, mocks, clocks, and scoped resources; `exercise` visibly p
 meaningful subject action; `verify` owns every observable assertion, including collaborator calls.
 Do not assert while the action is in progress.
 
+Create scenario-specific values once in `setup`, return them, carry them through `exercise`, and
+compare the resulting public or collaborator evidence to those same values in `verify`. Do not
+repeat meaningful inputs as disconnected literals across phases; phase boundaries should reveal the
+scenario's actual data flow.
+
 One input scenario has one visible exercise. Split cases with materially different inputs, actions,
 or contracts; repeat an exercise only when repetition is itself the behavior under test. Group
 scenarios by contract boundary with `describe`. A typed, branch-free descriptor table is appropriate

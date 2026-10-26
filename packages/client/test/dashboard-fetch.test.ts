@@ -1,5 +1,6 @@
+import { mintTest } from '@continuous-excellence/testmints-js/vitest'
 import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, vi } from 'vitest'
 import { dashboardFetch } from '../src/dashboard-fetch.ts'
 
 const env: ClientEnv = {
@@ -10,28 +11,37 @@ const env: ClientEnv = {
 }
 
 describe('authenticated dashboard requests', () => {
-  it('takes an access token from the explicit request capability, not browser storage', async () => {
-    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer access-token')
-      return new Response(null, { status: 200 })
-    })
+  mintTest('takes an access token from the explicit request capability, not browser storage', {
+    setup: () => {
+      const accessToken = 'capability-owned-access-token'
+      const observed: { headers?: Headers } = {}
+      const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        observed.headers = new Headers(init?.headers)
+        return new Response(null, { status: 200 })
+      })
 
-    await dashboardFetch(env, '/api/boards/ops', undefined, fetcher, {
-      accessToken: 'access-token',
-    })
+      return { accessToken, fetcher, observed }
+    },
+    exercise: ({ accessToken, fetcher }) =>
+      dashboardFetch(env, '/api/boards/ops', undefined, fetcher, {
+        accessToken,
+      }),
+    verify: (_response, { accessToken, observed }) => {
+      expect(observed.headers?.get('authorization')).toBe(`Bearer ${accessToken}`)
+    },
   })
 
-  it('reports authorization failures to the owning auth boundary', async () => {
-    const failed = vi.fn()
-    await dashboardFetch(
-      env,
-      '/api/boards/ops',
-      undefined,
-      async () => new Response(null, { status: 403 }),
-      {
+  mintTest('reports authorization failures to the owning auth boundary', {
+    setup: () => ({
+      failed: vi.fn(),
+      fetcher: async () => new Response(null, { status: 403 }),
+    }),
+    exercise: ({ failed, fetcher }) =>
+      dashboardFetch(env, '/api/boards/ops', undefined, fetcher, {
         onAuthenticationFailure: failed,
-      },
-    )
-    expect(failed).toHaveBeenCalledWith(403)
+      }),
+    verify: (_response, { failed }) => {
+      expect(failed).toHaveBeenCalledWith(403)
+    },
   })
 })

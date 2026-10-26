@@ -422,3 +422,21 @@ cleanup still runs after a failed setup, exercise, or verification. The cross-ve
 two deliberate document requests because comparing those two outputs is the contract: neither may
 name the other's hashed assets or client directory. No production behavior, dependency, or reporting
 configuration changed.
+
+### Follow-up: client dashboard-fetch authentication boundary
+
+`packages/client/test/dashboard-fetch.test.ts` now uses `mintTest` for explicit access-token
+attachment and authorization-failure notification. Setup owns the isolated fetcher, captured request
+headers, and auth callback; exercise performs one dashboard request; verification checks the
+observable collaborator evidence. No production behavior, dependency, or reporting configuration
+changed.
+
+### Follow-up: scenario-owned values across Testmints phases
+
+Review of the dashboard-fetch capability-token scenario identified a readability rule that the
+migration guidance had only implied: arrange a meaningful scenario value once in `setup`, pass it to
+the visible action, and compare the observable result to that same value in `verify`. Repeating a
+literal on both sides obscures whether the subject preserved the arranged input or the test merely
+restated its expectation. `AGENTS.md` now states the principle for tests generally and, together
+with `CLAUDE.md`, for Testmints phases specifically. This is a guidance clarification; no runtime,
+dependency, or reporting behavior changed.

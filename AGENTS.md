@@ -100,12 +100,15 @@ assertions about how the implementation happens to be written.
 Assertions about different aspects of the same output belong together; splitting them into separate
 tests does not add coverage if each test repeats the same setup and subject execution. Organize
 those assertions into named sections or small assertion helpers when that improves legibility.
-Execute the subject again only when the input scenario is intentionally different, or when repeated
-execution is itself the behavior under test (for example, proving deterministic output). When one
-input supports several requested output formats, exercise each intentional request once and compare
-the results as one scenario where practical. Avoid wall-clock sleeps and repeated expensive setup;
-use fake or controlled time for timing behavior and reserve browser tests for behavior that requires
-a real browser.
+Arrange an input value once, pass that same value through the subject, and compare its observable
+result to it; do not duplicate semantically meaningful test data as disconnected literals on either
+side of the action. This keeps the exercised data flow obvious and makes accidental substitution
+visible. Execute the subject again only when the input scenario is intentionally different, or when
+repeated execution is itself the behavior under test (for example, proving deterministic output).
+When one input supports several requested output formats, exercise each intentional request once and
+compare the results as one scenario where practical. Avoid wall-clock sleeps and repeated expensive
+setup; use fake or controlled time for timing behavior and reserve browser tests for behavior that
+requires a real browser.
 
 Test a component at its narrowest meaningful interface when that interface is stable: a presentational
 component with simple inputs should be tested directly, while its parent should retain tests for the
@@ -133,6 +136,11 @@ add shared Testmints infrastructure. Preserve the scenario's real data flow: `se
 isolated inputs, apps, mocks, clocks, and scoped resources; `exercise` visibly performs the
 meaningful subject action; `verify` owns every observable assertion, including collaborator calls.
 Do not assert while the action is in progress.
+
+Create scenario-specific values once in `setup`, return them, carry them through `exercise`, and
+compare the resulting public or collaborator evidence to those same values in `verify`. Do not
+repeat meaningful inputs as disconnected literals across phases; phase boundaries should reveal the
+scenario's actual data flow.
 
 One input scenario has one visible exercise. Split cases with materially different inputs, actions,
 or contracts; repeat an exercise only when repetition is itself the behavior under test. Group
