@@ -306,3 +306,18 @@ wrappers, and scoped cleanup, with ordinary-route and expected-rejection few-sho
 guidance for migrations, not a claim that Testmints is preferable for every future native Vitest
 test; the synthetic studies remain insufficient for that claim. No production behavior, dependency,
 or reporting configuration changed.
+
+### Follow-up: entrypoint and board-layout HTTP boundary
+
+`packages/server/test/entrypoint.test.ts` now uses `mintTest` for the rendered document, health,
+client-identity, and board-layout-download contracts. Each scenario arranges its app and authored
+configuration in `setup`, performs exactly one named route request in `exercise`, and checks the
+response, parsed body, cache policy, or public-data boundary in `verify`. Parsing a returned HTML,
+JSON, or YAML body remains part of observing that one HTTP request; it does not turn into a second
+subject action.
+
+The former unknown-board assertion issued both rendered and authored route requests. Those are now
+separate scenarios because they are distinct public routes, even though they share the same
+unconfigured-board fixture. The template-without-head scenario uses scoped cleanup for its console
+spy, preserving restoration if an exercise or verification fails. No production behavior,
+dependency, or reporting configuration changed.

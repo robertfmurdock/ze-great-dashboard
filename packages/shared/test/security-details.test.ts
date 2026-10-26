@@ -1,23 +1,33 @@
-import { describe, expect, it } from 'vitest'
-import { securityDetailsResponseSchema } from '../src/security-details.ts'
+import { mintTest } from '@continuous-excellence/testmints-js/vitest'
+import { describe, expect } from 'vitest'
+import { securityDetailsResponseSchema } from '../src'
 
 describe('safe security details', () => {
-  it('permits only the admitted-viewer policy projection', () => {
-    expect(
-      securityDetailsResponseSchema.parse({
+  mintTest('permits only the admitted-viewer policy projection', {
+    setup: () => ({
+      response: {
         oidc: true,
         policy: { mode: 'claim', claim: 'groups', match: 'all' },
-      }),
-    ).toEqual({ oidc: true, policy: { mode: 'claim', claim: 'groups', match: 'all' } })
+      },
+    }),
+    exercise: ({ response }) => securityDetailsResponseSchema.parse(response),
+    verify: (result) => {
+      expect(result).toEqual({
+        oidc: true,
+        policy: { mode: 'claim', claim: 'groups', match: 'all' },
+      })
+    },
   })
 
-  it('rejects server-only policy values and raw claims', () => {
-    expect(
-      securityDetailsResponseSchema.safeParse({
+  mintTest('rejects server-only policy values and raw claims', {
+    setup: () => ({
+      response: {
         oidc: true,
         policy: { mode: 'claim', claim: 'groups', match: 'any', values: ['viewers'] },
         claims: { groups: ['viewers'] },
-      }).success,
-    ).toBe(false)
+      },
+    }),
+    exercise: ({ response }) => securityDetailsResponseSchema.safeParse(response),
+    verify: (result) => expect(result.success).toBe(false),
   })
 })
