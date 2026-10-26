@@ -412,3 +412,13 @@ constructs/reloads, clears, or summarizes once; verification owns the exported, 
 redaction evidence. Malformed persisted values remain a branch-free descriptor list because they
 share the same reconstruction and reset contract. Incident persistence and explicit clearing are
 separate lifecycle scenarios. No production behavior, dependency, or reporting configuration changed.
+
+### Follow-up: immutable web application release proof
+
+`packages/server/test/immutable-web-app.test.ts` now uses `mintTest` for the real-HTTP proof that
+changing only `ASSET_PATH` selects the matching published client version. Each scenario acquires its
+fixture CDN with `scope.using()` and releases it through the server's real close operation, so
+cleanup still runs after a failed setup, exercise, or verification. The cross-version case retains
+two deliberate document requests because comparing those two outputs is the contract: neither may
+name the other's hashed assets or client directory. No production behavior, dependency, or reporting
+configuration changed.
