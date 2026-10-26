@@ -1,4 +1,4 @@
-import type { Board, ClientEnv } from '@ze-great-dashboard/shared/browser'
+import { type Board, type ClientEnv, durationSchema } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, it } from 'vitest'
 import { initialPollingSchedule, panelProxyPath, pollingPanels } from '../src/polling-panels.ts'
 
@@ -8,11 +8,12 @@ const env: ClientEnv = {
   proxyPath: '/api',
   board: 'team space',
 }
+const refresh = durationSchema.parse('45s')
 
 describe('polling panel setup', () => {
   it('selects visible supported panels and declares only their known initial proxy paths', () => {
     const board: Board = {
-      refresh: '45s',
+      refresh,
       panels: [
         { id: 'build', label: 'Build', type: 'pipeline-status' },
         { id: 'hidden', type: 'http-value', position: { x: 0, y: 0, w: 0, h: 0 } },

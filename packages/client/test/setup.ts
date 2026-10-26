@@ -1,7 +1,7 @@
 import { afterEach } from 'vitest'
 
 // React 19 uses this marker to distinguish an act-enabled test environment from a browser.
-globalThis.IS_REACT_ACT_ENVIRONMENT = true
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
 // Node 24 exposes an experimental global `localStorage` that warns when no backing file is
 // configured. Browser-facing tests need an ephemeral browser storage implementation instead.

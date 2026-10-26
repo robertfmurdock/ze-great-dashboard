@@ -1,15 +1,25 @@
-import { describe, expect, it } from 'vitest'
+import { mintTest } from '@continuous-excellence/testmints-js/vitest'
+import { describe, expect } from 'vitest'
 import { formatPipelineActivity } from '../src/pipeline-activity.ts'
 
 describe('pipeline activity formatting', () => {
-  it('formats parent activity without knowing its source', () => {
-    expect(
-      formatPipelineActivity({ kind: 'step', name: 'integration tests', parent: 'build' }),
-    ).toBe('build › integration tests')
+  mintTest('formats parent activity without knowing its source', {
+    setup: () => ({
+      activity: { kind: 'step' as const, name: 'integration tests', parent: 'build' },
+    }),
+    exercise: ({ activity }) => formatPipelineActivity(activity),
+    verify: (formatted) => expect(formatted).toBe('build › integration tests'),
   })
 
-  it('formats standalone activity and missing detail', () => {
-    expect(formatPipelineActivity({ kind: 'job', name: 'build' })).toBe('build')
-    expect(formatPipelineActivity(undefined)).toBe('Activity unavailable')
+  mintTest('formats standalone activity', {
+    setup: () => ({ activity: { kind: 'job' as const, name: 'build' } }),
+    exercise: ({ activity }) => formatPipelineActivity(activity),
+    verify: (formatted) => expect(formatted).toBe('build'),
+  })
+
+  mintTest('discloses missing activity detail', {
+    setup: () => ({ activity: undefined }),
+    exercise: ({ activity }) => formatPipelineActivity(activity),
+    verify: (formatted) => expect(formatted).toBe('Activity unavailable'),
   })
 })

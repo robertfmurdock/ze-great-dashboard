@@ -321,3 +321,42 @@ separate scenarios because they are distinct public routes, even though they sha
 unconfigured-board fixture. The template-without-head scenario uses scoped cleanup for its console
 spy, preserving restoration if an exercise or verification fails. No production behavior,
 dependency, or reporting configuration changed.
+
+### Follow-up: client update-activity projection
+
+`packages/client/test/update-activity.test.ts` now uses `mintTest` for its two projection
+scenarios. Setup owns the distinct schedule, retained-event, and retention worlds; exercise calls
+`projectUpdateActivity` once; verification checks the resulting lanes, evidence disclosure, and
+time window. The migration needed no fixture abstraction, production change, dependency, or
+reporting configuration.
+
+### Follow-up: client attention projection
+
+`packages/client/test/attention.test.ts` now uses `mintTest`. The former loop of five status
+inputs is a branch-free input list that registers five independently visible scenarios, so
+each calls `projectAttention` once. Important failures and grouped facts, plus a missed update,
+remain distinct input contracts. No production behavior, dependency, or reporting configuration
+changed.
+
+### Follow-up: client formatter and polling-schedule boundaries
+
+`packages/client/test/pipeline-activity.test.ts` and
+`packages/client/test/polling-schedule.test.ts` now use `mintTest` with one formatter or scheduler
+call per scenario. The former standalone-and-missing-detail test is two contracts; the scheduler's
+normal, running, and completion-window inputs are likewise independently visible. While splitting
+the scheduler's formerly grouped normal-cadence case, review found that its title promised an
+error-envelope input without exercising one. A real public error envelope now supplies that
+evidence; this closes a test-description/evidence mismatch, not a production defect. The running
+fixture now uses `PipelineStatus` rather than an unconstrained override record. No production
+behavior, dependency, or reporting configuration changed.
+
+### Follow-up: client test typechecking boundary
+
+The client TypeScript project had included `test/**/*.tsx` but not `test/**/*.ts`, so IntelliJ
+could report strict TypeScript diagnostics that `npm run check` did not enforce. The project now
+includes both extensions. Making that boundary authoritative exposed and corrected four test-only
+fixture gaps: a narrowed pipeline-status fixture, a schema-validated authored duration, a
+standard-property assignment for React's act marker, and checked compound-panel proxy paths. The
+attention Testmints setup is also contextually typed against its real projection input. Biome's
+repository configuration remains the formatting and import-organization authority; IDE formatting
+must use it to match the check gate. No production behavior or dependency changed.

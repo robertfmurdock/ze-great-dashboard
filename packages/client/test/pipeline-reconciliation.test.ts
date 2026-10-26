@@ -1,4 +1,4 @@
-import type { Envelope } from '@ze-great-dashboard/shared/browser'
+import type { Envelope, PipelineStatus } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, it } from 'vitest'
 import {
   applyPipelinePresentation,
@@ -7,7 +7,7 @@ import {
 
 function envelope(
   options: {
-    status?: 'passed' | 'failed' | 'warning' | 'running'
+    status?: PipelineStatus['status']
     sourceUpdatedAt?: string
     sourceRunId?: string
     durationMs?: number

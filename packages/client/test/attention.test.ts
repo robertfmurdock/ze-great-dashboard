@@ -1,6 +1,9 @@
+import { mintTest } from '@continuous-excellence/testmints-js/vitest'
 import type { Board, Envelope } from '@ze-great-dashboard/shared/browser'
-import { describe, expect, it } from 'vitest'
+import { describe, expect } from 'vitest'
 import { projectAttention } from '../src/attention.ts'
+
+type AttentionInput = Parameters<typeof projectAttention>[0]
 
 const board: Board = {
   attention: { treatment: 'steady' },
@@ -28,63 +31,71 @@ const pipeline = (id: string, status: string): Envelope =>
     signal: { type: 'pipeline-status', status, rawStatus: status, name: id },
   }) as Envelope
 
+const nonAttentionStatuses = ['passed', 'warning', 'running', 'cancelled', 'unknown'] as const
+
 describe('attention projection', () => {
-  it('projects important failures, unreadable values, grouped facts, and missed updates in board order', () => {
-    const drivers = projectAttention({
-      board,
-      signals: {
-        build: pipeline('build', 'failed'),
-        version: {
-          panelId: 'version',
-          state: 'ok',
-          observedAt: '2026-09-11T12:00:00.000Z',
-          link: null,
-          signal: { unexpected: true },
+  describe('unreadable panel and fact evidence', () => {
+    mintTest('projects important failures, unreadable values, and grouped facts in board order', {
+      setup: (): Pick<AttentionInput, 'signals' | 'factSignals'> => ({
+        signals: {
+          build: pipeline('build', 'failed'),
+          version: {
+            panelId: 'version',
+            state: 'ok',
+            observedAt: '2026-09-11T12:00:00.000Z',
+            link: null,
+            signal: { unexpected: true },
+          },
         },
-      },
-      updateHealth: {},
-      factSignals: {
-        libraries: {
-          api: { failure: 'Network down' },
-          web: {
-            envelope: {
-              panelId: 'libraries',
-              state: 'error',
-              observedAt: '2026-09-11T12:00:00.000Z',
-              link: null,
-              error: { kind: 'unreachable', message: 'Timed out' },
+        factSignals: {
+          libraries: {
+            api: { failure: 'Network down' },
+            web: {
+              envelope: {
+                panelId: 'libraries',
+                state: 'error',
+                observedAt: '2026-09-11T12:00:00.000Z',
+                link: null,
+                error: { kind: 'unreachable', message: 'Timed out' },
+              },
             },
           },
         },
+      }),
+      exercise: ({ signals, factSignals }) =>
+        projectAttention({ board, signals, updateHealth: {}, factSignals }),
+      verify: (drivers) => {
+        expect(drivers).toEqual([
+          { panelId: 'build', label: 'Build', reason: 'Pipeline failed' },
+          { panelId: 'version', label: 'version', reason: 'Invalid value' },
+          {
+            panelId: 'libraries',
+            label: 'libraries',
+            factId: 'api',
+            reason: 'API: Updates unavailable — Network down',
+          },
+          { panelId: 'libraries', label: 'libraries', factId: 'web', reason: 'Web: Timed out' },
+        ])
       },
     })
-    expect(drivers).toEqual([
-      { panelId: 'build', label: 'Build', reason: 'Pipeline failed' },
-      { panelId: 'version', label: 'version', reason: 'Invalid value' },
-      {
-        panelId: 'libraries',
-        label: 'libraries',
-        factId: 'api',
-        reason: 'API: Updates unavailable — Network down',
-      },
-      { panelId: 'libraries', label: 'libraries', factId: 'web', reason: 'Web: Timed out' },
-    ])
   })
 
-  it('clears on recovery and excludes loading, warning, running, cancelled, unknown, passed, and unimportant failures', () => {
-    for (const status of ['passed', 'warning', 'running', 'cancelled', 'unknown'])
-      expect(
-        projectAttention({
-          board,
+  describe('pipeline states that do not need attention', () => {
+    for (const status of nonAttentionStatuses) {
+      mintTest(`excludes ${status} pipelines and unimportant failures`, {
+        setup: () => ({
           signals: { build: pipeline('build', status), ordinary: pipeline('ordinary', 'failed') },
-          updateHealth: {},
-          factSignals: {},
         }),
-      ).toEqual([])
-    expect(
-      projectAttention({
-        board,
-        signals: {},
+        exercise: ({ signals }) =>
+          projectAttention({ board, signals, updateHealth: {}, factSignals: {} }),
+        verify: (drivers) => expect(drivers).toEqual([]),
+      })
+    }
+  })
+
+  describe('missed updates', () => {
+    mintTest('projects missed updates for an important panel', {
+      setup: () => ({
         updateHealth: {
           build: {
             consecutiveFailures: 2,
@@ -92,8 +103,14 @@ describe('attention projection', () => {
             lastConfirmedAt: '2026-09-11T12:00:00.000Z',
           },
         },
-        factSignals: {},
       }),
-    ).toMatchObject([{ panelId: 'build', reason: 'Updates unavailable — Request failed' }])
+      exercise: ({ updateHealth }) =>
+        projectAttention({ board, signals: {}, updateHealth, factSignals: {} }),
+      verify: (drivers) => {
+        expect(drivers).toMatchObject([
+          { panelId: 'build', reason: 'Updates unavailable — Request failed' },
+        ])
+      },
+    })
   })
 })
