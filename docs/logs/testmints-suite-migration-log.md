@@ -360,3 +360,25 @@ standard-property assignment for React's act marker, and checked compound-panel 
 attention Testmints setup is also contextually typed against its real projection input. Biome's
 repository configuration remains the formatting and import-organization authority; IDE formatting
 must use it to match the check gate. No production behavior or dependency changed.
+
+### Follow-up: client panel-memory lifecycle
+
+`packages/client/test/panel-memory.test.ts` now uses `mintTest` for local-history deduplication,
+reload persistence and pruning, completed-run fallback estimates, precedence, and malformed stored
+data. Each setup creates isolated storage, a fixed clock, and its initial memory object; each
+exercise visibly performs the stateful operation and returns its observed estimates for
+verification. Reload and malformed-storage construction remain in exercise because construction is
+the observed behavior in those scenarios. The completed-status matrix remains a typed, branch-free
+list because every status has the same arrangement, operation, and fallback contract. Sequential
+records and reloads remain together only where that ordering is the lifecycle behavior being proved.
+No production behavior, dependency, or reporting configuration changed.
+
+Follow-up review split the original compound lifecycle registrations further: deduplication versus
+odd-median calculation, latest persistence versus stale-history pruning, and newest-completed
+selection versus successful-history precedence each have distinct input and output contracts. Their
+sequential record calls remain visible inside the individual exercise that needs them; only the
+unrelated checkpoints were separated.
+
+The scenarios are grouped by successful-run duration history, completed-run fallback estimates, and
+stored-memory boundaries. These `describe` blocks make the relevant contract immediately visible
+without sharing setup or obscuring any exercise.

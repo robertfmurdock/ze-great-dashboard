@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { mintTest } from '@continuous-excellence/testmints-js/vitest'
+import { describe, expect } from 'vitest'
 import { BrowserPanelMemory, type PanelMemoryIdentity } from '../src/panel-memory.ts'
 
 const identity: PanelMemoryIdentity = {
@@ -21,103 +22,193 @@ function storage(initial?: string) {
 }
 
 describe('browser-local panel memory', () => {
-  it('deduplicates successful runs and calculates odd and even medians', () => {
-    const store = storage()
-    const now = () => new Date('2026-08-28T12:00:00Z')
-    const memory = new BrowserPanelMemory(store, now)
-    const sample = (link: string, durationMs: number, sourceUpdatedAt = '2026-08-28T10:00:00Z') =>
-      memory.recordSuccessfulRun(identity, { link, durationMs, sourceUpdatedAt })
+  describe('successful-run duration history', () => {
+    mintTest('deduplicates replacement successful runs when calculating an even median', {
+      setup: () => {
+        const now = () => new Date('2026-08-28T12:00:00Z')
+        return { memory: new BrowserPanelMemory(storage(), now) }
+      },
+      exercise: ({ memory }) => {
+        memory.recordSuccessfulRun(identity, {
+          link: 'https://github.test/1',
+          durationMs: 100,
+          sourceUpdatedAt: '2026-08-28T10:00:00Z',
+        })
+        memory.recordSuccessfulRun(identity, {
+          link: 'https://github.test/1',
+          durationMs: 900,
+          sourceUpdatedAt: '2026-08-28T10:00:00Z',
+        })
+        memory.recordSuccessfulRun(identity, {
+          link: 'https://github.test/2',
+          durationMs: 300,
+          sourceUpdatedAt: '2026-08-28T10:00:00Z',
+        })
+        return memory.medianDuration(identity)
+      },
+      verify: (medianDuration) => expect(medianDuration).toBe(600),
+    })
 
-    sample('https://github.test/1', 100)
-    sample('https://github.test/1', 900)
-    sample('https://github.test/2', 300)
-    expect(memory.medianDuration(identity)).toBe(600)
-    sample('https://github.test/3', 500)
-    expect(memory.medianDuration(identity)).toBe(500)
+    mintTest('calculates an odd median from unique successful runs', {
+      setup: () => {
+        const now = () => new Date('2026-08-28T12:00:00Z')
+        return { memory: new BrowserPanelMemory(storage(), now) }
+      },
+      exercise: ({ memory }) => {
+        memory.recordSuccessfulRun(identity, {
+          link: 'https://github.test/1',
+          durationMs: 900,
+          sourceUpdatedAt: '2026-08-28T10:00:00Z',
+        })
+        memory.recordSuccessfulRun(identity, {
+          link: 'https://github.test/2',
+          durationMs: 300,
+          sourceUpdatedAt: '2026-08-28T10:00:00Z',
+        })
+        memory.recordSuccessfulRun(identity, {
+          link: 'https://github.test/3',
+          durationMs: 500,
+          sourceUpdatedAt: '2026-08-28T10:00:00Z',
+        })
+        return memory.medianDuration(identity)
+      },
+      verify: (medianDuration) => expect(medianDuration).toBe(500),
+    })
+
+    mintTest('prunes source-old successful samples across a reload', {
+      setup: () => {
+        const store = storage()
+        const now = () => new Date('2026-08-28T12:00:00Z')
+        return { memory: new BrowserPanelMemory(store, now), store, now }
+      },
+      exercise: ({ memory, store, now }) => {
+        memory.recordSuccessfulRun(identity, {
+          link: 'https://github.test/old',
+          durationMs: 100,
+          sourceUpdatedAt: '2026-08-13T11:59:59Z',
+        })
+        memory.recordSuccessfulRun(identity, {
+          link: 'https://github.test/recent',
+          durationMs: 300,
+          sourceUpdatedAt: '2026-08-14T12:00:00Z',
+        })
+
+        const reloaded = new BrowserPanelMemory(store, now)
+        return reloaded.medianDuration(identity)
+      },
+      verify: (medianDuration) => expect(medianDuration).toBe(300),
+    })
   })
 
-  it('persists accepted timestamps and prunes source-old samples', () => {
-    const store = storage()
-    const memory = new BrowserPanelMemory(store, () => new Date('2026-08-28T12:00:00Z'))
-    memory.rememberLatest(identity, {
-      sourceUpdatedAt: '2026-08-28T11:00:00Z',
-      status: 'failed',
-      link: 'https://github.test/new',
-    })
-    memory.recordSuccessfulRun(identity, {
-      link: 'https://github.test/old',
-      durationMs: 100,
-      sourceUpdatedAt: '2026-08-13T11:59:59Z',
-    })
-    memory.recordSuccessfulRun(identity, {
-      link: 'https://github.test/recent',
-      durationMs: 300,
-      sourceUpdatedAt: '2026-08-14T12:00:00Z',
-    })
-
-    const reloaded = new BrowserPanelMemory(store, () => new Date('2026-08-28T12:00:00Z'))
-    expect(reloaded.latest(identity)?.link).toBe('https://github.test/new')
-    expect(reloaded.medianDuration(identity)).toBe(300)
-  })
-
-  it.each([
-    ['failed', 'failed'],
-    ['warning', 'warning'],
-    ['cancelled', 'cancelled'],
-    ['unknown', 'unknown'],
-  ] as const)('uses a %s completed run as a fallback estimate', (_label, _status) => {
-    const memory = new BrowserPanelMemory(storage(), () => new Date('2026-08-28T12:00:00Z'))
-    memory.recordCompletedRun(identity, {
-      link: `https://github.test/${_status}`,
-      durationMs: 420,
-      sourceUpdatedAt: '2026-08-28T11:00:00Z',
-    })
-    expect(memory.resolveEstimatedDuration(identity)).toBe(420)
-  })
-
-  it('selects the latest completed sample, while successful history takes precedence', () => {
-    const memory = new BrowserPanelMemory(storage(), () => new Date('2026-08-28T12:00:00Z'))
-    memory.recordCompletedRun(identity, {
-      link: 'https://github.test/old',
-      durationMs: 300,
-      sourceUpdatedAt: '2026-08-28T10:00:00Z',
-    })
-    memory.recordCompletedRun(identity, {
-      link: 'https://github.test/new',
-      durationMs: 700,
-      sourceUpdatedAt: '2026-08-28T11:00:00Z',
-    })
-    expect(memory.resolveEstimatedDuration(identity)).toBe(700)
-
-    memory.recordSuccessfulRun(identity, {
-      link: 'https://github.test/pass',
-      durationMs: 500,
-      sourceUpdatedAt: '2026-08-28T09:00:00Z',
-    })
-    expect(memory.resolveEstimatedDuration(identity)).toBe(500)
-  })
-
-  it('ignores malformed persisted completed samples without throwing', () => {
-    const key = JSON.stringify([
-      identity.board,
-      identity.panelId,
-      identity.source,
-      identity.workflow,
-      identity.branch,
-    ])
-    const memory = new BrowserPanelMemory(
-      storage(
-        JSON.stringify({
-          schemaVersion: 1,
-          histories: {
-            [key]: {
-              durations: {},
-              latestCompleted: { durationMs: 'not-a-duration' },
-            },
-          },
+  describe('completed-run fallback estimates', () => {
+    for (const status of ['failed', 'warning', 'cancelled', 'unknown'] as const) {
+      mintTest(`uses a ${status} completed run as a fallback estimate`, {
+        setup: () => ({
+          status,
+          memory: new BrowserPanelMemory(storage(), () => new Date('2026-08-28T12:00:00Z')),
         }),
-      ),
-    )
-    expect(memory.resolveEstimatedDuration(identity)).toBeUndefined()
+        exercise: ({ status, memory }) => {
+          memory.recordCompletedRun(identity, {
+            link: `https://github.test/${status}`,
+            durationMs: 420,
+            sourceUpdatedAt: '2026-08-28T11:00:00Z',
+          })
+          return memory.resolveEstimatedDuration(identity)
+        },
+        verify: (estimatedDuration) => expect(estimatedDuration).toBe(420),
+      })
+    }
+
+    mintTest('selects the latest completed sample as the fallback estimate', {
+      setup: () => {
+        const now = () => new Date('2026-08-28T12:00:00Z')
+        return { memory: new BrowserPanelMemory(storage(), now) }
+      },
+      exercise: ({ memory }) => {
+        memory.recordCompletedRun(identity, {
+          link: 'https://github.test/old',
+          durationMs: 300,
+          sourceUpdatedAt: '2026-08-28T10:00:00Z',
+        })
+        memory.recordCompletedRun(identity, {
+          link: 'https://github.test/new',
+          durationMs: 700,
+          sourceUpdatedAt: '2026-08-28T11:00:00Z',
+        })
+        return memory.resolveEstimatedDuration(identity)
+      },
+      verify: (estimatedDuration) => expect(estimatedDuration).toBe(700),
+    })
+
+    mintTest('uses successful history before a completed-run fallback estimate', {
+      setup: () => {
+        const now = () => new Date('2026-08-28T12:00:00Z')
+        return { memory: new BrowserPanelMemory(storage(), now) }
+      },
+      exercise: ({ memory }) => {
+        memory.recordCompletedRun(identity, {
+          link: 'https://github.test/completed',
+          durationMs: 700,
+          sourceUpdatedAt: '2026-08-28T11:00:00Z',
+        })
+        memory.recordSuccessfulRun(identity, {
+          link: 'https://github.test/pass',
+          durationMs: 500,
+          sourceUpdatedAt: '2026-08-28T09:00:00Z',
+        })
+        return memory.resolveEstimatedDuration(identity)
+      },
+      verify: (estimatedDuration) => expect(estimatedDuration).toBe(500),
+    })
+  })
+
+  describe('stored-memory boundaries', () => {
+    mintTest('persists the latest accepted timestamp across a reload', {
+      setup: () => {
+        const store = storage()
+        const now = () => new Date('2026-08-28T12:00:00Z')
+        return { memory: new BrowserPanelMemory(store, now), store, now }
+      },
+      exercise: ({ memory, store, now }) => {
+        memory.rememberLatest(identity, {
+          sourceUpdatedAt: '2026-08-28T11:00:00Z',
+          status: 'failed',
+          link: 'https://github.test/new',
+        })
+        const reloaded = new BrowserPanelMemory(store, now)
+        return reloaded.latest(identity)?.link
+      },
+      verify: (latestLink) => expect(latestLink).toBe('https://github.test/new'),
+    })
+
+    mintTest('ignores malformed persisted completed samples without throwing', {
+      setup: () => {
+        const key = JSON.stringify([
+          identity.board,
+          identity.panelId,
+          identity.source,
+          identity.workflow,
+          identity.branch,
+        ])
+        return {
+          store: storage(
+            JSON.stringify({
+              schemaVersion: 1,
+              histories: {
+                [key]: {
+                  durations: {},
+                  latestCompleted: { durationMs: 'not-a-duration' },
+                },
+              },
+            }),
+          ),
+        }
+      },
+      exercise: ({ store }) => {
+        const memory = new BrowserPanelMemory(store)
+        return memory.resolveEstimatedDuration(identity)
+      },
+      verify: (estimatedDuration) => expect(estimatedDuration).toBeUndefined(),
+    })
   })
 })
