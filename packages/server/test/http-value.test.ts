@@ -1,5 +1,6 @@
+import { mintTest } from '@continuous-excellence/testmints-js/vitest'
 import type { BoardConfig } from '@ze-great-dashboard/shared'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, vi } from 'vitest'
 import { fetchHttpValue, permittedHttpValueCalls } from '../src/adapters/http-value.ts'
 import { createApp } from '../src/app.ts'
 import { loadConfig } from '../src/config.ts'
@@ -19,319 +20,439 @@ function upstream(
   return vi.fn(async () => new Response(body, { headers })) as unknown as typeof fetch
 }
 
-describe('the http-value adapter', () => {
-  it('constructs the exact configured call and extracts a nested scalar', async () => {
-    const fetcher = upstream(JSON.stringify({ deployment: { version: '1.2.3' } }))
-    const result = await fetchHttpValue({ panel, requestHeaders: new Headers(), fetcher })
-
-    expect(permittedHttpValueCalls(panel)[0]?.url).toBe(panel.url)
-    expect(result.envelope).toMatchObject({
-      panelId: 'version',
-      state: 'ok',
-      observedAt: '2026-08-18T12:00:00.000Z',
-      link: panel.url,
-      signal: { type: 'http-value', value: '1.2.3' },
-    })
-  })
-
-  it('extracts a scalar from a numeric JSON array index', async () => {
-    const result = await fetchHttpValue({
-      panel: { ...panel, json_path: '$.response.docs[0].latestVersion' },
-      requestHeaders: new Headers(),
-      fetcher: upstream(JSON.stringify({ response: { docs: [{ latestVersion: '2.0.0' }] } })),
-    })
-
-    expect(result.envelope).toMatchObject({ signal: { type: 'http-value', value: '2.0.0' } })
-  })
-
-  it('supports plain text and forwards validators', async () => {
-    const fetcher = upstream('healthy', { etag: 'W/"fixture"' })
-    await fetchHttpValue({
-      panel: { ...panel, json_path: undefined },
-      requestHeaders: new Headers({ 'if-none-match': 'W/"client"' }),
-      fetcher,
-    })
-    const headers = vi.mocked(fetcher).mock.calls[0]?.[1]?.headers
-    expect(headers).toBeInstanceOf(Headers)
-    expect((headers as Headers).get('if-none-match')).toBe('W/"client"')
-  })
-
-  it('reports a missing JSON path with the endpoint as its fallback link', async () => {
-    const missing = await fetchHttpValue({
-      panel,
-      requestHeaders: new Headers(),
-      fetcher: upstream(JSON.stringify({ version: '1.2.3' })),
-    })
-    await expect(missing.response.json()).resolves.toMatchObject({
-      state: 'error',
-      link: panel.url,
-      error: { kind: 'upstream-error' },
-    })
-  })
-
-  it('reports an unreachable source with the configured fallback link', async () => {
-    const unreachable = await fetchHttpValue({
-      panel: { ...panel, link: 'https://service.example.com/status' },
-      requestHeaders: new Headers(),
-      fetcher: vi.fn(async () => {
-        throw new Error('offline')
-      }) as unknown as typeof fetch,
-    })
-    expect(unreachable.response.status).toBe(200)
-    await expect(unreachable.response.json()).resolves.toMatchObject({
-      state: 'error',
-      link: 'https://service.example.com/status',
-      error: { kind: 'unreachable' },
-    })
-  })
-
-  it('passes through a 304 without inventing a value', async () => {
-    const notModified = await fetchHttpValue({
-      panel,
-      requestHeaders: new Headers(),
-      fetcher: vi.fn(async () => new Response(null, { status: 304 })) as unknown as typeof fetch,
-    })
-    expect(notModified.response.status).toBe(304)
-  })
-})
-
-describe('the http-value panel route', () => {
-  it('reads each grouped fact only at its stable configured address', async () => {
-    const grouped = {
-      id: 'versions',
-      type: 'http-value',
-      facts: [
-        {
-          id: 'api',
-          label: 'API',
-          url: 'https://api.example.com/version?read-token=private#reading',
-          json_path: '$.version',
-        },
-        {
-          id: 'web',
-          label: 'Web',
-          url: 'https://web.example.com/version',
-          link: 'https://status.example.com/web?viewer=private#details',
-        },
-      ],
-    }
-    const fetcher = vi.fn(async (url: string | URL) =>
-      String(url).includes('api.')
-        ? new Response(JSON.stringify({ version: '2.0.0' }), { headers: { etag: 'W/"fact"' } })
-        : new Response('unavailable', { status: 503, statusText: 'Unavailable' }),
-    ) as unknown as typeof fetch
-    const app = createApp({
+function groupedFactFixture() {
+  const grouped = {
+    id: 'versions',
+    type: 'http-value',
+    facts: [
+      {
+        id: 'api',
+        label: 'API',
+        url: 'https://api.example.com/version?read-token=private#reading',
+        json_path: '$.version',
+      },
+      {
+        id: 'web',
+        label: 'Web',
+        url: 'https://web.example.com/version',
+        link: 'https://status.example.com/web?viewer=private#details',
+      },
+    ],
+  }
+  const fetcher = vi.fn(async (url: string | URL) =>
+    String(url).includes('api.')
+      ? new Response(JSON.stringify({ version: '2.0.0' }), { headers: { etag: 'W/"fact"' } })
+      : new Response('unavailable', { status: 503, statusText: 'Unavailable' }),
+  ) as unknown as typeof fetch
+  return {
+    app: createApp({
       config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
       boardConfig: { sources: {}, boards: { example: { panels: [grouped] } } },
       fetcher,
-    })
+    }),
+    fetcher,
+  }
+}
 
-    const api = await app.request('/api/panel/example/versions/facts/api')
-    expect(api.headers.get('etag')).toBe('W/"fact"')
-    await expect(api.json()).resolves.toMatchObject({
-      link: 'https://api.example.com/version',
-      signal: { value: '2.0.0' },
-    })
-    const web = await app.request('/api/panel/example/versions/facts/web')
-    await expect(web.json()).resolves.toMatchObject({
-      state: 'error',
-      link: 'https://status.example.com/web',
-      error: { kind: 'upstream-error' },
-    })
-    expect((await app.request('/api/panel/example/versions/facts/unknown')).status).toBe(404)
-    expect((await app.request('/api/panel/example/versions')).status).toBe(404)
-    expect(vi.mocked(fetcher)).toHaveBeenCalledTimes(2)
-    expect(vi.mocked(fetcher).mock.calls.map(([url]) => url)).toEqual([
-      'https://api.example.com/version?read-token=private#reading',
-      'https://web.example.com/version',
-    ])
-  })
-
-  it('serves a source-agnostic panel without a named source', async () => {
-    const boardConfig: BoardConfig = { sources: {}, boards: { example: { panels: [panel] } } }
-    const app = createApp({
-      config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
-      boardConfig,
-      fetcher: upstream(JSON.stringify({ deployment: { version: '1.2.3' } })),
-    })
-    const response = await app.request('/api/panel/example/version')
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({ signal: { value: '1.2.3' } })
-  })
-
-  it('does not turn an unknown panel into an arbitrary URL call', async () => {
-    const fetcher = upstream('not called')
-    const app = createApp({
-      config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
-      boardConfig: { sources: {}, boards: { example: { panels: [panel] } } },
-      fetcher,
-    })
-    expect((await app.request('/api/panel/example/other')).status).toBe(404)
-    expect(fetcher).not.toHaveBeenCalled()
-  })
-
-  it('returns an opaque support reference and logs only safe failure metadata', async () => {
-    const events: ServerLogEvent[] = []
-    const secret = 'token-like-value-must-not-escape'
-    const app = createApp({
-      config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
-      boardConfig: {
-        sources: {},
-        boards: {
-          example: {
-            panels: [{ ...panel, url: `https://service.example.com/version?token=${secret}` }],
-          },
-        },
-      },
-      fetcher: vi.fn(async () => {
-        throw new Error(`upstream failed with ${secret}`)
-      }) as unknown as typeof fetch,
-      logger: { log: (event) => events.push(event) },
-    })
-
-    const response = await app.request('/api/panel/example/version')
-    const reference = response.headers.get('x-dashboard-request-id')
-    expect(reference).toMatch(/^[0-9a-f-]{36}$/)
-    await expect(response.json()).resolves.toMatchObject({
-      error: { kind: 'unreachable', message: expect.stringContaining('could not be reached') },
-    })
-    expect(events).toEqual([
-      expect.objectContaining({
-        event: 'panel.observation_failed',
-        requestId: reference,
-        boardId: 'example',
-        panelId: 'version',
-        operation: 'read',
-        errorKind: 'unreachable',
-        destinationOrigin: 'https://service.example.com',
-      }),
-    ])
-    expect(JSON.stringify({ events, reference })).not.toContain(secret)
-  })
-
-  it('correlates rejected operations with their API response', async () => {
-    const events: ServerLogEvent[] = []
-    const app = createApp({
-      config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
-      boardConfig: { sources: {}, boards: { example: { panels: [panel] } } },
-      logger: { log: (event) => events.push(event) },
-    })
-
-    const response = await app.request('/api/panel/example/not-configured')
-    expect(response.status).toBe(404)
-    expect(events).toEqual([
-      expect.objectContaining({
-        event: 'api.operation_rejected',
-        requestId: response.headers.get('x-dashboard-request-id'),
-        boardId: 'example',
-        panelId: 'not-configured',
-        operation: 'read',
-      }),
-    ])
-  })
-
-  it('normalizes browser diagnostic claims without retaining malformed or raw values', async () => {
-    const events: ServerLogEvent[] = []
-    const app = createApp({
+function diagnosticAppFixture() {
+  const events: ServerLogEvent[] = []
+  return {
+    app: createApp({
       config: loadConfig({
         ASSET_PATH: 'https://assets.example.com/1.0.0',
         SERVER_RELEASE: '1.4.0',
       }),
       boardConfig: { sources: {}, boards: { example: { panels: [panel] } } },
       logger: { log: (event) => events.push(event) },
-    })
-    const assetId = 'sha256:376cc4dda23ff1ff5498cfe206fbbb6495b4d0085a939aa53e1335521b0eed1c'
+    }),
+    events,
+  }
+}
 
-    await app.request('/api/panel/example/not-configured', {
-      headers: {
-        'x-dashboard-client-version': 'client-2.0.0',
-        'x-dashboard-client-origin': 'https://dashboard.example.test/a/path?secret=value',
-        'x-dashboard-client-asset-id': assetId,
-      },
-    })
-    await app.request('/api/panel/example/not-configured', {
-      headers: {
-        'x-dashboard-client-version': 'bad value with spaces',
-        'x-dashboard-client-origin': 'not a URL /private',
-        'x-dashboard-client-asset-id':
-          'sha256:6d9f5ba76e4d4d1a0a35deca7d74f1ce8b77c02ea7d38be38868e6b224ac7994',
-      },
-    })
-    await app.request('/api/panel/example/not-configured', {
-      headers: { 'x-dashboard-client-asset-id': 'https://assets.example.test/private-client' },
-    })
+function sourceAgnosticPanelApp({
+  boardConfig = { sources: {}, boards: { example: { panels: [panel] } } },
+  fetcher,
+  events,
+}: {
+  boardConfig?: BoardConfig
+  fetcher?: typeof fetch
+  events?: ServerLogEvent[]
+} = {}) {
+  return createApp({
+    config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
+    boardConfig,
+    fetcher,
+    logger: events ? { log: (event) => events.push(event) } : undefined,
+  })
+}
 
-    expect(events[0]).toMatchObject({
-      serverVersion: '1.4.0',
-      clientVersion: 'client-2.0.0',
-      clientOrigin: 'https://dashboard.example.test',
-      clientAssetPathMatchesConfigured: true,
-    })
-    expect(events[1]).toMatchObject({
-      serverVersion: '1.4.0',
-      clientAssetPathMatchesConfigured: false,
-    })
-    expect(events[1]).not.toHaveProperty('clientVersion')
-    expect(events[1]).not.toHaveProperty('clientOrigin')
-    expect(events[2]).toMatchObject({ serverVersion: '1.4.0' })
-    expect(events[2]).not.toHaveProperty('clientAssetPathMatchesConfigured')
-    expect(JSON.stringify(events)).not.toContain('private-client')
-    expect(JSON.stringify(events)).not.toContain('secret=value')
+describe('the http-value adapter', () => {
+  mintTest('constructs the exact configured call and extracts a nested scalar', {
+    setup: () => ({
+      panel,
+      requestHeaders: new Headers(),
+      fetcher: upstream(JSON.stringify({ deployment: { version: '1.2.3' } })),
+    }),
+    exercise: ({ panel, requestHeaders, fetcher }) =>
+      fetchHttpValue({ panel, requestHeaders, fetcher }),
+    verify: (result, { panel }) => {
+      expect(permittedHttpValueCalls(panel)[0]?.url).toBe(panel.url)
+      expect(result.envelope).toMatchObject({
+        panelId: 'version',
+        state: 'ok',
+        observedAt: '2026-08-18T12:00:00.000Z',
+        link: panel.url,
+        signal: { type: 'http-value', value: '1.2.3' },
+      })
+    },
   })
 
-  it('records an upstream HTTP status without retaining its response body', async () => {
-    const events: ServerLogEvent[] = []
-    const body = 'token-like-response-body'
-    const app = createApp({
-      config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
-      boardConfig: { sources: {}, boards: { example: { panels: [panel] } } },
-      fetcher: vi.fn(async () => new Response(body, { status: 503 })) as unknown as typeof fetch,
-      logger: { log: (event) => events.push(event) },
-    })
-
-    const response = await app.request('/api/panel/example/version')
-    expect(response.status).toBe(200)
-    expect(events).toEqual([
-      expect.objectContaining({
-        event: 'panel.observation_failed',
-        requestId: response.headers.get('x-dashboard-request-id'),
-        errorKind: 'upstream-error',
-        upstreamStatus: 503,
-      }),
-    ])
-    expect(JSON.stringify({ events, response: await response.text() })).not.toContain(body)
+  mintTest('extracts a scalar from a numeric JSON array index', {
+    setup: () => ({
+      panel: { ...panel, json_path: '$.response.docs[0].latestVersion' },
+      requestHeaders: new Headers(),
+      fetcher: upstream(JSON.stringify({ response: { docs: [{ latestVersion: '2.0.0' }] } })),
+    }),
+    exercise: ({ panel, requestHeaders, fetcher }) =>
+      fetchHttpValue({ panel, requestHeaders, fetcher }),
+    verify: (result) =>
+      expect(result.envelope).toMatchObject({ signal: { type: 'http-value', value: '2.0.0' } }),
   })
 
-  it('correlates an unexpected API exception with one safe event', async () => {
-    const events: ServerLogEvent[] = []
-    const brokenConfig: BoardConfig = {
-      sources: {},
-      boards: { example: { panels: [panel] } },
-    }
-    const app = createApp({
-      config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
-      boardConfig: brokenConfig,
-      logger: { log: (event) => events.push(event) },
-    })
-    Object.defineProperty(brokenConfig.boards.example, 'panels', {
-      get() {
-        throw new Error('raw upstream and credential text must not be logged')
+  mintTest('supports plain text and forwards validators', {
+    setup: () => ({
+      panel: { ...panel, json_path: undefined },
+      requestHeaders: new Headers({ 'if-none-match': 'W/"client"' }),
+      fetcher: upstream('healthy', { etag: 'W/"fixture"' }),
+    }),
+    exercise: ({ panel, requestHeaders, fetcher }) =>
+      fetchHttpValue({ panel, requestHeaders, fetcher }),
+    verify: (_result, { fetcher }) => {
+      const headers = vi.mocked(fetcher).mock.calls[0]?.[1]?.headers
+      expect(headers).toBeInstanceOf(Headers)
+      expect((headers as Headers).get('if-none-match')).toBe('W/"client"')
+    },
+  })
+
+  mintTest('reports a missing JSON path with the endpoint as its fallback link', {
+    setup: () => ({
+      panel,
+      requestHeaders: new Headers(),
+      fetcher: upstream(JSON.stringify({ version: '1.2.3' })),
+    }),
+    exercise: ({ panel, requestHeaders, fetcher }) =>
+      fetchHttpValue({ panel, requestHeaders, fetcher }),
+    verify: async (missing) => {
+      await expect(missing.response.json()).resolves.toMatchObject({
+        state: 'error',
+        link: panel.url,
+        error: { kind: 'upstream-error' },
+      })
+    },
+  })
+
+  mintTest('reports an unreachable source with the configured fallback link', {
+    setup: () => ({
+      panel: { ...panel, link: 'https://service.example.com/status' },
+      requestHeaders: new Headers(),
+      fetcher: vi.fn(async () => {
+        throw new Error('offline')
+      }) as unknown as typeof fetch,
+    }),
+    exercise: ({ panel, requestHeaders, fetcher }) =>
+      fetchHttpValue({ panel, requestHeaders, fetcher }),
+    verify: async (unreachable) => {
+      expect(unreachable.response.status).toBe(200)
+      await expect(unreachable.response.json()).resolves.toMatchObject({
+        state: 'error',
+        link: 'https://service.example.com/status',
+        error: { kind: 'unreachable' },
+      })
+    },
+  })
+
+  mintTest('passes through a 304 without inventing a value', {
+    setup: () => ({
+      panel,
+      requestHeaders: new Headers(),
+      fetcher: vi.fn(async () => new Response(null, { status: 304 })) as unknown as typeof fetch,
+    }),
+    exercise: ({ panel, requestHeaders, fetcher }) =>
+      fetchHttpValue({ panel, requestHeaders, fetcher }),
+    verify: (notModified) => expect(notModified.response.status).toBe(304),
+  })
+})
+
+describe('the http-value panel route', () => {
+  describe('grouped facts', () => {
+    mintTest('reads the API fact only at its stable configured address', {
+      setup: groupedFactFixture,
+      exercise: ({ app }) => app.request('/api/panel/example/versions/facts/api'),
+      verify: async (response, { fetcher }) => {
+        expect(response.headers.get('etag')).toBe('W/"fact"')
+        await expect(response.json()).resolves.toMatchObject({
+          link: 'https://api.example.com/version',
+          signal: { value: '2.0.0' },
+        })
+        expect(vi.mocked(fetcher)).toHaveBeenCalledTimes(1)
+        expect(vi.mocked(fetcher).mock.calls[0]?.[0]).toBe(
+          'https://api.example.com/version?read-token=private#reading',
+        )
       },
     })
 
-    const response = await app.request('/api/boards/example')
-    const reference = response.headers.get('x-dashboard-request-id')
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({
-      error: 'The dashboard could not complete this request.',
+    mintTest('renders the web fact failure with its stable configured link', {
+      setup: groupedFactFixture,
+      exercise: ({ app }) => app.request('/api/panel/example/versions/facts/web'),
+      verify: async (response, { fetcher }) => {
+        await expect(response.json()).resolves.toMatchObject({
+          state: 'error',
+          link: 'https://status.example.com/web',
+          error: { kind: 'upstream-error' },
+        })
+        expect(vi.mocked(fetcher)).toHaveBeenCalledTimes(1)
+        expect(vi.mocked(fetcher).mock.calls[0]?.[0]).toBe('https://web.example.com/version')
+      },
     })
-    expect(events).toEqual([
-      expect.objectContaining({
-        event: 'server.unhandled_exception',
-        requestId: reference,
-        operation: 'route-handler',
+
+    mintTest('rejects an unknown fact without an upstream call', {
+      setup: groupedFactFixture,
+      exercise: ({ app }) => app.request('/api/panel/example/versions/facts/unknown'),
+      verify: (response, { fetcher }) => {
+        expect(response.status).toBe(404)
+        expect(fetcher).not.toHaveBeenCalled()
+      },
+    })
+
+    mintTest('rejects the grouped panel address without an upstream call', {
+      setup: groupedFactFixture,
+      exercise: ({ app }) => app.request('/api/panel/example/versions'),
+      verify: (response, { fetcher }) => {
+        expect(response.status).toBe(404)
+        expect(fetcher).not.toHaveBeenCalled()
+      },
+    })
+  })
+
+  mintTest('serves a source-agnostic panel without a named source', {
+    setup: () => ({
+      app: sourceAgnosticPanelApp({
+        fetcher: upstream(JSON.stringify({ deployment: { version: '1.2.3' } })),
       }),
-    ])
-    expect(JSON.stringify(events)).not.toContain('credential text')
+    }),
+    exercise: ({ app }) => app.request('/api/panel/example/version'),
+    verify: async (response) => {
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({ signal: { value: '1.2.3' } })
+    },
+  })
+
+  mintTest('does not turn an unknown panel into an arbitrary URL call', {
+    setup: () => {
+      const fetcher = upstream('not called')
+      return {
+        app: sourceAgnosticPanelApp({ fetcher }),
+        fetcher,
+      }
+    },
+    exercise: ({ app }) => app.request('/api/panel/example/other'),
+    verify: (response, { fetcher }) => {
+      expect(response.status).toBe(404)
+      expect(fetcher).not.toHaveBeenCalled()
+    },
+  })
+
+  mintTest('returns an opaque support reference and logs only safe failure metadata', {
+    setup: () => {
+      const events: ServerLogEvent[] = []
+      const secret = 'token-like-value-must-not-escape'
+      return {
+        app: createApp({
+          config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
+          boardConfig: {
+            sources: {},
+            boards: {
+              example: {
+                panels: [{ ...panel, url: `https://service.example.com/version?token=${secret}` }],
+              },
+            },
+          },
+          fetcher: vi.fn(async () => {
+            throw new Error(`upstream failed with ${secret}`)
+          }) as unknown as typeof fetch,
+          logger: { log: (event) => events.push(event) },
+        }),
+        events,
+        secret,
+      }
+    },
+    exercise: ({ app }) => app.request('/api/panel/example/version'),
+    verify: async (response, { events, secret }) => {
+      const reference = response.headers.get('x-dashboard-request-id')
+      expect(reference).toMatch(/^[0-9a-f-]{36}$/)
+      await expect(response.json()).resolves.toMatchObject({
+        error: { kind: 'unreachable', message: expect.stringContaining('could not be reached') },
+      })
+      expect(events).toEqual([
+        expect.objectContaining({
+          event: 'panel.observation_failed',
+          requestId: reference,
+          boardId: 'example',
+          panelId: 'version',
+          operation: 'read',
+          errorKind: 'unreachable',
+          destinationOrigin: 'https://service.example.com',
+        }),
+      ])
+      expect(JSON.stringify({ events, reference })).not.toContain(secret)
+    },
+  })
+
+  mintTest('correlates rejected operations with their API response', {
+    setup: () => {
+      const events: ServerLogEvent[] = []
+      return {
+        app: sourceAgnosticPanelApp({ events }),
+        events,
+      }
+    },
+    exercise: ({ app }) => app.request('/api/panel/example/not-configured'),
+    verify: (response, { events }) => {
+      expect(response.status).toBe(404)
+      expect(events).toEqual([
+        expect.objectContaining({
+          event: 'api.operation_rejected',
+          requestId: response.headers.get('x-dashboard-request-id'),
+          boardId: 'example',
+          panelId: 'not-configured',
+          operation: 'read',
+        }),
+      ])
+    },
+  })
+
+  describe('browser diagnostic claims', () => {
+    mintTest('retains normalized public browser diagnostic claims', {
+      setup: () => ({
+        ...diagnosticAppFixture(),
+        headers: {
+          'x-dashboard-client-version': 'client-2.0.0',
+          'x-dashboard-client-origin': 'https://dashboard.example.test/a/path?secret=value',
+          'x-dashboard-client-asset-id':
+            'sha256:376cc4dda23ff1ff5498cfe206fbbb6495b4d0085a939aa53e1335521b0eed1c',
+        },
+      }),
+      exercise: ({ app, headers }) => app.request('/api/panel/example/not-configured', { headers }),
+      verify: (_response, { events }) => {
+        expect(events).toEqual([
+          expect.objectContaining({
+            serverVersion: '1.4.0',
+            clientVersion: 'client-2.0.0',
+            clientOrigin: 'https://dashboard.example.test',
+            clientAssetPathMatchesConfigured: true,
+          }),
+        ])
+        expect(JSON.stringify(events)).not.toContain('secret=value')
+      },
+    })
+
+    mintTest('drops malformed browser version and origin claims', {
+      setup: () => ({
+        ...diagnosticAppFixture(),
+        headers: {
+          'x-dashboard-client-version': 'bad value with spaces',
+          'x-dashboard-client-origin': 'not a URL /private',
+          'x-dashboard-client-asset-id':
+            'sha256:6d9f5ba76e4d4d1a0a35deca7d74f1ce8b77c02ea7d38be38868e6b224ac7994',
+        },
+      }),
+      exercise: ({ app, headers }) => app.request('/api/panel/example/not-configured', { headers }),
+      verify: (_response, { events }) => {
+        expect(events).toEqual([
+          expect.objectContaining({
+            serverVersion: '1.4.0',
+            clientAssetPathMatchesConfigured: false,
+          }),
+        ])
+        expect(events[0]).not.toHaveProperty('clientVersion')
+        expect(events[0]).not.toHaveProperty('clientOrigin')
+      },
+    })
+
+    mintTest('drops an invalid browser asset identifier without retaining its value', {
+      setup: () => ({
+        ...diagnosticAppFixture(),
+        headers: { 'x-dashboard-client-asset-id': 'https://assets.example.test/private-client' },
+      }),
+      exercise: ({ app, headers }) => app.request('/api/panel/example/not-configured', { headers }),
+      verify: (_response, { events }) => {
+        expect(events).toEqual([expect.objectContaining({ serverVersion: '1.4.0' })])
+        expect(events[0]).not.toHaveProperty('clientAssetPathMatchesConfigured')
+        expect(JSON.stringify(events)).not.toContain('private-client')
+      },
+    })
+  })
+
+  mintTest('records an upstream HTTP status without retaining its response body', {
+    setup: () => {
+      const events: ServerLogEvent[] = []
+      const body = 'token-like-response-body'
+      return {
+        app: sourceAgnosticPanelApp({
+          fetcher: vi.fn(
+            async () => new Response(body, { status: 503 }),
+          ) as unknown as typeof fetch,
+          events,
+        }),
+        body,
+        events,
+      }
+    },
+    exercise: ({ app }) => app.request('/api/panel/example/version'),
+    verify: async (response, { body, events }) => {
+      expect(response.status).toBe(200)
+      expect(events).toEqual([
+        expect.objectContaining({
+          event: 'panel.observation_failed',
+          requestId: response.headers.get('x-dashboard-request-id'),
+          errorKind: 'upstream-error',
+          upstreamStatus: 503,
+        }),
+      ])
+      expect(JSON.stringify({ events, response: await response.text() })).not.toContain(body)
+    },
+  })
+
+  mintTest('correlates an unexpected API exception with one safe event', {
+    setup: () => {
+      const events: ServerLogEvent[] = []
+      const brokenConfig: BoardConfig = { sources: {}, boards: { example: { panels: [panel] } } }
+      const app = sourceAgnosticPanelApp({
+        boardConfig: brokenConfig,
+        events,
+      })
+      Object.defineProperty(brokenConfig.boards.example, 'panels', {
+        get() {
+          throw new Error('raw upstream and credential text must not be logged')
+        },
+      })
+      return { app, events }
+    },
+    exercise: ({ app }) => app.request('/api/boards/example'),
+    verify: async (response, { events }) => {
+      const reference = response.headers.get('x-dashboard-request-id')
+      expect(response.status).toBe(500)
+      await expect(response.json()).resolves.toEqual({
+        error: 'The dashboard could not complete this request.',
+      })
+      expect(events).toEqual([
+        expect.objectContaining({
+          event: 'server.unhandled_exception',
+          requestId: reference,
+          operation: 'route-handler',
+        }),
+      ])
+      expect(JSON.stringify(events)).not.toContain('credential text')
+    },
   })
 })

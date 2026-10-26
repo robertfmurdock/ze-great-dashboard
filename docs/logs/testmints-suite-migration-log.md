@@ -285,3 +285,14 @@ identify without changing the evidence.
 The follow-up also inlined fetchers that no verification observes. Only the cache-validator and
 undeclared-panel scenarios retain named fetchers, because their assertions inspect upstream call
 history; the remaining mocks are implementation details of the arranged app.
+
+### Follow-up: HTTP-value adapter and panel-route boundary
+
+`packages/server/test/http-value.test.ts` now expresses HTTP-value observation and named route
+admission as Testmints scenarios. The former grouped-fact request sequence is split into its
+configured API fact, configured web fact, unknown fact, and unaddressable parent-panel inputs, so
+each scenario has one route request and isolated upstream-call evidence. Browser diagnostic claims
+are likewise distinct valid, malformed, and invalid-asset cases; this keeps normalization and
+redaction evidence local to each input rather than relying on a shared event history. Fixture
+helpers arrange only the grouped panel, canonical source-agnostic app, and controlled logger. No production behavior,
+dependency, or reporting configuration changed.
