@@ -440,3 +440,11 @@ literal on both sides obscures whether the subject preserved the arranged input 
 restated its expectation. `AGENTS.md` now states the principle for tests generally and, together
 with `CLAUDE.md`, for Testmints phases specifically. This is a guidance clarification; no runtime,
 dependency, or reporting behavior changed.
+
+### Follow-up: injected client-environment schema boundary
+
+`packages/shared/test/client-env.test.ts` now uses `mintTest` for the browser-visible injected
+environment contract. Auth presence, each admitted security posture, missing injection, and
+incomplete configuration are separate input scenarios; each arranges its source once, invokes
+`readClientEnv` once, and verifies its parsed projection or captured validation error. No runtime,
+dependency, or reporting behavior changed.
