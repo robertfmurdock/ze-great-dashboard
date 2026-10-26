@@ -355,6 +355,11 @@ export function usePanelSignals({
                 accepted,
                 estimatedDurationMs: memory.resolveEstimatedDuration(identity),
               })
+              const presentation = applyPipelinePresentation({
+                current: signalsRef.current[panel.id],
+                reconciliation,
+                accepted,
+              })
               if (reconciliation.kind === 'rejected' && accepted) {
                 const signal = reconciliation.signal
                 diagnostics.recordGithubConsistencyIncident({
@@ -378,11 +383,6 @@ export function usePanelSignals({
                     cacheControl: result.cache?.cacheControl,
                   },
                 })
-                const presentation = applyPipelinePresentation({
-                  current: signalsRef.current[panel.id],
-                  reconciliation,
-                  accepted,
-                })
                 if (!cancelled)
                   setRejectedPipelines((current) => ({
                     ...current,
@@ -392,11 +392,6 @@ export function usePanelSignals({
               }
               if (reconciliation.kind === 'accepted') {
                 envelope = reconciliation.envelope
-                const presentation = applyPipelinePresentation({
-                  current: signalsRef.current[panel.id],
-                  reconciliation,
-                  accepted,
-                })
                 if (!cancelled && presentation.rejected === undefined)
                   setRejectedPipelines((current) => {
                     if (!current[panel.id]) return current

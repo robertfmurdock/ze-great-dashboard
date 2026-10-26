@@ -382,3 +382,12 @@ unrelated checkpoints were separated.
 The scenarios are grouped by successful-run duration history, completed-run fallback estimates, and
 stored-memory boundaries. These `describe` blocks make the relevant contract immediately visible
 without sharing setup or obscuring any exercise.
+
+### Follow-up: client pipeline reconciliation
+
+`packages/client/test/pipeline-reconciliation.test.ts` now uses `mintTest` for timestamp ordering,
+historical GitHub disclosure, accepted-result recovery, completed-run samples, and running-duration
+estimates. The previous mixed rejected/recovered presentation case is two scenarios: each arranges
+its reconciliation input and exercises `applyPipelinePresentation` once. The timestamp and completed
+status mappings remain branch-free scenario lists. No production behavior, dependency, or reporting
+configuration changed.
