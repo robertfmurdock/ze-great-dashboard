@@ -8,6 +8,7 @@ export const panelTypeSymbols = {
   'pipeline-status': { glyph: '▣', label: 'Pipeline status' },
   'pull-request-health': { glyph: '⌘', label: 'Pull request health' },
   'http-value': { glyph: '◌', label: 'HTTP value' },
+  'test-count': { glyph: '≡', label: 'Test count' },
   'pipeline-animation-demo': { glyph: '✦', label: 'Pipeline animation demo' },
 } as const
 

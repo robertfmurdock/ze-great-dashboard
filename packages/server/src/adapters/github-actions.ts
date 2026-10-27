@@ -5,11 +5,14 @@ import type {
   Panel,
   PipelineStatus,
   Source,
+  TestCount,
+  TestResultsArtifact,
 } from '@ze-great-dashboard/shared'
 import {
   githubActionsBuildEventSchema,
   githubActionsBuildEventsSchema,
   githubActionsSourceSchema,
+  testCountPanelSchema,
 } from '@ze-great-dashboard/shared'
 import { z } from 'zod'
 import { type CredentialResolver, environmentCredentials } from '../credentials.ts'
@@ -21,6 +24,7 @@ import {
   upstreamErrorKind,
   observedAt as upstreamObservedAt,
 } from '../upstream.ts'
+import { readTestResultsArtifact, testResultsSummarySchema } from '../workflow-artifact-summary.ts'
 import type { PermittedCall } from './types.ts'
 
 const pipelinePanelSchema = z.object({
@@ -50,6 +54,8 @@ const pullRequestHealthPanelSchema = z.object({
 
 const runSchema = z.object({
   id: z.number().int().positive().optional(),
+  run_attempt: z.number().int().positive().optional(),
+  head_sha: z.string().min(1).optional(),
   status: z.string(),
   conclusion: z.string().nullable(),
   name: z.string().min(1),
@@ -62,6 +68,12 @@ const runSchema = z.object({
   run_started_at: z.string().nullable().optional(),
   updated_at: z.string().optional(),
   created_at: z.string().optional(),
+})
+
+const artifactsSchema = z.object({
+  artifacts: z.array(
+    z.object({ id: z.number().int().positive(), name: z.string().min(1), expired: z.boolean() }),
+  ),
 })
 
 const runsSchema = z.object({ workflow_runs: z.array(runSchema) })
@@ -101,6 +113,144 @@ export function permittedGithubActionsCalls(
   url.searchParams.set('per_page', '1')
 
   return [{ url: url.toString(), headers: new Headers() }]
+}
+
+/** Validates the complete, bounded configuration for one GitHub Actions test-count panel. */
+export function testCountCapabilities(panel: Panel, source: Source) {
+  return z
+    .object({ panel: testCountPanelSchema, source: githubActionsSourceSchema })
+    .parse({ panel, source })
+}
+
+/**
+ * Reads the one explicitly configured workflow artifact and turns its summary into public evidence.
+ * The artifact is deliberately consumed here, never forwarded to the browser: it is provider input,
+ * not a client contract.
+ */
+export async function fetchGithubActionsTestCount(args: {
+  panel: Panel
+  source: Source
+  requestHeaders: Headers
+  fetcher: typeof fetch
+  githubClient?: GithubClient
+  credentials?: CredentialResolver
+}): Promise<AdapterResult> {
+  const { panel, source } = testCountCapabilities(args.panel, args.source)
+  const githubClient = githubClientFor(args)
+  const noValidators = new Headers()
+  let failureLink = sourceLinkForWorkflow(source, panel.pipeline)
+  let failureObservedAt: string | undefined
+  try {
+    const selected = await selectGithubWorkflowRun({
+      ...args,
+      source,
+      workflow: panel.pipeline,
+      requestHeaders: noValidators,
+      githubClient,
+    })
+    if (!selected.response.ok) return testCountFailure(panel.id, source, selected.response)
+    const { run } = selected
+    if (!run?.id)
+      return testCountEnvelope(
+        noRunEnvelope(panel.id, source, panel.pipeline, selected.response.headers.get('date')),
+      )
+    const link = run.html_url
+    const runObservedAt = selected.observedAt
+    failureLink = link
+    failureObservedAt = runObservedAt
+    if (run.status !== 'completed')
+      return testCountEnvelope({
+        panelId: panel.id,
+        state: 'ok',
+        observedAt: runObservedAt,
+        link,
+        signal: { type: 'test-count', status: 'pending' } satisfies TestCount,
+      })
+
+    const artifactsResponse = await githubFetch(
+      githubArtifactsCall(source, run.id, panel.test_results),
+      {
+        ...args,
+        source,
+        requestHeaders: noValidators,
+        githubClient,
+      },
+    )
+    if (!artifactsResponse.ok) return testCountFailure(panel.id, source, artifactsResponse, link)
+    const artifactObservedAt = observedAt(artifactsResponse.headers.get('date'))
+    failureObservedAt = oldestObservation(runObservedAt, artifactObservedAt)
+    const artifacts = artifactsSchema.parse(await artifactsResponse.json()).artifacts
+    const matches = artifacts.filter((artifact) => artifact.name === panel.test_results.artifact)
+    if (matches.length === 0)
+      return testCountEnvelope({
+        panelId: panel.id,
+        state: 'ok',
+        observedAt: oldestObservation(runObservedAt, artifactObservedAt),
+        link,
+        signal: { type: 'test-count', status: 'not-reported' } satisfies TestCount,
+      })
+    if (matches.length !== 1 || matches[0]?.expired)
+      return testCountEnvelope(
+        errorEnvelope(
+          panel.id,
+          'upstream-error',
+          'The test-results artifact is unavailable.',
+          link,
+        ),
+      )
+    const [artifact] = matches
+    if (!artifact)
+      return testCountEnvelope(
+        errorEnvelope(
+          panel.id,
+          'upstream-error',
+          'The test-results artifact is unavailable.',
+          link,
+        ),
+      )
+    const archiveResponse = await githubFetch(githubArtifactDownloadCall(source, artifact.id), {
+      ...args,
+      source,
+      requestHeaders: noValidators,
+      githubClient,
+    })
+    if (!archiveResponse.ok) return testCountFailure(panel.id, source, archiveResponse, link)
+    const archiveObservedAt = observedAt(archiveResponse.headers.get('date'))
+    failureObservedAt = oldestObservation(runObservedAt, artifactObservedAt, archiveObservedAt)
+    const summary = testResultsSummarySchema.parse(
+      JSON.parse(await readTestResultsArtifact(archiveResponse, panel.test_results.entry)),
+    )
+    if (
+      summary.runId !== run.id ||
+      summary.runAttempt !== run.run_attempt ||
+      summary.headSha !== run.head_sha
+    )
+      throw new Error('Test-results manifest does not belong to the selected workflow run.')
+    return testCountEnvelope({
+      panelId: panel.id,
+      state: 'ok',
+      observedAt: oldestObservation(runObservedAt, artifactObservedAt, archiveObservedAt),
+      link,
+      signal: {
+        type: 'test-count',
+        status: 'reported',
+        total: summary.total,
+        ...(summary.passed === undefined ? {} : { passed: summary.passed }),
+        ...(summary.failed === undefined ? {} : { failed: summary.failed }),
+        ...(summary.skipped === undefined ? {} : { skipped: summary.skipped }),
+      } satisfies TestCount,
+    })
+  } catch (error) {
+    return testCountEnvelope(
+      errorEnvelope(
+        panel.id,
+        error instanceof GithubAuthenticationError ? 'unauthorized' : 'upstream-error',
+        error,
+        failureLink,
+        failureObservedAt,
+      ),
+    )
+  }
 }
 
 export function pullRequestHealthCapabilities(panel: Panel) {
@@ -367,44 +517,14 @@ export async function fetchGithubActionsPipeline(args: {
   const parsedSource = githubActionsSourceSchema.parse(args.source)
   const parsedPanel = pipelinePanelSchema.parse(args.panel)
   const githubClient = githubClientFor(args)
-  const recentCall = githubRunsCall(
-    parsedSource,
-    parsedPanel.pipeline,
-    parsedSource.branch,
-    undefined,
-    100,
-    recentRunsCreatedAt(),
-  )
-
-  let upstream: Response
-  let runs: z.infer<typeof runSchema>[]
+  let selected: Awaited<ReturnType<typeof selectGithubWorkflowRun>>
   try {
-    upstream = await githubFetch(recentCall, {
-      requestHeaders: args.requestHeaders,
-      fetcher: args.fetcher,
+    selected = await selectGithubWorkflowRun({
+      ...args,
       source: parsedSource,
+      workflow: parsedPanel.pipeline,
       githubClient,
     })
-    if (upstream.status === 304) return { response: upstream }
-    if (!upstream.ok) return githubPipelineFailure(args, upstream)
-
-    runs = runsSchema.parse(await upstream.json()).workflow_runs
-    // GitHub's created filter mitigates a known stale-listing behavior. A dormant repository
-    // still needs its latest historical run, so only an empty bounded page falls back.
-    if (runs.length === 0) {
-      upstream = await githubFetch(
-        githubRunsCall(parsedSource, parsedPanel.pipeline, parsedSource.branch),
-        {
-          requestHeaders: args.requestHeaders,
-          fetcher: args.fetcher,
-          source: parsedSource,
-          githubClient,
-        },
-      )
-      if (upstream.status === 304) return { response: upstream }
-      if (!upstream.ok) return githubPipelineFailure(args, upstream)
-      runs = runsSchema.parse(await upstream.json()).workflow_runs
-    }
   } catch (error) {
     return {
       response: new Response(
@@ -425,8 +545,12 @@ export async function fetchGithubActionsPipeline(args: {
     }
   }
 
+  const upstream = selected.response
+  if (upstream.status === 304) return { response: upstream }
+  if (!upstream.ok) return githubPipelineFailure(args, upstream)
+
   try {
-    const run = newestGithubRun(runs)
+    const run = selected.run
     if (!run) {
       return {
         response: new Response(
@@ -533,6 +657,43 @@ function newestGithubRun(runs: z.infer<typeof runSchema>[]) {
   }, undefined)
 }
 
+/**
+ * Selects the same newest workflow run for every GitHub Actions panel. The recent query avoids
+ * GitHub's stale listing behavior; only an empty bounded page falls back to history.
+ */
+async function selectGithubWorkflowRun(
+  args: AdapterArgs & { source: GithubActionsSource; workflow: string; githubClient: GithubClient },
+) {
+  let response = await githubFetch(
+    githubRunsCall(
+      args.source,
+      args.workflow,
+      args.source.branch,
+      undefined,
+      100,
+      recentRunsCreatedAt(),
+    ),
+    args,
+  )
+  if (response.status === 304 || !response.ok)
+    return { response, observedAt: observedAt(response.headers.get('date')), run: undefined }
+  let runs = runsSchema.parse(await response.json()).workflow_runs
+  if (runs.length === 0) {
+    response = await githubFetch(
+      githubRunsCall(args.source, args.workflow, args.source.branch),
+      args,
+    )
+    if (response.status === 304 || !response.ok)
+      return { response, observedAt: observedAt(response.headers.get('date')), run: undefined }
+    runs = runsSchema.parse(await response.json()).workflow_runs
+  }
+  return {
+    response,
+    observedAt: observedAt(response.headers.get('date')),
+    run: newestGithubRun(runs),
+  }
+}
+
 async function activeGithubActivity(args: {
   source: GithubActionsSource
   runId: number
@@ -585,6 +746,72 @@ function githubJobsCall(source: GithubActionsSource, runId: number): PermittedCa
   return { url: url.toString(), headers: new Headers() }
 }
 
+function githubArtifactsCall(
+  source: GithubActionsSource,
+  runId: number,
+  testResults: TestResultsArtifact,
+): PermittedCall {
+  const url = new URL(`https://api.github.com/repos/${source.repo}/actions/runs/${runId}/artifacts`)
+  url.searchParams.set('name', testResults.artifact)
+  url.searchParams.set('per_page', '100')
+  return { url: url.toString(), headers: new Headers() }
+}
+
+function githubArtifactDownloadCall(
+  source: GithubActionsSource,
+  artifactId: number,
+): PermittedCall {
+  return {
+    url: `https://api.github.com/repos/${source.repo}/actions/artifacts/${artifactId}/zip`,
+    headers: new Headers(),
+  }
+}
+
+function noRunEnvelope(
+  panelId: string,
+  source: GithubActionsSource,
+  pipeline: string,
+  date: string | null,
+): Envelope {
+  return {
+    panelId,
+    state: 'error',
+    observedAt: observedAt(date),
+    link: sourceLinkForWorkflow(source, pipeline),
+    error: {
+      kind: 'no-runs',
+      message: 'No matching workflow runs were found. Check the configured workflow and branch.',
+    },
+  }
+}
+
+function testCountFailure(
+  panelId: string,
+  source: GithubActionsSource,
+  response: Response,
+  link = sourceLinkForRepository(source),
+): AdapterResult {
+  return testCountEnvelope(
+    errorEnvelope(
+      panelId,
+      errorKind(response.status),
+      `${response.status} ${response.statusText}`,
+      link,
+      observedAt(response.headers.get('date')),
+    ),
+    { kind: errorKind(response.status), upstreamStatus: response.status },
+  )
+}
+
+function testCountEnvelope(envelope: Envelope, failure?: AdapterResult['failure']): AdapterResult {
+  // Fanned-out observations must not expose one upstream validator as though it represented all.
+  return { envelope, response: new Response(null), ...(failure ? { failure } : {}) }
+}
+
+function oldestObservation(...values: string[]): string {
+  return values.reduce((oldest, value) => (Date.parse(value) < Date.parse(oldest) ? value : oldest))
+}
+
 function completedRunDuration(run: z.infer<typeof runSchema>): Pick<PipelineStatus, 'durationMs'> {
   const startedAt = timestamp(run.run_started_at)
   const updatedAt = timestamp(run.updated_at)
@@ -623,9 +850,13 @@ function errorEnvelope(
 }
 
 function sourceLink(panel: Panel, source: Source): string {
-  const parsedPanel = pipelinePanelSchema.parse(panel)
+  const parsedPanel = z.object({ pipeline: z.string().min(1) }).parse(panel)
   const parsedSource = githubActionsSourceSchema.parse(source)
-  return `https://github.com/${parsedSource.repo}/actions/workflows/${encodeURIComponent(parsedPanel.pipeline)}`
+  return sourceLinkForWorkflow(parsedSource, parsedPanel.pipeline)
+}
+
+function sourceLinkForWorkflow(source: GithubActionsSource, pipeline: string): string {
+  return `https://github.com/${source.repo}/actions/workflows/${encodeURIComponent(pipeline)}`
 }
 
 function observedAt(value: string | null): string {

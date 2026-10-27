@@ -6,6 +6,7 @@ import { PipelinePanel } from './PipelinePanel.tsx'
 import { PullRequestHealthPanel } from './PullRequestHealthPanel.tsx'
 import type { PanelProps } from './panel-props.ts'
 import type { RenderablePanelType } from './panel-symbols.ts'
+import { TestCountPanel } from './TestCountPanel.tsx'
 
 type PanelRendererProps = PanelProps
 
@@ -14,6 +15,7 @@ export const panelRenderers: Record<RenderablePanelType, ComponentType<PanelRend
   'pipeline-status': PipelinePanel,
   'pull-request-health': PullRequestHealthPanel,
   'http-value': HttpValuePanel,
+  'test-count': TestCountPanel,
   'pipeline-animation-demo': PipelineAnimationDemoPanel,
 }
 

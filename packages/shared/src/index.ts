@@ -47,6 +47,10 @@ export {
   securityPolicySchema,
   serializeBoardConfigJsonSchema,
   sourceSchema,
+  type TestCountPanel,
+  type TestResultsArtifact,
+  testCountPanelSchema,
+  testResultsArtifactSchema,
 } from './board-config.ts'
 export {
   boardSchemaFileName,
@@ -89,6 +93,8 @@ export {
   pullRequestCandidatesSchema,
   pullRequestHealthSchema,
   pullRequestWorkflowObservationSchema,
+  type TestCount,
+  testCountSchema,
 } from './envelope.ts'
 export {
   analyzeBoardLayout,

@@ -69,6 +69,23 @@ const httpValueJsonPathSchema = z
   .string()
   .regex(/^\$(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/, 'must be a simple JSON path')
 
+/** A bounded GitHub Actions workflow-artifact contract for test-count panels. */
+export const testResultsArtifactSchema = z.object({
+  artifact: z.string().min(1).max(128),
+  entry: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]*\.json$/, 'must be a root-level JSON file'),
+})
+export type TestResultsArtifact = z.infer<typeof testResultsArtifactSchema>
+
+/** The complete configuration contract consumed by the GitHub Actions test-count adapter. */
+export const testCountPanelSchema = z.object({
+  id: z.string().min(1),
+  type: z.literal('test-count'),
+  source: z.string().min(1),
+  pipeline: z.string().min(1),
+  test_results: testResultsArtifactSchema,
+})
+export type TestCountPanel = z.infer<typeof testCountPanelSchema>
+
 /** One independently observed reading in a compact HTTP value panel. */
 export const httpValueFactSchema = z.object({
   /** Stable address below the panel; labels and ordering may change without repointing it. */
@@ -142,6 +159,8 @@ export const panelSchema = z
     facts: httpValueGroupedPanelSchema.shape.facts.optional(),
     /** Optional GitHub Actions-only restriction on which workflow triggers count as build evidence. */
     build_events: githubActionsBuildEventsSchema.optional(),
+    /** Workflow-run artifact carrying a test-count panel's summary. */
+    test_results: testResultsArtifactSchema.optional(),
   })
   .superRefine((panel, ctx) => {
     if ('display' in panel) {
@@ -150,6 +169,28 @@ export const panelSchema = z
         path: ['display'],
         message: 'display was removed; use density',
         params: { constraint: 'display was removed; use density' },
+      })
+    }
+    if (panel.type === 'test-count') {
+      if (!panel.source)
+        ctx.addIssue({ code: 'custom', path: ['source'], message: 'test-count requires a source' })
+      if (typeof panel.pipeline !== 'string' || !panel.pipeline)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['pipeline'],
+          message: 'test-count requires a workflow filename',
+        })
+      if (!panel.test_results)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['test_results'],
+          message: 'test-count requires test_results artifact configuration',
+        })
+    } else if (panel.test_results) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['test_results'],
+        message: 'test_results is only supported by test-count panels',
       })
     }
     if (panel.type !== 'http-value') return

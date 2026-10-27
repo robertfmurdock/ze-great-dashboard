@@ -93,6 +93,21 @@ export const pipelineStatusSchema = z.object({
 
 export type PipelineStatus = z.infer<typeof pipelineStatusSchema>
 
+/** Aggregate test evidence published by one selected CI workflow run. */
+export const testCountSchema = z.discriminatedUnion('status', [
+  z.object({
+    type: z.literal('test-count'),
+    status: z.literal('reported'),
+    total: z.number().int().nonnegative(),
+    passed: z.number().int().nonnegative().optional(),
+    failed: z.number().int().nonnegative().optional(),
+    skipped: z.number().int().nonnegative().optional(),
+  }),
+  z.object({ type: z.literal('test-count'), status: z.literal('pending') }),
+  z.object({ type: z.literal('test-count'), status: z.literal('not-reported') }),
+])
+export type TestCount = z.infer<typeof testCountSchema>
+
 /** Higher values need more immediate attention in a compact aggregate. */
 const pipelineStatusPriorities: Record<PipelineStatus['status'], number> = {
   passed: 0,

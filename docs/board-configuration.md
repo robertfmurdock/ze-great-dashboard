@@ -188,6 +188,43 @@ readings. Facts share the panel's refresh setting. Fact IDs are stable addresses
 label rather than the ID when only the wall text changes. Do not combine `facts` with the
 single-value `url` or `json_path` fields.
 
+### GitHub Actions test totals
+
+A `test-count` panel reads one versioned JSON summary published as an artifact of the configured
+GitHub Actions workflow run. It is separate from `pipeline-status`, so a board can decide whether
+to display build health, test totals, or both. Omitting the panel leaves artifact reads disabled.
+
+```yaml
+- id: dashboard-tests
+  label: Tests
+  type: test-count
+  source: github
+  pipeline: main.yml
+  test_results:
+    artifact: ci-evidence
+    entry: test-summary.json
+```
+
+The workflow uploads exactly that root-level JSON file in an artifact with the configured name,
+normally from a final `if: always()` job. Schema version 1 contains `schemaVersion`, `runId`,
+`runAttempt`, `headSha`, and a non-negative integer `total`; `passed`, `failed`, and `skipped` are
+optional. The dashboard binds the manifest to the selected run, so absent reporting is visibly
+“No test results published”, never a fabricated zero.
+
+```yaml
+- name: Publish dashboard test summary
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: ci-evidence
+    path: test-summary.json
+    retention-days: 30
+```
+
+For private repositories, the dashboard credential needs GitHub Actions read access. Artifact
+retention must cover the intended observation window; an expired or malformed artifact is shown as
+unavailable rather than reused from an older run.
+
 ### GitHub update pull-request build evidence
 
 A GitHub Actions `pull-request-health` panel identifies its build evidence with `build_workflow`.

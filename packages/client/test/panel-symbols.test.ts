@@ -14,6 +14,7 @@ describe('primary compact symbols', () => {
       'pipeline-animation-demo',
       'pipeline-status',
       'pull-request-health',
+      'test-count',
     ])
     expect(Object.keys(statusSymbols).sort()).toEqual([
       'cancelled',

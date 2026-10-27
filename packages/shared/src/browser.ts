@@ -13,6 +13,7 @@ export type {
   Panel,
   PanelDensity,
   Position,
+  TestResultsArtifact,
 } from './board-config.ts'
 export {
   type ClientEnv,
@@ -49,6 +50,8 @@ export {
   pullRequestCandidatesSchema,
   pullRequestHealthSchema,
   pullRequestWorkflowObservationSchema,
+  type TestCount,
+  testCountSchema,
 } from './envelope.ts'
 export { analyzeBoardLayout, isZeroPosition, normalizeBoardLayout } from './layout.ts'
 export { type PollingSettings, pollingDefaults, resolvePollingSettings } from './polling-policy.ts'

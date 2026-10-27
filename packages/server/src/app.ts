@@ -11,16 +11,13 @@ import {
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { stringify as stringifyYaml } from 'yaml'
-import { fetchAzureDevOpsPipeline } from './adapters/azure-devops.ts'
 import {
-  fetchGithubActionsPipeline,
   fetchGithubActionsPullRequestBuild,
   fetchGithubActionsPullRequestCandidates,
   fetchGithubActionsUpdateWorkflow,
   pullRequestHealthCapabilities,
 } from './adapters/github-actions.ts'
-import { fetchGitlabCiPipeline } from './adapters/gitlab-ci.ts'
-import { fetchHttpValue, fetchHttpValueFact, httpValueFact } from './adapters/http-value.ts'
+import { fetchHttpValueFact, httpValueFact } from './adapters/http-value.ts'
 import { deriveAllowlist, type PanelOperation, permitsPanelOperation } from './allowlist.ts'
 import { assetPathId, type ServerConfig } from './config.ts'
 import { type CredentialResolver, environmentCredentials } from './credentials.ts'
@@ -34,6 +31,7 @@ import {
   serverDiagnosticContext,
 } from './logger.ts'
 import { type AccessTokenVerifier, accessDenied } from './oidc-auth.ts'
+import { readPanelAdapter } from './panel-adapters.ts'
 import { renderIndexHtml } from './render.ts'
 import type { DeploymentSecurityState } from './security-posture.ts'
 import { type Fetcher, TemplateCache } from './template.ts'
@@ -247,71 +245,27 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
     )
       return rejected(c, { boardId: boardName, panelId, operation: 'read' })
 
-    if (panel.type === 'pipeline-status' && source?.type === 'github-actions' && source) {
-      const result = fetchGithubActionsPipeline({
+    if (panel.type === 'pull-request-health')
+      return rejected(c, { boardId: boardName, panelId, operation: 'read' })
+    if (panel.type === 'http-value' && panel.facts)
+      return rejected(c, { boardId: boardName, panelId, operation: 'read' })
+    const adapter = readPanelAdapter(panel, source)
+    if (adapter?.fetch) {
+      const result = adapter.fetch({
         panel,
         source,
         requestHeaders: c.req.raw.headers,
         fetcher: deps.fetcher ?? globalThis.fetch,
+        credentials,
         githubClient,
       })
       return observation(c, result, {
         boardId: boardName,
         panelId,
         operation: 'read',
-        sourceName: panel.source,
-        sourceType: source.type,
-        destination: 'https://api.github.com',
-      })
-    }
-    if (panel.type === 'pipeline-status' && source?.type === 'azure-devops' && source) {
-      const result = fetchAzureDevOpsPipeline({
-        panel,
-        source,
-        requestHeaders: c.req.raw.headers,
-        fetcher: deps.fetcher ?? globalThis.fetch,
-        credentials,
-      })
-      return observation(c, result, {
-        boardId: boardName,
-        panelId,
-        operation: 'read',
-        sourceName: panel.source,
-        sourceType: source.type,
-        destination: 'https://dev.azure.com',
-      })
-    }
-    if (panel.type === 'pipeline-status' && source?.type === 'gitlab-ci' && source) {
-      const result = fetchGitlabCiPipeline({
-        panel,
-        source,
-        requestHeaders: c.req.raw.headers,
-        fetcher: deps.fetcher ?? globalThis.fetch,
-        credentials,
-      })
-      return observation(c, result, {
-        boardId: boardName,
-        panelId,
-        operation: 'read',
-        sourceName: panel.source,
-        sourceType: source.type,
-        destination: typeof source.url === 'string' ? source.url : 'https://gitlab.com',
-      })
-    }
-    if (panel.type === 'pull-request-health')
-      return rejected(c, { boardId: boardName, panelId, operation: 'read' })
-    if (panel.type === 'http-value') {
-      if (panel.facts) return rejected(c, { boardId: boardName, panelId, operation: 'read' })
-      const result = fetchHttpValue({
-        panel,
-        requestHeaders: c.req.raw.headers,
-        fetcher: deps.fetcher ?? globalThis.fetch,
-      })
-      return observation(c, result, {
-        boardId: boardName,
-        panelId,
-        operation: 'read',
-        destination: panel.url,
+        ...(panel.source ? { sourceName: panel.source } : {}),
+        ...(source ? { sourceType: source.type } : {}),
+        destination: adapter.destination(panel, source),
       })
     }
     return c.notFound()

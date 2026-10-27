@@ -43,6 +43,35 @@ describe('the board config schema', () => {
     },
   }
 
+  it('requires bounded artifact configuration only for test-count panels', () => {
+    const board = (panel: object) => ({ boards: { operations: { panels: [panel] } } })
+    expect(
+      boardConfigSchema.safeParse(
+        board({
+          id: 'tests',
+          type: 'test-count',
+          source: 'github',
+          pipeline: 'main.yml',
+          test_results: { artifact: 'ci-evidence', entry: 'test-summary.json' },
+        }),
+      ).success,
+    ).toBe(true)
+    expect(
+      boardConfigSchema.safeParse(
+        board({ id: 'tests', type: 'test-count', source: 'github', pipeline: 'main.yml' }),
+      ).success,
+    ).toBe(false)
+    expect(
+      boardConfigSchema.safeParse(
+        board({
+          id: 'build',
+          type: 'pipeline-status',
+          test_results: { artifact: 'ci-evidence', entry: '../summary.json' },
+        }),
+      ).success,
+    ).toBe(false)
+  })
+
   it('accepts the deployment security policies and leaves omission as the warn behavior', () => {
     for (const security of ['warn', 'required', 'unsecured'] as const)
       expect(boardConfigSchema.safeParse({ ...validConfig, security }).success).toBe(true)

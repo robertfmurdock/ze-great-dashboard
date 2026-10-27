@@ -1,6 +1,6 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { describe, expect, test } from 'vitest'
-import { pipelineStatusPriority, pipelineStatusSchema } from '../src/envelope.ts'
+import { pipelineStatusPriority, pipelineStatusSchema, testCountSchema } from '../src/envelope.ts'
 
 describe('pipeline signal activity', () => {
   const base = {
@@ -56,6 +56,26 @@ describe('pipeline signal activity', () => {
       }),
       exercise: ({ statuses }) => statuses.map((status) => pipelineStatusPriority(status)),
       verify: (priorities) => expect(priorities).toEqual([0, 1, 2, 3, 4, 5]),
+    }),
+  )
+})
+
+describe('test-count signal states', () => {
+  test(
+    'requires a total only when a workflow reports test evidence',
+    mint({
+      setup: () => ({
+        reported: { type: 'test-count' as const, status: 'reported' as const },
+        pending: { type: 'test-count' as const, status: 'pending' as const },
+      }),
+      exercise: ({ reported, pending }) => ({
+        reported: testCountSchema.safeParse(reported),
+        pending: testCountSchema.safeParse(pending),
+      }),
+      verify: (result) => {
+        expect(result.reported.success).toBe(false)
+        expect(result.pending.success).toBe(true)
+      },
     }),
   )
 })

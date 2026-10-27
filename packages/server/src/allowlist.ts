@@ -1,17 +1,12 @@
 import type { BoardConfig, Panel, Source } from '@ze-great-dashboard/shared'
 import { ZodError } from 'zod'
-import { permittedAzureDevOpsCalls } from './adapters/azure-devops.ts'
-import {
-  permittedGithubActionsCalls,
-  pullRequestHealthCapabilities,
-} from './adapters/github-actions.ts'
-import { permittedGitlabCiCalls } from './adapters/gitlab-ci.ts'
-import { permittedHttpValueCalls } from './adapters/http-value.ts'
+import { pullRequestHealthCapabilities } from './adapters/github-actions.ts'
 import {
   ConfigurationError,
   configurationLocation,
   schemaDiagnostics,
 } from './configuration-error.ts'
+import { readPanelAdapter } from './panel-adapters.ts'
 
 /**
  * Security boundary: the browser names a configured panel, never a URL. Keep changes here small
@@ -108,22 +103,7 @@ export function permitsPanelOperation(
 }
 
 function panelCapability(panel: Panel, source: Source | undefined): PanelCapability {
-  if (panel.type === 'pipeline-status' && source?.type === 'github-actions') {
-    permittedGithubActionsCalls(panel, source)
-    return { kind: 'server', operations: ['read'] }
-  }
-  if (panel.type === 'pipeline-status' && source?.type === 'azure-devops') {
-    permittedAzureDevOpsCalls(panel, source)
-    return { kind: 'server', operations: ['read'] }
-  }
-  if (panel.type === 'pipeline-status' && source?.type === 'gitlab-ci') {
-    permittedGitlabCiCalls(panel, source)
-    return { kind: 'server', operations: ['read'] }
-  }
-  if (panel.type === 'http-value') {
-    permittedHttpValueCalls(panel)
-    return { kind: 'server', operations: ['read'] }
-  }
+  if (readPanelAdapter(panel, source)) return { kind: 'server', operations: ['read'] }
   if (panel.type === 'pull-request-health' && source?.type === 'github-actions') {
     // Parsing here proves this panel's dynamic request capabilities are bounded before startup.
     pullRequestHealthCapabilities(panel)
