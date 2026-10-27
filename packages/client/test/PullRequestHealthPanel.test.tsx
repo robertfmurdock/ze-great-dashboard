@@ -1,7 +1,7 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { Envelope, Panel, PullRequestHealth } from '@ze-great-dashboard/shared/browser'
-import { afterEach, describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { PullRequestHealthPanel } from '../src/PullRequestHealthPanel.tsx'
 
 const panel: Panel = {
@@ -27,8 +27,6 @@ const envelope: Envelope = {
   link: 'https://github.com/example/repo/actions',
   signal: healthySignal,
 }
-
-afterEach(cleanup)
 
 describe('PullRequestHealthPanel', () => {
   test(

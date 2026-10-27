@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
@@ -27,7 +27,6 @@ function log() {
 }
 
 afterEach(() => {
-  cleanup()
   vi.unstubAllGlobals()
 })
 

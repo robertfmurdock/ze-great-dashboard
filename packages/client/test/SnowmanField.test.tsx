@@ -1,9 +1,8 @@
-import { cleanup, render } from '@testing-library/react'
+import { render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SnowmanField } from '../src/SnowmanField.tsx'
 
 afterEach(() => {
-  cleanup()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })

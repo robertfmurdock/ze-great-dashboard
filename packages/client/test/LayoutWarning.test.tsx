@@ -1,11 +1,9 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { analyzeBoardLayout, type Board } from '@ze-great-dashboard/shared/browser'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { LayoutWarning } from '../src/LayoutWarning.tsx'
 import { env } from './client-test-fixture.tsx'
-
-afterEach(cleanup)
 
 describe('LayoutWarning', () => {
   it('opens a dialog with issue details and both layout downloads', async () => {

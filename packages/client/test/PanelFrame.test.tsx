@@ -1,7 +1,7 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { Envelope, Panel } from '@ze-great-dashboard/shared/browser'
-import { afterEach, describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { PanelFrame, PanelMetadata } from '../src/PanelFrame.tsx'
 
 const position = { x: 2, y: 1, w: 4, h: 3 }
@@ -10,8 +10,6 @@ const panel: Panel = {
   type: 'pipeline-status',
   position,
 }
-
-afterEach(cleanup)
 
 describe('PanelFrame', () => {
   describe('identity and layout', () => {

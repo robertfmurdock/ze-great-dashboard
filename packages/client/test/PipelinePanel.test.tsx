@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { Panel } from '@ze-great-dashboard/shared/browser'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PipelinePanel } from '../src/PipelinePanel.tsx'
@@ -6,7 +6,6 @@ import { PipelinePanel } from '../src/PipelinePanel.tsx'
 const panel: Panel = { id: 'build', type: 'pipeline-status' }
 
 afterEach(() => {
-  cleanup()
   vi.useRealTimers()
 })
 

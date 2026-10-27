@@ -1,8 +1,6 @@
-import { cleanup, render } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { render } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
 import { RunningProgress } from '../src/RunningProgress.tsx'
-
-afterEach(cleanup)
 
 describe('RunningProgress', () => {
   it('renders the legacy signal tracks and phased markers', () => {

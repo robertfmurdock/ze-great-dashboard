@@ -1,3 +1,4 @@
+import { cleanup } from '@testing-library/react'
 import { afterEach } from 'vitest'
 
 // React 19 uses this marker to distinguish an act-enabled test environment from a browser.
@@ -32,3 +33,7 @@ Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: l
 afterEach(() => {
   values.clear()
 })
+
+// Vitest globals are intentionally disabled, so React Testing Library cannot discover afterEach
+// and install its own cleanup hook. Register it once for every browser-facing test instead.
+afterEach(cleanup)

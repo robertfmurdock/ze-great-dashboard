@@ -33,7 +33,6 @@ const renderField = (animation: RunningFieldAnimation) =>
   ).container
 
 afterEach(() => {
-  cleanup()
   vi.useRealTimers()
   vi.restoreAllMocks()
 })
