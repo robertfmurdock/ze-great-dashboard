@@ -480,3 +480,13 @@ Testmints reporting plugin was added. Keeping native `test` registration explici
 discovery and avoids introducing project-specific Testmints infrastructure for an experimental
 dependency. The full unit suite again executes the migrated evidence; the Docker-backed endpoint
 gate remains subject to the local Docker builder being accessible.
+
+### Follow-up: App composition boundary
+
+`packages/client/test/App.test.tsx` now runs its board-shell, security, polling, panel, and layout
+scenarios through the Testmints Vitest adapter. Scenario setup owns the default pending request,
+browser storage reset, and resource-scoped React/global/timer cleanup, so asynchronous polling
+and fake-clock cases cannot leak state into another scenario. The direct shell and security-details
+cases retain explicit setup, exercise, and verification phases; the existing polling scenarios keep
+their tested action sequences and observable assertions unchanged. No production behavior,
+dependency, or reporting configuration changed.

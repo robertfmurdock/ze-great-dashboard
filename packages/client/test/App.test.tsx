@@ -1,8 +1,11 @@
+import type { ResourceScope } from '@continuous-excellence/testmints-js'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { cleanup, render as rtlRender, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ClientEnv, PipelineStatus } from '@ze-great-dashboard/shared/browser'
+import type React from 'react'
 import { act, StrictMode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { App } from '../src/App.tsx'
 import { ConfigError } from '../src/ConfigError.tsx'
 import { SecurityDetails } from '../src/SecurityDetails.tsx'
@@ -14,7 +17,7 @@ const env: ClientEnv = {
   board: 'ze-great-team',
 }
 
-beforeEach(() => {
+function clientTestFixture(scope: ResourceScope) {
   // The shell tests do not exercise networking. Keep the request pending so its completion cannot
   // update React after the test's act scope has ended.
   vi.stubGlobal(
@@ -29,137 +32,251 @@ beforeEach(() => {
   } catch {
     // Browser storage may be unavailable; the application treats it as an optional optimization.
   }
-})
+  scope.defer('client test cleanup', () => {
+    cleanup()
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+}
 
 function render(node: React.ReactNode): HTMLElement {
   return rtlRender(<StrictMode>{node}</StrictMode>).container
 }
 
-afterEach(() => {
-  cleanup()
-  vi.unstubAllGlobals()
-  vi.useRealTimers()
-})
-
 describe('the board shell', () => {
-  it('names the board it was told it is', () => {
-    expect(render(<App env={env} />).textContent).toContain('ze-great-team')
-  })
+  test(
+    'names the board it was told it is',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        return { env }
+      },
+      exercise: ({ env }) => render(<App env={env} />).textContent,
+      verify: (text) => expect(text).toContain('ze-great-team'),
+    }),
+  )
 
-  it('keeps deployment details available through Diagnostics', async () => {
-    render(<App env={env} />)
-    await userEvent.setup().click(screen.getByRole('button', { name: /Diagnostics/ }))
-    const text = document.body.textContent
-    expect(text).toContain('dev')
-    expect(text).toContain('https://assets.example.com/dashboard/1.0.7')
-  })
+  test(
+    'keeps deployment details available through Diagnostics',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        return { user: userEvent.setup() }
+      },
+      exercise: async ({ user }) => {
+        render(<App env={env} />)
+        await user.click(screen.getByRole('button', { name: /Diagnostics/ }))
+        return document.body.textContent
+      },
+      verify: (text) => {
+        expect(text).toContain('dev')
+        expect(text).toContain('https://assets.example.com/dashboard/1.0.7')
+      },
+    }),
+  )
 
-  it('renders a loading panel until the server provides its board config', () => {
-    expect(render(<App env={env} />).textContent).toMatch(/Loading configuration/i)
-  })
+  test(
+    'renders a loading panel until the server provides its board config',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        return { env }
+      },
+      exercise: ({ env }) => render(<App env={env} />).textContent,
+      verify: (text) => expect(text).toMatch(/Loading configuration/i),
+    }),
+  )
 
-  it('explains that signals come from their configured authorities', () => {
-    expect(render(<App env={env} />).textContent).toMatch(/read live/i)
-  })
+  test(
+    'explains that signals come from their configured authorities',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        return { env }
+      },
+      exercise: ({ env }) => render(<App env={env} />).textContent,
+      verify: (text) => expect(text).toMatch(/read live/i),
+    }),
+  )
 })
 
 describe('when configuration never arrived', () => {
-  it('says so on screen instead of rendering an empty board', () => {
-    const text = render(<ConfigError message="assetPath: required" />).textContent
+  test(
+    'says so on screen instead of rendering an empty board',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        return { message: 'assetPath: required' }
+      },
+      exercise: ({ message }) => render(<ConfigError message={message} />).textContent,
+      verify: (text, { message }) => {
+        expect(text).toMatch(/misconfigured/i)
+        expect(text).toContain(message)
+      },
+    }),
+  )
 
-    expect(text).toMatch(/misconfigured/i)
-    expect(text).toContain('assetPath: required')
-  })
-
-  it('announces itself to assistive technology', () => {
-    expect(render(<ConfigError message="broken" />).querySelector('[role="alert"]')).not.toBeNull()
-  })
+  test(
+    'announces itself to assistive technology',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        return { message: 'broken' }
+      },
+      exercise: ({ message }) =>
+        render(<ConfigError message={message} />).querySelector('[role="alert"]'),
+      verify: (alert) => expect(alert).not.toBeNull(),
+    }),
+  )
 })
 
 describe('deployment security boundary', () => {
-  it('keeps the unauthenticated deployment warning visible before board loading', () => {
-    const rendered = render(<App env={{ ...env, security: 'warning' }} />)
-    expect(rendered.querySelector('[role="alert"]')?.textContent).toMatch(/no authentication/i)
-    expect(rendered.textContent).toMatch(/security: unsecured/)
-    expect(rendered.textContent).toMatch(/take it down now/i)
-    expect(rendered.querySelector('a')?.href).toContain('docs/oidc-authentication.md')
-  })
+  test(
+    'keeps the unauthenticated deployment warning visible before board loading',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        return { env: { ...env, security: 'warning' as const } }
+      },
+      exercise: ({ env }) => render(<App env={env} />),
+      verify: (rendered) => {
+        expect(rendered.querySelector('[role="alert"]')?.textContent).toMatch(/no authentication/i)
+        expect(rendered.textContent).toMatch(/security: unsecured/)
+        expect(rendered.textContent).toMatch(/take it down now/i)
+        expect(rendered.querySelector('a')?.href).toContain('docs/oidc-authentication.md')
+      },
+    }),
+  )
 
-  it('renders the blocked boundary without fetching board or panel data', () => {
-    const fetcher = vi.fn()
-    vi.stubGlobal('fetch', fetcher)
-    const rendered = render(<App env={{ ...env, security: 'blocked' }} />)
-    expect(rendered.textContent).toMatch(/authentication.*required/i)
-    expect(rendered.textContent).toMatch(/No dashboard data was loaded/i)
-    expect(fetcher).not.toHaveBeenCalled()
-  })
+  test(
+    'renders the blocked boundary without fetching board or panel data',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        const fetcher = vi.fn()
+        vi.stubGlobal('fetch', fetcher)
+        return { env: { ...env, security: 'blocked' as const }, fetcher }
+      },
+      exercise: ({ env }) => render(<App env={env} />),
+      verify: (rendered, { fetcher }) => {
+        expect(rendered.textContent).toMatch(/authentication.*required/i)
+        expect(rendered.textContent).toMatch(/No dashboard data was loaded/i)
+        expect(fetcher).not.toHaveBeenCalled()
+      },
+    }),
+  )
 })
 
 describe('security details', () => {
-  it('lazily fetches and renders only safe claim-policy metadata with the authenticated request', async () => {
-    const user = userEvent.setup()
-    const fetcher = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(() =>
-      Promise.resolve(
-        Response.json({
-          oidc: true,
-          policy: { mode: 'claim', claim: 'groups', match: 'any' },
-        }),
-      ),
-    )
-    vi.stubGlobal('fetch', fetcher)
-    render(
-      <SecurityDetails
-        env={env}
-        auth={{ accessToken: 'access-token', onAuthenticationFailure: vi.fn() }}
-      />,
-    )
-    expect(fetcher).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: 'Security' }))
-    await act(async () => {})
-    expect(fetcher).toHaveBeenCalledOnce()
-    expect(new Headers(fetcher.mock.calls[0]?.[1]?.headers).get('authorization')).toBe(
-      'Bearer access-token',
-    )
-    expect(screen.getByRole('dialog').textContent).toContain('groups')
-    expect(screen.getByRole('dialog').textContent).toContain('any')
-    expect(screen.getByRole('dialog').textContent).not.toContain('access-token')
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
-    await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Security' }))
-  })
+  test(
+    'lazily fetches and renders only safe claim-policy metadata with the authenticated request',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        const fetcher = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+          () =>
+            Promise.resolve(
+              Response.json({
+                oidc: true,
+                policy: { mode: 'claim', claim: 'groups', match: 'any' },
+              }),
+            ),
+        )
+        vi.stubGlobal('fetch', fetcher)
+        render(
+          <SecurityDetails
+            env={env}
+            auth={{ accessToken: 'access-token', onAuthenticationFailure: vi.fn() }}
+          />,
+        )
+        return { fetcher, user: userEvent.setup(), callsBeforeClick: fetcher.mock.calls.length }
+      },
+      exercise: async ({ user }) => {
+        await user.click(screen.getByRole('button', { name: 'Security' }))
+        await act(async () => {})
+        const dialog = screen.getByRole('dialog')
+        const focusWasClose =
+          document.activeElement === screen.getByRole('button', { name: 'Close' })
+        await user.keyboard('{Escape}')
+        return {
+          dialog,
+          focusWasClose,
+          focusWasSecurityAfterEscape:
+            document.activeElement === screen.getByRole('button', { name: 'Security' }),
+        }
+      },
+      verify: (
+        { dialog, focusWasClose, focusWasSecurityAfterEscape },
+        { fetcher, callsBeforeClick },
+      ) => {
+        expect(callsBeforeClick).toBe(0)
+        expect(fetcher).toHaveBeenCalledOnce()
+        expect(new Headers(fetcher.mock.calls[0]?.[1]?.headers).get('authorization')).toBe(
+          'Bearer access-token',
+        )
+        expect(dialog.textContent).toContain('groups')
+        expect(dialog.textContent).toContain('any')
+        expect(dialog.textContent).not.toContain('access-token')
+        expect(focusWasClose).toBe(true)
+        expect(screen.queryByRole('dialog')).toBeNull()
+        expect(focusWasSecurityAfterEscape).toBe(true)
+      },
+    }),
+  )
 
-  it('shows a safe failure without rendering policy details', async () => {
-    const user = userEvent.setup()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(new Response(null, { status: 500 }))),
-    )
-    render(<SecurityDetails env={env} auth={{ accessToken: 'access-token' }} />)
-    await user.click(screen.getByRole('button', { name: 'Security' }))
-    await act(async () => {})
-    expect(screen.getByRole('alert').textContent).toContain('Security details are unavailable.')
-    expect(screen.getByRole('dialog').textContent).not.toContain('groups')
-  })
+  test(
+    'shows a safe failure without rendering policy details',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(() => Promise.resolve(new Response(null, { status: 500 }))),
+        )
+        render(<SecurityDetails env={env} auth={{ accessToken: 'access-token' }} />)
+        return { user: userEvent.setup() }
+      },
+      exercise: async ({ user }) => {
+        await user.click(screen.getByRole('button', { name: 'Security' }))
+        await act(async () => {})
+        return { alert: screen.getByRole('alert'), dialog: screen.getByRole('dialog') }
+      },
+      verify: ({ alert, dialog }) => {
+        expect(alert.textContent).toContain('Security details are unavailable.')
+        expect(dialog.textContent).not.toContain('groups')
+      },
+    }),
+  )
 
-  it('reports a denied security request through the supplied auth boundary', async () => {
-    const user = userEvent.setup()
-    const denied = vi.fn()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(new Response(null, { status: 403 }))),
-    )
-    render(
-      <SecurityDetails
-        env={env}
-        auth={{ accessToken: 'access-token', onAuthenticationFailure: denied }}
-      />,
-    )
-    await user.click(screen.getByRole('button', { name: 'Security' }))
-    await act(async () => {})
-    expect(denied).toHaveBeenCalledWith(403)
-    expect(screen.getByRole('dialog').textContent).not.toContain('groups')
-  })
+  test(
+    'reports a denied security request through the supplied auth boundary',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        const denied = vi.fn()
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(() => Promise.resolve(new Response(null, { status: 403 }))),
+        )
+        render(
+          <SecurityDetails
+            env={env}
+            auth={{ accessToken: 'access-token', onAuthenticationFailure: denied }}
+          />,
+        )
+        return { denied, user: userEvent.setup() }
+      },
+      exercise: async ({ user }) => {
+        await user.click(screen.getByRole('button', { name: 'Security' }))
+        await act(async () => {})
+        return screen.getByRole('dialog')
+      },
+      verify: (dialog, { denied }) => {
+        expect(denied).toHaveBeenCalledWith(403)
+        expect(dialog.textContent).not.toContain('groups')
+      },
+    }),
+  )
 })
 
 describe('pipeline-status refresh scheduling', () => {
@@ -205,114 +322,171 @@ describe('pipeline-status refresh scheduling', () => {
     await act(async () => {})
   }
 
-  it('fetches each supported panel immediately and does not fetch unsupported panels', async () => {
-    const { requests } = setup({
-      panels: [
-        { id: 'build', type: 'pipeline-status' },
-        { id: 'note', type: 'markdown' },
-        { id: 'deploy', type: 'pipeline-status' },
-      ],
-    })
+  function dashboardFixture(
+    scope: ResourceScope,
+    board: Record<string, unknown>,
+    responses?: Record<string, Array<Response | Promise<Response>>>,
+  ) {
+    clientTestFixture(scope)
+    return setup(board, responses)
+  }
 
-    render(<App env={env} />)
-    await settle()
-
-    expect(requests.filter((url) => url.includes('/panel/'))).toHaveLength(2)
-    expect(requests.some((url) => url.endsWith('/note'))).toBe(false)
-  })
-
-  it('renders the local animation demo without creating a panel request', async () => {
-    const { requests } = setup({
-      panels: [{ id: 'active-run-treatments', type: 'pipeline-animation-demo' }],
-    })
-
-    const rendered = render(<App env={env} />)
-    await settle()
-
-    expect(rendered.textContent).toContain('Demo treatment ·')
-    expect(rendered.querySelector('[data-running-field], [data-running-progress]')).not.toBeNull()
-    expect(requests.filter((url) => url.includes('/panel/'))).toEqual([])
-  })
-
-  it('shows a brief duration for completed runs only', async () => {
-    const { requests } = setup(
-      { panels: [{ id: 'build', type: 'pipeline-status' }] },
-      {
-        build: [new Response(okEnvelope('build', 'passed', 134_000))],
+  test(
+    'fetches each supported panel immediately and does not fetch unsupported panels',
+    mint({
+      setup: ({ scope }) =>
+        dashboardFixture(scope, {
+          panels: [
+            { id: 'build', type: 'pipeline-status' },
+            { id: 'note', type: 'markdown' },
+            { id: 'deploy', type: 'pipeline-status' },
+          ],
+        }),
+      exercise: async () => {
+        render(<App env={env} />)
+        await settle()
       },
-    )
-
-    const rendered = render(<App env={env} />)
-    await settle()
-
-    expect(requests.some((url) => url.endsWith('/build'))).toBe(true)
-    expect(rendered.textContent).toContain('Took 2m 14s')
-    expect(rendered.textContent).toContain('Last update')
-    expect(rendered.textContent).not.toContain('Checked')
-  })
-
-  it('shows concise live activity only for in-progress runs', async () => {
-    setup(
-      { panels: [{ id: 'build', type: 'pipeline-status' }] },
-      {
-        build: [
-          new Response(
-            okEnvelope('build', 'running').replace(
-              '"sourceUpdatedAt":"2026-08-18T11:00:00.000Z"',
-              '"sourceUpdatedAt":"2026-08-18T11:00:00.000Z","activity":{"kind":"step","name":"integration tests","parent":"build"}',
-            ),
-          ),
-        ],
+      verify: (_output, { requests }) => {
+        expect(requests.filter((url) => url.includes('/panel/'))).toHaveLength(2)
+        expect(requests.some((url) => url.endsWith('/note'))).toBe(false)
       },
-    )
-    const rendered = render(<App env={env} />)
-    await settle()
-    expect(rendered.textContent).toContain('build › integration tests')
-    expect(rendered.textContent).not.toContain('in_progress')
-  })
+    }),
+  )
 
-  it('shows the source update age instead of browser poll evidence', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-28T12:10:00.000Z'))
-    setup(
-      { panels: [{ id: 'build', type: 'pipeline-status' }] },
-      {
-        build: [
-          new Response(
-            JSON.stringify({
-              panelId: 'build',
-              state: 'ok',
-              observedAt: '2026-08-28T12:00:00.000Z',
-              link: null,
-              signal: {
-                type: 'pipeline-status',
-                status: 'passed',
-                rawStatus: 'success',
-                name: 'Build',
-                sourceUpdatedAt: '2026-08-28T11:00:00.000Z',
-              },
-            }),
-          ),
-        ],
+  test(
+    'renders the local animation demo without creating a panel request',
+    mint({
+      setup: ({ scope }) =>
+        dashboardFixture(scope, {
+          panels: [{ id: 'active-run-treatments', type: 'pipeline-animation-demo' }],
+        }),
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered
       },
-    )
-    const rendered = render(<App env={env} />)
-    await settle()
-    expect(rendered.textContent).not.toContain('Checked')
-    expect(rendered.textContent).toContain('Last update 1h 10m ago')
-  })
+      verify: (rendered, { requests }) => {
+        expect(rendered.textContent).toContain('Demo treatment ·')
+        expect(
+          rendered.querySelector('[data-running-field], [data-running-progress]'),
+        ).not.toBeNull()
+        expect(requests.filter((url) => url.includes('/panel/'))).toEqual([])
+      },
+    }),
+  )
 
-  it('does not show duration while a run is in progress', async () => {
-    setup(
-      { panels: [{ id: 'build', type: 'pipeline-status' }] },
-      { build: [new Response(okEnvelope('build', 'running', 134_000))] },
-    )
+  test(
+    'shows a brief duration for completed runs only',
+    mint({
+      setup: ({ scope }) =>
+        dashboardFixture(
+          scope,
+          { panels: [{ id: 'build', type: 'pipeline-status' }] },
+          { build: [new Response(okEnvelope('build', 'passed', 134_000))] },
+        ),
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered
+      },
+      verify: (rendered, { requests }) => {
+        expect(requests.some((url) => url.endsWith('/build'))).toBe(true)
+        expect(rendered.textContent).toContain('Took 2m 14s')
+        expect(rendered.textContent).toContain('Last update')
+        expect(rendered.textContent).not.toContain('Checked')
+      },
+    }),
+  )
 
-    const rendered = render(<App env={env} />)
-    await settle()
+  test(
+    'shows concise live activity only for in-progress runs',
+    mint({
+      setup: ({ scope }) =>
+        dashboardFixture(
+          scope,
+          { panels: [{ id: 'build', type: 'pipeline-status' }] },
+          {
+            build: [
+              new Response(
+                okEnvelope('build', 'running').replace(
+                  '"sourceUpdatedAt":"2026-08-18T11:00:00.000Z"',
+                  '"sourceUpdatedAt":"2026-08-18T11:00:00.000Z","activity":{"kind":"step","name":"integration tests","parent":"build"}',
+                ),
+              ),
+            ],
+          },
+        ),
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered
+      },
+      verify: (rendered) => {
+        expect(rendered.textContent).toContain('build › integration tests')
+        expect(rendered.textContent).not.toContain('in_progress')
+      },
+    }),
+  )
 
-    expect(rendered.textContent).not.toContain('Took')
-  })
+  test(
+    'shows the source update age instead of browser poll evidence',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-08-28T12:10:00.000Z'))
+        setup(
+          { panels: [{ id: 'build', type: 'pipeline-status' }] },
+          {
+            build: [
+              new Response(
+                JSON.stringify({
+                  panelId: 'build',
+                  state: 'ok',
+                  observedAt: '2026-08-28T12:00:00.000Z',
+                  link: null,
+                  signal: {
+                    type: 'pipeline-status',
+                    status: 'passed',
+                    rawStatus: 'success',
+                    name: 'Build',
+                    sourceUpdatedAt: '2026-08-28T11:00:00.000Z',
+                  },
+                }),
+              ),
+            ],
+          },
+        )
+      },
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered
+      },
+      verify: (rendered) => {
+        expect(rendered.textContent).not.toContain('Checked')
+        expect(rendered.textContent).toContain('Last update 1h 10m ago')
+      },
+    }),
+  )
+
+  test(
+    'does not show duration while a run is in progress',
+    mint({
+      setup: ({ scope }) =>
+        dashboardFixture(
+          scope,
+          { panels: [{ id: 'build', type: 'pipeline-status' }] },
+          { build: [new Response(okEnvelope('build', 'running', 134_000))] },
+        ),
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered
+      },
+      verify: (rendered) => expect(rendered.textContent).not.toContain('Took'),
+    }),
+  )
 
   function runningEnvelope(
     panelId: string,
@@ -336,17 +510,18 @@ describe('pipeline-status refresh scheduling', () => {
     )
   }
 
-  async function renderRunningPanel(
-    animation:
-      | 'radial'
-      | 'runway'
-      | 'orbit'
-      | 'signal-field'
-      | 'telemetry-bloom'
-      | 'release-transit'
-      | 'status-weather'
-      | 'flight-path',
-  ) {
+  type RunningAnimation =
+    | 'radial'
+    | 'runway'
+    | 'orbit'
+    | 'signal-field'
+    | 'telemetry-bloom'
+    | 'release-transit'
+    | 'status-weather'
+    | 'flight-path'
+
+  function runningPanelFixture(scope: ResourceScope, animation: RunningAnimation) {
+    clientTestFixture(scope)
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-18T12:02:00.000Z'))
     setup(
@@ -360,501 +535,726 @@ describe('pipeline-status refresh scheduling', () => {
         ],
       },
     )
-    const rendered = render(<App env={env} />)
-    await settle()
-    return rendered
+    return { animation }
   }
 
-  it.each(['radial', 'orbit'] as const)(
-    'renders the %s active-run treatment with local elapsed progress',
-    async (animation) => {
-      const rendered = await renderRunningPanel(animation)
+  for (const animation of ['radial', 'orbit'] as const)
+    test(
+      `renders the ${animation} active-run treatment with local elapsed progress`,
+      mint({
+        setup: ({ scope }) => runningPanelFixture(scope, animation),
+        exercise: async () => {
+          const rendered = render(<App env={env} />)
+          await settle()
+          const initialText = rendered.textContent
+          await act(async () => vi.advanceTimersByTime(1_000))
+          return { rendered, initialText, advancedText: rendered.textContent }
+        },
+        verify: ({ rendered, initialText, advancedText }, { animation }) => {
+          expect(rendered.querySelector(`[data-running-progress="${animation}"]`)).not.toBeNull()
+          expect(initialText).toContain('Elapsed 2m 0s')
+          expect(initialText).toContain('Expected ≈ ')
+          expect(advancedText).toContain('Elapsed 2m 1s')
+        },
+      }),
+    )
 
-      expect(rendered.querySelector(`[data-running-progress="${animation}"]`)).not.toBeNull()
-      expect(rendered.textContent).toContain('Elapsed 2m 0s')
-      expect(rendered.textContent).toContain('Expected ≈ ')
+  for (const animation of ['runway', 'signal-field'] as const)
+    test(
+      `renders the ${animation} compact active-run readout with local elapsed progress`,
+      mint({
+        setup: ({ scope }) => runningPanelFixture(scope, animation),
+        exercise: async () => {
+          const rendered = render(<App env={env} />)
+          await settle()
+          const initialText = rendered.textContent
+          await act(async () => vi.advanceTimersByTime(1_000))
+          return { rendered, initialText, advancedText: rendered.textContent }
+        },
+        verify: ({ rendered, initialText, advancedText }, { animation }) => {
+          expect(rendered.querySelector(`[data-running-progress="${animation}"]`)).not.toBeNull()
+          expect(initialText).toMatch(/2:00\/~\d+:\d{2}/)
+          expect(advancedText).toMatch(/2:01\/~\d+:\d{2}/)
+        },
+      }),
+    )
 
-      await act(async () => vi.advanceTimersByTime(1_000))
-      expect(rendered.textContent).toContain('Elapsed 2m 1s')
-    },
+  test(
+    'keeps the signal-field visual decorative alongside its compact active-run readout',
+    mint({
+      setup: ({ scope }) => runningPanelFixture(scope, 'signal-field'),
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered.querySelector('[data-running-visual]')?.getAttribute('aria-hidden')
+      },
+      verify: (ariaHidden) => expect(ariaHidden).toBe('true'),
+    }),
   )
 
-  it.each(['runway', 'signal-field'] as const)(
-    'renders the %s compact active-run readout with local elapsed progress',
-    async (animation) => {
-      const rendered = await renderRunningPanel(animation)
+  for (const animation of [
+    'telemetry-bloom',
+    'release-transit',
+    'status-weather',
+    'flight-path',
+  ] as const)
+    test(
+      `renders the ${animation} active-run field with local elapsed progress`,
+      mint({
+        setup: ({ scope }) => runningPanelFixture(scope, animation),
+        exercise: async () => {
+          const rendered = render(<App env={env} />)
+          await settle()
+          const initialText = rendered.textContent
+          await act(async () => vi.advanceTimersByTime(1_000))
+          return { rendered, initialText, advancedText: rendered.textContent }
+        },
+        verify: ({ rendered, initialText, advancedText }, { animation }) => {
+          expect(
+            rendered.querySelector(`[data-running-field][data-animation="${animation}"]`),
+          ).not.toBeNull()
+          expect(initialText).toMatch(/2:00\/~\d+:\d{2}/)
+          expect(advancedText).toMatch(/2:01\/~\d+:\d{2}/)
+        },
+      }),
+    )
 
-      expect(rendered.querySelector(`[data-running-progress="${animation}"]`)).not.toBeNull()
-      expect(rendered.textContent).toMatch(/2:00\/~\d+:\d{2}/)
-
-      await act(async () => vi.advanceTimersByTime(1_000))
-      expect(rendered.textContent).toMatch(/2:01\/~\d+:\d{2}/)
-    },
+  test(
+    'keeps an overdue run visibly active and can disable the treatment per panel',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-08-18T12:05:00.000Z'))
+        setup(
+          {
+            panels: [
+              { id: 'late', type: 'pipeline-status', running_animation: 'runway' },
+              { id: 'plain', type: 'pipeline-status', running_animation: 'off' },
+            ],
+          },
+          {
+            late: [
+              runningEnvelope('late', {
+                startedAt: '2026-08-18T12:00:00.000Z',
+                estimateMs: 60_000,
+              }),
+            ],
+            plain: [runningEnvelope('plain')],
+          },
+        )
+      },
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered
+      },
+      verify: (rendered) => {
+        expect(
+          rendered.querySelector('[data-running-progress][data-overdue="true"]'),
+        ).not.toBeNull()
+        expect(rendered.textContent).toContain('⚠5:00/~1:00')
+        expect(rendered.textContent).toContain('Running')
+        expect(rendered.querySelectorAll('[data-running-progress]')).toHaveLength(1)
+      },
+    }),
   )
 
-  it('keeps the signal-field visual decorative alongside its compact active-run readout', async () => {
-    const rendered = await renderRunningPanel('signal-field')
-
-    expect(rendered.querySelector('[data-running-visual]')?.getAttribute('aria-hidden')).toBe(
-      'true',
-    )
-  })
-
-  it.each(['telemetry-bloom', 'release-transit', 'status-weather', 'flight-path'] as const)(
-    'renders the %s active-run field with local elapsed progress',
-    async (animation) => {
-      const rendered = await renderRunningPanel(animation)
-
-      expect(
-        rendered.querySelector(`[data-running-field][data-animation="${animation}"]`),
-      ).not.toBeNull()
-      expect(rendered.textContent).toMatch(/2:00\/~\d+:\d{2}/)
-
-      await act(async () => vi.advanceTimersByTime(1_000))
-      expect(rendered.textContent).toMatch(/2:01\/~\d+:\d{2}/)
-    },
+  test(
+    'renders an indeterminate active treatment when timing history is unavailable',
+    mint({
+      setup: ({ scope }) =>
+        dashboardFixture(
+          scope,
+          {
+            panels: [
+              { id: 'build', type: 'pipeline-status', running_animation: 'telemetry-bloom' },
+            ],
+          },
+          { build: [runningEnvelope('build')] },
+        ),
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered
+      },
+      verify: (rendered) => {
+        expect(
+          rendered.querySelector(
+            '[data-running-field][data-animation="telemetry-bloom"][data-indeterminate="true"]',
+          ),
+        ).not.toBeNull()
+        expect(rendered.textContent).toContain('Expected duration unavailable')
+      },
+    }),
   )
 
-  it('keeps an overdue run visibly active and can disable the treatment per panel', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-18T12:05:00.000Z'))
-    setup(
-      {
-        panels: [
-          { id: 'late', type: 'pipeline-status', running_animation: 'runway' },
-          { id: 'plain', type: 'pipeline-status', running_animation: 'off' },
-        ],
+  test(
+    'uses panel refresh before the board refresh',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        vi.useFakeTimers()
+        return setup({
+          refresh: '200ms',
+          panels: [
+            { id: 'board-default', type: 'pipeline-status' },
+            { id: 'panel-override', type: 'pipeline-status', refresh: '100ms' },
+            { id: 'fallback', type: 'pipeline-status' },
+          ],
+        })
       },
-      {
-        late: [
-          runningEnvelope('late', {
-            startedAt: '2026-08-18T12:00:00.000Z',
-            estimateMs: 60_000,
-          }),
-        ],
-        plain: [runningEnvelope('plain')],
+      exercise: async ({ requests }) => {
+        render(<App env={env} />)
+        await settle()
+        const panelRequests = () => requests.filter((url) => url.includes('/panel/'))
+        const initial = panelRequests().length
+        await act(async () => vi.advanceTimersByTime(99))
+        const beforeOverride = panelRequests().length
+        await act(async () => vi.advanceTimersByTime(1))
+        const overrides = panelRequests().filter((url) => url.endsWith('/panel-override')).length
+        await act(async () => vi.advanceTimersByTime(100))
+        return {
+          initial,
+          beforeOverride,
+          boardDefaults: panelRequests().filter((url) => url.endsWith('/board-default')).length,
+          overrides,
+        }
       },
-    )
-    const rendered = render(<App env={env} />)
-    await settle()
-
-    expect(rendered.querySelector('[data-running-progress][data-overdue="true"]')).not.toBeNull()
-    expect(rendered.textContent).toContain('⚠5:00/~1:00')
-    expect(rendered.textContent).toContain('Running')
-    expect(rendered.querySelectorAll('[data-running-progress]')).toHaveLength(1)
-  })
-
-  it('renders an indeterminate active treatment when timing history is unavailable', async () => {
-    setup(
-      { panels: [{ id: 'build', type: 'pipeline-status', running_animation: 'telemetry-bloom' }] },
-      { build: [runningEnvelope('build')] },
-    )
-    const rendered = render(<App env={env} />)
-    await settle()
-
-    expect(
-      rendered.querySelector(
-        '[data-running-field][data-animation="telemetry-bloom"][data-indeterminate="true"]',
-      ),
-    ).not.toBeNull()
-    expect(rendered.textContent).toContain('Expected duration unavailable')
-  })
-
-  it('uses panel refresh before the board refresh', async () => {
-    vi.useFakeTimers()
-    const { requests } = setup({
-      refresh: '200ms',
-      panels: [
-        { id: 'board-default', type: 'pipeline-status' },
-        { id: 'panel-override', type: 'pipeline-status', refresh: '100ms' },
-        { id: 'fallback', type: 'pipeline-status' },
-      ],
-    })
-
-    render(<App env={env} />)
-    await settle()
-    const panelRequests = () => requests.filter((url) => url.includes('/panel/'))
-
-    await act(async () => vi.advanceTimersByTime(99))
-    expect(panelRequests()).toHaveLength(3)
-    await act(async () => vi.advanceTimersByTime(1))
-    expect(panelRequests().filter((url) => url.endsWith('/panel-override'))).toHaveLength(2)
-    await act(async () => vi.advanceTimersByTime(100))
-    expect(panelRequests().filter((url) => url.endsWith('/board-default'))).toHaveLength(2)
-  })
-
-  it('uses a 60-second default when neither board nor panel sets refresh', async () => {
-    vi.useFakeTimers()
-    const { requests } = setup({ panels: [{ id: 'fallback', type: 'pipeline-status' }] })
-
-    render(<App env={env} />)
-    await settle()
-    await act(async () => vi.advanceTimersByTime(59_999))
-    expect(requests.filter((url) => url.endsWith('/fallback'))).toHaveLength(1)
-    await act(async () => vi.advanceTimersByTime(1))
-    expect(requests.filter((url) => url.endsWith('/fallback'))).toHaveLength(2)
-  })
-
-  it('updates the rendered signal on refresh', async () => {
-    vi.useFakeTimers()
-    setup(
-      { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
-      {
-        build: [
-          new Response(okEnvelope('build', 'passed')),
-          new Response(okEnvelope('build', 'failed')),
-        ],
+      verify: ({ initial, beforeOverride, overrides, boardDefaults }) => {
+        expect(initial).toBe(3)
+        expect(beforeOverride).toBe(3)
+        expect(overrides).toBe(2)
+        expect(boardDefaults).toBe(2)
       },
-    )
+    }),
+  )
 
-    const rendered = render(<App env={env} />)
-    await settle()
-    expect(rendered.textContent).toContain('Passed')
-    expect(rendered.textContent).toContain('main')
-    await act(async () => vi.advanceTimersByTime(1_000))
-    await settle()
-    expect(rendered.textContent).toContain('Failed')
-  })
-
-  it('records responses, 304s, invalid envelopes, failures, and rendered changes locally', async () => {
-    vi.useFakeTimers()
-    const values = new Map<string, string>()
-    const store = {
-      getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => values.set(key, value),
-      removeItem: (key: string) => values.delete(key),
-    }
-    vi.stubGlobal('localStorage', store)
-    const rejected = Promise.reject(new Error('offline'))
-    rejected.catch(() => undefined)
-    setup(
-      { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
-      {
-        build: [
-          new Response(okEnvelope('build', 'passed'), { headers: { etag: 'W/"first"' } }),
-          new Response(null, { status: 304 }),
-          new Response(JSON.stringify({ nope: true })),
-          rejected,
-        ],
+  test(
+    'uses a 60-second default when neither board nor panel sets refresh',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        vi.useFakeTimers()
+        return setup({ panels: [{ id: 'fallback', type: 'pipeline-status' }] })
       },
-    )
-    render(<App env={env} />)
-    await settle()
-    for (let index = 0; index < 3; index++) {
-      await act(async () => vi.advanceTimersByTime(1_000))
-      await settle()
-    }
-    const saved = JSON.parse(store.getItem('ze-great-dashboard.diagnostics.v2') ?? '{}')
-    const kinds = saved.events.map((event: { kind: string }) => event.kind)
-    expect(kinds).toContain('panel-fetch-response')
-    expect(kinds).toContain('panel-fetch-parse-failure')
-    expect(kinds).toContain('panel-fetch-failure')
-    expect(kinds).toContain('panel-rendered')
-    expect(saved.events.some((event: { status?: number }) => event.status === 304)).toBe(true)
-  })
-
-  it('keeps the last signal visible while missed updates escalate and clear on recovery', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
-    const offline = () => {
-      const failure = Promise.reject(new Error('offline'))
-      failure.catch(() => undefined)
-      return failure
-    }
-    setup(
-      { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
-      {
-        build: [
-          new Response(okEnvelope('build', 'passed')),
-          offline(),
-          offline(),
-          offline(),
-          new Response(okEnvelope('build', 'passed')),
-        ],
+      exercise: async ({ requests }) => {
+        render(<App env={env} />)
+        await settle()
+        await act(async () => vi.advanceTimersByTime(59_999))
+        const beforeRefresh = requests.filter((url) => url.endsWith('/fallback')).length
+        await act(async () => vi.advanceTimersByTime(1))
+        return {
+          beforeRefresh,
+          afterRefresh: requests.filter((url) => url.endsWith('/fallback')).length,
+        }
       },
-    )
-
-    const rendered = render(<App env={env} />)
-    await settle()
-    expect(rendered.textContent).toContain('✓ Passed')
-    expect(rendered.textContent).not.toContain('Updates delayed')
-
-    await act(async () => vi.advanceTimersByTimeAsync(1_000))
-    expect(rendered.textContent).toContain('✓ Passed')
-    expect(rendered.textContent).toContain('Updates delayed · offline')
-    expect(rendered.textContent).toContain('Last confirmed just now')
-
-    await act(async () => vi.advanceTimersByTimeAsync(2_000))
-    expect(rendered.textContent).toContain('Updates unavailable · offline')
-
-    await act(async () => vi.advanceTimersByTimeAsync(1_000))
-    expect(rendered.textContent).not.toContain('Updates delayed')
-    expect(rendered.textContent).not.toContain('Updates unavailable')
-    expect(rendered.textContent).not.toContain('Last confirmed')
-  })
-
-  it('makes an empty workflow result clear on the panel', async () => {
-    setup(
-      { panels: [{ id: 'build', type: 'pipeline-status' }] },
-      {
-        build: [
-          new Response(
-            JSON.stringify({
-              panelId: 'build',
-              state: 'error',
-              observedAt: '2026-08-18T12:00:00.000Z',
-              link: 'https://github.com/example-org/example-repo/actions/workflows/build.yml',
-              error: {
-                kind: 'no-runs',
-                message:
-                  'No workflow runs found for branch "master". Check the source\'s branch setting.',
-              },
-            }),
-          ),
-        ],
+      verify: ({ beforeRefresh, afterRefresh }) => {
+        expect(beforeRefresh).toBe(1)
+        expect(afterRefresh).toBe(2)
       },
-    )
+    }),
+  )
 
-    const rendered = render(<App env={env} />)
-    await settle()
-    expect(rendered.textContent).toContain('No workflow runs')
-    expect(rendered.textContent).toContain('branch "master"')
-    const link = rendered.querySelector('[data-panel-link]')
-    expect(link?.getAttribute('aria-label')).toBe('View source for build (opens in a new tab)')
-    expect(link?.getAttribute('href')).toBe(
-      'https://github.com/example-org/example-repo/actions/workflows/build.yml',
-    )
-  })
-
-  it('makes source access problems explicit without inventing an incident time', async () => {
-    setup(
-      { panels: [{ id: 'build', type: 'pipeline-status' }] },
-      {
-        build: [
-          new Response(
-            JSON.stringify({
-              panelId: 'build',
-              state: 'error',
-              observedAt: '2026-08-18T12:00:00.000Z',
-              link: 'https://github.com/example-org/example-repo/actions/workflows/build.yml',
-              error: { kind: 'unauthorized', message: 'Token no longer grants workflow access.' },
-            }),
-          ),
-        ],
+  test(
+    'updates the rendered signal on refresh',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        vi.useFakeTimers()
+        setup(
+          { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
+          {
+            build: [
+              new Response(okEnvelope('build', 'passed')),
+              new Response(okEnvelope('build', 'failed')),
+            ],
+          },
+        )
       },
-    )
-
-    const rendered = render(<App env={env} />)
-    await settle()
-    expect(rendered.textContent).toContain('Access denied')
-    expect(rendered.textContent).toContain('Token no longer grants workflow access.')
-    expect(rendered.querySelector('[data-panel-id="build"]')?.textContent).not.toContain('Observed')
-    expect(rendered.querySelector('[data-panel-id="build"]')?.textContent).not.toContain('Checked')
-  })
-
-  it('keeps the source link when a pipeline signal is invalid', async () => {
-    setup(
-      { panels: [{ id: 'build', type: 'pipeline-status' }] },
-      {
-        build: [
-          new Response(
-            JSON.stringify({
-              panelId: 'build',
-              state: 'ok',
-              observedAt: '2026-08-18T12:00:00.000Z',
-              link: 'https://github.com/example-org/example-repo/actions/workflows/build.yml',
-              signal: { type: 'pipeline-status', status: 'surprising' },
-            }),
-          ),
-        ],
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        const initialText = rendered.textContent
+        await act(async () => vi.advanceTimersByTime(1_000))
+        await settle()
+        return { initialText, refreshedText: rendered.textContent }
       },
-    )
-
-    const rendered = render(<App env={env} />)
-    await settle()
-    expect(rendered.textContent).toContain('Invalid signal')
-    expect(rendered.querySelector('[data-panel-link]')?.getAttribute('href')).toBe(
-      'https://github.com/example-org/example-repo/actions/workflows/build.yml',
-    )
-  })
-
-  it('cleans up timers and ignores an in-flight response on unmount', async () => {
-    vi.useFakeTimers()
-    let resolvePanel: ((response: Response) => void) | undefined
-    const pending = new Promise<Response>((resolve) => {
-      resolvePanel = resolve
-    })
-    const { requests } = setup(
-      { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
-      { build: [pending] },
-    )
-
-    render(<App env={env} />)
-    await settle()
-    cleanup()
-    const countAfterUnmount = requests.length
-    await act(async () => vi.advanceTimersByTime(2_000))
-    resolvePanel?.(new Response(okEnvelope('build', 'failed')))
-    await settle()
-    expect(requests).toHaveLength(countAfterUnmount)
-  })
-
-  it('polls panels independently and never overlaps a pending request', async () => {
-    vi.useFakeTimers()
-    const pending = new Promise<Response>(() => {})
-    const { requests } = setup(
-      {
-        panels: [
-          { id: 'slow', type: 'pipeline-status', refresh: '1s' },
-          { id: 'fast', type: 'pipeline-status', refresh: '2s' },
-        ],
+      verify: ({ initialText, refreshedText }) => {
+        expect(initialText).toContain('Passed')
+        expect(initialText).toContain('main')
+        expect(refreshedText).toContain('Failed')
       },
-      { slow: [pending] },
-    )
+    }),
+  )
 
-    render(<App env={env} />)
-    await settle()
-    await act(async () => vi.advanceTimersByTime(2_000))
-    expect(requests.filter((url) => url.endsWith('/slow'))).toHaveLength(1)
-    expect(requests.filter((url) => url.endsWith('/fast'))).toHaveLength(2)
-  })
+  test(
+    'records responses, 304s, invalid envelopes, failures, and rendered changes locally',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        vi.useFakeTimers()
+        const values = new Map<string, string>()
+        const store = {
+          getItem: (key: string) => values.get(key) ?? null,
+          setItem: (key: string, value: string) => values.set(key, value),
+          removeItem: (key: string) => values.delete(key),
+        }
+        vi.stubGlobal('localStorage', store)
+        const rejected = Promise.reject(new Error('offline'))
+        rejected.catch(() => undefined)
+        setup(
+          { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
+          {
+            build: [
+              new Response(okEnvelope('build', 'passed'), { headers: { etag: 'W/"first"' } }),
+              new Response(null, { status: 304 }),
+              new Response(JSON.stringify({ nope: true })),
+              rejected,
+            ],
+          },
+        )
+        return { store }
+      },
+      exercise: async ({ store }) => {
+        render(<App env={env} />)
+        await settle()
+        for (let index = 0; index < 3; index++) {
+          await act(async () => vi.advanceTimersByTime(1_000))
+          await settle()
+        }
+        return JSON.parse(store.getItem('ze-great-dashboard.diagnostics.v2') ?? '{}')
+      },
+      verify: (saved) => {
+        const kinds = saved.events.map((event: { kind: string }) => event.kind)
+        expect(kinds).toContain('panel-fetch-response')
+        expect(kinds).toContain('panel-fetch-parse-failure')
+        expect(kinds).toContain('panel-fetch-failure')
+        expect(kinds).toContain('panel-rendered')
+        expect(saved.events.some((event: { status?: number }) => event.status === 304)).toBe(true)
+      },
+    }),
+  )
+
+  test(
+    'keeps the last signal visible while missed updates escalate and clear on recovery',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
+        const offline = () => {
+          const failure = Promise.reject(new Error('offline'))
+          failure.catch(() => undefined)
+          return failure
+        }
+        setup(
+          { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
+          {
+            build: [
+              new Response(okEnvelope('build', 'passed')),
+              offline(),
+              offline(),
+              offline(),
+              new Response(okEnvelope('build', 'passed')),
+            ],
+          },
+        )
+      },
+
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        const initialText = rendered.textContent
+
+        await act(async () => vi.advanceTimersByTimeAsync(1_000))
+        const delayedText = rendered.textContent
+
+        await act(async () => vi.advanceTimersByTimeAsync(2_000))
+        const unavailableText = rendered.textContent
+
+        await act(async () => vi.advanceTimersByTimeAsync(1_000))
+        return { initialText, delayedText, unavailableText, recoveredText: rendered.textContent }
+      },
+      verify: ({ initialText, delayedText, unavailableText, recoveredText }) => {
+        expect(initialText).toContain('✓ Passed')
+        expect(initialText).not.toContain('Updates delayed')
+        expect(delayedText).toContain('✓ Passed')
+        expect(delayedText).toContain('Updates delayed · offline')
+        expect(delayedText).toContain('Last confirmed just now')
+        expect(unavailableText).toContain('Updates unavailable · offline')
+        expect(recoveredText).not.toContain('Updates delayed')
+        expect(recoveredText).not.toContain('Updates unavailable')
+        expect(recoveredText).not.toContain('Last confirmed')
+      },
+    }),
+  )
+
+  test(
+    'makes an empty workflow result clear on the panel',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        const sourceLink = 'https://github.com/example-org/example-repo/actions/workflows/build.yml'
+        const panelId = 'build'
+        setup(
+          { panels: [{ id: panelId, type: 'pipeline-status' }] },
+          {
+            [panelId]: [
+              new Response(
+                JSON.stringify({
+                  panelId,
+                  state: 'error',
+                  observedAt: '2026-08-18T12:00:00.000Z',
+                  link: sourceLink,
+                  error: {
+                    kind: 'no-runs',
+                    message:
+                      'No workflow runs found for branch "master". Check the source\'s branch setting.',
+                  },
+                }),
+              ),
+            ],
+          },
+        )
+        return { panelId, sourceLink }
+      },
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered
+      },
+      verify: (rendered, { panelId, sourceLink }) => {
+        expect(rendered.textContent).toContain('No workflow runs')
+        expect(rendered.textContent).toContain('branch "master"')
+        const link = rendered.querySelector('[data-panel-link]')
+        expect(link?.getAttribute('aria-label')).toBe(
+          `View source for ${panelId} (opens in a new tab)`,
+        )
+        expect(link?.getAttribute('href')).toBe(sourceLink)
+      },
+    }),
+  )
+
+  test(
+    'makes source access problems explicit without inventing an incident time',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        const panelId = 'build'
+        const errorMessage = 'Token no longer grants workflow access.'
+        const sourceLink = 'https://github.com/example-org/example-repo/actions/workflows/build.yml'
+        setup(
+          { panels: [{ id: panelId, type: 'pipeline-status' }] },
+          {
+            [panelId]: [
+              new Response(
+                JSON.stringify({
+                  panelId,
+                  state: 'error',
+                  observedAt: '2026-08-18T12:00:00.000Z',
+                  link: sourceLink,
+                  error: {
+                    kind: 'unauthorized',
+                    message: errorMessage,
+                  },
+                }),
+              ),
+            ],
+          },
+        )
+        return { panelId, errorMessage, sourceLink }
+      },
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered
+      },
+      verify: (rendered, { panelId, errorMessage, sourceLink }) => {
+        expect(rendered.textContent).toContain('Access denied')
+        expect(rendered.textContent).toContain(errorMessage)
+        expect(rendered.querySelector('[data-panel-link]')?.getAttribute('href')).toBe(sourceLink)
+        expect(rendered.querySelector(`[data-panel-id="${panelId}"]`)?.textContent).not.toContain(
+          'Observed',
+        )
+        expect(rendered.querySelector(`[data-panel-id="${panelId}"]`)?.textContent).not.toContain(
+          'Checked',
+        )
+      },
+    }),
+  )
+
+  test(
+    'keeps the source link when a pipeline signal is invalid',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        const sourceLink = 'https://github.com/example-org/example-repo/actions/workflows/build.yml'
+        const panelId = 'build'
+        setup(
+          { panels: [{ id: panelId, type: 'pipeline-status' }] },
+          {
+            [panelId]: [
+              new Response(
+                JSON.stringify({
+                  panelId,
+                  state: 'ok',
+                  observedAt: '2026-08-18T12:00:00.000Z',
+                  link: sourceLink,
+                  signal: { type: 'pipeline-status', status: 'surprising' },
+                }),
+              ),
+            ],
+          },
+        )
+        return { sourceLink }
+      },
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered
+      },
+      verify: (rendered, { sourceLink }) => {
+        expect(rendered.textContent).toContain('Invalid signal')
+        expect(rendered.querySelector('[data-panel-link]')?.getAttribute('href')).toBe(sourceLink)
+      },
+    }),
+  )
+
+  test(
+    'cleans up timers and ignores an in-flight response on unmount',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        vi.useFakeTimers()
+        let resolvePanel: ((response: Response) => void) | undefined
+        const pending = new Promise<Response>((resolve) => {
+          resolvePanel = resolve
+        })
+        const { requests } = setup(
+          { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
+          { build: [pending] },
+        )
+        return { requests, resolvePanel }
+      },
+      exercise: async ({ requests, resolvePanel }) => {
+        render(<App env={env} />)
+        await settle()
+        cleanup()
+        const countAfterUnmount = requests.length
+        await act(async () => vi.advanceTimersByTime(2_000))
+        resolvePanel?.(new Response(okEnvelope('build', 'failed')))
+        await settle()
+        return { countAfterUnmount, requestCount: requests.length }
+      },
+      verify: ({ countAfterUnmount, requestCount }) => expect(requestCount).toBe(countAfterUnmount),
+    }),
+  )
+
+  test(
+    'polls panels independently and never overlaps a pending request',
+    mint({
+      setup: ({ scope }) => {
+        clientTestFixture(scope)
+        vi.useFakeTimers()
+        const pending = new Promise<Response>(() => {})
+        return setup(
+          {
+            panels: [
+              { id: 'slow', type: 'pipeline-status', refresh: '1s' },
+              { id: 'fast', type: 'pipeline-status', refresh: '2s' },
+            ],
+          },
+          { slow: [pending] },
+        )
+      },
+      exercise: async ({ requests }) => {
+        render(<App env={env} />)
+        await settle()
+        await act(async () => vi.advanceTimersByTime(2_000))
+        return {
+          slowRequests: requests.filter((url) => url.endsWith('/slow')).length,
+          fastRequests: requests.filter((url) => url.endsWith('/fast')).length,
+        }
+      },
+      verify: ({ slowRequests, fastRequests }) => {
+        expect(slowRequests).toBe(1)
+        expect(fastRequests).toBe(2)
+      },
+    }),
+  )
 })
 
 describe('http-value panels', () => {
-  it('reads independently configured facts into one partial, evidence-bearing panel', async () => {
-    const requests: string[] = []
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: string | URL) => {
-        const url = String(input)
-        requests.push(url)
-        if (url.startsWith('/api/boards/'))
-          return new Response(
-            JSON.stringify({
+  async function settle() {
+    await act(async () => {})
+  }
+
+  function httpFixture(scope: ResourceScope, fetcher: typeof fetch) {
+    clientTestFixture(scope)
+    vi.stubGlobal('fetch', fetcher)
+  }
+
+  test(
+    'reads independently configured facts into one partial, evidence-bearing panel',
+    mint({
+      setup: ({ scope }) => {
+        const requests: string[] = []
+        const apiFact = {
+          id: 'api',
+          label: 'API',
+          url: 'https://api.example.com/version',
+          value: '2.0.0',
+        }
+        const webFact = {
+          id: 'web',
+          label: 'Web',
+          url: 'https://web.example.com/version',
+        }
+        httpFixture(scope, async (input) => {
+          const url = String(input)
+          requests.push(url)
+          if (url.startsWith('/api/boards/'))
+            return Response.json({
               panels: [
                 {
                   id: 'versions',
                   type: 'http-value',
-                  facts: [
-                    { id: 'api', label: 'API', url: 'https://api.example.com/version' },
-                    { id: 'web', label: 'Web', url: 'https://web.example.com/version' },
-                  ],
+                  facts: [apiFact, webFact],
                 },
               ],
-            }),
+            })
+          return Response.json(
+            url.endsWith(`/facts/${apiFact.id}`)
+              ? {
+                  panelId: 'versions',
+                  state: 'ok',
+                  observedAt: '2026-08-18T12:00:00.000Z',
+                  link: apiFact.url,
+                  signal: { type: 'http-value', value: apiFact.value },
+                }
+              : {
+                  panelId: 'versions',
+                  state: 'error',
+                  observedAt: '2026-08-18T12:00:00.000Z',
+                  link: webFact.url,
+                  error: { kind: 'unreachable', message: 'offline' },
+                },
           )
-        if (url.endsWith('/facts/api'))
-          return new Response(
-            JSON.stringify({
-              panelId: 'versions',
-              state: 'ok',
-              observedAt: '2026-08-18T12:00:00.000Z',
-              link: 'https://api.example.com/version',
-              signal: { type: 'http-value', value: '2.0.0' },
-            }),
-          )
-        return new Response(
-          JSON.stringify({
-            panelId: 'versions',
-            state: 'error',
-            observedAt: '2026-08-18T12:00:00.000Z',
-            link: 'https://web.example.com/version',
-            error: { kind: 'unreachable', message: 'offline' },
-          }),
+        })
+        return { requests, apiFact, webFact }
+      },
+      exercise: async ({ requests }) => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return { rendered, requests }
+      },
+      verify: ({ rendered, requests }, { apiFact, webFact }) => {
+        expect(requests.filter((url) => url.includes('/facts/'))).toHaveLength(2)
+        expect(requests.some((url) => url.endsWith('/versions'))).toBe(false)
+        expect(rendered.textContent).toContain(apiFact.label)
+        expect(rendered.textContent).toContain(apiFact.value)
+        expect(rendered.textContent).toContain(webFact.label)
+        expect(rendered.textContent).toContain('Source unavailable')
+        expect(
+          rendered.querySelector(
+            `[aria-label="View source for ${apiFact.label} (opens in a new tab)"]`,
+          ),
+        ).not.toBeNull()
+        expect(
+          rendered.querySelector(
+            `[aria-label="View source for ${webFact.label} (opens in a new tab)"]`,
+          ),
+        ).not.toBeNull()
+      },
+    }),
+  )
+
+  test(
+    'fetches and renders a configured value',
+    mint({
+      setup: ({ scope }) => {
+        const requests: string[] = []
+        const panelId = 'version'
+        const versionValue = '1.2.3'
+        const sourceLink = 'https://service.example.com/version'
+        httpFixture(scope, async (input) => {
+          const url = String(input)
+          requests.push(url)
+          return url.startsWith('/api/boards/')
+            ? Response.json({ panels: [{ id: panelId, type: 'http-value' }] })
+            : Response.json({
+                panelId,
+                state: 'ok',
+                observedAt: '2026-08-18T12:00:00.000Z',
+                link: sourceLink,
+                signal: { type: 'http-value', value: versionValue },
+              })
+        })
+        return { requests, panelId, versionValue, sourceLink }
+      },
+      exercise: async ({ requests }) => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return { rendered, requests }
+      },
+      verify: ({ rendered, requests }, { panelId, versionValue, sourceLink }) => {
+        expect(requests.some((url) => url.endsWith(`/${panelId}`))).toBe(true)
+        expect(rendered.textContent).toContain(versionValue)
+        expect(rendered.querySelector('[data-panel-link]')?.getAttribute('href')).toBe(sourceLink)
+        expect(rendered.querySelector('[data-panel-link]')?.getAttribute('aria-label')).toBe(
+          `View source for ${panelId} (opens in a new tab)`,
         )
-      }),
-    )
+      },
+    }),
+  )
 
-    const rendered = render(<App env={env} />)
-    await act(async () => {})
-    expect(requests.filter((url) => url.includes('/facts/'))).toHaveLength(2)
-    expect(requests.some((url) => url.endsWith('/versions'))).toBe(false)
-    expect(rendered.textContent).toContain('API')
-    expect(rendered.textContent).toContain('2.0.0')
-    expect(rendered.textContent).toContain('Web')
-    expect(rendered.textContent).toContain('Source unavailable')
-    expect(
-      rendered.querySelector('[aria-label="View source for API (opens in a new tab)"]'),
-    ).not.toBeNull()
-    expect(
-      rendered.querySelector('[aria-label="View source for Web (opens in a new tab)"]'),
-    ).not.toBeNull()
-  })
-
-  it('fetches and renders a configured value', async () => {
-    const requests: string[] = []
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: string | URL) => {
-        const url = String(input)
-        requests.push(url)
-        if (url.startsWith('/api/boards/')) {
-          return new Response(JSON.stringify({ panels: [{ id: 'version', type: 'http-value' }] }))
-        }
-        return new Response(
-          JSON.stringify({
-            panelId: 'version',
-            state: 'ok',
-            observedAt: '2026-08-18T12:00:00.000Z',
-            link: 'https://service.example.com/version',
-            signal: { type: 'http-value', value: '1.2.3' },
-          }),
-        )
-      }),
-    )
-
-    const rendered = render(<App env={env} />)
-    await act(async () => {})
-    expect(requests.some((url) => url.endsWith('/version'))).toBe(true)
-    expect(rendered.textContent).toContain('1.2.3')
-    expect(rendered.querySelector('[data-panel-link]')?.getAttribute('href')).toBe(
-      'https://service.example.com/version',
-    )
-    expect(rendered.querySelector('[data-panel-link]')?.getAttribute('aria-label')).toBe(
-      'View source for version (opens in a new tab)',
-    )
-  })
-
-  it('keeps the configured fallback link when the value cannot be read', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: string | URL) =>
-        String(input).startsWith('/api/boards/')
-          ? new Response(JSON.stringify({ panels: [{ id: 'version', type: 'http-value' }] }))
-          : new Response(
-              JSON.stringify({
-                panelId: 'version',
+  test(
+    'keeps the configured fallback link when the value cannot be read',
+    mint({
+      setup: ({ scope }) => {
+        const panelId = 'version'
+        const sourceLink = 'https://service.example.com/status'
+        httpFixture(scope, async (input) =>
+          String(input).startsWith('/api/boards/')
+            ? Response.json({ panels: [{ id: panelId, type: 'http-value' }] })
+            : Response.json({
+                panelId,
                 state: 'error',
                 observedAt: '2026-08-18T12:00:00.000Z',
-                link: 'https://service.example.com/status',
+                link: sourceLink,
                 error: { kind: 'unreachable', message: 'offline' },
               }),
-            ),
-      ),
-    )
+        )
+        return { panelId, sourceLink }
+      },
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered
+      },
+      verify: (rendered, { panelId, sourceLink }) => {
+        expect(rendered.textContent).toContain('Source unavailable')
+        expect(rendered.querySelector('[data-panel-link]')?.getAttribute('href')).toBe(sourceLink)
+        expect(rendered.querySelector('[data-panel-link]')?.getAttribute('aria-label')).toBe(
+          `View source for ${panelId} (opens in a new tab)`,
+        )
+      },
+    }),
+  )
 
-    const rendered = render(<App env={env} />)
-    await act(async () => {})
-    expect(rendered.textContent).toContain('Source unavailable')
-    expect(rendered.querySelector('[data-panel-link]')?.getAttribute('href')).toBe(
-      'https://service.example.com/status',
-    )
-  })
-
-  it('uses configured panel positions in the board grid', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: string | URL) =>
-        String(input).startsWith('/api/boards/')
-          ? new Response(
-              JSON.stringify({
+  test(
+    'uses configured panel positions in the board grid',
+    mint({
+      setup: ({ scope }) =>
+        httpFixture(scope, async (input) =>
+          String(input).startsWith('/api/boards/')
+            ? Response.json({
                 panels: [
                   { id: 'build', type: 'pipeline-status', position: { x: 6, y: 4, w: 6, h: 3 } },
                 ],
-              }),
-            )
-          : new Response(
-              JSON.stringify({
+              })
+            : Response.json({
                 panelId: 'build',
                 state: 'ok',
                 observedAt: '2026-08-18T12:00:00.000Z',
@@ -866,55 +1266,56 @@ describe('http-value panels', () => {
                   name: 'build',
                 },
               }),
-            ),
-      ),
-    )
+        ),
+      exercise: async () => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        return rendered.querySelector('[data-panel]')
+      },
+      verify: (panel) => {
+        expect(panel?.getAttribute('style')).toContain('--panel-column: 7 / span 6')
+        expect(panel?.getAttribute('style')).toContain('--panel-row: 5 / span 3')
+      },
+    }),
+  )
 
-    const rendered = render(<App env={env} />)
-    await act(async () => {})
-    const panel = rendered.querySelector('[data-panel]')
-    expect(panel?.getAttribute('style')).toContain('--panel-column: 7 / span 6')
-    expect(panel?.getAttribute('style')).toContain('--panel-row: 5 / span 3')
-  })
-
-  it('warns when panel positions exceed the intended canvas', async () => {
-    const user = userEvent.setup()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: string | URL) =>
-        String(input).startsWith('/api/boards/')
-          ? new Response(
-              JSON.stringify({
+  test(
+    'warns when panel positions exceed the intended canvas',
+    mint({
+      setup: ({ scope }) => {
+        httpFixture(scope, async (input) =>
+          String(input).startsWith('/api/boards/')
+            ? Response.json({
                 panels: [
                   { id: 'first', type: 'pipeline-status', position: { x: 0, y: 0, w: 8, h: 3 } },
                   { id: 'second', type: 'pipeline-status', position: { x: 4, y: 12, w: 8, h: 2 } },
                 ],
-              }),
-            )
-          : new Response('{}'),
-      ),
-    )
-
-    const rendered = render(<App env={env} />)
-    await act(async () => {})
-
-    expect(rendered.querySelector('[data-layout-warning]')).not.toBeNull()
-    expect(rendered.textContent).not.toContain('second: out-of-bounds')
-    const warningButton = rendered.querySelector(
-      '[data-layout-warning] button[aria-label="Layout warnings (1)"]',
-    ) as HTMLButtonElement
-    expect(warningButton).not.toBeNull()
-    await user.click(warningButton)
-    expect(rendered.textContent).toContain(
-      '1 layout issue detected against the intended 12×12 space',
-    )
-    expect(rendered.textContent).toContain('second: out-of-bounds at (4, 12), 8×2')
-    expect(
-      [...rendered.querySelectorAll('button')].filter((button) =>
-        /Download .* layout/.test(button.textContent ?? ''),
-      ),
-    ).toHaveLength(2)
-    expect(rendered.textContent).toContain('Download legal rendered layout')
-    expect(rendered.textContent).toContain('Download authored layout')
-  })
+              })
+            : Response.json({}),
+        )
+        return { user: userEvent.setup() }
+      },
+      exercise: async ({ user }) => {
+        const rendered = render(<App env={env} />)
+        await settle()
+        const warningButton = screen.getByRole('button', { name: 'Layout warnings (1)' })
+        await user.click(warningButton)
+        return rendered
+      },
+      verify: (rendered) => {
+        expect(rendered.querySelector('[data-layout-warning]')).not.toBeNull()
+        expect(rendered.textContent).toContain(
+          '1 layout issue detected against the intended 12×12 space',
+        )
+        expect(rendered.textContent).toContain('second: out-of-bounds at (4, 12), 8×2')
+        expect(
+          [...rendered.querySelectorAll('button')].filter((button) =>
+            /Download .* layout/.test(button.textContent ?? ''),
+          ),
+        ).toHaveLength(2)
+        expect(rendered.textContent).toContain('Download legal rendered layout')
+        expect(rendered.textContent).toContain('Download authored layout')
+      },
+    }),
+  )
 })
