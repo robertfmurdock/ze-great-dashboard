@@ -490,3 +490,18 @@ and fake-clock cases cannot leak state into another scenario. The direct shell a
 cases retain explicit setup, exercise, and verification phases; the existing polling scenarios keep
 their tested action sequences and observable assertions unchanged. No production behavior,
 dependency, or reporting configuration changed.
+
+### Follow-up: server startup boundary
+
+`packages/server/test/startup.test.ts` now uses the Testmints Vitest adapter for template boot
+validation, panel admission, server configuration, immutable-template caching, security posture,
+and startup-failure classification. Each ordinary scenario arranges its environment, fetcher,
+configuration, or cache in `setup`, performs the observed startup or helper operation in
+`exercise`, and verifies public configuration, errors, routes, or redacted logs in `verify`.
+
+The cache reuse/failure-recovery and blocked-dashboard cases retain their deliberate call
+sequences: concurrent/repeated reads and the complete protected route surface are the contracts
+being proved. Captured rejection and throw values are verified through their `message` fields,
+rather than Vitest's function-only `toThrow` matcher. The failure-classification matrix remains a
+typed branch-free descriptor list. No production behavior, dependency, or reporting configuration
+changed.
