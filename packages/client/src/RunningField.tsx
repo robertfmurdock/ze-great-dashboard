@@ -1,6 +1,7 @@
 import type { RunningAnimation } from '@ze-great-dashboard/shared/browser'
 import type { CSSProperties } from 'react'
 import { FallingShapesField } from './FallingShapesField.tsx'
+import { FlightPathField } from './FlightPathField.tsx'
 import { ReleaseTransitField } from './ReleaseTransitField.tsx'
 import styles from './RunningField.module.css'
 import { SnowmanField } from './SnowmanField.tsx'
@@ -9,7 +10,12 @@ import { TelemetryBloomField } from './TelemetryBloomField.tsx'
 
 export type RunningFieldAnimation = Extract<
   RunningAnimation,
-  'telemetry-bloom' | 'release-transit' | 'status-weather' | 'falling-shapes' | 'snowman'
+  | 'telemetry-bloom'
+  | 'release-transit'
+  | 'status-weather'
+  | 'falling-shapes'
+  | 'snowman'
+  | 'flight-path'
 >
 
 export function isRunningFieldAnimation(
@@ -21,6 +27,7 @@ export function isRunningFieldAnimation(
     'status-weather',
     'falling-shapes',
     'snowman',
+    'flight-path',
   ].includes(animation)
 }
 
@@ -70,6 +77,9 @@ export function RunningField({
           overdue={overdue}
           seed={seed}
         />
+      )}
+      {animation === 'flight-path' && (
+        <FlightPathField progress={progress} indeterminate={indeterminate} />
       )}
     </div>
   )

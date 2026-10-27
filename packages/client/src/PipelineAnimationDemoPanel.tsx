@@ -22,6 +22,7 @@ const variants = [
   'status-weather',
   'falling-shapes',
   'snowman',
+  'flight-path',
 ] as const
 
 /**

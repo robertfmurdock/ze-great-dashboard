@@ -5,9 +5,7 @@ import { startup } from './startup.ts'
 /**
  * The container / local entry point. `docker compose up` and `npm run dev` both land here.
  */
-const { app, config } = await startup().catch((_error: unknown) => {
-  process.exit(1)
-})
+const { app, config } = await startup()
 
 serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
   consoleLogger.log(

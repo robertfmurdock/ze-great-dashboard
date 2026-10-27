@@ -562,6 +562,7 @@ describe('the board config schema', () => {
     'status-weather',
     'falling-shapes',
     'snowman',
+    'flight-path',
     'off',
   ])('accepts the %s running animation', (animation) => {
     const result = boardConfigSchema.parse({

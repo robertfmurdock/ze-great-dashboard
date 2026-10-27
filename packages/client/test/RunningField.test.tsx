@@ -1,6 +1,7 @@
 import { cleanup, render } from '@testing-library/react'
 import type { Panel } from '@ze-great-dashboard/shared/browser'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { flightPosition } from '../src/FlightPathField.tsx'
 import { PipelinePanel } from '../src/PipelinePanel.tsx'
 import { RunningField, type RunningFieldAnimation } from '../src/RunningField.tsx'
 
@@ -66,6 +67,7 @@ describe('RunningField', () => {
     ['status-weather', 'weather-haze'],
     ['falling-shapes', 'falling-shapes-field'],
     ['snowman', 'snowman-field'],
+    ['flight-path', 'flight-path'],
   ] as const)(
     'renders %s as an inert decorative sibling with timing in the text island',
     (animation, part) => {
@@ -103,7 +105,7 @@ describe('RunningField', () => {
   it('chooses a visible treatment at random by default and excludes inactive, off, error, and loading panels', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.99)
     const running = render(<PipelinePanel panel={panel} envelope={envelope()} />).container
-    expect(running.querySelector('[data-animation="snowman"]')).not.toBeNull()
+    expect(running.querySelector('[data-animation="flight-path"]')).not.toBeNull()
     cleanup()
     const off = render(
       <PipelinePanel panel={{ ...panel, running_animation: 'off' }} envelope={envelope()} />,
@@ -199,5 +201,79 @@ describe('RunningField', () => {
     expect(rendered.querySelectorAll('[data-running-part="transit-packet"]')).toHaveLength(1)
     expect(rendered.querySelectorAll('[data-running-part="transit-trail"]')).toHaveLength(1)
     expect(rendered.querySelectorAll('[data-running-part="transit-now"]')).toHaveLength(1)
+  })
+
+  it('renders a tracked passenger aircraft with sky-depth cloud layers and moving ground once overdue', () => {
+    const rendered = render(
+      <RunningField
+        animation="flight-path"
+        progress={0.9}
+        estimatedDurationMs={300_000}
+        overdue
+        indeterminate={false}
+      />,
+    ).container
+
+    const flight = rendered.querySelector('[data-running-part="flight-path"]')
+    expect(flight?.getAttribute('data-flight-stage')).toBe('approach')
+    expect(rendered.querySelector('[data-running-part="flight-plane"]')).not.toBeNull()
+    expect(rendered.querySelector('[data-running-part="flight-plane"] svg')).not.toBeNull()
+    expect(rendered.querySelector('[data-running-part="flight-fuselage"]')).not.toBeNull()
+    expect(rendered.querySelector('[data-running-part="flight-wing"]')).not.toBeNull()
+    expect(rendered.querySelector('[data-running-part="flight-tail"]')).not.toBeNull()
+    expect(rendered.querySelectorAll('[data-running-part="flight-ground"]')).toHaveLength(1)
+    expect(rendered.querySelectorAll('[data-running-part="flight-ground-terrain"]')).toHaveLength(1)
+    expect(rendered.querySelectorAll('[data-running-part="flight-ground-overdrive"]')).toHaveLength(
+      1,
+    )
+    expect(rendered.querySelectorAll('[data-running-part="flight-ground-runway"]')).toHaveLength(1)
+    expect(rendered.querySelectorAll('[data-running-part="flight-cloud-layer"]')).toHaveLength(2)
+    expect(rendered.querySelector('[data-flight-depth="far"]')).not.toBeNull()
+    expect(rendered.querySelector('[data-flight-depth="near"]')).not.toBeNull()
+    expect(rendered.querySelector('svg[viewBox="0 0 100 100"]')).toBeNull()
+    expect(rendered.querySelectorAll('[data-running-part="flight-cloud"]')).toHaveLength(8)
+  })
+
+  it('keeps airborne aircraft centered while the camera follows its world flight', () => {
+    const rollout = flightPosition(0, false)
+    const rotation = flightPosition(0.18, false)
+    const cruise = flightPosition(0.35, false)
+    const approach = flightPosition(0.7, false)
+    const hold = flightPosition(1, false)
+
+    expect(rollout).toMatchObject({
+      worldX: 8,
+      worldY: 74,
+      x: 8,
+      y: 74,
+      pitch: 0,
+      stage: 'rollout',
+    })
+    expect(rotation).toMatchObject({
+      worldX: 22,
+      worldY: 74,
+      x: 22,
+      y: 74,
+      pitch: -7,
+      stage: 'climb',
+    })
+    expect(cruise).toMatchObject({ x: 50, y: 50, pitch: 0, stage: 'cruise' })
+    expect(approach).toMatchObject({ x: 50, y: 50, pitch: 4, stage: 'approach' })
+    expect(hold).toMatchObject({ x: 50, y: 50, pitch: 4, stage: 'approach' })
+
+    const climbing = flightPosition(0.26, false)
+    expect(climbing.x).toBeLessThan(50)
+    expect(climbing.pitch).toBe(-7)
+    expect(Math.abs(hold.pitch)).toBeLessThanOrEqual(7)
+    expect(cruise.groundOffsetY).toBe(20)
+    expect(flightPosition(0.85, false).groundOffsetY).toBeGreaterThan(0)
+    expect(flightPosition(0.85, false).groundOffsetY).toBeLessThan(20)
+    expect(hold.groundOffsetY).toBe(0)
+    // Ground runway is at world y 74; the centered late-flight camera leaves it below the jet.
+    expect(74 - hold.cameraY - hold.y).toBeGreaterThan(20)
+  })
+
+  it('holds an indeterminate flight in level cruise', () => {
+    expect(flightPosition(0.95, true)).toMatchObject({ x: 50, y: 50, pitch: 0, stage: 'holding' })
   })
 })

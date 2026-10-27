@@ -1,0 +1,251 @@
+.scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.ground {
+  position: absolute;
+  inset: 0;
+  transform: translate(var(--flight-ground-x), var(--flight-ground-y));
+  pointer-events: none;
+}
+.groundGlow {
+  position: absolute;
+  top: 72%;
+  left: -20%;
+  width: 150%;
+  height: 34%;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, currentColor 11%, transparent)
+  );
+  border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+}
+.groundTerrain,
+.groundTerrainOverdrive {
+  position: absolute;
+  top: 76%;
+  left: -50%;
+  width: 200%;
+  height: 30%;
+  background: repeating-linear-gradient(
+    104deg,
+    transparent 0 1.8em,
+    color-mix(in srgb, currentColor 14%, transparent) 1.8em 2em,
+    transparent 2em 3.7em
+  );
+}
+.groundTerrain {
+  opacity: 0.44;
+  animation: ground-stream 5.2s linear infinite;
+}
+.groundTerrainOverdrive {
+  opacity: 0;
+  animation: ground-stream 1.8s linear infinite;
+  transition: opacity 850ms ease-out;
+}
+.groundRunway {
+  position: absolute;
+  top: 74%;
+  left: -8%;
+  width: 124%;
+  height: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, currentColor 46%, transparent) 0 0.7em,
+    transparent 0.7em 1.25em
+  );
+  box-shadow: 0 0 0.35em color-mix(in srgb, currentColor 20%, transparent);
+  animation: runway-stream 3.6s linear infinite;
+}
+.cloudLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.cloudLayerFar {
+  transform: translate(var(--flight-cloud-x), var(--flight-cloud-y));
+}
+.cloudLayerNear {
+  transform: translate(calc(var(--flight-cloud-x) * 1.35), calc(var(--flight-cloud-y) * 1.15));
+}
+.plane {
+  position: absolute;
+  top: var(--flight-y);
+  left: var(--flight-x);
+  width: clamp(1.7em, 5.5cqw, 3em);
+  color: currentColor;
+  filter: drop-shadow(0 0 0.42em color-mix(in srgb, currentColor 65%, transparent));
+  transform: translate(-50%, -50%) rotate(var(--flight-pitch));
+  transform-origin: center;
+}
+.aircraft {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  fill: currentColor;
+}
+.windows {
+  fill: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+[data-indeterminate="true"] .plane {
+  animation: holding-pattern 4s ease-in-out infinite alternate;
+}
+.cloud {
+  position: absolute;
+  width: clamp(2.4em, 12cqw, 6em);
+  height: clamp(0.7em, 3.5cqw, 1.8em);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink-primary) 18%, transparent);
+  filter: blur(0.06em);
+  opacity: 0.2;
+  animation: cloud-stream 11s linear infinite alternate;
+  transition: opacity 650ms ease-out;
+}
+.cloudLayerNear .cloud {
+  animation-duration: 7.2s;
+}
+.cloud::before,
+.cloud::after {
+  position: absolute;
+  content: "";
+  background: inherit;
+  border-radius: 50%;
+}
+.cloud::before {
+  bottom: 24%;
+  left: 20%;
+  width: 38%;
+  height: 110%;
+}
+.cloud::after {
+  right: 18%;
+  bottom: 17%;
+  width: 32%;
+  height: 82%;
+}
+.cloudOne {
+  left: 3%;
+  top: 20%;
+  animation-delay: -2.2s;
+  scale: 0.62;
+}
+.cloudTwo {
+  left: 62%;
+  top: 30%;
+  animation-delay: -7.4s;
+  scale: 0.48;
+}
+.cloudThree {
+  left: 34%;
+  top: 40%;
+  animation-delay: -4.8s;
+  scale: 0.74;
+}
+.cloudFour {
+  left: 78%;
+  top: 48%;
+  animation-delay: -9.1s;
+  scale: 0.38;
+}
+.cloudFive {
+  left: 14%;
+  top: 35%;
+  animation-delay: -1.7s;
+  scale: 1.08;
+}
+.cloudSix {
+  left: 56%;
+  top: 47%;
+  animation-delay: -6.1s;
+  scale: 0.82;
+}
+.cloudSeven {
+  left: 37%;
+  top: 26%;
+  animation-delay: -8.5s;
+  scale: 0.68;
+}
+.cloudEight {
+  left: 82%;
+  top: 54%;
+  animation-delay: -3.5s;
+  scale: 0.54;
+}
+[data-overdue="true"] .plane {
+  animation: rough-air 180ms steps(2, end) infinite;
+}
+[data-overdue="true"] .groundTerrainOverdrive {
+  opacity: 0.38;
+}
+[data-overdue="true"] .cloud {
+  opacity: 0.48;
+}
+@container running-field (max-width: 12rem) or (max-height: 5rem) {
+  .cloud {
+    display: none;
+  }
+  .plane {
+    width: 1.65em;
+  }
+}
+@keyframes cloud-stream {
+  from {
+    translate: 22cqw -0.12em;
+  }
+  to {
+    translate: -22cqw 0.12em;
+  }
+}
+@keyframes ground-stream {
+  from {
+    translate: 0;
+  }
+  to {
+    translate: -25%;
+  }
+}
+@keyframes runway-stream {
+  from {
+    background-position-x: 0;
+  }
+  to {
+    background-position-x: -1.25em;
+  }
+}
+@keyframes holding-pattern {
+  from {
+    margin-left: -4cqw;
+  }
+  to {
+    margin-left: 4cqw;
+  }
+}
+@keyframes rough-air {
+  0%,
+  100% {
+    margin: 0;
+  }
+  25% {
+    margin: -0.1em 0.08em 0.1em -0.08em;
+  }
+  50% {
+    margin: 0.1em -0.08em -0.1em 0.08em;
+  }
+  75% {
+    margin: -0.06em -0.1em 0.06em 0.1em;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cloud,
+  .groundTerrain,
+  .groundTerrainOverdrive,
+  .groundRunway,
+  .plane,
+  [data-indeterminate="true"] .plane,
+  [data-overdue="true"] .plane {
+    animation: none;
+  }
+}

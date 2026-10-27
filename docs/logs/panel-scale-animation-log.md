@@ -339,3 +339,85 @@ figure now records a lower-body pivot and advances through a 750ms eased quarter
 head, accumulated cells, and hat all use that same transform, so the particle-built figure rolls
 continuously onto its side before entering its persistent fallen state. The model test observes both
 an intermediate angle and the final right-angle resting pose.
+
+## Flight-path running field (2026-10-27)
+
+`flight-path` adds a tenth visible treatment and follows the existing inert, clipped full-panel field
+boundary. Its estimated-progress choreography is a continuous shared route rather than discrete
+postures: a ground rollout reaches a departure runway's rotation point at 18%, an eased climb reaches
+cruise at 35%, level cruise continues through 70%, and an eased approach reaches a visible hold just
+short of the arrival runway. The route, aircraft position, and bearing come from that one model, so
+the aircraft cannot jump between independent stage positions. A run without an estimate holds the
+plane in a small level cruise pattern rather than implying an arrival it cannot know.
+
+When an estimate is exceeded, the aircraft remains in that approach hold, uses a bounded rough-air
+shake, and admits four additional faster, more opaque cloud layers. This makes delay readable as an
+escalation without turning it into a false terminal failure state; the existing `Over estimate` text
+and serious status color remain authoritative. Compact fields suppress clouds while retaining the
+aircraft, runways, and route, and reduced motion freezes both cloud travel and turbulence. The shared
+schema, default rotation, review board, direct trajectory/markup tests, and browser field test were
+extended; the browser test observes the overdue approach, route, runways, cloud set, turbulence,
+clipping, and reduced-motion state without depending on CSS-module animation names.
+
+### Tracked-aircraft framing clarification (2026-10-27)
+
+The original shared-route composition was mechanically continuous but still read as a small map:
+the dotted line and paired runways made the aircraft appear to be tracing a precomputed route, and
+the tangent-derived final bearing made its late movement look steeper than an active-run metaphor
+should imply. The field now treats world travel, aircraft attitude, and camera position as separate
+values. Rollout remains visible at the departure end; during climb the camera deliberately lags,
+then keeps the aircraft near mid-field through cruise, approach, and the overdue hold. A clipped,
+camera-translated ground layer supplies distance and motion without displaying a route or a
+destination-runway promise.
+
+The aircraft is now a directional passenger-jet profile with a cockpit-led fuselage, windows,
+swept wing, and vertical tail. Its pitch is a bounded staged attitude (climb, level, slight approach
+descent), rather than a mathematical derivative of the world path. The late frame remains separated
+from the runway, so overdue still means an active flight held aloft rather than a frightening landing
+attempt. Focused component and browser evidence covers the camera center band, ground separation,
+route absence, aircraft anatomy, overdue turbulence, containment, and reduced-motion freeze.
+
+### Parallax and ground-return adjustment (2026-10-27)
+
+The first tracked framing left clouds screen-anchored and kept a sliver of ground visible during
+cruise. Clouds now live in a camera-relative parallax layer, below the aircraft and above the ground,
+with a restrained vertical drift. Their normal and overdue variants therefore share the same world
+framing; overtime changes density, opacity, and drift rate rather than abandoning the camera. The
+motion model also carries a separate ground offset: it moves the ground fully below the clipped field
+for cruise, then eases it back into the late approach. This preserves the initial runway context,
+gives mid-flight genuine open air, and restores an approaching-ground cue without implying touchdown.
+
+### Cloud-bank correction (2026-10-27)
+
+Visual review found that full-width cloud travel read as repeated ghosts chasing the aircraft. The
+cloud layer now contains placed, overlapping cloud banks with only small local bobbing; the
+camera-relative layer supplies the large-scale parallax. This keeps clouds environmental rather than
+agent-like, while the overdue treatment still increases their motion rate and opacity in the same
+world framing.
+
+### Velocity and sky-depth correction (2026-10-27)
+
+The cloud banks were still visually positioned like ground phantoms and their local bobbing did not
+provide a convincing speed cue. The field now separates them into far and near sky-depth layers:
+the climb reaches the lower bank, the aircraft remains between the two layers, and clipped lateral
+parallax lets clouds pass behind and in front of it. Their altitude stays above the terrain horizon,
+so the scene reads as travel through sky rather than as objects resting on the ground.
+
+Ground motion is now independent of elapsed-progress framing. A broad terrain-detail strip and the
+runway markings stream beneath the camera for the whole run, including the approach hold after
+progress is clamped. Overtime shortens the ground, runway, and cloud cycles to make the scene feel
+faster while retaining the existing serious color, explicit `Over estimate` text, bounded rough-air
+treatment, compact cloud suppression, and reduced-motion freeze. Browser evidence samples actual
+terrain movement on animation frames and compares its overdue cadence with a normal live flight.
+
+### Continuous overtime transition correction (2026-10-27)
+
+Visual review caught two discontinuities in the first velocity pass: cloud loops returned from one
+edge of their travel to the other, and changing an already-running terrain animation's duration at
+the overtime boundary remapped its progress and visibly jumped the ground. Cloud travel now uses
+continuous alternating passes, preserving each bank's position at direction changes. The base terrain
+and runway retain their original cadence through overtime; a separately running, faster terrain layer
+fades in over 850ms instead. This increases the perceived ground speed without changing the phase of
+the ground already on screen. Browser coverage asserts the base terrain duration is invariant, the
+faster layer is active and shorter only as visible overtime evidence, and terrain still moves across
+browser animation frames.

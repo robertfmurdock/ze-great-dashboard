@@ -344,7 +344,8 @@ describe('pipeline-status refresh scheduling', () => {
       | 'signal-field'
       | 'telemetry-bloom'
       | 'release-transit'
-      | 'status-weather',
+      | 'status-weather'
+      | 'flight-path',
   ) {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-18T12:02:00.000Z'))
@@ -399,7 +400,7 @@ describe('pipeline-status refresh scheduling', () => {
     )
   })
 
-  it.each(['telemetry-bloom', 'release-transit', 'status-weather'] as const)(
+  it.each(['telemetry-bloom', 'release-transit', 'status-weather', 'flight-path'] as const)(
     'renders the %s active-run field with local elapsed progress',
     async (animation) => {
       const rendered = await renderRunningPanel(animation)

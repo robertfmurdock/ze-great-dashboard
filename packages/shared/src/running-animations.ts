@@ -9,6 +9,7 @@ export const visibleRunningAnimations = [
   'status-weather',
   'falling-shapes',
   'snowman',
+  'flight-path',
 ] as const
 
 export type RunningAnimation = (typeof visibleRunningAnimations)[number] | 'off'

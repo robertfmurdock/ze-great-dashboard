@@ -32,27 +32,33 @@ boards:
         running_animation: snowman
         type: pipeline-animation-demo
         demo_review_duration: 45s
+      - id: showcase-flight-path-wide
+        label: Flight path · wide
+        position: { h: 3, w: 5, x: 2, y: 6 }
+        running_animation: flight-path
+        type: pipeline-animation-demo
+        demo_review_duration: 45s
       - id: showcase-runway
         label: Runway · contained
-        position: { h: 3, w: 5, x: 2, y: 6 }
+        position: { h: 3, w: 5, x: 7, y: 6 }
         running_animation: runway
         type: pipeline-animation-demo
         demo_review_duration: 45s
       - id: showcase-signal-field
         label: Signal field · legacy
-        position: { h: 3, w: 5, x: 7, y: 6 }
+        position: { h: 3, w: 5, x: 0, y: 9 }
         running_animation: signal-field
         type: pipeline-animation-demo
         demo_review_duration: 45s
       - id: showcase-radial
         label: Radial · legacy
-        position: { h: 3, w: 6, x: 0, y: 9 }
+        position: { h: 3, w: 6, x: 0, y: 12 }
         running_animation: radial
         type: pipeline-animation-demo
         demo_review_duration: 45s
       - id: showcase-orbit
         label: Orbit · legacy
-        position: { h: 3, w: 6, x: 6, y: 9 }
+        position: { h: 3, w: 6, x: 6, y: 12 }
         running_animation: orbit
         type: pipeline-animation-demo
         demo_review_duration: 45s

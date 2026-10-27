@@ -281,6 +281,18 @@ const signalFieldBoard = {
       running_animation: 'status-weather',
       position: { x: 6, y: 26, w: 1, h: 5 },
     },
+    {
+      id: 'flight-build',
+      type: 'pipeline-status',
+      running_animation: 'flight-path',
+      position: { x: 7, y: 26, w: 2, h: 5 },
+    },
+    {
+      id: 'flight-normal-build',
+      type: 'pipeline-status',
+      running_animation: 'flight-path',
+      position: { x: 9, y: 26, w: 2, h: 5 },
+    },
   ],
 }
 
@@ -1114,9 +1126,13 @@ test('keeps panel-scale fields behind readable content, adapts them without over
     const panelId = decodeURIComponent(
       new URL(route.request().url()).pathname.split('/').at(-1) ?? '',
     )
+    const envelope =
+      panelId === 'flight-build'
+        ? runningPipelineEnvelope(panelId, { elapsedMs: 360_000 })
+        : { ...runningSignal, panelId }
     return route.fulfill({
       contentType: 'application/json',
-      body: JSON.stringify({ ...runningSignal, panelId }),
+      body: JSON.stringify(envelope),
     })
   })
 
@@ -1192,6 +1208,103 @@ test('keeps panel-scale fields behind readable content, adapts them without over
   expect(narrowWeather.panel.height).toBeGreaterThan(6 * 16)
   expect(visibleTextureLayers[1]).toBe(1)
 
+  const flight = page.locator(
+    '[data-running-field][data-animation="flight-path"][data-overdue="true"]',
+  )
+  await expect(flight).toBeVisible()
+  await expect(flight.locator('[data-running-part="flight-path"]')).toHaveAttribute(
+    'data-flight-stage',
+    'approach',
+  )
+  await expect(flight).toHaveAttribute('data-overdue', 'true')
+  await expect(flight.locator('[data-running-part="flight-cloud"]')).toHaveCount(8)
+  await expect(flight.locator('[data-running-part="flight-cloud-layer"]')).toHaveCount(2)
+  await expect(flight.locator('[data-running-part="flight-ground"]')).toHaveCount(1)
+  await expect(flight.locator('[data-running-part="flight-ground-terrain"]')).toHaveCount(1)
+  await expect(flight.locator('[data-running-part="flight-ground-overdrive"]')).toHaveCount(1)
+  await expect(flight.locator('[data-running-part="flight-ground-runway"]')).toHaveCount(1)
+  await expect(flight.locator('[data-running-part="flight-plane"] svg')).toBeVisible()
+  await expect(flight.locator('[data-running-part="flight-fuselage"]')).toHaveCount(1)
+  await expect(flight.locator('[data-running-part="flight-wing"]')).toHaveCount(1)
+  await expect(flight.locator('[data-running-part="flight-tail"]')).toHaveCount(1)
+  await expect(flight.locator('svg[viewBox="0 0 100 100"]')).toHaveCount(0)
+  const flightFraming = await flight.evaluate((element) => {
+    const plane = element.querySelector<HTMLElement>('[data-running-part="flight-plane"]')
+    const runway = element.querySelector<HTMLElement>('[data-running-part="flight-ground-runway"]')
+    const field = element.getBoundingClientRect()
+    const planeBounds = plane?.getBoundingClientRect()
+    const runwayBounds = runway?.getBoundingClientRect()
+    return {
+      planeCenterX: planeBounds ? (planeBounds.left + planeBounds.right) / 2 - field.left : 0,
+      planeCenterY: planeBounds ? (planeBounds.top + planeBounds.bottom) / 2 - field.top : 0,
+      width: field.width,
+      height: field.height,
+      runwayBelowPlane: planeBounds && runwayBounds ? runwayBounds.top - planeBounds.bottom : 0,
+    }
+  })
+  // The bounding box includes the swept wing and slight approach pitch, so use a visual center band.
+  expect(Math.abs(flightFraming.planeCenterX - flightFraming.width / 2)).toBeLessThan(
+    flightFraming.width * 0.05,
+  )
+  expect(Math.abs(flightFraming.planeCenterY - flightFraming.height / 2)).toBeLessThan(
+    flightFraming.height * 0.08,
+  )
+  expect(flightFraming.runwayBelowPlane).toBeGreaterThan(8)
+  expect(
+    await flight
+      .locator('[data-running-part="flight-plane"]')
+      .evaluate((element) => getComputedStyle(element).animationName),
+  ).not.toBe('none')
+
+  const normalFlight = page.locator(
+    '[data-running-field][data-animation="flight-path"]:not([data-overdue])',
+  )
+  await expect(normalFlight).toBeVisible()
+  const [normalVelocity, overdueVelocity] = await Promise.all(
+    [normalFlight, flight].map(async (field) =>
+      field.locator('[data-running-part="flight-ground"]').evaluate((element) => {
+        const terrain = element.querySelector<HTMLElement>(
+          '[data-running-part="flight-ground-terrain"]',
+        )
+        const overdrive = element.querySelector<HTMLElement>(
+          '[data-running-part="flight-ground-overdrive"]',
+        )
+        return {
+          terrainAnimation: terrain ? getComputedStyle(terrain).animationName : 'none',
+          terrainDuration: terrain
+            ? Number.parseFloat(getComputedStyle(terrain).animationDuration)
+            : 0,
+          overdriveAnimation: overdrive ? getComputedStyle(overdrive).animationName : 'none',
+          overdriveDuration: overdrive
+            ? Number.parseFloat(getComputedStyle(overdrive).animationDuration)
+            : 0,
+          overdriveOpacity: overdrive ? Number.parseFloat(getComputedStyle(overdrive).opacity) : 0,
+        }
+      }),
+    ),
+  )
+  expect(normalVelocity.terrainAnimation).not.toBe('none')
+  expect(overdueVelocity.terrainDuration).toBe(normalVelocity.terrainDuration)
+  expect(overdueVelocity.overdriveAnimation).not.toBe('none')
+  expect(overdueVelocity.overdriveDuration).toBeLessThan(overdueVelocity.terrainDuration)
+  expect(overdueVelocity.overdriveOpacity).toBeGreaterThan(normalVelocity.overdriveOpacity)
+  const groundTravel = await flight
+    .locator('[data-running-part="flight-ground-terrain"]')
+    .evaluate(async (element) => {
+      const before = element.getBoundingClientRect().left
+      await new Promise<void>((resolve) => {
+        let frames = 12
+        const nextFrame = () => {
+          frames -= 1
+          if (frames === 0) resolve()
+          else requestAnimationFrame(nextFrame)
+        }
+        requestAnimationFrame(nextFrame)
+      })
+      return Math.abs(element.getBoundingClientRect().left - before)
+    })
+  expect(groundTravel).toBeGreaterThan(0)
+
   const legacySignal = page.locator('[data-running-progress="signal-field"]')
   await expect(legacySignal).toBeVisible()
   const legacySignalLayout = await legacySignal.evaluate((element) => {
@@ -1222,6 +1335,11 @@ test('keeps panel-scale fields behind readable content, adapts them without over
     await legacySignal
       .locator('[data-running-part="signal-marker"]')
       .first()
+      .evaluate((element) => getComputedStyle(element).animationName),
+  ).toBe('none')
+  expect(
+    await flight
+      .locator('[data-running-part="flight-plane"]')
       .evaluate((element) => getComputedStyle(element).animationName),
   ).toBe('none')
   await expect(page.locator('[data-panel-content]').first()).toContainText('Elapsed')
