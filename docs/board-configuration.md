@@ -212,13 +212,13 @@ optional. The dashboard binds the manifest to the selected run, so absent report
 “No test results published”, never a fabricated zero.
 
 ```yaml
-- name: Publish dashboard test summary
+- name: Upload dashboard test results
   if: always()
-  uses: actions/upload-artifact@v4
+  uses: actions/upload-artifact@v7
   with:
     name: ci-evidence
-    path: test-summary.json
-    retention-days: 30
+    path: check-results/test-summary.json
+    retention-days: 90
 ```
 
 For private repositories, the dashboard credential needs GitHub Actions read access. Artifact

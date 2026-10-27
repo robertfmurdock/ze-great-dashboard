@@ -60,6 +60,20 @@ jobs:
             echo 'Check evidence ledger was not created.' >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # The dashboard reads one bounded summary, not the diagnostic artifact's raw reports.
+      - name: Create dashboard test summary
+        if: always()
+        run: node scripts/test-summary.mjs
+
+      - name: Upload dashboard test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-evidence
+          path: check-results/test-summary.json
+          if-no-files-found: ignore
+          retention-days: 90
+
       - name: Upload check evidence
         if: always()
         uses: actions/upload-artifact@v7

@@ -25,6 +25,7 @@ const stages = [
       `--test-reporter-destination=${evidence.nodeJUnit}`,
       'scripts/auth0-functional-env.test.mjs',
       'scripts/check.test.mjs',
+      'scripts/test-summary.test.mjs',
     ],
   },
   {
