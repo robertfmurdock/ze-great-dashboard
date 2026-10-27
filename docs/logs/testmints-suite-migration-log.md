@@ -505,3 +505,12 @@ being proved. Captured rejection and throw values are verified through their `me
 rather than Vitest's function-only `toThrow` matcher. The failure-classification matrix remains a
 typed branch-free descriptor list. No production behavior, dependency, or reporting configuration
 changed.
+
+### Follow-up: test-count presentation boundary
+
+`packages/client/test/TestCountPanel.test.tsx` now uses the Testmints Vitest adapter for its
+reported-result and not-reported presentation contracts. The prior rerender combined two distinct
+envelopes into one registration; each scenario now arranges one envelope, renders the component
+once, and verifies its own public evidence. The reported case retains aggregate and outcome
+evidence, while the not-reported case explicitly proves that absent results are disclosed rather
+than rendered as zero. No production behavior, dependency, or reporting configuration changed.
