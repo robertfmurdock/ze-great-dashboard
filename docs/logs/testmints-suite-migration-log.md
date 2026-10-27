@@ -466,3 +466,17 @@ renders the frame once in `exercise`, and checks the resulting layout, loading, 
 accessibility, and source-link evidence in `verify`. The former two-render density registration is
 now separate default and explicit-density scenarios, matching their distinct input and output
 contracts. No runtime, dependency, or reporting behavior changed.
+
+### Compatibility repair after Testmints 0.0.3 — 2026-10-27
+
+The automated dependency update changed `@continuous-excellence/testmints-js` from 0.0.1 to 0.0.3.
+The package removed the migration-era `mintTest(title, definition)` registration helper in favor of
+`test(title, mint(definition))`. This stopped both TypeScript inference and Vitest collection across
+the migrated suites; it was an adapter API incompatibility, not a dashboard behavior regression.
+
+All migrated registrations now use the package's visible Vitest form. Their scenario definitions,
+phase boundaries, fixtures, and assertions were retained unchanged; no compatibility wrapper or
+Testmints reporting plugin was added. Keeping native `test` registration explicit preserves Vitest
+discovery and avoids introducing project-specific Testmints infrastructure for an experimental
+dependency. The full unit suite again executes the migrated evidence; the Docker-backed endpoint
+gate remains subject to the local Docker builder being accessible.

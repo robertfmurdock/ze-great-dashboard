@@ -1,5 +1,5 @@
-import { mintTest } from '@continuous-excellence/testmints-js/vitest'
-import { describe, expect } from 'vitest'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
+import { describe, expect, test } from 'vitest'
 import { readClientEnv } from '../src/client-env.ts'
 
 const valid = {
@@ -11,58 +11,73 @@ const valid = {
 
 describe('reading window.env', () => {
   describe('accepting injected configuration', () => {
-    mintTest('accepts the unauthenticated block the server injects', {
-      setup: () => ({ source: valid }),
-      exercise: ({ source }) => readClientEnv(source),
-      verify: (environment, { source }) => {
-        expect(environment).toEqual(source)
-        expect(environment.auth).toBeUndefined()
-      },
-    })
-
-    mintTest('accepts an auth block when present', {
-      setup: () => ({
-        source: {
-          ...valid,
-          auth: {
-            issuer: 'https://login.example.com',
-            clientId: 'dashboard',
-            audience: 'https://dashboard-api',
-          },
+    test(
+      'accepts the unauthenticated block the server injects',
+      mint({
+        setup: () => ({ source: valid }),
+        exercise: ({ source }) => readClientEnv(source),
+        verify: (environment, { source }) => {
+          expect(environment).toEqual(source)
+          expect(environment.auth).toBeUndefined()
         },
       }),
-      exercise: ({ source }) => readClientEnv(source),
-      verify: (environment, { source }) => expect(environment.auth).toEqual(source.auth),
-    })
+    )
+
+    test(
+      'accepts an auth block when present',
+      mint({
+        setup: () => ({
+          source: {
+            ...valid,
+            auth: {
+              issuer: 'https://login.example.com',
+              clientId: 'dashboard',
+              audience: 'https://dashboard-api',
+            },
+          },
+        }),
+        exercise: ({ source }) => readClientEnv(source),
+        verify: (environment, { source }) => expect(environment.auth).toEqual(source.auth),
+      }),
+    )
 
     for (const security of ['warning', 'blocked'] as const) {
-      mintTest(`accepts the public ${security} security boundary state`, {
-        setup: () => ({ source: { ...valid, security } }),
-        exercise: ({ source }) => readClientEnv(source),
-        verify: (environment, { source }) => expect(environment.security).toBe(source.security),
-      })
+      test(
+        `accepts the public ${security} security boundary state`,
+        mint({
+          setup: () => ({ source: { ...valid, security } }),
+          exercise: ({ source }) => readClientEnv(source),
+          verify: (environment, { source }) => expect(environment.security).toBe(source.security),
+        }),
+      )
     }
   })
 
   describe('rejecting unusable configuration', () => {
-    mintTest('explains itself when configuration never arrived', {
-      // The alternative is a blank board, which for a trust radiator is the worst outcome.
-      setup: () => ({ source: undefined }),
-      exercise: throws(({ source }) => readClientEnv(source)),
-      verify: (error) => {
-        expect(error).toBeInstanceOf(Error)
-        expect((error as Error).message).toMatch(/window\.env is missing or invalid/)
-      },
-    })
+    test(
+      'explains itself when configuration never arrived',
+      mint({
+        // The alternative is a blank board, which for a trust radiator is the worst outcome.
+        setup: () => ({ source: undefined }),
+        exercise: throws(({ source }) => readClientEnv(source)),
+        verify: (error) => {
+          expect(error).toBeInstanceOf(Error)
+          expect((error as Error).message).toMatch(/window\.env is missing or invalid/)
+        },
+      }),
+    )
 
-    mintTest('identifies the missing asset path in incomplete configuration', {
-      setup: () => ({ source: { proxyPath: '/api' } }),
-      exercise: throws(({ source }) => readClientEnv(source)),
-      verify: (error) => {
-        expect(error).toBeInstanceOf(Error)
-        expect((error as Error).message).toMatch(/assetPath/)
-      },
-    })
+    test(
+      'identifies the missing asset path in incomplete configuration',
+      mint({
+        setup: () => ({ source: { proxyPath: '/api' } }),
+        exercise: throws(({ source }) => readClientEnv(source)),
+        verify: (error) => {
+          expect(error).toBeInstanceOf(Error)
+          expect((error as Error).message).toMatch(/assetPath/)
+        },
+      }),
+    )
   })
 })
 

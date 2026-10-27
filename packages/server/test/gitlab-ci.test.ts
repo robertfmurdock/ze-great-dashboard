@@ -1,10 +1,10 @@
-import { mintTest } from '@continuous-excellence/testmints-js/vitest'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import {
   type BoardConfig,
   boardConfigSchema,
   type PipelineStatus,
 } from '@ze-great-dashboard/shared'
-import { describe, expect, vi } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { fetchGitlabCiPipeline, permittedGitlabCiCalls } from '../src/adapters/gitlab-ci.ts'
 import { deriveValidatedAllowlist } from '../src/allowlist.ts'
 import { createApp } from '../src/app.ts'
@@ -45,9 +45,9 @@ describe('the GitLab CI pipeline adapter', () => {
   }
 
   describe('source configuration and permitted-call derivation', () => {
-    mintTest(
+    test(
       'derives one bounded pipeline call for a nested project at a self-managed path prefix',
-      {
+      mint({
         setup: () => ({ panel, source }),
         exercise: ({ panel, source }) => permittedGitlabCiCalls(panel, source),
         verify: ([call]) => {
@@ -56,29 +56,32 @@ describe('the GitLab CI pipeline adapter', () => {
           )
           expect(call?.headers.get('private-token')).toBeNull()
         },
-      },
+      }),
     )
 
-    mintTest('accepts a GitLab source with an omitted instance URL', {
-      setup: () => ({
-        config: {
-          sources: { gitlab: { ...source, url: undefined } },
-          boards: { operations: { panels: [panel] } },
+    test(
+      'accepts a GitLab source with an omitted instance URL',
+      mint({
+        setup: () => ({
+          config: {
+            sources: { gitlab: { ...source, url: undefined } },
+            boards: { operations: { panels: [panel] } },
+          },
+        }),
+        exercise: ({ config }) => boardConfigSchema.parse(config),
+        verify: (parsed) => {
+          expect(parsed.sources.gitlab).toMatchObject({
+            type: 'gitlab-ci',
+            project: 'group/platform/service',
+            url: undefined,
+          })
         },
       }),
-      exercise: ({ config }) => boardConfigSchema.parse(config),
-      verify: (parsed) => {
-        expect(parsed.sources.gitlab).toMatchObject({
-          type: 'gitlab-ci',
-          project: 'group/platform/service',
-          url: undefined,
-        })
-      },
-    })
+    )
 
-    mintTest(
+    test(
       'defaults an omitted GitLab instance URL to GitLab.com when deriving a pipeline call',
-      {
+      mint({
         setup: () => ({ panel, source: { ...source, url: undefined } }),
         exercise: ({ panel, source }) => permittedGitlabCiCalls(panel, source),
         verify: ([call]) => {
@@ -86,74 +89,92 @@ describe('the GitLab CI pipeline adapter', () => {
             'https://gitlab.com/api/v4/projects/group%2Fplatform%2Fservice/pipelines?per_page=1&ref=main',
           )
         },
-      },
+      }),
     )
 
-    mintTest('rejects a source without its credential declaration', {
-      setup: () => ({
-        config: {
-          sources: { gitlab: { type: 'gitlab-ci', project: 'group/project' } },
-          boards: { operations: { panels: [panel] } },
-        },
+    test(
+      'rejects a source without its credential declaration',
+      mint({
+        setup: () => ({
+          config: {
+            sources: { gitlab: { type: 'gitlab-ci', project: 'group/project' } },
+            boards: { operations: { panels: [panel] } },
+          },
+        }),
+        exercise: throws(({ config }) => boardConfigSchema.parse(config)),
+        verify: (error) => expect(error).toBeInstanceOf(Error),
       }),
-      exercise: throws(({ config }) => boardConfigSchema.parse(config)),
-      verify: (error) => expect(error).toBeInstanceOf(Error),
-    })
+    )
 
-    mintTest('rejects a source without its project', {
-      setup: () => ({
-        config: {
-          sources: { gitlab: { type: 'gitlab-ci', token_env: 'GITLAB_TOKEN' } },
-          boards: { operations: { panels: [panel] } },
-        },
+    test(
+      'rejects a source without its project',
+      mint({
+        setup: () => ({
+          config: {
+            sources: { gitlab: { type: 'gitlab-ci', token_env: 'GITLAB_TOKEN' } },
+            boards: { operations: { panels: [panel] } },
+          },
+        }),
+        exercise: throws(({ config }) => boardConfigSchema.parse(config)),
+        verify: (error) => expect(error).toBeInstanceOf(Error),
       }),
-      exercise: throws(({ config }) => boardConfigSchema.parse(config)),
-      verify: (error) => expect(error).toBeInstanceOf(Error),
-    })
+    )
 
-    mintTest('rejects an insecure GitLab base URL', {
-      setup: () => ({
-        config: {
-          sources: { gitlab: { ...source, url: 'http://gitlab.example.com' } },
-          boards: { operations: { panels: [panel] } },
-        },
+    test(
+      'rejects an insecure GitLab base URL',
+      mint({
+        setup: () => ({
+          config: {
+            sources: { gitlab: { ...source, url: 'http://gitlab.example.com' } },
+            boards: { operations: { panels: [panel] } },
+          },
+        }),
+        exercise: throws(({ config }) => boardConfigSchema.parse(config)),
+        verify: (error) => expect(error).toBeInstanceOf(Error),
       }),
-      exercise: throws(({ config }) => boardConfigSchema.parse(config)),
-      verify: (error) => expect(error).toBeInstanceOf(Error),
-    })
+    )
 
-    mintTest('rejects a GitLab base URL with embedded credentials', {
-      setup: () => ({
-        config: {
-          sources: { gitlab: { ...source, url: 'https://token@gitlab.example.com' } },
-          boards: { operations: { panels: [panel] } },
-        },
+    test(
+      'rejects a GitLab base URL with embedded credentials',
+      mint({
+        setup: () => ({
+          config: {
+            sources: { gitlab: { ...source, url: 'https://token@gitlab.example.com' } },
+            boards: { operations: { panels: [panel] } },
+          },
+        }),
+        exercise: throws(({ config }) => boardConfigSchema.parse(config)),
+        verify: (error) => expect(error).toBeInstanceOf(Error),
       }),
-      exercise: throws(({ config }) => boardConfigSchema.parse(config)),
-      verify: (error) => expect(error).toBeInstanceOf(Error),
-    })
+    )
 
-    mintTest('rejects a GitLab base URL with a query', {
-      setup: () => ({
-        config: {
-          sources: { gitlab: { ...source, url: 'https://gitlab.example.com/base?next=/admin' } },
-          boards: { operations: { panels: [panel] } },
-        },
+    test(
+      'rejects a GitLab base URL with a query',
+      mint({
+        setup: () => ({
+          config: {
+            sources: { gitlab: { ...source, url: 'https://gitlab.example.com/base?next=/admin' } },
+            boards: { operations: { panels: [panel] } },
+          },
+        }),
+        exercise: throws(({ config }) => boardConfigSchema.parse(config)),
+        verify: (error) => expect(error).toBeInstanceOf(Error),
       }),
-      exercise: throws(({ config }) => boardConfigSchema.parse(config)),
-      verify: (error) => expect(error).toBeInstanceOf(Error),
-    })
+    )
 
-    mintTest('rejects a GitLab base URL with a fragment', {
-      setup: () => ({
-        config: {
-          sources: { gitlab: { ...source, url: 'https://gitlab.example.com/base#fragment' } },
-          boards: { operations: { panels: [panel] } },
-        },
+    test(
+      'rejects a GitLab base URL with a fragment',
+      mint({
+        setup: () => ({
+          config: {
+            sources: { gitlab: { ...source, url: 'https://gitlab.example.com/base#fragment' } },
+            boards: { operations: { panels: [panel] } },
+          },
+        }),
+        exercise: throws(({ config }) => boardConfigSchema.parse(config)),
+        verify: (error) => expect(error).toBeInstanceOf(Error),
       }),
-      exercise: throws(({ config }) => boardConfigSchema.parse(config)),
-      verify: (error) => expect(error).toBeInstanceOf(Error),
-    })
+    )
   })
 
   describe('pipeline observations', () => {
@@ -214,23 +235,26 @@ describe('the GitLab CI pipeline adapter', () => {
     }
 
     for (const { upstreamStatus, expectedStatus } of gitlabStatusCases) {
-      mintTest(`normalizes GitLab status ${upstreamStatus} as ${expectedStatus}`, {
-        setup: () => gitlabPipelineFixture(upstreamStatus),
-        exercise: ({ fetcher }) =>
-          fetchGitlabCiPipeline({
-            panel,
-            source,
-            credentials,
-            requestHeaders: new Headers(),
-            fetcher,
-          }),
-        verify: (result) => expectGitlabPipelineStatus(result, upstreamStatus, expectedStatus),
-      })
+      test(
+        `normalizes GitLab status ${upstreamStatus} as ${expectedStatus}`,
+        mint({
+          setup: () => gitlabPipelineFixture(upstreamStatus),
+          exercise: ({ fetcher }) =>
+            fetchGitlabCiPipeline({
+              panel,
+              source,
+              credentials,
+              requestHeaders: new Headers(),
+              fetcher,
+            }),
+          verify: (result) => expectGitlabPipelineStatus(result, upstreamStatus, expectedStatus),
+        }),
+      )
     }
 
-    mintTest(
+    test(
       'sends the token only as PRIVATE-TOKEN, forwards validators, and preserves cache metadata',
-      {
+      mint({
         setup: () => ({
           fetcher: upstream([pipeline()], new Headers({ etag: 'W/"gitlab"' })),
           requestHeaders: new Headers({ 'if-none-match': 'W/"browser"' }),
@@ -244,33 +268,18 @@ describe('the GitLab CI pipeline adapter', () => {
           expect(headers.get('if-none-match')).toBe('W/"browser"')
           expect(result.response.headers.get('etag')).toBe('W/"gitlab"')
         },
-      },
+      }),
     )
 
-    mintTest('passes an upstream 304 through unchanged', {
-      setup: () => ({
-        fetcher: vi.fn(
-          async () => new Response(null, { status: 304, headers: { etag: 'W/"gitlab"' } }),
-        ) as unknown as typeof fetch,
-      }),
-      exercise: ({ fetcher }) =>
-        fetchGitlabCiPipeline({
-          panel,
-          source,
-          credentials,
-          requestHeaders: new Headers(),
-          fetcher,
+    test(
+      'passes an upstream 304 through unchanged',
+      mint({
+        setup: () => ({
+          fetcher: vi.fn(
+            async () => new Response(null, { status: 304, headers: { etag: 'W/"gitlab"' } }),
+          ) as unknown as typeof fetch,
         }),
-      verify: (result) => {
-        expect(result.envelope).toBeUndefined()
-        expect(result.response.status).toBe(304)
-      },
-    })
-
-    for (const { failure, token, response } of gitlabErrorCases) {
-      mintTest(`returns a public HTTP-200 error envelope for ${failure}`, {
-        setup: () => gitlabErrorFixture({ token, response }),
-        exercise: ({ credentials, fetcher }) =>
+        exercise: ({ fetcher }) =>
           fetchGitlabCiPipeline({
             panel,
             source,
@@ -278,8 +287,29 @@ describe('the GitLab CI pipeline adapter', () => {
             requestHeaders: new Headers(),
             fetcher,
           }),
-        verify: expectPublicGitlabErrorEnvelope,
-      })
+        verify: (result) => {
+          expect(result.envelope).toBeUndefined()
+          expect(result.response.status).toBe(304)
+        },
+      }),
+    )
+
+    for (const { failure, token, response } of gitlabErrorCases) {
+      test(
+        `returns a public HTTP-200 error envelope for ${failure}`,
+        mint({
+          setup: () => gitlabErrorFixture({ token, response }),
+          exercise: ({ credentials, fetcher }) =>
+            fetchGitlabCiPipeline({
+              panel,
+              source,
+              credentials,
+              requestHeaders: new Headers(),
+              fetcher,
+            }),
+          verify: expectPublicGitlabErrorEnvelope,
+        }),
+      )
     }
   })
 
@@ -302,32 +332,40 @@ describe('the GitLab CI pipeline adapter', () => {
       }
     }
 
-    mintTest('admits and routes a configured GitLab pipeline panel', {
-      setup: () => gitlabAppFixture(),
-      exercise: ({ app }) => app.request('/api/panel/operations/service'),
-      verify: async (response, { fetcher }) => {
-        expect(response.status).toBe(200)
-        expect(await response.json()).toMatchObject({ signal: { status: 'passed' } })
-        expect(vi.mocked(fetcher)).toHaveBeenCalledTimes(1)
-      },
-    })
-
-    mintTest('rejects an allowlist combination with an unsupported source type', {
-      setup: () => ({
-        config: boardConfigSchema.parse({
-          sources: { mystery: { type: 'mystery-source' } },
-          boards: {
-            operations: { panels: [{ id: 'unknown', type: 'pipeline-status', source: 'mystery' }] },
-          },
-        }),
+    test(
+      'admits and routes a configured GitLab pipeline panel',
+      mint({
+        setup: () => gitlabAppFixture(),
+        exercise: ({ app }) => app.request('/api/panel/operations/service'),
+        verify: async (response, { fetcher }) => {
+          expect(response.status).toBe(200)
+          expect(await response.json()).toMatchObject({ signal: { status: 'passed' } })
+          expect(vi.mocked(fetcher)).toHaveBeenCalledTimes(1)
+        },
       }),
-      exercise: throws(({ config }) => deriveValidatedAllowlist(config)),
-      verify: (error) => {
-        expect(error).toMatchObject({
-          message: expect.stringMatching(/Unsupported configured panel operation/),
-        })
-      },
-    })
+    )
+
+    test(
+      'rejects an allowlist combination with an unsupported source type',
+      mint({
+        setup: () => ({
+          config: boardConfigSchema.parse({
+            sources: { mystery: { type: 'mystery-source' } },
+            boards: {
+              operations: {
+                panels: [{ id: 'unknown', type: 'pipeline-status', source: 'mystery' }],
+              },
+            },
+          }),
+        }),
+        exercise: throws(({ config }) => deriveValidatedAllowlist(config)),
+        verify: (error) => {
+          expect(error).toMatchObject({
+            message: expect.stringMatching(/Unsupported configured panel operation/),
+          })
+        },
+      }),
+    )
   })
 })
 

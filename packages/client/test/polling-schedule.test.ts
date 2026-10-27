@@ -1,6 +1,6 @@
-import { mintTest } from '@continuous-excellence/testmints-js/vitest'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import type { Envelope, PipelineStatus, PollingSettings } from '@ze-great-dashboard/shared/browser'
-import { describe, expect } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { nextPollDelayMillis } from '../src/polling-schedule.ts'
 
 const settings: PollingSettings = {
@@ -52,48 +52,66 @@ const completionCadences = [
 
 describe('nextPollDelayMillis', () => {
   describe('normal cadence', () => {
-    mintTest('uses normal cadence when no signal is available', {
-      setup: () => ({ envelope: undefined }),
-      exercise: ({ envelope }) => nextPollDelayMillis(envelope, estimateAt, settings),
-      verify: (delayMillis) => expect(delayMillis).toBe(60_000),
-    })
+    test(
+      'uses normal cadence when no signal is available',
+      mint({
+        setup: () => ({ envelope: undefined }),
+        exercise: ({ envelope }) => nextPollDelayMillis(envelope, estimateAt, settings),
+        verify: (delayMillis) => expect(delayMillis).toBe(60_000),
+      }),
+    )
 
-    mintTest('uses normal cadence after an upstream error', {
-      setup: () => ({ envelope: errored() }),
-      exercise: ({ envelope }) => nextPollDelayMillis(envelope, estimateAt, settings),
-      verify: (delayMillis) => expect(delayMillis).toBe(60_000),
-    })
+    test(
+      'uses normal cadence after an upstream error',
+      mint({
+        setup: () => ({ envelope: errored() }),
+        exercise: ({ envelope }) => nextPollDelayMillis(envelope, estimateAt, settings),
+        verify: (delayMillis) => expect(delayMillis).toBe(60_000),
+      }),
+    )
 
-    mintTest('uses normal cadence for a completed pipeline', {
-      setup: () => ({ envelope: running({ status: 'passed' }) }),
-      exercise: ({ envelope }) => nextPollDelayMillis(envelope, estimateAt, settings),
-      verify: (delayMillis) => expect(delayMillis).toBe(60_000),
-    })
+    test(
+      'uses normal cadence for a completed pipeline',
+      mint({
+        setup: () => ({ envelope: running({ status: 'passed' }) }),
+        exercise: ({ envelope }) => nextPollDelayMillis(envelope, estimateAt, settings),
+        verify: (delayMillis) => expect(delayMillis).toBe(60_000),
+      }),
+    )
   })
 
   describe('active pipelines without an estimate', () => {
-    mintTest('uses running cadence', {
-      setup: () => ({
-        envelope: running({ runStartedAt: undefined, estimatedDurationMs: undefined }),
+    test(
+      'uses running cadence',
+      mint({
+        setup: () => ({
+          envelope: running({ runStartedAt: undefined, estimatedDurationMs: undefined }),
+        }),
+        exercise: ({ envelope }) => nextPollDelayMillis(envelope, estimateAt, settings),
+        verify: (delayMillis) => expect(delayMillis).toBe(15_000),
       }),
-      exercise: ({ envelope }) => nextPollDelayMillis(envelope, estimateAt, settings),
-      verify: (delayMillis) => expect(delayMillis).toBe(15_000),
-    })
+    )
   })
 
   describe('estimated completion window', () => {
     for (const { name, nowMillis, expectedDelayMillis } of completionCadences) {
-      mintTest(`uses the expected cadence ${name}`, {
-        setup: () => ({ envelope: running(), nowMillis }),
-        exercise: ({ envelope, nowMillis }) => nextPollDelayMillis(envelope, nowMillis, settings),
-        verify: (delayMillis) => expect(delayMillis).toBe(expectedDelayMillis),
-      })
+      test(
+        `uses the expected cadence ${name}`,
+        mint({
+          setup: () => ({ envelope: running(), nowMillis }),
+          exercise: ({ envelope, nowMillis }) => nextPollDelayMillis(envelope, nowMillis, settings),
+          verify: (delayMillis) => expect(delayMillis).toBe(expectedDelayMillis),
+        }),
+      )
     }
 
-    mintTest('starts the completion burst immediately when the estimate is already past', {
-      setup: () => ({ envelope: running(), nowMillis: estimateAt + 30_000 }),
-      exercise: ({ envelope, nowMillis }) => nextPollDelayMillis(envelope, nowMillis, settings),
-      verify: (delayMillis) => expect(delayMillis).toBe(5_000),
-    })
+    test(
+      'starts the completion burst immediately when the estimate is already past',
+      mint({
+        setup: () => ({ envelope: running(), nowMillis: estimateAt + 30_000 }),
+        exercise: ({ envelope, nowMillis }) => nextPollDelayMillis(envelope, nowMillis, settings),
+        verify: (delayMillis) => expect(delayMillis).toBe(5_000),
+      }),
+    )
   })
 })
