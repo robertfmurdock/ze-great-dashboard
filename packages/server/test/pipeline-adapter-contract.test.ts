@@ -1,6 +1,6 @@
-import { mintTest } from '@continuous-excellence/testmints-js/vitest'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { envelopeSchema, pipelineStatusSchema } from '@ze-great-dashboard/shared'
-import { describe, expect, vi } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import {
   type PipelineAdapterContract,
   pipelineAdapterApp,
@@ -146,102 +146,117 @@ function upstream(body: unknown, status = 200, headers = responseHeaders): typeo
 describe('the pipeline-status route contract', () => {
   for (const adapter of adapters) {
     describe(adapter.name, () => {
-      mintTest('returns schema-valid public pipeline evidence with its canonical source run link', {
-        setup: () => ({
-          adapter,
-          app: pipelineAdapterApp(adapter, upstream(adapter.successfulUpstream)),
-        }),
-        exercise: ({ app }) => app.request('/api/panel/controlled/pipeline'),
-        verify: async (response, { adapter }) => {
-          const envelope = envelopeSchema.parse(await response.json())
-
-          expect(response.status).toBe(200)
-          expect(envelope).toMatchObject({
-            panelId: adapter.expected.panelId,
-            state: 'ok',
-            link: adapter.expected.link,
-          })
-          if (envelope.state !== 'ok')
-            throw new Error('expected a successful controlled observation')
-          expect(pipelineStatusSchema.parse(envelope.signal)).toMatchObject({
-            type: 'pipeline-status',
-            status: adapter.expected.status,
-            sourceRunId: adapter.expected.sourceRunId,
-          })
-        },
-      })
-
-      mintTest('relays upstream cache metadata and browser validators', {
-        setup: () => {
-          const fetcher = upstream(adapter.successfulUpstream)
-          return { app: pipelineAdapterApp(adapter, fetcher), fetcher }
-        },
-        exercise: ({ app }) =>
-          app.request('/api/panel/controlled/pipeline', {
-            headers: {
-              'if-none-match': 'W/"browser"',
-              'if-modified-since': 'Sun, 04 Oct 2026 12:00:00 GMT',
-            },
-          }),
-        verify: (response, { fetcher }) => {
-          const requestHeaders = vi.mocked(fetcher).mock.calls[0]?.[1]?.headers
-
-          expect(response.status).toBe(200)
-          for (const [name, value] of Object.entries(responseHeaders))
-            expect(response.headers.get(name)).toBe(value)
-          expect(requestHeaders).toBeInstanceOf(Headers)
-          expect((requestHeaders as Headers).get('if-none-match')).toBe('W/"browser"')
-          expect((requestHeaders as Headers).get('if-modified-since')).toBe(
-            'Sun, 04 Oct 2026 12:00:00 GMT',
-          )
-        },
-      })
-
-      mintTest('preserves an upstream 304', {
-        setup: () => ({ app: pipelineAdapterApp(adapter, upstream(null, 304)) }),
-        exercise: ({ app }) => app.request('/api/panel/controlled/pipeline'),
-        verify: async (response) => {
-          expect(response.status).toBe(304)
-          expect(response.headers.get('etag')).toBe('W/"controlled"')
-          expect(await response.text()).toBe('')
-        },
-      })
-
-      mintTest('renders upstream unauthorized access as a non-disclosing public envelope', {
-        setup: () => ({
-          app: pipelineAdapterApp(
+      test(
+        'returns schema-valid public pipeline evidence with its canonical source run link',
+        mint({
+          setup: () => ({
             adapter,
-            upstream('raw upstream detail: controlled-server-only-secret', 401),
-          ),
-          adapter,
+            app: pipelineAdapterApp(adapter, upstream(adapter.successfulUpstream)),
+          }),
+          exercise: ({ app }) => app.request('/api/panel/controlled/pipeline'),
+          verify: async (response, { adapter }) => {
+            const envelope = envelopeSchema.parse(await response.json())
+
+            expect(response.status).toBe(200)
+            expect(envelope).toMatchObject({
+              panelId: adapter.expected.panelId,
+              state: 'ok',
+              link: adapter.expected.link,
+            })
+            if (envelope.state !== 'ok')
+              throw new Error('expected a successful controlled observation')
+            expect(pipelineStatusSchema.parse(envelope.signal)).toMatchObject({
+              type: 'pipeline-status',
+              status: adapter.expected.status,
+              sourceRunId: adapter.expected.sourceRunId,
+            })
+          },
         }),
-        exercise: ({ app }) => app.request('/api/panel/controlled/pipeline'),
-        verify: async (response, { adapter }) => {
-          const text = await response.text()
-          const envelope = envelopeSchema.parse(JSON.parse(text))
+      )
 
-          expect(response.status).toBe(200)
-          expect(envelope).toMatchObject({
-            panelId: adapter.expected.panelId,
-            state: 'error',
-            error: { kind: 'unauthorized' },
-          })
-          expect(text).not.toContain('controlled-server-only-secret')
-          expect(text).not.toContain('raw upstream detail')
-        },
-      })
+      test(
+        'relays upstream cache metadata and browser validators',
+        mint({
+          setup: () => {
+            const fetcher = upstream(adapter.successfulUpstream)
+            return { app: pipelineAdapterApp(adapter, fetcher), fetcher }
+          },
+          exercise: ({ app }) =>
+            app.request('/api/panel/controlled/pipeline', {
+              headers: {
+                'if-none-match': 'W/"browser"',
+                'if-modified-since': 'Sun, 04 Oct 2026 12:00:00 GMT',
+              },
+            }),
+          verify: (response, { fetcher }) => {
+            const requestHeaders = vi.mocked(fetcher).mock.calls[0]?.[1]?.headers
 
-      mintTest('rejects undeclared panels before making an upstream request', {
-        setup: () => {
-          const fetcher = vi.fn() as unknown as typeof fetch
-          return { app: pipelineAdapterApp(adapter, fetcher), fetcher }
-        },
-        exercise: ({ app }) => app.request('/api/panel/controlled/not-declared'),
-        verify: (response, { fetcher }) => {
-          expect(response.status).toBe(404)
-          expect(fetcher).not.toHaveBeenCalled()
-        },
-      })
+            expect(response.status).toBe(200)
+            for (const [name, value] of Object.entries(responseHeaders))
+              expect(response.headers.get(name)).toBe(value)
+            expect(requestHeaders).toBeInstanceOf(Headers)
+            expect((requestHeaders as Headers).get('if-none-match')).toBe('W/"browser"')
+            expect((requestHeaders as Headers).get('if-modified-since')).toBe(
+              'Sun, 04 Oct 2026 12:00:00 GMT',
+            )
+          },
+        }),
+      )
+
+      test(
+        'preserves an upstream 304',
+        mint({
+          setup: () => ({ app: pipelineAdapterApp(adapter, upstream(null, 304)) }),
+          exercise: ({ app }) => app.request('/api/panel/controlled/pipeline'),
+          verify: async (response) => {
+            expect(response.status).toBe(304)
+            expect(response.headers.get('etag')).toBe('W/"controlled"')
+            expect(await response.text()).toBe('')
+          },
+        }),
+      )
+
+      test(
+        'renders upstream unauthorized access as a non-disclosing public envelope',
+        mint({
+          setup: () => ({
+            app: pipelineAdapterApp(
+              adapter,
+              upstream('raw upstream detail: controlled-server-only-secret', 401),
+            ),
+            adapter,
+          }),
+          exercise: ({ app }) => app.request('/api/panel/controlled/pipeline'),
+          verify: async (response, { adapter }) => {
+            const text = await response.text()
+            const envelope = envelopeSchema.parse(JSON.parse(text))
+
+            expect(response.status).toBe(200)
+            expect(envelope).toMatchObject({
+              panelId: adapter.expected.panelId,
+              state: 'error',
+              error: { kind: 'unauthorized' },
+            })
+            expect(text).not.toContain('controlled-server-only-secret')
+            expect(text).not.toContain('raw upstream detail')
+          },
+        }),
+      )
+
+      test(
+        'rejects undeclared panels before making an upstream request',
+        mint({
+          setup: () => {
+            const fetcher = vi.fn() as unknown as typeof fetch
+            return { app: pipelineAdapterApp(adapter, fetcher), fetcher }
+          },
+          exercise: ({ app }) => app.request('/api/panel/controlled/not-declared'),
+          verify: (response, { fetcher }) => {
+            expect(response.status).toBe(404)
+            expect(fetcher).not.toHaveBeenCalled()
+          },
+        }),
+      )
     })
   }
 })

@@ -1,5 +1,5 @@
-import { mintTest } from '@continuous-excellence/testmints-js/vitest'
-import { describe, expect, vi } from 'vitest'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { createApp } from '../src/app.ts'
 import { loadConfig } from '../src/config.ts'
 
@@ -64,38 +64,47 @@ describe('API authentication boundary', () => {
       }
     }
 
-    mintTest('rejects a missing access token before any adapter fetch', {
-      setup: protectedValueFixture,
-      exercise: ({ app }) => app.request('/api/boards/ops'),
-      verify: (response, { fetcher }) => {
-        expect(response.status).toBe(401)
-        expect(fetcher).not.toHaveBeenCalled()
-      },
-    })
-
-    mintTest('rejects an invalid access token before any adapter fetch', {
-      setup: () => ({
-        ...protectedValueFixture(),
-        headers: { authorization: 'Bearer wrong' },
+    test(
+      'rejects a missing access token before any adapter fetch',
+      mint({
+        setup: protectedValueFixture,
+        exercise: ({ app }) => app.request('/api/boards/ops'),
+        verify: (response, { fetcher }) => {
+          expect(response.status).toBe(401)
+          expect(fetcher).not.toHaveBeenCalled()
+        },
       }),
-      exercise: ({ app, headers }) => app.request('/api/boards/ops', { headers }),
-      verify: (response, { fetcher }) => {
-        expect(response.status).toBe(401)
-        expect(fetcher).not.toHaveBeenCalled()
-      },
-    })
+    )
 
-    mintTest('rejects an unauthorized access token before any adapter fetch', {
-      setup: () => ({
-        ...protectedValueFixture(),
-        headers: { authorization: 'Bearer unlisted' },
+    test(
+      'rejects an invalid access token before any adapter fetch',
+      mint({
+        setup: () => ({
+          ...protectedValueFixture(),
+          headers: { authorization: 'Bearer wrong' },
+        }),
+        exercise: ({ app, headers }) => app.request('/api/boards/ops', { headers }),
+        verify: (response, { fetcher }) => {
+          expect(response.status).toBe(401)
+          expect(fetcher).not.toHaveBeenCalled()
+        },
       }),
-      exercise: ({ app, headers }) => app.request('/api/boards/ops', { headers }),
-      verify: (response, { fetcher }) => {
-        expect(response.status).toBe(403)
-        expect(fetcher).not.toHaveBeenCalled()
-      },
-    })
+    )
+
+    test(
+      'rejects an unauthorized access token before any adapter fetch',
+      mint({
+        setup: () => ({
+          ...protectedValueFixture(),
+          headers: { authorization: 'Bearer unlisted' },
+        }),
+        exercise: ({ app, headers }) => app.request('/api/boards/ops', { headers }),
+        verify: (response, { fetcher }) => {
+          expect(response.status).toBe(403)
+          expect(fetcher).not.toHaveBeenCalled()
+        },
+      }),
+    )
   })
 
   describe('bootstrap and board routes', () => {
@@ -114,32 +123,41 @@ describe('API authentication boundary', () => {
       }
     }
 
-    mintTest('leaves the document route public', {
-      setup: publicBootstrapFixture,
-      exercise: ({ app }) => app.request('/'),
-      verify: (response) => {
-        expect(response.status).toBe(200)
-      },
-    })
-
-    mintTest('leaves the health route public', {
-      setup: publicBootstrapFixture,
-      exercise: ({ app }) => app.request('/health'),
-      verify: (response) => {
-        expect(response.status).toBe(200)
-      },
-    })
-
-    mintTest('permits a verified token to read a board', {
-      setup: () => ({
-        ...publicBootstrapFixture(),
-        headers: { authorization: 'Bearer valid' },
+    test(
+      'leaves the document route public',
+      mint({
+        setup: publicBootstrapFixture,
+        exercise: ({ app }) => app.request('/'),
+        verify: (response) => {
+          expect(response.status).toBe(200)
+        },
       }),
-      exercise: ({ app, headers }) => app.request('/api/boards/ops', { headers }),
-      verify: (response) => {
-        expect(response.status).toBe(200)
-      },
-    })
+    )
+
+    test(
+      'leaves the health route public',
+      mint({
+        setup: publicBootstrapFixture,
+        exercise: ({ app }) => app.request('/health'),
+        verify: (response) => {
+          expect(response.status).toBe(200)
+        },
+      }),
+    )
+
+    test(
+      'permits a verified token to read a board',
+      mint({
+        setup: () => ({
+          ...publicBootstrapFixture(),
+          headers: { authorization: 'Bearer valid' },
+        }),
+        exercise: ({ app, headers }) => app.request('/api/boards/ops', { headers }),
+        verify: (response) => {
+          expect(response.status).toBe(200)
+        },
+      }),
+    )
   })
 
   describe('claim-policy exposure', () => {
@@ -177,49 +195,58 @@ describe('API authentication boundary', () => {
       }
     }
 
-    mintTest('blocks a missing claim before any upstream access', {
-      setup: () => ({
-        ...claimPolicyFixture(),
-        headers: { authorization: 'Bearer missing-claim' },
+    test(
+      'blocks a missing claim before any upstream access',
+      mint({
+        setup: () => ({
+          ...claimPolicyFixture(),
+          headers: { authorization: 'Bearer missing-claim' },
+        }),
+        exercise: ({ app, headers }) => app.request('/api/panel/ops/value', { headers }),
+        verify: (response, { fetcher }) => {
+          expect(response.status).toBe(403)
+          expect(fetcher).not.toHaveBeenCalled()
+        },
       }),
-      exercise: ({ app, headers }) => app.request('/api/panel/ops/value', { headers }),
-      verify: (response, { fetcher }) => {
-        expect(response.status).toBe(403)
-        expect(fetcher).not.toHaveBeenCalled()
-      },
-    })
+    )
 
-    mintTest('returns only safe policy metadata', {
-      setup: () => ({
-        ...claimPolicyFixture(),
-        headers: { authorization: 'Bearer valid' },
+    test(
+      'returns only safe policy metadata',
+      mint({
+        setup: () => ({
+          ...claimPolicyFixture(),
+          headers: { authorization: 'Bearer valid' },
+        }),
+        exercise: async ({ app, headers }) => {
+          const response = await app.request('/api/boards/ops/security', { headers })
+          return response.json()
+        },
+        verify: (body) => {
+          expect(body).toEqual({
+            oidc: true,
+            policy: { mode: 'claim', claim: 'groups', match: 'all' },
+          })
+          expect(JSON.stringify(body)).not.toContain('viewers')
+        },
       }),
-      exercise: async ({ app, headers }) => {
-        const response = await app.request('/api/boards/ops/security', { headers })
-        return response.json()
-      },
-      verify: (body) => {
-        expect(body).toEqual({
-          oidc: true,
-          policy: { mode: 'claim', claim: 'groups', match: 'all' },
-        })
-        expect(JSON.stringify(body)).not.toContain('viewers')
-      },
-    })
+    )
 
-    mintTest('redacts authorization policy from the authored configuration download', {
-      setup: () => ({
-        ...claimPolicyFixture(),
-        headers: { authorization: 'Bearer valid' },
+    test(
+      'redacts authorization policy from the authored configuration download',
+      mint({
+        setup: () => ({
+          ...claimPolicyFixture(),
+          headers: { authorization: 'Bearer valid' },
+        }),
+        exercise: async ({ app, headers }) => {
+          const response = await app.request('/api/boards/ops/authored', { headers })
+          return response.text()
+        },
+        verify: (download) => {
+          expect(download).not.toContain('auth:')
+          expect(download).not.toContain('viewers')
+        },
       }),
-      exercise: async ({ app, headers }) => {
-        const response = await app.request('/api/boards/ops/authored', { headers })
-        return response.text()
-      },
-      verify: (download) => {
-        expect(download).not.toContain('auth:')
-        expect(download).not.toContain('viewers')
-      },
-    })
+    )
   })
 })

@@ -1,5 +1,5 @@
-import { mintTest } from '@continuous-excellence/testmints-js/vitest'
-import { describe, expect } from 'vitest'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
+import { describe, expect, test } from 'vitest'
 import { pipelineStatusPriority, pipelineStatusSchema } from '../src/envelope.ts'
 
 describe('pipeline signal activity', () => {
@@ -15,35 +15,47 @@ describe('pipeline signal activity', () => {
     { kind: 'stage' as const, name: 'integration tests', parent: 'build' },
     { kind: 'step' as const, name: 'integration tests', parent: 'build' },
   ]) {
-    mintTest(`accepts normalized ${activity.kind} activity`, {
-      setup: () => ({ signal: { ...base, activity } }),
-      exercise: ({ signal }) => pipelineStatusSchema.safeParse(signal),
-      verify: (result) => expect(result.success).toBe(true),
-    })
+    test(
+      `accepts normalized ${activity.kind} activity`,
+      mint({
+        setup: () => ({ signal: { ...base, activity } }),
+        exercise: ({ signal }) => pipelineStatusSchema.safeParse(signal),
+        verify: (result) => expect(result.success).toBe(true),
+      }),
+    )
   }
 
   for (const { name, activity } of [
     { name: 'an unknown kind', activity: { kind: 'task', name: 'build' } },
     { name: 'an empty name', activity: { kind: 'job', name: '' } },
   ]) {
-    mintTest(`rejects activity metadata with ${name}`, {
-      setup: () => ({ signal: { ...base, activity } }),
-      exercise: ({ signal }) => pipelineStatusSchema.safeParse(signal),
-      verify: (result) => expect(result.success).toBe(false),
-    })
+    test(
+      `rejects activity metadata with ${name}`,
+      mint({
+        setup: () => ({ signal: { ...base, activity } }),
+        exercise: ({ signal }) => pipelineStatusSchema.safeParse(signal),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
   }
 
-  mintTest('accepts warning as a normalized completed status', {
-    setup: () => ({ signal: { ...base, status: 'warning' as const } }),
-    exercise: ({ signal }) => pipelineStatusSchema.safeParse(signal),
-    verify: (result) => expect(result.success).toBe(true),
-  })
-
-  mintTest('orders compact pipeline evidence from passed to failed', {
-    setup: () => ({
-      statuses: ['passed', 'cancelled', 'unknown', 'running', 'warning', 'failed'] as const,
+  test(
+    'accepts warning as a normalized completed status',
+    mint({
+      setup: () => ({ signal: { ...base, status: 'warning' as const } }),
+      exercise: ({ signal }) => pipelineStatusSchema.safeParse(signal),
+      verify: (result) => expect(result.success).toBe(true),
     }),
-    exercise: ({ statuses }) => statuses.map((status) => pipelineStatusPriority(status)),
-    verify: (priorities) => expect(priorities).toEqual([0, 1, 2, 3, 4, 5]),
-  })
+  )
+
+  test(
+    'orders compact pipeline evidence from passed to failed',
+    mint({
+      setup: () => ({
+        statuses: ['passed', 'cancelled', 'unknown', 'running', 'warning', 'failed'] as const,
+      }),
+      exercise: ({ statuses }) => statuses.map((status) => pipelineStatusPriority(status)),
+      verify: (priorities) => expect(priorities).toEqual([0, 1, 2, 3, 4, 5]),
+    }),
+  )
 })

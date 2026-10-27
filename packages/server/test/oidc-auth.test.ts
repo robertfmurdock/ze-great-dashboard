@@ -1,7 +1,7 @@
-import { mintTest } from '@continuous-excellence/testmints-js/vitest'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import type { Auth } from '@ze-great-dashboard/shared'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
-import { describe, expect } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import {
   type AccessTokenVerifier,
   accessDenied,
@@ -44,130 +44,169 @@ const groupAuth: Auth = {
 
 describe('OIDC API access-token verification', () => {
   describe('signed API token admission', () => {
-    mintTest('accepts a correctly signed allowed API token through discovery and JWKS', {
-      setup: () => verifierTokenFixture(auth, { subject: 'allowed-user' }),
-      exercise: ({ verifier, token }) => verifier(token),
-      verify: (identity, { calls }) => {
-        expect(identity).toEqual({ subject: 'allowed-user' })
-        expect(calls).toEqual([
-          `${auth.issuer}/.well-known/openid-configuration`,
-          `${auth.issuer}/keys`,
-        ])
-      },
-    })
+    test(
+      'accepts a correctly signed allowed API token through discovery and JWKS',
+      mint({
+        setup: () => verifierTokenFixture(auth, { subject: 'allowed-user' }),
+        exercise: ({ verifier, token }) => verifier(token),
+        verify: (identity, { calls }) => {
+          expect(identity).toEqual({ subject: 'allowed-user' })
+          expect(calls).toEqual([
+            `${auth.issuer}/.well-known/openid-configuration`,
+            `${auth.issuer}/keys`,
+          ])
+        },
+      }),
+    )
 
-    mintTest('accepts a provider issuer with a trailing slash when configuration omits it', {
-      setup: () => {
-        const providerIssuer = `${auth.issuer}/`
-        return verifierTokenFixture(auth, {
-          discoveryIssuer: providerIssuer,
-          issuer: providerIssuer,
-          subject: 'allowed-user',
-        })
-      },
-      exercise: ({ verifier, token }) => verifier(token),
-      verify: (identity) => {
-        expect(identity).toEqual({ subject: 'allowed-user' })
-      },
-    })
+    test(
+      'accepts a provider issuer with a trailing slash when configuration omits it',
+      mint({
+        setup: () => {
+          const providerIssuer = `${auth.issuer}/`
+          return verifierTokenFixture(auth, {
+            discoveryIssuer: providerIssuer,
+            issuer: providerIssuer,
+            subject: 'allowed-user',
+          })
+        },
+        exercise: ({ verifier, token }) => verifier(token),
+        verify: (identity) => {
+          expect(identity).toEqual({ subject: 'allowed-user' })
+        },
+      }),
+    )
 
-    mintTest('admits a subject under the authenticated policy', {
-      setup: () => verifierTokenFixture(authenticatedAuth),
-      exercise: ({ verifier, token }) => verifier(token),
-      verify: (identity) => {
-        expect(identity).toEqual({ subject: 'person' })
-      },
-    })
+    test(
+      'admits a subject under the authenticated policy',
+      mint({
+        setup: () => verifierTokenFixture(authenticatedAuth),
+        exercise: ({ verifier, token }) => verifier(token),
+        verify: (identity) => {
+          expect(identity).toEqual({ subject: 'person' })
+        },
+      }),
+    )
   })
 
   describe('invalid token rejection', () => {
-    mintTest('rejects a token with the wrong issuer before authorization', {
-      setup: () => verifierTokenFixture(authenticatedAuth, { issuer: 'https://other.test' }),
-      exercise: rejects(({ verifier, token }) => verifier(token)),
-      verify: (error) => {
-        expect(error).toBeInstanceOf(Error)
-      },
-    })
+    test(
+      'rejects a token with the wrong issuer before authorization',
+      mint({
+        setup: () => verifierTokenFixture(authenticatedAuth, { issuer: 'https://other.test' }),
+        exercise: rejects(({ verifier, token }) => verifier(token)),
+        verify: (error) => {
+          expect(error).toBeInstanceOf(Error)
+        },
+      }),
+    )
 
-    mintTest('rejects a token with the wrong audience before authorization', {
-      setup: () => verifierTokenFixture(authenticatedAuth, { audience: 'other-api' }),
-      exercise: rejects(({ verifier, token }) => verifier(token)),
-      verify: (error) => {
-        expect(error).toBeInstanceOf(Error)
-      },
-    })
+    test(
+      'rejects a token with the wrong audience before authorization',
+      mint({
+        setup: () => verifierTokenFixture(authenticatedAuth, { audience: 'other-api' }),
+        exercise: rejects(({ verifier, token }) => verifier(token)),
+        verify: (error) => {
+          expect(error).toBeInstanceOf(Error)
+        },
+      }),
+    )
 
-    mintTest('rejects an expired token before authorization', {
-      setup: () => verifierTokenFixture(authenticatedAuth, { expiration: '5 seconds ago' }),
-      exercise: rejects(({ verifier, token }) => verifier(token)),
-      verify: (error) => {
-        expect(error).toBeInstanceOf(Error)
-      },
-    })
+    test(
+      'rejects an expired token before authorization',
+      mint({
+        setup: () => verifierTokenFixture(authenticatedAuth, { expiration: '5 seconds ago' }),
+        exercise: rejects(({ verifier, token }) => verifier(token)),
+        verify: (error) => {
+          expect(error).toBeInstanceOf(Error)
+        },
+      }),
+    )
 
-    mintTest('rejects a token without a subject before authorization', {
-      setup: () => verifierTokenFixture(authenticatedAuth, { subject: null }),
-      exercise: rejects(({ verifier, token }) => verifier(token)),
-      verify: (error) => {
-        expect(error).toBeInstanceOf(Error)
-      },
-    })
+    test(
+      'rejects a token without a subject before authorization',
+      mint({
+        setup: () => verifierTokenFixture(authenticatedAuth, { subject: null }),
+        exercise: rejects(({ verifier, token }) => verifier(token)),
+        verify: (error) => {
+          expect(error).toBeInstanceOf(Error)
+        },
+      }),
+    )
 
-    mintTest('rejects a token signed by an untrusted key before authorization', {
-      setup: () => untrustedVerifierTokenFixture(authenticatedAuth),
-      exercise: rejects(({ verifier, token }) => verifier(token)),
-      verify: (error) => {
-        expect(error).toBeInstanceOf(Error)
-      },
-    })
+    test(
+      'rejects a token signed by an untrusted key before authorization',
+      mint({
+        setup: () => untrustedVerifierTokenFixture(authenticatedAuth),
+        exercise: rejects(({ verifier, token }) => verifier(token)),
+        verify: (error) => {
+          expect(error).toBeInstanceOf(Error)
+        },
+      }),
+    )
   })
 
   describe('authorization policy', () => {
-    mintTest('denies an authenticated but unlisted subject', {
-      setup: () => verifierTokenFixture(auth, { subject: 'someone-else' }),
-      exercise: rejects(({ verifier, token }) => verifier(token)),
-      verify: (error) => {
-        expect(accessDenied(error)).toBe(true)
-      },
-    })
+    test(
+      'denies an authenticated but unlisted subject',
+      mint({
+        setup: () => verifierTokenFixture(auth, { subject: 'someone-else' }),
+        exercise: rejects(({ verifier, token }) => verifier(token)),
+        verify: (error) => {
+          expect(accessDenied(error)).toBe(true)
+        },
+      }),
+    )
 
-    mintTest('admits every required Auth0-style role claim', {
-      setup: () =>
-        verifierTokenFixture(roleAuth, {
-          claims: { 'https://dashboard.example.test/roles': ['viewer', 'operator'] },
-        }),
-      exercise: ({ verifier, token }) => verifier(token),
-      verify: (identity) => {
-        expect(identity).toEqual({ subject: 'person' })
-      },
-    })
+    test(
+      'admits every required Auth0-style role claim',
+      mint({
+        setup: () =>
+          verifierTokenFixture(roleAuth, {
+            claims: { 'https://dashboard.example.test/roles': ['viewer', 'operator'] },
+          }),
+        exercise: ({ verifier, token }) => verifier(token),
+        verify: (identity) => {
+          expect(identity).toEqual({ subject: 'person' })
+        },
+      }),
+    )
 
-    mintTest('admits an Okta-style group claim matching any allowed group', {
-      setup: () => verifierTokenFixture(groupAuth, { claims: { groups: ['dashboard-viewers'] } }),
-      exercise: ({ verifier, token }) => verifier(token),
-      verify: (identity) => {
-        expect(identity).toEqual({ subject: 'person' })
-      },
-    })
+    test(
+      'admits an Okta-style group claim matching any allowed group',
+      mint({
+        setup: () => verifierTokenFixture(groupAuth, { claims: { groups: ['dashboard-viewers'] } }),
+        exercise: ({ verifier, token }) => verifier(token),
+        verify: (identity) => {
+          expect(identity).toEqual({ subject: 'person' })
+        },
+      }),
+    )
 
-    mintTest('denies a role claim missing a required role', {
-      setup: () =>
-        verifierTokenFixture(roleAuth, {
-          claims: { 'https://dashboard.example.test/roles': ['viewer'] },
-        }),
-      exercise: rejects(({ verifier, token }) => verifier(token)),
-      verify: (error) => {
-        expect(accessDenied(error)).toBe(true)
-      },
-    })
+    test(
+      'denies a role claim missing a required role',
+      mint({
+        setup: () =>
+          verifierTokenFixture(roleAuth, {
+            claims: { 'https://dashboard.example.test/roles': ['viewer'] },
+          }),
+        exercise: rejects(({ verifier, token }) => verifier(token)),
+        verify: (error) => {
+          expect(accessDenied(error)).toBe(true)
+        },
+      }),
+    )
 
-    mintTest('denies a group claim containing a non-string value', {
-      setup: () => verifierTokenFixture(groupAuth, { claims: { groups: [1] } }),
-      exercise: rejects(({ verifier, token }) => verifier(token)),
-      verify: (error) => {
-        expect(accessDenied(error)).toBe(true)
-      },
-    })
+    test(
+      'denies a group claim containing a non-string value',
+      mint({
+        setup: () => verifierTokenFixture(groupAuth, { claims: { groups: [1] } }),
+        exercise: rejects(({ verifier, token }) => verifier(token)),
+        verify: (error) => {
+          expect(accessDenied(error)).toBe(true)
+        },
+      }),
+    )
   })
 })
 

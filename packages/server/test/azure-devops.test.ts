@@ -1,9 +1,9 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { mintTest } from '@continuous-excellence/testmints-js/vitest'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import type { BoardConfig, PipelineStatus } from '@ze-great-dashboard/shared'
-import { describe, expect, vi } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import {
   fetchAzureDevOpsPipeline,
   permittedAzureDevOpsCalls,
@@ -85,16 +85,19 @@ function expectAzureDevOpsPipelineStatus(
 
 describe('the Azure DevOps pipeline adapter', () => {
   describe('permitted-call derivation', () => {
-    mintTest('derives a bounded definition call for the configured ref-qualified branch', {
-      setup: () => ({ panel, source }),
-      exercise: ({ panel, source }) => permittedAzureDevOpsCalls(panel, source),
-      verify: ([call]) => {
-        expect(call?.url).toBe(
-          'https://dev.azure.com/example-org/Example%20Project/_apis/build/builds?api-version=7.1&definitions=42&branchName=refs%2Fheads%2Fmain&queryOrder=queueTimeDescending&%24top=1',
-        )
-        expect(call?.headers.get('authorization')).toBeNull()
-      },
-    })
+    test(
+      'derives a bounded definition call for the configured ref-qualified branch',
+      mint({
+        setup: () => ({ panel, source }),
+        exercise: ({ panel, source }) => permittedAzureDevOpsCalls(panel, source),
+        verify: ([call]) => {
+          expect(call?.url).toBe(
+            'https://dev.azure.com/example-org/Example%20Project/_apis/build/builds?api-version=7.1&definitions=42&branchName=refs%2Fheads%2Fmain&queryOrder=queueTimeDescending&%24top=1',
+          )
+          expect(call?.headers.get('authorization')).toBeNull()
+        },
+      }),
+    )
   })
 
   describe('pipeline observations', () => {
@@ -112,23 +115,26 @@ describe('the Azure DevOps pipeline adapter', () => {
     ]
 
     for (const { result, status, expectedStatus } of azureStatusCases)
-      mintTest(`normalizes ADO result ${result} and status ${status} as ${expectedStatus}`, {
-        setup: () => ({ fetcher: upstream([build({ result, status })]) }),
-        exercise: ({ fetcher }) =>
-          fetchAzureDevOpsPipeline({
-            panel,
-            source,
-            credentials,
-            requestHeaders: new Headers(),
-            fetcher,
-          }),
-        verify: (response) =>
-          expectAzureDevOpsPipelineStatus(response, result, status, expectedStatus),
-      })
+      test(
+        `normalizes ADO result ${result} and status ${status} as ${expectedStatus}`,
+        mint({
+          setup: () => ({ fetcher: upstream([build({ result, status })]) }),
+          exercise: ({ fetcher }) =>
+            fetchAzureDevOpsPipeline({
+              panel,
+              source,
+              credentials,
+              requestHeaders: new Headers(),
+              fetcher,
+            }),
+          verify: (response) =>
+            expectAzureDevOpsPipelineStatus(response, result, status, expectedStatus),
+        }),
+      )
 
-    mintTest(
+    test(
       'sends Basic PAT authentication, relays validators, and derives active timeline work',
-      {
+      mint({
         setup: () => {
           const fetcher = vi.fn(async (url: string) => {
             if (url.includes('/timeline?')) {
@@ -174,34 +180,37 @@ describe('the Azure DevOps pipeline adapter', () => {
           expect(primaryHeaders.get('if-none-match')).toBe('W/"browser"')
           expect(response.response.headers.get('etag')).toBe('W/"ado"')
         },
-      },
+      }),
     )
 
-    mintTest('passes an upstream 304 through unchanged', {
-      setup: () => ({
-        fetcher: vi.fn(
-          async () => new Response(null, { status: 304, headers: { etag: 'W/"ado"' } }),
-        ) as unknown as typeof fetch,
-      }),
-      exercise: ({ fetcher }) =>
-        fetchAzureDevOpsPipeline({
-          panel,
-          source,
-          credentials,
-          requestHeaders: new Headers(),
-          fetcher,
+    test(
+      'passes an upstream 304 through unchanged',
+      mint({
+        setup: () => ({
+          fetcher: vi.fn(
+            async () => new Response(null, { status: 304, headers: { etag: 'W/"ado"' } }),
+          ) as unknown as typeof fetch,
         }),
-      verify: (response) => {
-        expect(response.envelope).toBeUndefined()
-        expect(response.response.status).toBe(304)
-      },
-    })
+        exercise: ({ fetcher }) =>
+          fetchAzureDevOpsPipeline({
+            panel,
+            source,
+            credentials,
+            requestHeaders: new Headers(),
+            fetcher,
+          }),
+        verify: (response) => {
+          expect(response.envelope).toBeUndefined()
+          expect(response.response.status).toBe(304)
+        },
+      }),
+    )
   })
 
   describe('renewable Entra file credentials', () => {
-    mintTest(
+    test(
       'reads a renewable local token file for each call and sends fresh Bearer authentication',
-      {
+      mint({
         setup: async ({ scope }) => {
           const directory = await scope.using(
             'Entra token directory',
@@ -249,7 +258,7 @@ describe('the Azure DevOps pipeline adapter', () => {
           expect(authorizationForCall(fetcher, 0)).toBe('Bearer first-token')
           expect(authorizationForCall(fetcher, 1)).toBe('Bearer second-token')
         },
-      },
+      }),
     )
 
     for (const { condition, contents } of [
@@ -263,9 +272,9 @@ describe('the Azure DevOps pipeline adapter', () => {
         }),
       },
     ] as const)
-      mintTest(
+      test(
         `renders a ${condition} Entra token file as a non-disclosing unauthorized envelope`,
-        {
+        mint({
           setup: async ({ scope }) => {
             const directory = await scope.using(
               'Entra token directory',
@@ -294,7 +303,7 @@ describe('the Azure DevOps pipeline adapter', () => {
             expect(body).not.toContain(tokenFile)
             expect(body).not.toContain('expired-token')
           },
-        },
+        }),
       )
   })
 
@@ -327,25 +336,28 @@ describe('the Azure DevOps pipeline adapter', () => {
     ]
 
     for (const { failure, response, errorKind } of upstreamFailureCases)
-      mintTest(`returns a public HTTP-200 error envelope for ${failure}`, {
-        setup: () => ({ fetcher: vi.fn(response) as unknown as typeof fetch }),
-        exercise: ({ fetcher }) =>
-          fetchAzureDevOpsPipeline({
-            panel,
-            source,
-            credentials,
-            requestHeaders: new Headers(),
-            fetcher,
-          }),
-        verify: async (response) => {
-          expect(response.response.status).toBe(200)
-          await expect(response.response.json()).resolves.toMatchObject({
-            state: 'error',
-            link: 'https://dev.azure.com/example-org/Example%20Project/_build',
-            error: { kind: errorKind },
-          })
-        },
-      })
+      test(
+        `returns a public HTTP-200 error envelope for ${failure}`,
+        mint({
+          setup: () => ({ fetcher: vi.fn(response) as unknown as typeof fetch }),
+          exercise: ({ fetcher }) =>
+            fetchAzureDevOpsPipeline({
+              panel,
+              source,
+              credentials,
+              requestHeaders: new Headers(),
+              fetcher,
+            }),
+          verify: async (response) => {
+            expect(response.response.status).toBe(200)
+            await expect(response.response.json()).resolves.toMatchObject({
+              state: 'error',
+              link: 'https://dev.azure.com/example-org/Example%20Project/_build',
+              error: { kind: errorKind },
+            })
+          },
+        }),
+      )
   })
 })
 
@@ -362,85 +374,97 @@ describe('the Azure DevOps panel route', () => {
     boards: { operations: { panels: [panel] } },
   }
 
-  mintTest('serves a configured panel through the shared public contract', {
-    setup: () => {
-      const fetcher = upstream(
-        [build()],
-        new Headers({ etag: 'W/"ado"', 'cache-control': 'max-age=60' }),
-      )
-      const app = createApp({
-        config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
-        boardConfig,
-        credentials,
-        fetcher,
-      })
-
-      return { app }
-    },
-    exercise: ({ app }) => app.request('/api/panel/operations/service-build'),
-    verify: async (response) => {
-      expect(response.status).toBe(200)
-      expect(response.headers.get('etag')).toBe('W/"ado"')
-      await expect(response.json()).resolves.toMatchObject({
-        state: 'ok',
-        signal: { status: 'passed' },
-      })
-    },
-  })
-
-  mintTest('rejects an undeclared panel without exposing an Azure DevOps call', {
-    setup: () => {
-      const fetcher = upstream([build()])
-      return {
-        fetcher,
-        app: createApp({
+  test(
+    'serves a configured panel through the shared public contract',
+    mint({
+      setup: () => {
+        const fetcher = upstream(
+          [build()],
+          new Headers({ etag: 'W/"ado"', 'cache-control': 'max-age=60' }),
+        )
+        const app = createApp({
           config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
           boardConfig,
           credentials,
           fetcher,
-        }),
-      }
-    },
-    exercise: ({ app }) => app.request('/api/panel/operations/not-configured'),
-    verify: (response, { fetcher }) => {
-      expect(response.status).toBe(404)
-      expect(fetcher).not.toHaveBeenCalled()
-    },
-  })
+        })
 
-  mintTest('keeps the PAT out of the public panel envelope', {
-    setup: () => {
-      const fetcher = upstream([build()])
-      const app = createApp({
-        config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
-        boardConfig,
-        credentials,
-        fetcher,
-      })
+        return { app }
+      },
+      exercise: ({ app }) => app.request('/api/panel/operations/service-build'),
+      verify: async (response) => {
+        expect(response.status).toBe(200)
+        expect(response.headers.get('etag')).toBe('W/"ado"')
+        await expect(response.json()).resolves.toMatchObject({
+          state: 'ok',
+          signal: { status: 'passed' },
+        })
+      },
+    }),
+  )
 
-      return { app }
-    },
-    exercise: ({ app }) => app.request('/api/panel/operations/service-build'),
-    verify: async (response) => expect(await response.text()).not.toContain('read-token'),
-  })
+  test(
+    'rejects an undeclared panel without exposing an Azure DevOps call',
+    mint({
+      setup: () => {
+        const fetcher = upstream([build()])
+        return {
+          fetcher,
+          app: createApp({
+            config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
+            boardConfig,
+            credentials,
+            fetcher,
+          }),
+        }
+      },
+      exercise: ({ app }) => app.request('/api/panel/operations/not-configured'),
+      verify: (response, { fetcher }) => {
+        expect(response.status).toBe(404)
+        expect(fetcher).not.toHaveBeenCalled()
+      },
+    }),
+  )
 
-  mintTest('keeps the PAT out of the rendered entrypoint', {
-    setup: () => {
-      const fetcher = vi.fn(async (url: string) => {
-        if (url.endsWith('/index.html'))
-          return new Response('<!doctype html><html lang="en"><head></head><body></body></html>')
-        return new Response(JSON.stringify({ value: [build()] }))
-      }) as unknown as typeof fetch
-      return {
-        app: createApp({
+  test(
+    'keeps the PAT out of the public panel envelope',
+    mint({
+      setup: () => {
+        const fetcher = upstream([build()])
+        const app = createApp({
           config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
           boardConfig,
           credentials,
           fetcher,
-        }),
-      }
-    },
-    exercise: ({ app }) => app.request('/'),
-    verify: async (response) => expect(await response.text()).not.toContain('read-token'),
-  })
+        })
+
+        return { app }
+      },
+      exercise: ({ app }) => app.request('/api/panel/operations/service-build'),
+      verify: async (response) => expect(await response.text()).not.toContain('read-token'),
+    }),
+  )
+
+  test(
+    'keeps the PAT out of the rendered entrypoint',
+    mint({
+      setup: () => {
+        const fetcher = vi.fn(async (url: string) => {
+          if (url.endsWith('/index.html'))
+            return new Response('<!doctype html><html lang="en"><head></head><body></body></html>')
+          return new Response(JSON.stringify({ value: [build()] }))
+        }) as unknown as typeof fetch
+        return {
+          app: createApp({
+            config: loadConfig({ ASSET_PATH: 'https://assets.example.com/1.0.0' }),
+            boardConfig,
+            credentials,
+            fetcher,
+          }),
+        }
+      },
+      exercise: ({ app }) => app.request('/'),
+      verify: async (response) => expect(await response.text()).not.toContain('read-token'),
+    }),
+  )
 })

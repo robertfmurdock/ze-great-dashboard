@@ -1,9 +1,9 @@
-import { mintTest } from '@continuous-excellence/testmints-js/vitest'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import type { ReactNode } from 'react'
-import { afterEach, describe, expect, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
 const useAuth = vi.hoisted(() => vi.fn())
 vi.mock('react-oidc-context', () => ({
@@ -31,9 +31,9 @@ const auth = {
 afterEach(() => vi.resetAllMocks())
 
 describe('OIDC denied boundary', () => {
-  mintTest(
+  test(
     'silently restores an OIDC session after the memory-only token cache is lost on reload',
-    {
+    mint({
       setup: () => {
         const signinSilent = vi.fn().mockResolvedValue(null)
         useAuth.mockReturnValue({
@@ -54,12 +54,12 @@ describe('OIDC denied boundary', () => {
         await waitFor(() => expect(signinSilent).toHaveBeenCalledOnce())
         expect(screen.getByRole('button', { name: 'Sign in' })).not.toBeNull()
       },
-    },
+    }),
   )
 
-  mintTest(
+  test(
     'replaces admitted content with the generic denied view when an authenticated request is forbidden',
-    {
+    mint({
       setup: () => {
         useAuth.mockReturnValue({
           isLoading: false,
@@ -85,6 +85,6 @@ describe('OIDC denied boundary', () => {
         expect(screen.getByRole('heading', { name: 'Access denied' })).not.toBeNull()
         expect(screen.queryByRole('button', { name: 'Request protected details' })).toBeNull()
       },
-    },
+    }),
   )
 })

@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import type { ResourceScope } from '@continuous-excellence/testmints-js'
-import { mintTest } from '@continuous-excellence/testmints-js/vitest'
-import { describe, expect } from 'vitest'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
+import { describe, expect, test } from 'vitest'
 import { createApp } from '../src/app.ts'
 import { loadConfig } from '../src/config.ts'
 import { type StaticServer, startStaticServer } from './static-server.ts'
@@ -37,62 +37,74 @@ describe('immutable web app: one variable repoints the client', () => {
     return { app: createApp({ config }), assetPath }
   }
 
-  mintTest('serves version 1.0.0 with its own hashed filenames, made absolute', {
-    setup: async ({ scope }) =>
-      immutableWebAppFixture('1.0.0', await publishedClientFixture(scope)),
-    exercise: ({ app }) => app.request('/'),
-    verify: async (response, { assetPath }) => {
-      expect(response.status).toBe(200)
-      const html = await response.text()
-      expect(html).toContain('FIXTURE VERSION ONE')
-      expect(html).toContain(`src="${assetPath}/assets/index-aaaa1111.js"`)
-      expect(html).toContain(`href="${assetPath}/assets/index-aaaa1111.css"`)
-    },
-  })
-
-  mintTest('serves version 2.0.0 after only the asset path changed', {
-    setup: async ({ scope }) =>
-      immutableWebAppFixture('2.0.0', await publishedClientFixture(scope)),
-    exercise: ({ app }) => app.request('/'),
-    verify: async (response, { assetPath }) => {
-      expect(response.status).toBe(200)
-      const html = await response.text()
-      expect(html).toContain('FIXTURE VERSION TWO — VISIBLY DIFFERENT')
-      expect(html).toContain(`src="${assetPath}/assets/index-bbbb2222.js"`)
-    },
-  })
-
-  mintTest('never serves one version’s filenames from another version’s path', {
-    setup: async ({ scope }) => {
-      const cdn = await publishedClientFixture(scope)
-      return {
-        one: immutableWebAppFixture('1.0.0', cdn),
-        two: immutableWebAppFixture('2.0.0', cdn),
-      }
-    },
-    exercise: async ({ one, two }) => ({
-      one: await one.app.request('/'),
-      two: await two.app.request('/'),
+  test(
+    'serves version 1.0.0 with its own hashed filenames, made absolute',
+    mint({
+      setup: async ({ scope }) =>
+        immutableWebAppFixture('1.0.0', await publishedClientFixture(scope)),
+      exercise: ({ app }) => app.request('/'),
+      verify: async (response, { assetPath }) => {
+        expect(response.status).toBe(200)
+        const html = await response.text()
+        expect(html).toContain('FIXTURE VERSION ONE')
+        expect(html).toContain(`src="${assetPath}/assets/index-aaaa1111.js"`)
+        expect(html).toContain(`href="${assetPath}/assets/index-aaaa1111.css"`)
+      },
     }),
-    verify: async ({ one, two }) => {
-      expect(one.status).toBe(200)
-      expect(two.status).toBe(200)
-      const [oneHtml, twoHtml] = await Promise.all([one.text(), two.text()])
-      expect(oneHtml).not.toContain('index-bbbb2222')
-      expect(twoHtml).not.toContain('index-aaaa1111')
-      expect(oneHtml).not.toContain('client-2.0.0')
-      expect(twoHtml).not.toContain('client-1.0.0')
-    },
-  })
+  )
 
-  mintTest('leaves no sentinel behind in the served document', {
-    setup: async ({ scope }) =>
-      immutableWebAppFixture('1.0.0', await publishedClientFixture(scope)),
-    exercise: ({ app }) => app.request('/'),
-    verify: async (response) => {
-      expect(response.status).toBe(200)
-      const html = await response.text()
-      expect(html).not.toContain('__ASSET_PATH__')
-    },
-  })
+  test(
+    'serves version 2.0.0 after only the asset path changed',
+    mint({
+      setup: async ({ scope }) =>
+        immutableWebAppFixture('2.0.0', await publishedClientFixture(scope)),
+      exercise: ({ app }) => app.request('/'),
+      verify: async (response, { assetPath }) => {
+        expect(response.status).toBe(200)
+        const html = await response.text()
+        expect(html).toContain('FIXTURE VERSION TWO — VISIBLY DIFFERENT')
+        expect(html).toContain(`src="${assetPath}/assets/index-bbbb2222.js"`)
+      },
+    }),
+  )
+
+  test(
+    'never serves one version’s filenames from another version’s path',
+    mint({
+      setup: async ({ scope }) => {
+        const cdn = await publishedClientFixture(scope)
+        return {
+          one: immutableWebAppFixture('1.0.0', cdn),
+          two: immutableWebAppFixture('2.0.0', cdn),
+        }
+      },
+      exercise: async ({ one, two }) => ({
+        one: await one.app.request('/'),
+        two: await two.app.request('/'),
+      }),
+      verify: async ({ one, two }) => {
+        expect(one.status).toBe(200)
+        expect(two.status).toBe(200)
+        const [oneHtml, twoHtml] = await Promise.all([one.text(), two.text()])
+        expect(oneHtml).not.toContain('index-bbbb2222')
+        expect(twoHtml).not.toContain('index-aaaa1111')
+        expect(oneHtml).not.toContain('client-2.0.0')
+        expect(twoHtml).not.toContain('client-1.0.0')
+      },
+    }),
+  )
+
+  test(
+    'leaves no sentinel behind in the served document',
+    mint({
+      setup: async ({ scope }) =>
+        immutableWebAppFixture('1.0.0', await publishedClientFixture(scope)),
+      exercise: ({ app }) => app.request('/'),
+      verify: async (response) => {
+        expect(response.status).toBe(200)
+        const html = await response.text()
+        expect(html).not.toContain('__ASSET_PATH__')
+      },
+    }),
+  )
 })
