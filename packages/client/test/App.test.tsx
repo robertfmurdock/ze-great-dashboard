@@ -1,51 +1,17 @@
 import type { ResourceScope } from '@continuous-excellence/testmints-js'
 import { mint } from '@continuous-excellence/testmints-js/vitest'
-import { cleanup, render as rtlRender, screen, waitFor } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ClientEnv, PipelineStatus } from '@ze-great-dashboard/shared/browser'
-import type React from 'react'
-import { act, StrictMode } from 'react'
+import type { PipelineStatus } from '@ze-great-dashboard/shared/browser'
+import { act } from 'react'
 import { describe, expect, test, vi } from 'vitest'
 import { App } from '../src/App.tsx'
-import { ConfigError } from '../src/ConfigError.tsx'
-import { SecurityDetails } from '../src/SecurityDetails.tsx'
-
-const env: ClientEnv = {
-  assetPath: 'https://assets.example.com/dashboard/1.0.7',
-  assetPathId: 'sha256:3f454a601d3791a603e550652cec7ca1fb4359489df99605e72e051dd5b02731',
-  proxyPath: '/api',
-  board: 'ze-great-team',
-}
-
-function clientTestFixture(scope: ResourceScope) {
-  // The shell tests do not exercise networking. Keep the request pending so its completion cannot
-  // update React after the test's act scope has ended.
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(() => new Promise<Response>(() => {})),
-  )
-
-  // App instances persist panel memory and diagnostics in browser storage. Clear both before
-  // every scenario so one test cannot change reconciliation or rendering in another.
-  try {
-    window.localStorage.clear()
-  } catch {
-    // Browser storage may be unavailable; the application treats it as an optional optimization.
-  }
-  scope.defer('client test cleanup', () => {
-    cleanup()
-    vi.unstubAllGlobals()
-    vi.useRealTimers()
-  })
-}
-
-function render(node: React.ReactNode): HTMLElement {
-  return rtlRender(<StrictMode>{node}</StrictMode>).container
-}
+import { clientTestFixture, env } from './client-test-fixture.tsx'
+import { renderApp as render } from './render-app.tsx'
 
 describe('the board shell', () => {
   test(
-    'names the board it was told it is',
+    'renders the configured board name',
     mint({
       setup: ({ scope }) => {
         clientTestFixture(scope)
@@ -61,7 +27,7 @@ describe('the board shell', () => {
   )
 
   test(
-    'keeps deployment details available through Diagnostics',
+    'shows the client asset identity in Diagnostics',
     mint({
       setup: ({ scope }) => {
         clientTestFixture(scope)
@@ -79,7 +45,7 @@ describe('the board shell', () => {
   )
 
   test(
-    'renders a loading panel until the server provides its board config',
+    'renders a loading placeholder while the board request is pending',
     mint({
       setup: ({ scope }) => {
         clientTestFixture(scope)
@@ -93,7 +59,7 @@ describe('the board shell', () => {
   )
 
   test(
-    'explains that signals come from their configured authorities',
+    'identifies configured authorities as the source of signals',
     mint({
       setup: ({ scope }) => {
         clientTestFixture(scope)
@@ -107,44 +73,9 @@ describe('the board shell', () => {
   )
 })
 
-describe('when configuration never arrived', () => {
-  test(
-    'says so on screen instead of rendering an empty board',
-    mint({
-      setup: ({ scope }) => {
-        clientTestFixture(scope)
-        return { message: 'assetPath: required' }
-      },
-      exercise: ({ message }) => {
-        render(<ConfigError message={message} />)
-      },
-      verify: async (_output, { message }) => {
-        expect(
-          await screen.findByRole('heading', { name: /dashboard misconfigured/i }),
-        ).not.toBeNull()
-        expect(screen.getByRole('alert').textContent).toContain(message)
-      },
-    }),
-  )
-
-  test(
-    'announces itself to assistive technology',
-    mint({
-      setup: ({ scope }) => {
-        clientTestFixture(scope)
-        return { message: 'broken' }
-      },
-      exercise: ({ message }) => {
-        render(<ConfigError message={message} />)
-      },
-      verify: () => expect(screen.getByRole('alert')).not.toBeNull(),
-    }),
-  )
-})
-
 describe('deployment security boundary', () => {
   test(
-    'keeps the unauthenticated deployment warning visible before board loading',
+    'shows the unauthenticated deployment warning while the board request is pending',
     mint({
       setup: ({ scope }) => {
         clientTestFixture(scope)
@@ -169,7 +100,7 @@ describe('deployment security boundary', () => {
   )
 
   test(
-    'renders the blocked boundary without fetching board or panel data',
+    'blocks board and panel requests when authentication configuration is blocked',
     mint({
       setup: ({ scope }) => {
         clientTestFixture(scope)
@@ -186,129 +117,6 @@ describe('deployment security boundary', () => {
         ).not.toBeNull()
         expect(screen.getByText('No dashboard data was loaded.')).not.toBeNull()
         expect(fetcher).not.toHaveBeenCalled()
-      },
-    }),
-  )
-})
-
-describe('security details', () => {
-  test(
-    'lazily fetches only safe claim-policy metadata with the authenticated request',
-    mint({
-      setup: ({ scope }) => {
-        clientTestFixture(scope)
-        const fetcher = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
-          () =>
-            Promise.resolve(
-              Response.json({
-                oidc: true,
-                policy: { mode: 'claim', claim: 'groups', match: 'any' },
-              }),
-            ),
-        )
-        vi.stubGlobal('fetch', fetcher)
-        render(
-          <SecurityDetails
-            env={env}
-            auth={{ accessToken: 'access-token', onAuthenticationFailure: vi.fn() }}
-          />,
-        )
-        return { fetcher, user: userEvent.setup(), callsBeforeClick: fetcher.mock.calls.length }
-      },
-      exercise: async ({ user }) => {
-        await user.click(screen.getByRole('button', { name: 'Security' }))
-      },
-      verify: async (_output, { fetcher, callsBeforeClick }) => {
-        await screen.findByText('groups')
-        const dialog = screen.getByRole('dialog')
-        expect(callsBeforeClick).toBe(0)
-        expect(fetcher).toHaveBeenCalledOnce()
-        expect(new Headers(fetcher.mock.calls[0]?.[1]?.headers).get('authorization')).toBe(
-          'Bearer access-token',
-        )
-        expect(dialog.textContent).toContain('groups')
-        expect(dialog.textContent).toContain('any')
-        expect(dialog.textContent).not.toContain('access-token')
-      },
-    }),
-  )
-
-  test(
-    'focuses the close control on open and returns focus after Escape',
-    mint({
-      setup: ({ scope }) => {
-        clientTestFixture(scope)
-        render(<SecurityDetails env={env} auth={{ accessToken: 'access-token' }} />)
-        return { user: userEvent.setup() }
-      },
-      exercise: async ({ user }) => {
-        await user.click(screen.getByRole('button', { name: 'Security' }))
-        const closeButton = await screen.findByRole('button', { name: 'Close' })
-        const focusWasClose = document.activeElement === closeButton
-        await user.keyboard('{Escape}')
-        return {
-          focusWasClose,
-          focusWasSecurityAfterEscape:
-            document.activeElement === screen.getByRole('button', { name: 'Security' }),
-        }
-      },
-      verify: ({ focusWasClose, focusWasSecurityAfterEscape }) => {
-        expect(focusWasClose).toBe(true)
-        expect(screen.queryByRole('dialog')).toBeNull()
-        expect(focusWasSecurityAfterEscape).toBe(true)
-      },
-    }),
-  )
-
-  test(
-    'shows a safe failure without rendering policy details',
-    mint({
-      setup: ({ scope }) => {
-        clientTestFixture(scope)
-        vi.stubGlobal(
-          'fetch',
-          vi.fn(() => Promise.resolve(new Response(null, { status: 500 }))),
-        )
-        render(<SecurityDetails env={env} auth={{ accessToken: 'access-token' }} />)
-        return { user: userEvent.setup() }
-      },
-      exercise: async ({ user }) => {
-        await user.click(screen.getByRole('button', { name: 'Security' }))
-      },
-      verify: async () => {
-        const alert = await screen.findByRole('alert')
-        const dialog = screen.getByRole('dialog')
-        expect(alert.textContent).toContain('Security details are unavailable.')
-        expect(dialog.textContent).not.toContain('groups')
-      },
-    }),
-  )
-
-  test(
-    'reports a denied security request through the supplied auth boundary',
-    mint({
-      setup: ({ scope }) => {
-        clientTestFixture(scope)
-        const denied = vi.fn()
-        vi.stubGlobal(
-          'fetch',
-          vi.fn(() => Promise.resolve(new Response(null, { status: 403 }))),
-        )
-        render(
-          <SecurityDetails
-            env={env}
-            auth={{ accessToken: 'access-token', onAuthenticationFailure: denied }}
-          />,
-        )
-        return { denied, user: userEvent.setup() }
-      },
-      exercise: async ({ user }) => {
-        await user.click(screen.getByRole('button', { name: 'Security' }))
-      },
-      verify: async (_output, { denied }) => {
-        await waitFor(() => expect(denied).toHaveBeenCalledWith(403))
-        const dialog = screen.getByRole('dialog')
-        expect(dialog.textContent).not.toContain('groups')
       },
     }),
   )
@@ -849,19 +657,35 @@ describe('pipeline-status panels', () => {
         exercise: async ({ store }) => {
           render(<App env={env} />)
           await settle()
-          for (let index = 0; index < 3; index++) {
-            await act(async () => vi.advanceTimersByTime(1_000))
-            await settle()
+          await act(async () => vi.advanceTimersByTime(1_000))
+          await settle()
+          const afterNotModified = JSON.parse(
+            store.getItem('ze-great-dashboard.diagnostics.v2') ?? '{}',
+          )
+          await act(async () => vi.advanceTimersByTime(1_000))
+          await settle()
+          const afterMalformedResponse = JSON.parse(
+            store.getItem('ze-great-dashboard.diagnostics.v2') ?? '{}',
+          )
+          await act(async () => vi.advanceTimersByTime(1_000))
+          await settle()
+          return {
+            afterNotModified,
+            afterMalformedResponse,
+            afterOfflineFailure: JSON.parse(
+              store.getItem('ze-great-dashboard.diagnostics.v2') ?? '{}',
+            ),
           }
-          return JSON.parse(store.getItem('ze-great-dashboard.diagnostics.v2') ?? '{}')
         },
-        verify: (saved) => {
-          const kinds = saved.events.map((event: { kind: string }) => event.kind)
-          expect(kinds).toContain('panel-fetch-response')
-          expect(kinds).toContain('panel-fetch-parse-failure')
-          expect(kinds).toContain('panel-fetch-failure')
-          expect(kinds).toContain('panel-rendered')
-          expect(saved.events.some((event: { status?: number }) => event.status === 304)).toBe(true)
+        verify: ({ afterNotModified, afterMalformedResponse, afterOfflineFailure }) => {
+          const kinds = (saved: { events: Array<{ kind: string }> }) =>
+            saved.events.map((event) => event.kind)
+          expect(kinds(afterNotModified)).toContain('panel-rendered')
+          expect(
+            afterNotModified.events.some((event: { status?: number }) => event.status === 304),
+          ).toBe(true)
+          expect(kinds(afterMalformedResponse)).toContain('panel-fetch-parse-failure')
+          expect(kinds(afterOfflineFailure)).toContain('panel-fetch-failure')
         },
       }),
     )
@@ -1060,79 +884,9 @@ describe('pipeline-status panels', () => {
       }),
     )
   })
-
-  describe('request lifecycle', () => {
-    test(
-      'cleans up timers and ignores an in-flight response on unmount',
-      mint({
-        setup: ({ scope }) => {
-          clientTestFixture(scope)
-          vi.useFakeTimers()
-          let resolvePanel: ((response: Response) => void) | undefined
-          const pending = new Promise<Response>((resolve) => {
-            resolvePanel = resolve
-          })
-          const { requests } = setup(
-            { refresh: '1s', panels: [{ id: 'build', type: 'pipeline-status' }] },
-            { build: [pending] },
-          )
-          return { requests, resolvePanel }
-        },
-        exercise: async ({ requests, resolvePanel }) => {
-          render(<App env={env} />)
-          await settle()
-          cleanup()
-          const countAfterUnmount = requests.length
-          await act(async () => vi.advanceTimersByTime(2_000))
-          resolvePanel?.(new Response(okEnvelope('build', 'failed')))
-          await settle()
-          return { countAfterUnmount, requestCount: requests.length }
-        },
-        verify: ({ countAfterUnmount, requestCount }) =>
-          expect(requestCount).toBe(countAfterUnmount),
-      }),
-    )
-
-    test(
-      'polls panels independently and never overlaps a pending request',
-      mint({
-        setup: ({ scope }) => {
-          clientTestFixture(scope)
-          vi.useFakeTimers()
-          const pending = new Promise<Response>(() => {})
-          return setup(
-            {
-              panels: [
-                { id: 'slow', type: 'pipeline-status', refresh: '1s' },
-                { id: 'fast', type: 'pipeline-status', refresh: '2s' },
-              ],
-            },
-            { slow: [pending] },
-          )
-        },
-        exercise: async ({ requests }) => {
-          render(<App env={env} />)
-          await settle()
-          await act(async () => vi.advanceTimersByTime(2_000))
-          return {
-            slowRequests: requests.filter((url) => url.endsWith('/slow')).length,
-            fastRequests: requests.filter((url) => url.endsWith('/fast')).length,
-          }
-        },
-        verify: ({ slowRequests, fastRequests }) => {
-          expect(slowRequests).toBe(1)
-          expect(fastRequests).toBe(2)
-        },
-      }),
-    )
-  })
 })
 
 describe('http-value panels', () => {
-  async function settle() {
-    await act(async () => {})
-  }
-
   function httpFixture(scope: ResourceScope, fetcher: typeof fetch) {
     clientTestFixture(scope)
     vi.stubGlobal('fetch', fetcher)
@@ -1187,15 +941,15 @@ describe('http-value panels', () => {
         })
         return { requests, apiFact, webFact }
       },
-      exercise: async ({ requests }) => {
+      exercise: async ({ requests, apiFact }) => {
         render(<App env={env} />)
-        return requests
-      },
-      verify: async (requests, { apiFact, webFact }) => {
         await screen.findByText(apiFact.value)
         await screen.findByText('Source unavailable')
-        expect(requests.filter((url) => url.includes('/facts/'))).toHaveLength(2)
-        expect(requests.some((url) => url.endsWith('/versions'))).toBe(false)
+        return { requestPaths: [...requests] }
+      },
+      verify: ({ requestPaths }, { apiFact, webFact }) => {
+        expect(requestPaths.filter((url) => url.includes('/facts/'))).toHaveLength(2)
+        expect(requestPaths.some((url) => url.endsWith('/versions'))).toBe(false)
         expect(screen.getByRole('heading', { name: apiFact.label })).not.toBeNull()
         expect(screen.getByRole('heading', { name: webFact.label })).not.toBeNull()
         expect(
@@ -1208,76 +962,6 @@ describe('http-value panels', () => {
             name: `View source for ${webFact.label} (opens in a new tab)`,
           }),
         ).not.toBeNull()
-      },
-    }),
-  )
-
-  test(
-    'fetches and renders a configured value',
-    mint({
-      setup: ({ scope }) => {
-        const requests: string[] = []
-        const panelId = 'version'
-        const versionValue = '1.2.3'
-        const sourceLink = 'https://service.example.com/version'
-        httpFixture(scope, async (input) => {
-          const url = String(input)
-          requests.push(url)
-          return url.startsWith('/api/boards/')
-            ? Response.json({ panels: [{ id: panelId, type: 'http-value' }] })
-            : Response.json({
-                panelId,
-                state: 'ok',
-                observedAt: '2026-08-18T12:00:00.000Z',
-                link: sourceLink,
-                signal: { type: 'http-value', value: versionValue },
-              })
-        })
-        return { requests, panelId, versionValue, sourceLink }
-      },
-      exercise: async ({ requests }) => {
-        render(<App env={env} />)
-        return requests
-      },
-      verify: async (requests, { panelId, versionValue, sourceLink }) => {
-        expect(await screen.findByText(versionValue)).not.toBeNull()
-        expect(requests.some((url) => url.endsWith(`/${panelId}`))).toBe(true)
-        const source = screen.getByRole('link', {
-          name: `View source for ${panelId} (opens in a new tab)`,
-        })
-        expect(source.getAttribute('href')).toBe(sourceLink)
-      },
-    }),
-  )
-
-  test(
-    'keeps the configured fallback link when the value cannot be read',
-    mint({
-      setup: ({ scope }) => {
-        const panelId = 'version'
-        const sourceLink = 'https://service.example.com/status'
-        httpFixture(scope, async (input) =>
-          String(input).startsWith('/api/boards/')
-            ? Response.json({ panels: [{ id: panelId, type: 'http-value' }] })
-            : Response.json({
-                panelId,
-                state: 'error',
-                observedAt: '2026-08-18T12:00:00.000Z',
-                link: sourceLink,
-                error: { kind: 'unreachable', message: 'offline' },
-              }),
-        )
-        return { panelId, sourceLink }
-      },
-      exercise: async () => {
-        render(<App env={env} />)
-      },
-      verify: async (_output, { panelId, sourceLink }) => {
-        expect(await screen.findByText('Source unavailable')).not.toBeNull()
-        const source = screen.getByRole('link', {
-          name: `View source for ${panelId} (opens in a new tab)`,
-        })
-        expect(source.getAttribute('href')).toBe(sourceLink)
       },
     }),
   )
@@ -1315,45 +999,6 @@ describe('http-value panels', () => {
         )
         expect(panel?.getAttribute('style')).toContain('--panel-column: 7 / span 6')
         expect(panel?.getAttribute('style')).toContain('--panel-row: 5 / span 3')
-      },
-    }),
-  )
-
-  test(
-    'warns when panel positions exceed the intended canvas',
-    mint({
-      setup: async ({ scope }) => {
-        httpFixture(scope, async (input) =>
-          String(input).startsWith('/api/boards/')
-            ? Response.json({
-                panels: [
-                  { id: 'first', type: 'pipeline-status', position: { x: 0, y: 0, w: 8, h: 3 } },
-                  { id: 'second', type: 'pipeline-status', position: { x: 4, y: 12, w: 8, h: 2 } },
-                ],
-              })
-            : Response.json({}),
-        )
-        render(<App env={env} />)
-        const warningButton = await screen.findByRole('button', { name: 'Layout warnings (1)' })
-        return { user: userEvent.setup(), warningButton }
-      },
-      exercise: async ({ user, warningButton }) => user.click(warningButton),
-      verify: () => {
-        expect(
-          screen
-            .getByRole('button', { name: 'Layout warnings (1)' })
-            .closest('[data-layout-warning]'),
-        ).not.toBeNull()
-        const dialog = screen.getByRole('dialog', { name: 'Layout warnings' })
-        expect(dialog.textContent).toContain(
-          '1 layout issue detected against the intended 12×12 space',
-        )
-        expect(dialog.textContent).toContain('second: out-of-bounds at (4, 12), 8×2')
-        expect(screen.getAllByRole('button', { name: /Download .* layout/ })).toHaveLength(2)
-        expect(
-          screen.getByRole('button', { name: 'Download legal rendered layout' }),
-        ).not.toBeNull()
-        expect(screen.getByRole('button', { name: 'Download authored layout' })).not.toBeNull()
       },
     }),
   )

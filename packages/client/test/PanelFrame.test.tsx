@@ -4,10 +4,11 @@ import type { Envelope, Panel } from '@ze-great-dashboard/shared/browser'
 import { afterEach, describe, expect, test } from 'vitest'
 import { PanelFrame, PanelMetadata } from '../src/PanelFrame.tsx'
 
+const position = { x: 2, y: 1, w: 4, h: 3 }
 const panel: Panel = {
   id: 'build',
   type: 'pipeline-status',
-  position: { x: 2, y: 1, w: 4, h: 3 },
+  position,
 }
 
 afterEach(cleanup)
@@ -17,7 +18,7 @@ describe('PanelFrame', () => {
     test(
       'owns the common label, layout, and loading state',
       mint({
-        setup: () => ({ panel, position: panel.position! }),
+        setup: () => ({ panel, position }),
         exercise: ({ panel }) =>
           render(
             <PanelFrame panel={panel}>
