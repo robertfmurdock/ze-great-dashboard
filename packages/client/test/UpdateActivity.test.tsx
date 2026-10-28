@@ -1,7 +1,8 @@
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { BrowserDiagnosticStore } from '../src/diagnostics.ts'
 import type { PollingScheduleSnapshot } from '../src/polling-schedule.ts'
 import { UpdateActivity } from '../src/UpdateActivity.tsx'
@@ -35,63 +36,193 @@ function log() {
     removeItem: (key) => values.delete(key),
   })
 }
-afterEach(() => {
-  document.body.replaceChildren()
-  vi.useRealTimers()
-})
-
 describe('Update activity', () => {
-  it('keeps the footer compact until requested, then exposes the accessible timeline and returns on Close or Escape', async () => {
-    const user = userEvent.setup()
-    const diagnosticLog = log()
-    diagnosticLog.record({
-      kind: 'panel-fetch-start',
-      panelId: 'build',
-      path: '/api/panel/team/build',
-    })
-    render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={diagnosticLog} />)
-    const trigger = screen.getByRole('button', { name: 'Update activity' })
-    expect(screen.queryByRole('dialog')).toBeNull()
-    await user.click(trigger)
+  describe('dialog disclosure', () => {
+    test(
+      'keeps the timeline hidden until requested',
+      mint({
+        setup: () => ({ diagnosticLog: log() }),
+        exercise: ({ diagnosticLog }) =>
+          render(
+            <UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={diagnosticLog} />,
+          ),
+        verify: () => {
+          expect(screen.queryByRole('dialog')).toBeNull()
+        },
+      }),
+    )
 
-    const dialog = screen.getByRole('dialog', { name: 'Update activity' })
-    expect(dialog.getAttribute('aria-modal')).toBe('true')
-    expect(screen.getByText('Build')).not.toBeNull()
-    expect(screen.getByText('● observed · ◇ expected')).not.toBeNull()
-    expect(screen.getByLabelText(/Build, panel build; Normal cadence/)).not.toBeNull()
-    expect(screen.getByTitle('Observed request: /api/panel/team/build')).not.toBeNull()
-    expect(screen.getByTitle('Expected next poll')).not.toBeNull()
+    test(
+      'exposes the accessible timeline when requested',
+      mint({
+        setup: () => {
+          const diagnosticLog = log()
+          diagnosticLog.record({
+            kind: 'panel-fetch-start',
+            panelId: 'build',
+            path: '/api/panel/team/build',
+          })
+          render(
+            <UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={diagnosticLog} />,
+          )
+          return { user: userEvent.setup() }
+        },
+        exercise: async ({ user }) => {
+          await user.click(screen.getByRole('button', { name: 'Update activity' }))
+        },
+        verify: () => {
+          const dialog = screen.getByRole('dialog', { name: 'Update activity' })
+          const close = screen.getByRole('button', { name: 'Close' })
+          expect(dialog.getAttribute('aria-modal')).toBe('true')
+          expect(screen.getByText('Build')).not.toBeNull()
+          expect(screen.getByText('● observed · ◇ expected')).not.toBeNull()
+          expect(screen.getByLabelText(/Build, panel build; Normal cadence/)).not.toBeNull()
+          expect(screen.getByTitle('Observed request: /api/panel/team/build')).not.toBeNull()
+          expect(screen.getByTitle('Expected next poll')).not.toBeNull()
+          expect(document.activeElement).toBe(close)
+        },
+      }),
+    )
 
-    const close = screen.getByRole('button', { name: 'Close' })
-    expect(document.activeElement).toBe(close)
-    await user.tab()
-    expect(document.activeElement).toBe(close)
-    await user.click(close)
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(document.activeElement).toBe(trigger)
-
-    await user.click(trigger)
-    await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(document.activeElement).toBe(trigger)
+    test(
+      'contains Tab focus on the close control while open',
+      mint({
+        setup: () => {
+          const diagnosticLog = log()
+          render(
+            <UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={diagnosticLog} />,
+          )
+          return { user: userEvent.setup() }
+        },
+        exercise: async ({ user }) => {
+          await user.click(screen.getByRole('button', { name: 'Update activity' }))
+          await user.tab()
+        },
+        verify: () => {
+          expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
+        },
+      }),
+    )
   })
 
-  it('dismisses after a minute without interaction and restarts that window on interaction', () => {
-    vi.useFakeTimers()
-    render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={log()} />)
-    const trigger = screen.getByRole('button', { name: 'Update activity' })
-    // This controlled-time scenario is about the component's minute timer; avoid user-event's
-    // own scheduled interaction timers becoming part of that clock contract.
-    fireEvent.click(trigger)
-    const dialog = screen.getByRole('dialog', { name: 'Update activity' })
+  describe('explicit dismissal', () => {
+    test(
+      'returns focus to its trigger after Close',
+      mint({
+        setup: () => {
+          const diagnosticLog = log()
+          render(
+            <UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={diagnosticLog} />,
+          )
+          return { user: userEvent.setup() }
+        },
+        exercise: async ({ user }) => {
+          const trigger = screen.getByRole('button', { name: 'Update activity' })
+          await user.click(trigger)
+          await user.click(screen.getByRole('button', { name: 'Close' }))
+          return trigger
+        },
+        verify: (trigger) => {
+          expect(screen.queryByRole('dialog')).toBeNull()
+          expect(document.activeElement).toBe(trigger)
+        },
+      }),
+    )
 
-    act(() => vi.advanceTimersByTime(59_000))
-    expect(screen.queryByRole('dialog')).not.toBeNull()
-    fireEvent.pointerDown(dialog)
-    act(() => vi.advanceTimersByTime(2_000))
-    expect(screen.queryByRole('dialog')).not.toBeNull()
-    act(() => vi.advanceTimersByTime(58_000))
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(document.activeElement).toBe(trigger)
+    test(
+      'returns focus to its trigger after Escape',
+      mint({
+        setup: () => {
+          const diagnosticLog = log()
+          render(
+            <UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={diagnosticLog} />,
+          )
+          return { user: userEvent.setup() }
+        },
+        exercise: async ({ user }) => {
+          const trigger = screen.getByRole('button', { name: 'Update activity' })
+          await user.click(trigger)
+          await user.keyboard('{Escape}')
+          return trigger
+        },
+        verify: (trigger) => {
+          expect(screen.queryByRole('dialog')).toBeNull()
+          expect(document.activeElement).toBe(trigger)
+        },
+      }),
+    )
+  })
+
+  describe('automatic dismissal', () => {
+    test(
+      'dismisses after a minute without interaction',
+      mint({
+        setup: ({ scope }) => {
+          vi.useFakeTimers()
+          scope.defer('restore real timers', () => vi.useRealTimers())
+          render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={log()} />)
+        },
+        exercise: () => {
+          const trigger = screen.getByRole('button', { name: 'Update activity' })
+          // This controlled-time scenario is about the component's minute timer; avoid user-event's
+          // own scheduled interaction timers becoming part of that clock contract.
+          fireEvent.click(trigger)
+          act(() => vi.advanceTimersByTime(60_000))
+          return trigger
+        },
+        verify: (trigger) => {
+          expect(screen.queryByRole('dialog')).toBeNull()
+          expect(document.activeElement).toBe(trigger)
+        },
+      }),
+    )
+
+    test(
+      'remains open past the original minute when interaction resets dismissal',
+      mint({
+        setup: ({ scope }) => {
+          vi.useFakeTimers()
+          scope.defer('restore real timers', () => vi.useRealTimers())
+          render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={log()} />)
+        },
+        exercise: () => {
+          const trigger = screen.getByRole('button', { name: 'Update activity' })
+          fireEvent.click(trigger)
+          const dialog = screen.getByRole('dialog', { name: 'Update activity' })
+
+          act(() => vi.advanceTimersByTime(59_000))
+          fireEvent.pointerDown(dialog)
+          act(() => vi.advanceTimersByTime(2_000))
+        },
+        verify: () => {
+          expect(screen.getByRole('dialog', { name: 'Update activity' })).not.toBeNull()
+        },
+      }),
+    )
+
+    test(
+      'dismisses after the reset minute window',
+      mint({
+        setup: ({ scope }) => {
+          vi.useFakeTimers()
+          scope.defer('restore real timers', () => vi.useRealTimers())
+          render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={log()} />)
+        },
+        exercise: () => {
+          const trigger = screen.getByRole('button', { name: 'Update activity' })
+          fireEvent.click(trigger)
+          const dialog = screen.getByRole('dialog', { name: 'Update activity' })
+
+          act(() => vi.advanceTimersByTime(59_000))
+          fireEvent.pointerDown(dialog)
+          act(() => vi.advanceTimersByTime(60_000))
+          return trigger
+        },
+        verify: (trigger) => {
+          expect(screen.queryByRole('dialog')).toBeNull()
+          expect(document.activeElement).toBe(trigger)
+        },
+      }),
+    )
   })
 })
