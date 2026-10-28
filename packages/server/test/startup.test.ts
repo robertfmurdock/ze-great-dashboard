@@ -183,7 +183,7 @@ describe('the template cache', () => {
       setup: () => {
         const fetcher = vi.fn(
           async (url: string | URL | Request) =>
-            new Response('<html lang="en"><head></head><!-- ' + String(url) + ' --></html>'),
+            new Response(`<html lang="en"><head></head><!-- ${String(url)} --></html>`),
         )
         return { cache: new TemplateCache(fetcher as unknown as typeof fetch), fetcher }
       },
@@ -456,7 +456,7 @@ describe('startup failure classification', () => {
   ] as const
   for (const { name, category, env, failures } of cases)
     test(
-      'classifies ' + name + ' at its startup boundary',
+      `classifies ${name} at its startup boundary`,
       mint({
         setup: () => {
           vi.stubEnv('ASSET_PATH', 'https://private-assets.example')

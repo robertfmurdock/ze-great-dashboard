@@ -200,3 +200,10 @@ shared Testmints infrastructure, reporting artifacts, a project-wide fixture/tem
 dashboard-specific expected-rejection abstraction. First-class rejected-exercise semantics remain
 an upstream design question. Playwright compatibility was explored separately; browser tests remain
 for browser-only behavior and do not expand this Vitest-focused migration rule.
+
+## Repository-wide browser cleanup — 2026-10-28
+
+While promoting the migration feedback into current guidance, Rob clarified that browser-test
+cleanup is already registered globally in this repository. Guidance should therefore not preserve
+an exception for suite-local `afterEach(cleanup)`: it will not serve a suite here. This corrects the
+historical caution against mechanically removing it without changing the broader phase discipline.

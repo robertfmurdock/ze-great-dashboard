@@ -140,7 +140,10 @@ When porting a test to Testmints, use the installed Vitest adapter only; do not 
 add shared Testmints infrastructure. Preserve the scenario's real data flow: `setup` arranges
 isolated inputs, apps, mocks, clocks, and scoped resources; `exercise` visibly performs the
 meaningful subject action; `verify` owns every observable assertion, including collaborator calls.
-Do not assert while the action is in progress.
+Do not assert while the action is in progress. The phases should expose one feature-owning subject
+from the outside perspective. If they instead harvest observations, expose multiple inflection
+points, or require incidental-DOM assertions, split the contracts or extract a narrower production
+boundary; do not keep a test in native Vitest merely because it does not fit the form.
 
 Create scenario-specific values once in `setup`, return them, carry them through `exercise`, and
 compare the resulting public or collaborator evidence to those same values in `verify`. Do not
@@ -149,24 +152,32 @@ scenario's actual data flow.
 
 One input scenario has one visible exercise. Split cases with materially different inputs, actions,
 or contracts; repeat an exercise only when repetition is itself the behavior under test. Group
-scenarios by contract boundary with `describe`. A typed, branch-free descriptor table is appropriate
-only for a genuinely uniform mapping; construct fresh mocks in `setup` rather than putting them in
-the descriptor.
+scenarios by contract boundary with `describe`. Construct an app, client, store, or other enabling
+world in `setup` when a later request or interaction is the subject, but do not force a scenario
+through a shared fixture when inlining or composing its setup is clearer. A typed, branch-free
+descriptor table is appropriate only for a genuinely uniform mapping; its fields should make the
+scenario and expected outcome clear, and fresh mocks belong in `setup`, not the descriptor.
 
 Fixtures may arrange reusable world state and assertion helpers may name a stable invariant, but
-neither may register a test or hide its subject action. Keep expected-rejection wrappers local until
-the adapter supports them natively: fail if the action resolves, return the error to `verify` if it
-rejects. Use `scope.using()` for resources that must be released after any phase.
+neither may register a test or hide its subject action. Add helpers, fixture builders, and tables
+only when they make the scenario easier to read at the call site. Static, context-free defaults may
+be file-scoped; scenario-specific values and fresh mutable collaborators remain setup-owned. Keep
+expected-rejection wrappers local until the adapter supports them natively: fail if the action
+resolves, return the error to `verify` if it rejects. Use `scope.using()` for resources that must be
+released after any phase.
 
 ```ts
-mintTest('rejects an invalid access token before any adapter fetch', {
-  setup: () => ({ ...protectedValueFixture(), headers: { authorization: 'Bearer wrong' } }),
-  exercise: ({ app, headers }) => app.request('/api/boards/ops', { headers }),
-  verify: (response, { fetcher }) => {
-    expect(response.status).toBe(401)
-    expect(fetcher).not.toHaveBeenCalled()
-  },
-})
+test(
+  'rejects an invalid access token before any adapter fetch',
+  mint({
+    setup: () => ({ ...protectedValueFixture(), headers: { authorization: 'Bearer wrong' } }),
+    exercise: ({ app, headers }) => app.request('/api/boards/ops', { headers }),
+    verify: (response, { fetcher }) => {
+      expect(response.status).toBe(401)
+      expect(fetcher).not.toHaveBeenCalled()
+    },
+  }),
+)
 ```
 
 ```ts
@@ -181,11 +192,14 @@ function rejects<Input>(action: (input: Input) => Promise<unknown>) {
   }
 }
 
-mintTest('denies an untrusted token', {
-  setup: tokenFixture,
-  exercise: rejects(({ verifier, token }) => verifier(token)),
-  verify: (error) => expect(accessDenied(error)).toBe(true),
-})
+test(
+  'denies an untrusted token',
+  mint({
+    setup: tokenFixture,
+    exercise: rejects(({ verifier, token }) => verifier(token)),
+    verify: (error) => expect(accessDenied(error)).toBe(true),
+  }),
+)
 ```
 
 ## Commands
