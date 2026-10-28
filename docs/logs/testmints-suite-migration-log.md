@@ -540,3 +540,12 @@ returned view state. The former DOM-timeline test was retained through the extra
 with Testmints scenarios at the new boundaries: direct simulation progression and the component's
 geometry/reduced-motion behavior. This removes assertions about incidental DOM cell structure while
 keeping the wall-facing contracts explicit. No dependency or reporting configuration changed.
+
+### Follow-up: snowman reduced-motion presentation
+
+`packages/client/test/SnowmanField.test.tsx` now uses the Testmints Vitest adapter for its assembling
+and completed reduced-motion rendering scenarios. Each setup creates the exact field props once,
+installs its reduced-motion browser capability, and registers mock/global restoration through the
+scenario scope; exercise renders the field once; verification retains the clipped-canvas, dense-snow,
+and non-toppled public evidence. No component behavior, dependency, or reporting configuration
+changed.
