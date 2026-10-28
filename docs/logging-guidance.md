@@ -20,6 +20,11 @@ After a substantial work slice reaches a meaningful completion point, record the
 context is lost. Logging is expected at that point even when nobody separately asks for it. Routine
 fixes and routine passing checks do not require entries.
 
+When Rob provides a durable engineering or collaboration principle, preserve the wording and its
+context in [`agent-guidance-principles.md`](logs/agent-guidance-principles.md). That document is an
+archival source for future context, not an automatically loaded instruction source; current rules
+belong in the contributor guidance and design documents after deliberate review.
+
 Routine verification is table stakes and does not need a transcript. Do not spend log space on test
 counts, lists of passing commands, build/package success, commit hashes, or push status unless the
 verification uncovered a meaningful environmental fact or changed a decision. A concise note that

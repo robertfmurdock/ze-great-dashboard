@@ -514,3 +514,29 @@ envelopes into one registration; each scenario now arranges one envelope, render
 once, and verifies its own public evidence. The reported case retains aggregate and outcome
 evidence, while the not-reported case explicitly proves that absent results are disclosed rather
 than rendered as zero. No production behavior, dependency, or reporting configuration changed.
+
+### Follow-up: visual-component scenario boundaries
+
+`packages/client/test/FallingShapesField.test.tsx` now uses the Testmints Vitest adapter for its
+controlled-time animation and reduced-motion contracts. Setup owns geometry, motion preference,
+fake time, and scoped React/mock/global cleanup; each exercise renders once and advances the clock
+through its intentional checkpoints before verification checks the observed states.
+
+Reviewing the neighboring visual suites also found two compound registrations worth splitting
+without introducing a shared test abstraction. `PipelineAnimationDemoPanel` now has independent
+cycle-duration and focused-review-duration scenarios. `RunningField` now separately proves default
+selection, configured-off, loading, inactive, and unreadable-upstream behavior. The former combined
+title claimed error and inactive behavior without exercising either, so the split closes a
+description/evidence mismatch through the real `PipelinePanel` rendering interface. Ordered
+animation sequences and the uniform treatment matrix remain intact because those repetitions are
+the contracts under test. No production behavior, dependency, or reporting configuration changed.
+
+### Follow-up: falling-shapes simulation boundary
+
+The falling-shapes field no longer embeds timer progression, placement, motion phases, and React
+rendering in one component. `falling-simulation.ts` now owns deterministic cadence and settlement
+transitions; the field supplies measured geometry and preferences, schedules ticks, and renders the
+returned view state. The former DOM-timeline test was retained through the extraction, then replaced
+with Testmints scenarios at the new boundaries: direct simulation progression and the component's
+geometry/reduced-motion behavior. This removes assertions about incidental DOM cell structure while
+keeping the wall-facing contracts explicit. No dependency or reporting configuration changed.

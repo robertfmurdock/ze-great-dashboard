@@ -17,6 +17,11 @@ discoveries before context is lost, even if nobody separately asks for it. Consu
 routine passing checks do not require log entries; do not gather extensive historical context first
 or turn verification into a test-results transcript.
 
+When Rob gives a durable engineering or collaboration principle that would help future agents
+understand why current guidance exists, append the wording and context to
+`docs/logs/agent-guidance-principles.md`. It is an archival record, not automatically loaded
+guidance; promote a settled principle into this file and `AGENTS.md` deliberately.
+
 ## The two rules
 
 **1. `npm run check` before declaring anything done.** Lint, typecheck, and tests; about 1.5 seconds.
