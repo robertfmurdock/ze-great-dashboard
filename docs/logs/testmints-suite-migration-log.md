@@ -549,3 +549,26 @@ installs its reduced-motion browser capability, and registers mock/global restor
 scenario scope; exercise renders the field once; verification retains the clipped-canvas, dense-snow,
 and non-toppled public evidence. No component behavior, dependency, or reporting configuration
 changed.
+
+### Follow-up: client-update lifecycle boundary
+
+`packages/client/test/useClientUpdate.test.tsx` now expresses client identity checks as Testmints
+scenarios. Each scenario owns fresh diagnostics, fetcher, reload evidence, and scoped clock cleanup.
+The exercise remains the lifecycle sequence the hook owns: mounting for an immediate check, advancing
+the controlled schedule, rerendering, unmounting a pending request, or timing out before a later
+retry. Verification retains the observable request metadata, reload decision, diagnostics, and call
+counts. No production behavior, dependency, or reporting configuration changed.
+
+Reviewing that migration against the accumulated phase guidance sharpened four assertions without
+adding executions: the selected next asset path now flows from setup through the public diagnostic;
+the rerender scenario proves cadence from the original half-interval rather than merely a later
+poll; the unmount scenario advances the clock after cleanup; and a timeout abort explicitly remains
+diagnostic-silent. Cancellation and timeout are distinct lifecycle branches, so one cannot stand in
+for the other's public failure classification.
+
+A subsequent phase review split the formerly compound cadence-and-cleanup sequence. A successful
+poll, shutdown after unmount, rerender cadence continuity, and timeout recovery are separate
+feature contracts. Where the inflection point is later than mounting, setup now establishes the
+rendered hook world and its initial state; exercise contains only the poll, unmount, rerender, or
+timeout transition that owns that scenario. The cancellation evidence remains grouped with shutdown
+because both are observable results of the same unmount action.
