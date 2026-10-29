@@ -309,8 +309,15 @@
 /* A size-contained signal field cannot use its own intrinsic height as a query input: its
    auto-sized content would always satisfy the compact branch. Width is the stable panel-scale
    discriminator; the field's parent already controls its available height. */
-@container panel (min-width: 26rem) {
+/* Signal-field's richer treatment needs less width than runway. Its timer occupies a second row
+   here, so it no longer takes a fixed column away from the visual field. */
+@container panel (min-width: 19rem) {
+  .signalField {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
   .signalField .visual {
+    grid-row: 1;
     height: 100%;
     min-height: 0;
     border-radius: 0.25em;
@@ -350,6 +357,10 @@
   }
   .pulse {
     display: none;
+  }
+  .signalField .readout {
+    grid-row: 2;
+    justify-self: end;
   }
   .tracks {
     position: absolute;

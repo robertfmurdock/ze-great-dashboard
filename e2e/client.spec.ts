@@ -1600,6 +1600,48 @@ test('keeps the focused signal-field demo expanded at panel scale', async ({ pag
   expect(geometry.tracksDisplay).toBe('flex')
 })
 
+test('keeps signal-field expanded through a medium-width wallboard card without reserving a timer column', async ({
+  page,
+}) => {
+  const reviewBoard = {
+    panels: [
+      {
+        id: 'signal-field-medium-review',
+        type: 'pipeline-animation-demo',
+        running_animation: 'signal-field',
+        position: { x: 0, y: 0, w: 3, h: 12 },
+      },
+    ],
+  }
+  await stubDashboard(page, reviewBoard)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/')
+
+  const geometry = await page
+    .locator('[data-running-progress="signal-field"]')
+    .evaluate((element) => {
+      const visual = element
+        .querySelector<HTMLElement>('[data-running-visual]')
+        ?.getBoundingClientRect()
+      const timing = element.querySelector<HTMLElement>('p')?.getBoundingClientRect()
+      const tracks = element.querySelector<HTMLElement>('[data-running-part="signal-tracks"]')
+      const progress = element.getBoundingClientRect()
+      return {
+        visualWidth: visual?.width ?? 0,
+        visualTop: visual?.top ?? 0,
+        timingWidth: timing?.width ?? 0,
+        timingTop: timing?.top ?? 0,
+        progressWidth: progress.width,
+        tracksDisplay: tracks ? getComputedStyle(tracks).display : 'none',
+      }
+    })
+
+  expect(geometry.tracksDisplay).toBe('flex')
+  expect(geometry.visualWidth).toBeGreaterThan(geometry.progressWidth * 0.9)
+  expect(geometry.timingTop).toBeGreaterThan(geometry.visualTop)
+  expect(geometry.timingWidth).toBeLessThan(geometry.visualWidth)
+})
+
 test('keeps the animation demo legible in a portrait panel', async ({ page }) => {
   await stubDashboard(page, {
     panels: [
