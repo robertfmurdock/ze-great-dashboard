@@ -167,7 +167,15 @@ export async function runDoctor(
   await check('Hosted client', async () => {
     if (!dependencies.packageVersion) throw new Error('installed package version is unavailable')
     const url = `https://public-assets.zegreatrob.com/dashboard/${dependencies.packageVersion}/index.html`
-    const response = await dependencies.fetch(url)
+    let response: Awaited<ReturnType<DoctorDependencies['fetch']>>
+    for (let attempt = 1; ; attempt++) {
+      try {
+        response = await dependencies.fetch(url)
+        break
+      } catch (error) {
+        if (attempt === 3) throw error
+      }
+    }
     if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`)
     return `${url} returned HTTP ${response.status}`
   })

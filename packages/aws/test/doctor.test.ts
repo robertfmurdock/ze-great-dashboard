@@ -1,6 +1,6 @@
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { type DoctorDependencies, runDoctor } from '../src/doctor.ts'
 
 async function parameterFile(
@@ -40,6 +40,48 @@ function dependencies(overrides: Partial<DoctorDependencies> = {}): DoctorDepend
 }
 
 describe('deployment doctor', () => {
+  it('recovers when the hosted client fetch succeeds on the third attempt', async () => {
+    const fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValue({ ok: true, status: 200 })
+    const checks = await runDoctor(
+      { parametersPath: await parameterFile(), region: 'us-east-1' },
+      dependencies({ fetch }),
+    )
+    expect(checks.find(({ name }) => name === 'Hosted client')).toMatchObject({ ok: true })
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(
+      fetch.mock.calls.every(
+        ([url]) => url === 'https://public-assets.zegreatrob.com/dashboard/1.2.3/index.html',
+      ),
+    ).toBe(true)
+  })
+
+  it('stops after three failed hosted client fetch attempts', async () => {
+    const fetch = vi.fn().mockRejectedValue(new TypeError('fetch failed'))
+    const checks = await runDoctor(
+      { parametersPath: await parameterFile(), region: 'us-east-1' },
+      dependencies({ fetch }),
+    )
+    expect(checks.find(({ name }) => name === 'Hosted client')).toMatchObject({
+      ok: false,
+      detail: 'fetch failed',
+    })
+    expect(fetch).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not retry a hosted client HTTP error', async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 })
+    const checks = await runDoctor(
+      { parametersPath: await parameterFile(), region: 'us-east-1' },
+      dependencies({ fetch }),
+    )
+    expect(checks.find(({ name }) => name === 'Hosted client')).toMatchObject({ ok: false })
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it('reports a completely healthy read-only deployment setup', async () => {
     const commands: string[][] = []
     const base = dependencies()
