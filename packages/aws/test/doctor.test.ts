@@ -1,5 +1,7 @@
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { ResourceScope } from '@continuous-excellence/testmints-js'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { describe, expect, it, vi } from 'vitest'
 import { type DoctorDependencies, runDoctor } from '../src/doctor.ts'
 
@@ -39,47 +41,95 @@ function dependencies(overrides: Partial<DoctorDependencies> = {}): DoctorDepend
   }
 }
 
+async function hostedClientOptions(scope: ResourceScope) {
+  const directory = await scope.using(
+    'doctor parameters directory',
+    () => mkdtemp('/tmp/dashboard-doctor-retry-'),
+    (path) => rm(path, { recursive: true, force: true }),
+  )
+  const parametersPath = join(directory, 'parameters.json')
+  await writeFile(parametersPath, '[]')
+  return { parametersPath, region: 'us-east-1' }
+}
+
 describe('deployment doctor', () => {
-  it('recovers when the hosted client fetch succeeds on the third attempt', async () => {
-    const fetch = vi
-      .fn()
-      .mockRejectedValueOnce(new TypeError('fetch failed'))
-      .mockRejectedValueOnce(new TypeError('fetch failed'))
-      .mockResolvedValue({ ok: true, status: 200 })
-    const checks = await runDoctor(
-      { parametersPath: await parameterFile(), region: 'us-east-1' },
-      dependencies({ fetch }),
-    )
-    expect(checks.find(({ name }) => name === 'Hosted client')).toMatchObject({ ok: true })
-    expect(fetch).toHaveBeenCalledTimes(3)
-    expect(
-      fetch.mock.calls.every(
-        ([url]) => url === 'https://public-assets.zegreatrob.com/dashboard/1.2.3/index.html',
-      ),
-    ).toBe(true)
-  })
+  describe('hosted client network retries', () => {
+    for (const attempts of [1, 2, 3])
+      it(
+        `reports success when the hosted client responds on attempt ${attempts}`,
+        mint({
+          setup: async ({ scope }) => {
+            const options = await hostedClientOptions(scope)
+            const response = { ok: true, status: 200 }
+            const fetch = vi.fn<DoctorDependencies['fetch']>()
+            for (let attempt = 1; attempt < attempts; attempt++)
+              fetch.mockRejectedValueOnce(new TypeError('fetch failed'))
+            fetch.mockResolvedValue(response)
+            const deps = dependencies({ fetch })
+            const url = `https://public-assets.zegreatrob.com/dashboard/${deps.packageVersion}/index.html`
+            return { options, deps, fetch, url, response }
+          },
+          exercise: ({ options, deps }) => runDoctor(options, deps),
+          verify: (checks, { fetch, url, response }) => {
+            expect(checks.find(({ name }) => name === 'Hosted client')).toMatchObject({
+              ok: true,
+              detail: `${url} returned HTTP ${response.status}`,
+            })
+            expect(fetch.mock.calls).toEqual(Array.from({ length: attempts }, () => [url]))
+          },
+        }),
+      )
 
-  it('stops after three failed hosted client fetch attempts', async () => {
-    const fetch = vi.fn().mockRejectedValue(new TypeError('fetch failed'))
-    const checks = await runDoctor(
-      { parametersPath: await parameterFile(), region: 'us-east-1' },
-      dependencies({ fetch }),
+    it(
+      'reports the final network failure after three attempts',
+      mint({
+        setup: async ({ scope }) => {
+          const options = await hostedClientOptions(scope)
+          const finalError = new TypeError('connection reset on final attempt')
+          const fetch = vi
+            .fn<DoctorDependencies['fetch']>()
+            .mockRejectedValueOnce(new TypeError('initial network failure'))
+            .mockRejectedValueOnce(new TypeError('second network failure'))
+            .mockRejectedValue(finalError)
+          return {
+            options,
+            deps: dependencies({ fetch }),
+            fetch,
+            finalError,
+          }
+        },
+        exercise: ({ options, deps }) => runDoctor(options, deps),
+        verify: (checks, { fetch, finalError }) => {
+          expect(checks.find(({ name }) => name === 'Hosted client')).toMatchObject({
+            ok: false,
+            detail: finalError.message,
+          })
+          expect(fetch).toHaveBeenCalledTimes(3)
+        },
+      }),
     )
-    expect(checks.find(({ name }) => name === 'Hosted client')).toMatchObject({
-      ok: false,
-      detail: 'fetch failed',
-    })
-    expect(fetch).toHaveBeenCalledTimes(3)
-  })
 
-  it('does not retry a hosted client HTTP error', async () => {
-    const fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 })
-    const checks = await runDoctor(
-      { parametersPath: await parameterFile(), region: 'us-east-1' },
-      dependencies({ fetch }),
+    it(
+      'does not retry a hosted client HTTP error',
+      mint({
+        setup: async ({ scope }) => {
+          const options = await hostedClientOptions(scope)
+          const response = { ok: false, status: 404 }
+          const fetch = vi.fn<DoctorDependencies['fetch']>().mockResolvedValue(response)
+          const deps = dependencies({ fetch })
+          const url = `https://public-assets.zegreatrob.com/dashboard/${deps.packageVersion}/index.html`
+          return { options, deps, fetch, url, response }
+        },
+        exercise: ({ options, deps }) => runDoctor(options, deps),
+        verify: (checks, { fetch, url, response }) => {
+          expect(checks.find(({ name }) => name === 'Hosted client')).toMatchObject({
+            ok: false,
+            detail: `${url} returned HTTP ${response.status}`,
+          })
+          expect(fetch.mock.calls).toEqual([[url]])
+        },
+      }),
     )
-    expect(checks.find(({ name }) => name === 'Hosted client')).toMatchObject({ ok: false })
-    expect(fetch).toHaveBeenCalledTimes(1)
   })
 
   it('reports a completely healthy read-only deployment setup', async () => {
