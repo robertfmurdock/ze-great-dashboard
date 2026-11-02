@@ -1,4 +1,9 @@
-import { testCountSchema } from '@ze-great-dashboard/shared/browser'
+import {
+  type Envelope,
+  testCountSchema,
+  testEvidenceSchema,
+} from '@ze-great-dashboard/shared/browser'
+import type { RenderedPanelDiagnostic } from './diagnostics.ts'
 import { errorPresentation } from './error-presentation.ts'
 import {
   PanelEvidence,
@@ -9,6 +14,7 @@ import {
   PanelValue,
 } from './PanelFrame.tsx'
 import type { PanelProps } from './panel-props.ts'
+import { formatTestOutcomes, projectTestEvidence } from './TestEvidence.tsx'
 import { ObservedAt, UpdateHealth } from './TimeAge.tsx'
 
 /** Renders one workflow run's declared aggregate test evidence. */
@@ -62,14 +68,7 @@ export function TestCountPanel({ panel, envelope, attentionActive, updateHealth 
         hint="This completed workflow did not publish the configured test summary."
       />
     )
-  const outcomes = [
-    ['passed', signal.passed],
-    ['failed', signal.failed],
-    ['skipped', signal.skipped],
-  ]
-    .filter(([, value]) => value !== undefined)
-    .map(([label, value]) => `${value} ${label}`)
-    .join(' · ')
+  const outcomes = formatTestOutcomes(signal)
   return (
     <PanelFrame panel={panel} envelope={envelope} attentionActive={attentionActive}>
       <PanelEvidence>
@@ -105,4 +104,13 @@ function TestCountMessage({
       </PanelEvidence>
     </PanelFrame>
   )
+}
+
+export function projectTestCountDiagnostic(envelope: Envelope): RenderedPanelDiagnostic {
+  const evidence = testEvidenceSchema.safeParse(envelope)
+  return {
+    state: envelope.state,
+    link: envelope.link,
+    ...(evidence.success ? { tests: projectTestEvidence(evidence.data) } : {}),
+  }
 }

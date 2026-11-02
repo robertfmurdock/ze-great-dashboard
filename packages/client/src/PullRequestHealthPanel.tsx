@@ -1,4 +1,6 @@
+import type { Envelope } from '@ze-great-dashboard/shared/browser'
 import { pullRequestHealthSchema } from '@ze-great-dashboard/shared/browser'
+import type { RenderedPanelDiagnostic } from './diagnostics.ts'
 import { errorPresentation } from './error-presentation.ts'
 import { PanelEvidence, PanelFrame, PanelHint, PanelMetadata, PanelStatus } from './PanelFrame.tsx'
 import styles from './PullRequestHealthPanel.module.css'
@@ -132,4 +134,11 @@ export function PullRequestHealthPanel({
       </div>
     </PanelFrame>
   )
+}
+
+export function projectPullRequestDiagnostic(envelope: Envelope): RenderedPanelDiagnostic {
+  const base = { state: envelope.state, link: envelope.link }
+  if (envelope.state === 'error') return base
+  const signal = pullRequestHealthSchema.safeParse(envelope.signal)
+  return { ...base, status: signal.success ? signal.data.status : undefined }
 }

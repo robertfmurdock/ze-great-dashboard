@@ -6,6 +6,7 @@ import type {
   PipelineStatus,
   Source,
   TestCount,
+  TestEvidence,
   TestResultsArtifact,
 } from '@ze-great-dashboard/shared'
 import {
@@ -13,12 +14,14 @@ import {
   githubActionsBuildEventsSchema,
   githubActionsSourceSchema,
   testCountPanelSchema,
+  testResultsArtifactSchema,
 } from '@ze-great-dashboard/shared'
 import { z } from 'zod'
 import { type CredentialResolver, environmentCredentials } from '../credentials.ts'
 import { createGithubClient, GithubAuthenticationError, type GithubClient } from '../github-auth.ts'
 import {
   type AdapterResult,
+  publicErrorMessage,
   safeNetworkCode,
   upstreamErrorEnvelope,
   upstreamErrorKind,
@@ -28,6 +31,7 @@ import { readTestResultsArtifact, testResultsSummarySchema } from '../workflow-a
 import type { PermittedCall } from './types.ts'
 
 const pipelinePanelSchema = z.object({
+  test_results: testResultsArtifactSchema.optional(),
   id: z.string().min(1),
   type: z.literal('pipeline-status'),
   source: z.string().min(1),
@@ -137,38 +141,67 @@ export async function fetchGithubActionsTestCount(args: {
 }): Promise<AdapterResult> {
   const { panel, source } = testCountCapabilities(args.panel, args.source)
   const githubClient = githubClientFor(args)
-  const noValidators = new Headers()
-  let failureLink = sourceLinkForWorkflow(source, panel.pipeline)
-  let failureObservedAt: string | undefined
   try {
     const selected = await selectGithubWorkflowRun({
       ...args,
       source,
       workflow: panel.pipeline,
-      requestHeaders: noValidators,
+      requestHeaders: new Headers(),
       githubClient,
     })
     if (!selected.response.ok) return testCountFailure(panel.id, source, selected.response)
-    const { run } = selected
-    if (!run?.id)
+    if (!selected.run?.id)
       return testCountEnvelope(
         noRunEnvelope(panel.id, source, panel.pipeline, selected.response.headers.get('date')),
       )
-    const link = run.html_url
-    const runObservedAt = selected.observedAt
-    failureLink = link
-    failureObservedAt = runObservedAt
+    const evidence = await readGithubRunTestEvidence(
+      { ...args, source, githubClient },
+      {
+        run: selected.run,
+        observedAt: selected.observedAt,
+      },
+      panel.test_results,
+    )
+    return testCountEnvelope({ ...evidence, panelId: panel.id, link: selected.run.html_url })
+  } catch (error) {
+    return testCountEnvelope(
+      errorEnvelope(
+        panel.id,
+        error instanceof GithubAuthenticationError ? 'unauthorized' : 'upstream-error',
+        error,
+        sourceLinkForWorkflow(source, panel.pipeline),
+      ),
+    )
+  }
+}
+
+async function readGithubRunTestEvidence(
+  args: { source: GithubActionsSource; githubClient: GithubClient; fetcher: typeof fetch },
+  selected: { run: z.infer<typeof runSchema>; observedAt: string },
+  artifactConfig: TestResultsArtifact,
+): Promise<TestEvidence> {
+  const { run, observedAt: runObservedAt } = selected
+  const { source, githubClient } = args
+  const noValidators = new Headers()
+  let failureObservedAt = runObservedAt
+  const evidenceError = (kind: ErrorKind, at = failureObservedAt): TestEvidence => ({
+    state: 'error',
+    observedAt: at,
+    error: { kind, message: publicErrorMessage(kind) },
+  })
+  const failedResponse = (response: Response) =>
+    evidenceError(errorKind(response.status), observedAt(response.headers.get('date')))
+  try {
+    if (!run.id) return evidenceError('upstream-error')
     if (run.status !== 'completed')
-      return testCountEnvelope({
-        panelId: panel.id,
+      return {
         state: 'ok',
         observedAt: runObservedAt,
-        link,
         signal: { type: 'test-count', status: 'pending' } satisfies TestCount,
-      })
+      }
 
     const artifactsResponse = await githubFetch(
-      githubArtifactsCall(source, run.id, panel.test_results),
+      githubArtifactsCall(source, run.id, artifactConfig),
       {
         ...args,
         source,
@@ -176,49 +209,31 @@ export async function fetchGithubActionsTestCount(args: {
         githubClient,
       },
     )
-    if (!artifactsResponse.ok) return testCountFailure(panel.id, source, artifactsResponse, link)
+    if (!artifactsResponse.ok) return failedResponse(artifactsResponse)
     const artifactObservedAt = observedAt(artifactsResponse.headers.get('date'))
     failureObservedAt = oldestObservation(runObservedAt, artifactObservedAt)
     const artifacts = artifactsSchema.parse(await artifactsResponse.json()).artifacts
-    const matches = artifacts.filter((artifact) => artifact.name === panel.test_results.artifact)
+    const matches = artifacts.filter((artifact) => artifact.name === artifactConfig.artifact)
     if (matches.length === 0)
-      return testCountEnvelope({
-        panelId: panel.id,
+      return {
         state: 'ok',
         observedAt: oldestObservation(runObservedAt, artifactObservedAt),
-        link,
         signal: { type: 'test-count', status: 'not-reported' } satisfies TestCount,
-      })
-    if (matches.length !== 1 || matches[0]?.expired)
-      return testCountEnvelope(
-        errorEnvelope(
-          panel.id,
-          'upstream-error',
-          'The test-results artifact is unavailable.',
-          link,
-        ),
-      )
+      }
     const [artifact] = matches
-    if (!artifact)
-      return testCountEnvelope(
-        errorEnvelope(
-          panel.id,
-          'upstream-error',
-          'The test-results artifact is unavailable.',
-          link,
-        ),
-      )
+    if (matches.length !== 1 || !artifact || artifact.expired)
+      return evidenceError('upstream-error')
     const archiveResponse = await githubFetch(githubArtifactDownloadCall(source, artifact.id), {
       ...args,
       source,
       requestHeaders: noValidators,
       githubClient,
     })
-    if (!archiveResponse.ok) return testCountFailure(panel.id, source, archiveResponse, link)
+    if (!archiveResponse.ok) return failedResponse(archiveResponse)
     const archiveObservedAt = observedAt(archiveResponse.headers.get('date'))
     failureObservedAt = oldestObservation(runObservedAt, artifactObservedAt, archiveObservedAt)
     const summary = testResultsSummarySchema.parse(
-      JSON.parse(await readTestResultsArtifact(archiveResponse, panel.test_results.entry)),
+      JSON.parse(await readTestResultsArtifact(archiveResponse, artifactConfig.entry)),
     )
     if (
       summary.runId !== run.id ||
@@ -226,11 +241,9 @@ export async function fetchGithubActionsTestCount(args: {
       summary.headSha !== run.head_sha
     )
       throw new Error('Test-results manifest does not belong to the selected workflow run.')
-    return testCountEnvelope({
-      panelId: panel.id,
+    return {
       state: 'ok',
       observedAt: oldestObservation(runObservedAt, artifactObservedAt, archiveObservedAt),
-      link,
       signal: {
         type: 'test-count',
         status: 'reported',
@@ -239,16 +252,10 @@ export async function fetchGithubActionsTestCount(args: {
         ...(summary.failed === undefined ? {} : { failed: summary.failed }),
         ...(summary.skipped === undefined ? {} : { skipped: summary.skipped }),
       } satisfies TestCount,
-    })
+    }
   } catch (error) {
-    return testCountEnvelope(
-      errorEnvelope(
-        panel.id,
-        error instanceof GithubAuthenticationError ? 'unauthorized' : 'upstream-error',
-        error,
-        failureLink,
-        failureObservedAt,
-      ),
+    return evidenceError(
+      error instanceof GithubAuthenticationError ? 'unauthorized' : 'upstream-error',
     )
   }
 }
@@ -523,6 +530,7 @@ export async function fetchGithubActionsPipeline(args: {
       ...args,
       source: parsedSource,
       workflow: parsedPanel.pipeline,
+      requestHeaders: parsedPanel.test_results ? new Headers() : args.requestHeaders,
       githubClient,
     })
   } catch (error) {
@@ -593,14 +601,23 @@ export async function fetchGithubActionsPipeline(args: {
       })
       if (activity) signal.activity = activity
     }
+    if (parsedPanel.test_results) {
+      signal.testResults = await readGithubRunTestEvidence(
+        { ...args, source: parsedSource, githubClient },
+        { run, observedAt: selected.observedAt },
+        parsedPanel.test_results,
+      )
+    }
     const envelope: Envelope = {
       panelId: args.panel.id,
       state: 'ok',
-      observedAt: observedAt(upstream.headers.get('date')),
+      observedAt: signal.testResults
+        ? oldestObservation(selected.observedAt, signal.testResults.observedAt)
+        : selected.observedAt,
       link: run.html_url,
       signal,
     }
-    return { envelope, response: upstream }
+    return { envelope, response: parsedPanel.test_results ? new Response(null) : upstream }
   } catch (error) {
     return {
       response: new Response(

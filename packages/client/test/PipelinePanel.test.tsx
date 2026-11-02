@@ -1,6 +1,6 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render, screen } from '@testing-library/react'
-import type { Panel } from '@ze-great-dashboard/shared/browser'
+import type { Envelope, Panel } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, test, vi } from 'vitest'
 import { PipelinePanel } from '../src/PipelinePanel.tsx'
 
@@ -43,6 +43,42 @@ describe('PipelinePanel', () => {
         expect(
           rendered.querySelector('[data-panel]')?.getAttribute('data-attention-active'),
         ).toBeNull()
+      },
+    }),
+  )
+})
+
+describe('run panel test evidence composition', () => {
+  test(
+    'keeps build status and its test evidence in the same panel',
+    mint({
+      setup: () => {
+        const total = 37
+        return {
+          total,
+          envelope: {
+            panelId: panel.id,
+            state: 'ok',
+            observedAt: '2026-11-02T15:00:00.000Z',
+            link: null,
+            signal: {
+              type: 'pipeline-status',
+              status: 'passed',
+              rawStatus: 'success',
+              name: 'Build',
+              testResults: {
+                state: 'ok',
+                observedAt: '2026-11-02T15:00:00.000Z',
+                signal: { type: 'test-count', status: 'reported', total },
+              },
+            },
+          } satisfies Envelope,
+        }
+      },
+      exercise: ({ envelope }) => render(<PipelinePanel panel={panel} envelope={envelope} />),
+      verify: (_result, { total }) => {
+        expect(screen.getByText('Passed')).toBeTruthy()
+        expect(screen.getByText(`${total} tests`)).toBeTruthy()
       },
     }),
   )

@@ -1,38 +1,19 @@
-import {
-  type Envelope,
-  type Panel,
-  pipelineStatusSchema,
-  pullRequestHealthSchema,
-} from '@ze-great-dashboard/shared/browser'
+import type { Envelope, Panel } from '@ze-great-dashboard/shared/browser'
 import type { RenderedPanelDiagnostic } from './diagnostics.ts'
 import type { HttpValueFactObservation } from './panel-props.ts'
+import { panelFeature } from './panel-registry.tsx'
 
 /**
  * The compact public fact a viewer saw. Keep new panel projections here beside their
  * presentation boundary; this is intentionally not a source or server event contract.
  */
 export function projectPanelDiagnostic(panel: Panel, envelope: Envelope): RenderedPanelDiagnostic {
-  if (envelope.state === 'error') return { state: envelope.state, link: envelope.link }
-
-  if (panel.type === 'pipeline-status') {
-    const signal = pipelineStatusSchema.safeParse(envelope.signal)
-    return {
+  return (
+    panelFeature(panel.type)?.projectDiagnostic(envelope) ?? {
       state: envelope.state,
-      status: signal.success ? signal.data.status : undefined,
       link: envelope.link,
     }
-  }
-
-  if (panel.type === 'pull-request-health') {
-    const signal = pullRequestHealthSchema.safeParse(envelope.signal)
-    return {
-      state: envelope.state,
-      status: signal.success ? signal.data.status : undefined,
-      link: envelope.link,
-    }
-  }
-
-  return { state: envelope.state, link: envelope.link }
+  )
 }
 
 export function panelDiagnosticChanged(
@@ -43,9 +24,7 @@ export function panelDiagnosticChanged(
   if (!previous) return true
   const before = projectPanelDiagnostic(panel, previous)
   const after = projectPanelDiagnostic(panel, next)
-  return (
-    before.state !== after.state || before.status !== after.status || before.link !== after.link
-  )
+  return JSON.stringify(before) !== JSON.stringify(after)
 }
 
 /** Public evidence for a visual group whose sources were observed independently. */

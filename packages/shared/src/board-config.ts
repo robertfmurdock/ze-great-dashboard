@@ -186,11 +186,11 @@ export const panelSchema = z
           path: ['test_results'],
           message: 'test-count requires test_results artifact configuration',
         })
-    } else if (panel.test_results) {
+    } else if (panel.test_results && panel.type !== 'pipeline-status') {
       ctx.addIssue({
         code: 'custom',
         path: ['test_results'],
-        message: 'test_results is only supported by test-count panels',
+        message: 'test_results is only supported by test-count and pipeline-status panels',
       })
     }
     if (panel.type !== 'http-value') return
@@ -509,6 +509,16 @@ export const boardConfigSchema = z
             },
           })
         }
+        if (
+          panel.type === 'pipeline-status' &&
+          panel.test_results &&
+          source?.type !== 'github-actions'
+        )
+          ctx.addIssue({
+            code: 'custom',
+            path: ['boards', boardName, 'panels', panelIndex, 'test_results'],
+            message: 'test_results requires a github-actions source',
+          })
         if (panel.type !== 'pipeline-status' || source?.type !== 'azure-devops') return
         if (
           typeof panel.pipeline !== 'number' ||

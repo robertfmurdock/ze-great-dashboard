@@ -72,6 +72,9 @@ boards:
         density: comfortable
         source: ze-great-dashboard
         pipeline: main.yml
+        test_results:
+          artifact: ci-evidence
+          entry: test-summary.json
         position: { x: 0, y: 8, w: 12, h: 2 }
 
       # Published versions share the final row.

@@ -94,7 +94,9 @@ export {
   pullRequestHealthSchema,
   pullRequestWorkflowObservationSchema,
   type TestCount,
+  type TestEvidence,
   testCountSchema,
+  testEvidenceSchema,
 } from './envelope.ts'
 export {
   analyzeBoardLayout,

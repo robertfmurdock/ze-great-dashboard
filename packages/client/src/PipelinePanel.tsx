@@ -7,6 +7,7 @@ import {
   visibleRunningAnimations,
 } from '@ze-great-dashboard/shared/browser'
 import { useRef, useState } from 'react'
+import type { RenderedPanelDiagnostic } from './diagnostics.ts'
 import { errorPresentation } from './error-presentation.ts'
 import { PanelEvidence, PanelFrame, PanelHint, PanelMetadata, PanelStatus } from './PanelFrame.tsx'
 import styles from './PipelinePanel.module.css'
@@ -17,6 +18,7 @@ import { isRunningFieldAnimation, RunningField } from './RunningField.tsx'
 import { RunningFieldTiming } from './RunningFieldTiming.tsx'
 import { isLegacyRunningAnimation, RunningProgress } from './RunningProgress.tsx'
 import { useRunningTiming } from './running-timing.ts'
+import { projectTestEvidence, RunTestResults } from './TestEvidence.tsx'
 import { LastConfirmedAge, PipelineAge, UpdateHealth } from './TimeAge.tsx'
 import { visualSeed } from './visual-seed.ts'
 
@@ -188,6 +190,7 @@ function PipelineSignalPanel({
             className={styles.activity}
           />
         )}
+        {signal.testResults && <RunTestResults envelope={signal.testResults} />}
         {signal.branch && (
           <PanelMetadata
             glyph="⎇"
@@ -244,4 +247,17 @@ function formatDuration(durationMs: number) {
   if (hours > 0) return `${hours}h ${minutes}m`
   if (minutes > 0) return `${minutes}m ${seconds}s`
   return `${seconds}s`
+}
+
+export function projectPipelineDiagnostic(envelope: Envelope): RenderedPanelDiagnostic {
+  const base = { state: envelope.state, link: envelope.link }
+  if (envelope.state === 'error') return base
+  const signal = pipelineStatusSchema.safeParse(envelope.signal)
+  return {
+    ...base,
+    status: signal.success ? signal.data.status : undefined,
+    ...(signal.success && signal.data.testResults
+      ? { tests: projectTestEvidence(signal.data.testResults) }
+      : {}),
+  }
 }

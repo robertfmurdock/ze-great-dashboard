@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import {
@@ -43,33 +44,113 @@ describe('the board config schema', () => {
     },
   }
 
-  it('requires bounded artifact configuration only for test-count panels', () => {
-    const board = (panel: object) => ({ boards: { operations: { panels: [panel] } } })
-    expect(
-      boardConfigSchema.safeParse(
-        board({
-          id: 'tests',
-          type: 'test-count',
-          source: 'github',
-          pipeline: 'main.yml',
-          test_results: { artifact: 'ci-evidence', entry: 'test-summary.json' },
+  describe('test artifact configuration', () => {
+    it(
+      'accepts a standalone panel with bounded artifact configuration',
+      mint({
+        setup: () => ({
+          config: {
+            boards: {
+              team: {
+                panels: [
+                  {
+                    id: 'tests',
+                    type: 'test-count',
+                    source: 'github',
+                    pipeline: 'main.yml',
+                    test_results: { artifact: 'ci-evidence', entry: 'test-summary.json' },
+                  },
+                ],
+              },
+            },
+          },
         }),
-      ).success,
-    ).toBe(true)
-    expect(
-      boardConfigSchema.safeParse(
-        board({ id: 'tests', type: 'test-count', source: 'github', pipeline: 'main.yml' }),
-      ).success,
-    ).toBe(false)
-    expect(
-      boardConfigSchema.safeParse(
-        board({
-          id: 'build',
-          type: 'pipeline-status',
-          test_results: { artifact: 'ci-evidence', entry: '../summary.json' },
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(true),
+      }),
+    )
+    it(
+      'rejects a standalone panel without artifact configuration',
+      mint({
+        setup: () => ({
+          config: {
+            boards: {
+              team: {
+                panels: [
+                  { id: 'tests', type: 'test-count', source: 'github', pipeline: 'main.yml' },
+                ],
+              },
+            },
+          },
         }),
-      ).success,
-    ).toBe(false)
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
+    it(
+      'rejects an artifact entry outside the archive root',
+      mint({
+        setup: () => ({
+          config: {
+            boards: {
+              team: {
+                panels: [
+                  {
+                    id: 'tests',
+                    type: 'test-count',
+                    source: 'github',
+                    pipeline: 'main.yml',
+                    test_results: { artifact: 'ci-evidence', entry: '../summary.json' },
+                  },
+                ],
+              },
+            },
+          },
+        }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
+    const sources = [
+      {
+        name: 'accepts GitHub Actions run evidence',
+        source: { type: 'github-actions', repo: 'example/repo' },
+        accepted: true,
+      },
+      {
+        name: 'rejects run evidence from an unsupported provider',
+        source: { type: 'other-ci' },
+        accepted: false,
+      },
+    ]
+    for (const scenario of sources) {
+      it(
+        scenario.name,
+        mint({
+          setup: () => ({
+            accepted: scenario.accepted,
+            config: {
+              sources: { github: scenario.source },
+              boards: {
+                team: {
+                  panels: [
+                    {
+                      id: 'build',
+                      type: 'pipeline-status',
+                      source: 'github',
+                      pipeline: 'main.yml',
+                      test_results: { artifact: 'ci-evidence', entry: 'test-summary.json' },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          exercise: ({ config }) => boardConfigSchema.safeParse(config),
+          verify: (result, { accepted }) => expect(result.success).toBe(accepted),
+        }),
+      )
+    }
   })
 
   it('accepts the deployment security policies and leaves omission as the warn behavior', () => {

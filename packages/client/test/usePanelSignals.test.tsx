@@ -1,4 +1,5 @@
-import { render } from '@testing-library/react'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
+import { render, renderHook } from '@testing-library/react'
 import type { Board, ClientEnv, Envelope, PipelineStatus } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -114,6 +115,52 @@ afterEach(() => {
 })
 
 describe('usePanelSignals', () => {
+  it(
+    'fetches test totals through the panel polling lifecycle',
+    mint({
+      setup: async ({ scope }) => {
+        const testsPanel = { id: 'tests', type: 'test-count' }
+        const reported: Envelope = {
+          panelId: testsPanel.id,
+          state: 'ok',
+          observedAt: '2026-11-02T15:00:00.000Z',
+          link: 'https://github.com/example/repo/actions/runs/42',
+          signal: { type: 'test-count', status: 'reported', total: 123 },
+        }
+        const fetcher = await scope.using(
+          'panel fetch',
+          () => {
+            const fetcher = vi.fn(async () => Response.json(reported))
+            vi.stubGlobal('fetch', fetcher)
+            return fetcher
+          },
+          () => vi.unstubAllGlobals(),
+        )
+        return {
+          testsPanel,
+          reported,
+          fetcher,
+          currentBoard: { panels: [testsPanel] },
+          diagnostics: recordingSink(),
+          path: `${env.proxyPath}/panel/${env.board}/${testsPanel.id}`,
+        }
+      },
+      exercise: async ({ currentBoard, diagnostics }, { scope }) => {
+        const hook = await scope.using(
+          'panel signals hook',
+          () => renderHook(() => usePanelSignals({ board: currentBoard, env, diagnostics })),
+          (hook) => hook.unmount(),
+        )
+        await act(async () => {})
+        return hook.result.current
+      },
+      verify: (result, { fetcher, path, testsPanel, reported }) => {
+        expect(fetcher).toHaveBeenCalledWith(path, expect.any(Object))
+        expect(result.signals[testsPanel.id]).toEqual(reported)
+      },
+    }),
+  )
+
   it('publishes an initial request snapshot and schedules the next poll only after settlement', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-03T12:00:00.000Z'))

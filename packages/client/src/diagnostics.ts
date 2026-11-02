@@ -8,6 +8,7 @@ import {
 } from './browser-storage.ts'
 import { type DiagnosticsSummary, summarizeDiagnostics } from './diagnostics-summary.ts'
 import { clientReleaseVersion } from './release-version.ts'
+import type { TestEvidenceDiagnostic } from './TestEvidence.tsx'
 
 const storageKey = 'ze-great-dashboard.diagnostics.v2'
 const legacyStorageKey = 'ze-great-dashboard.diagnostics.v1'
@@ -58,6 +59,7 @@ type EventMetadata = {
 }
 
 export type RenderedPanelDiagnostic = {
+  tests?: TestEvidenceDiagnostic
   state: Envelope['state']
   status?: string
   link: string | null

@@ -36,38 +36,32 @@ describe('GitHub Actions test-count evidence', () => {
     'reads and binds one configured artifact summary to its selected workflow run',
     mint({
       setup: () => {
+        const counts = { total: 12, passed: 10, failed: 1, skipped: 1 }
+        const summary = {
+          schemaVersion: 1,
+          runId: run.id,
+          runAttempt: run.run_attempt,
+          headSha: run.head_sha,
+          ...counts,
+        }
         const fetcher = vi.fn(async (url: string) => {
           if (url.includes('/runs?')) return Response.json({ workflow_runs: [run] })
           if (url.includes('/artifacts?'))
             return Response.json({ artifacts: [{ id: 8, name: 'ci-evidence', expired: false }] })
-          return new Response(
-            archive({
-              schemaVersion: 1,
-              runId: 42,
-              runAttempt: 2,
-              headSha: 'abc123',
-              total: 12,
-              passed: 10,
-              failed: 1,
-              skipped: 1,
-            }),
-          )
+          return new Response(archive(summary))
         }) as unknown as typeof fetch
-        return { fetcher }
+        return { fetcher, counts }
       },
       exercise: ({ fetcher }) =>
         fetchGithubActionsTestCount({ panel, source, requestHeaders: new Headers(), fetcher }),
-      verify: (result, { fetcher }) => {
+      verify: (result, { fetcher, counts }) => {
         expect(result.envelope).toMatchObject({
           state: 'ok',
           link: run.html_url,
           signal: {
             type: 'test-count',
             status: 'reported',
-            total: 12,
-            passed: 10,
-            failed: 1,
-            skipped: 1,
+            ...counts,
           },
         })
         expect(vi.mocked(fetcher)).toHaveBeenCalledTimes(3)
@@ -106,9 +100,9 @@ describe('GitHub Actions test-count evidence', () => {
           return new Response(
             archive({
               schemaVersion: 1,
-              runId: 41,
-              runAttempt: 2,
-              headSha: 'abc123',
+              runId: run.id - 1,
+              runAttempt: run.run_attempt,
+              headSha: run.head_sha,
               total: 12,
             }),
           )
@@ -134,7 +128,13 @@ describe('GitHub Actions test-count evidence', () => {
             return Response.json({ artifacts: [{ id: 8, name: 'ci-evidence', expired: false }] })
           return new Response(
             archive(
-              { schemaVersion: 1, runId: 42, runAttempt: 2, headSha: 'abc123', total: 12 },
+              {
+                schemaVersion: 1,
+                runId: run.id,
+                runAttempt: run.run_attempt,
+                headSha: run.head_sha,
+                total: 12,
+              },
               { 'untrusted.txt': new TextEncoder().encode('not part of the contract') },
             ),
           )
@@ -154,15 +154,24 @@ describe('GitHub Actions test-count evidence', () => {
     'serves the configured test-count panel through the bounded panel route',
     mint({
       setup: () => {
+        const total = 12
         const fetcher = vi.fn(async (url: string) => {
           if (url.includes('/runs?')) return Response.json({ workflow_runs: [run] })
           if (url.includes('/artifacts?'))
             return Response.json({ artifacts: [{ id: 8, name: 'ci-evidence', expired: false }] })
           return new Response(
-            archive({ schemaVersion: 1, runId: 42, runAttempt: 2, headSha: 'abc123', total: 12 }),
+            archive({
+              schemaVersion: 1,
+              runId: run.id,
+              runAttempt: run.run_attempt,
+              headSha: run.head_sha,
+              total,
+            }),
           )
         }) as unknown as typeof fetch
         return {
+          total,
+          path: `/api/panel/team/${panel.id}`,
           app: createApp({
             config: loadConfig({ ASSET_PATH: 'https://assets.example.test/1.0.0' }),
             boardConfig: {
@@ -173,13 +182,185 @@ describe('GitHub Actions test-count evidence', () => {
           }),
         }
       },
-      exercise: ({ app }) => app.request('/api/panel/team/tests'),
-      verify: async (response) => {
+      exercise: ({ app, path }) => app.request(path),
+      verify: async (response, { total }) => {
         expect(response.status).toBe(200)
         expect(await response.json()).toMatchObject({
-          panelId: 'tests',
+          panelId: panel.id,
           state: 'ok',
-          signal: { type: 'test-count', status: 'reported', total: 12 },
+          signal: { type: 'test-count', status: 'reported', total },
+        })
+      },
+    }),
+  )
+})
+
+function embeddedRunFixture(
+  selectedRun: Omit<typeof run, 'conclusion'> & { conclusion: string | null },
+  artifacts: Array<{ id: number; name: string; expired: boolean }>,
+  archiveBody = new Uint8Array(),
+) {
+  const validator = 'run-validator'
+  const requestHeaders = { 'if-none-match': validator }
+  const fetcher = vi.fn(async (url: string) => {
+    if (url.includes('/runs?'))
+      return Response.json(
+        { workflow_runs: [selectedRun] },
+        {
+          headers: { etag: validator, 'cache-control': 'max-age=300' },
+        },
+      )
+    if (url.includes(`/runs/${selectedRun.id}/artifacts?`)) return Response.json({ artifacts })
+    if (url.includes(`/runs/${selectedRun.id}/jobs?`)) return Response.json({ jobs: [] })
+    if (artifacts.some(({ id }) => url.endsWith(`/artifacts/${id}/zip`)))
+      return new Response(archiveBody)
+    throw new Error(`Unexpected GitHub request: ${url}`)
+  }) as unknown as typeof fetch
+  const configuredPanel = { ...panel, type: 'pipeline-status' }
+  return {
+    selectedRun,
+    fetcher,
+    requestHeaders,
+    path: `/api/panel/team/${configuredPanel.id}`,
+    app: createApp({
+      config: loadConfig({ ASSET_PATH: 'https://assets.example.test/1.0.0' }),
+      boardConfig: { sources: { github: source }, boards: { team: { panels: [configuredPanel] } } },
+      fetcher,
+    }),
+  }
+}
+
+function expectUncachedSingleRun(response: Response, fetcher: typeof fetch) {
+  expect(response.status).toBe(200)
+  expect(response.headers.get('etag')).toBeNull()
+  expect(response.headers.get('cache-control')).toBeNull()
+  const calls = vi.mocked(fetcher).mock.calls
+  expect(calls.filter(([url]) => String(url).includes('/runs?'))).toHaveLength(1)
+  expect(new Headers(calls[0]?.[1]?.headers).has('if-none-match')).toBe(false)
+}
+
+describe('test evidence embedded in a run panel', () => {
+  test(
+    'reports totals from the selected run without forwarding its cache validator',
+    mint({
+      setup: () => {
+        const selectedRun = { ...run }
+        const artifact = { id: 83, name: panel.test_results.artifact, expired: false }
+        const counts = { total: 37, passed: 35, failed: 1, skipped: 1 }
+        const summary = {
+          schemaVersion: 1,
+          runId: selectedRun.id,
+          runAttempt: selectedRun.run_attempt,
+          headSha: selectedRun.head_sha,
+          ...counts,
+        }
+        return {
+          counts,
+          artifact,
+          ...embeddedRunFixture(selectedRun, [artifact], archive(summary)),
+        }
+      },
+      exercise: ({ app, path, requestHeaders }) => app.request(path, { headers: requestHeaders }),
+      verify: async (response, { fetcher, selectedRun, counts, artifact }) => {
+        expectUncachedSingleRun(response, fetcher)
+        expect(await response.json()).toMatchObject({
+          state: 'ok',
+          link: selectedRun.html_url,
+          signal: {
+            type: 'pipeline-status',
+            status: 'passed',
+            sourceRunId: String(selectedRun.id),
+            testResults: {
+              state: 'ok',
+              signal: { type: 'test-count', status: 'reported', ...counts },
+            },
+          },
+        })
+        const requests = vi.mocked(fetcher).mock.calls.map(([url]) => new URL(String(url)))
+        expect(requests.map(({ pathname }) => pathname)).toEqual([
+          `/repos/${source.repo}/actions/workflows/${panel.pipeline}/runs`,
+          `/repos/${source.repo}/actions/runs/${selectedRun.id}/artifacts`,
+          `/repos/${source.repo}/actions/artifacts/${artifact.id}/zip`,
+        ])
+        expect(requests[1]?.searchParams.get('name')).toBe(artifact.name)
+      },
+    }),
+  )
+  test(
+    'discloses missing reporting without reading an archive',
+    mint({
+      setup: () => embeddedRunFixture({ ...run }, []),
+      exercise: ({ app, path, requestHeaders }) => app.request(path, { headers: requestHeaders }),
+      verify: async (response, { fetcher, selectedRun }) => {
+        expectUncachedSingleRun(response, fetcher)
+        expect(await response.json()).toMatchObject({
+          state: 'ok',
+          link: selectedRun.html_url,
+          signal: {
+            status: 'passed',
+            sourceRunId: String(selectedRun.id),
+            testResults: { state: 'ok', signal: { type: 'test-count', status: 'not-reported' } },
+          },
+        })
+        const requests = vi.mocked(fetcher).mock.calls.map(([url]) => new URL(String(url)).pathname)
+        expect(requests).toEqual([
+          `/repos/${source.repo}/actions/workflows/${panel.pipeline}/runs`,
+          `/repos/${source.repo}/actions/runs/${selectedRun.id}/artifacts`,
+        ])
+      },
+    }),
+  )
+  test(
+    'keeps queued run evidence pending without requesting artifacts',
+    mint({
+      setup: () => embeddedRunFixture({ ...run, status: 'queued', conclusion: null }, []),
+      exercise: ({ app, path, requestHeaders }) => app.request(path, { headers: requestHeaders }),
+      verify: async (response, { fetcher, selectedRun }) => {
+        expectUncachedSingleRun(response, fetcher)
+        expect(await response.json()).toMatchObject({
+          state: 'ok',
+          link: selectedRun.html_url,
+          signal: {
+            status: 'running',
+            sourceRunId: String(selectedRun.id),
+            testResults: { state: 'ok', signal: { type: 'test-count', status: 'pending' } },
+          },
+        })
+        expect(
+          vi.mocked(fetcher).mock.calls.filter(([url]) => String(url).includes('/artifacts')),
+        ).toEqual([])
+      },
+    }),
+  )
+  test(
+    'preserves build status while rejecting a manifest from a different run',
+    mint({
+      setup: () => {
+        const selectedRun = { ...run }
+        const summary = {
+          schemaVersion: 1,
+          runId: selectedRun.id - 1,
+          runAttempt: selectedRun.run_attempt,
+          headSha: selectedRun.head_sha,
+          total: 37,
+        }
+        return embeddedRunFixture(
+          selectedRun,
+          [{ id: 8, name: panel.test_results.artifact, expired: false }],
+          archive(summary),
+        )
+      },
+      exercise: ({ app, path, requestHeaders }) => app.request(path, { headers: requestHeaders }),
+      verify: async (response, { fetcher, selectedRun }) => {
+        expectUncachedSingleRun(response, fetcher)
+        expect(await response.json()).toMatchObject({
+          state: 'ok',
+          link: selectedRun.html_url,
+          signal: {
+            status: 'passed',
+            sourceRunId: String(selectedRun.id),
+            testResults: { state: 'error', error: { kind: 'upstream-error' } },
+          },
         })
       },
     }),

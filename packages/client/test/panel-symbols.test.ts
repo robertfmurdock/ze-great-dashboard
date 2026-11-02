@@ -1,28 +1,15 @@
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { describe, expect, it } from 'vitest'
-import { panelTypeSymbols, primarySymbolMeanings, statusSymbols } from '../src/panel-symbols.ts'
+import { primarySymbolMeanings } from '../src/panel-symbols.ts'
 
 describe('primary compact symbols', () => {
-  it('assigns one unique meaning to every primary glyph', () => {
-    expect(new Set(primarySymbolMeanings.map(({ glyph }) => glyph)).size).toBe(
-      primarySymbolMeanings.length,
-    )
-  })
-
-  it('covers every renderable panel type and every pipeline status', () => {
-    expect(Object.keys(panelTypeSymbols).sort()).toEqual([
-      'http-value',
-      'pipeline-animation-demo',
-      'pipeline-status',
-      'pull-request-health',
-      'test-count',
-    ])
-    expect(Object.keys(statusSymbols).sort()).toEqual([
-      'cancelled',
-      'failed',
-      'passed',
-      'running',
-      'unknown',
-      'warning',
-    ])
-  })
+  it(
+    'assigns one unique meaning to every primary glyph',
+    mint({
+      setup: () => undefined,
+      exercise: () => primarySymbolMeanings(),
+      verify: (meanings) =>
+        expect(new Set(meanings.map(({ glyph }) => glyph)).size).toBe(meanings.length),
+    }),
+  )
 })

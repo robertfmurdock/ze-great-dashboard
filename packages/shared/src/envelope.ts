@@ -68,12 +68,36 @@ export const pipelineActivitySchema = z.object({
 
 export type PipelineActivity = z.infer<typeof pipelineActivitySchema>
 
+/** Aggregate test evidence published by one selected CI workflow run. */
+export const testCountSchema = z.discriminatedUnion('status', [
+  z.object({
+    type: z.literal('test-count'),
+    status: z.literal('reported'),
+    total: z.number().int().nonnegative(),
+    passed: z.number().int().nonnegative().optional(),
+    failed: z.number().int().nonnegative().optional(),
+    skipped: z.number().int().nonnegative().optional(),
+  }),
+  z.object({ type: z.literal('test-count'), status: z.literal('pending') }),
+  z.object({ type: z.literal('test-count'), status: z.literal('not-reported') }),
+])
+export type TestCount = z.infer<typeof testCountSchema>
+
+/** Public test evidence for one run, without a second panel identity or source link. */
+export const testEvidenceSchema = z.discriminatedUnion('state', [
+  z.object({ state: z.literal('ok'), observedAt: z.iso.datetime(), signal: testCountSchema }),
+  z.object({ state: z.literal('error'), observedAt: z.iso.datetime(), error: envelopeErrorSchema }),
+])
+export type TestEvidence = z.infer<typeof testEvidenceSchema>
+
 /** The normalized vocabulary used by every CI adapter. */
 export const pipelineStatusSchema = z.object({
   type: z.literal('pipeline-status'),
   status: z.enum(['passed', 'failed', 'warning', 'running', 'cancelled', 'unknown']),
   /** The source's unmodified status/result vocabulary, for an honest display. */
   rawStatus: z.string(),
+  /** Test evidence bound to this exact run; failures do not erase build status. */
+  testResults: testEvidenceSchema.optional(),
   name: z.string().min(1),
   /** The branch represented by this status, when the upstream supplies or filters by one. */
   branch: z.string().min(1).optional(),
@@ -92,21 +116,6 @@ export const pipelineStatusSchema = z.object({
 })
 
 export type PipelineStatus = z.infer<typeof pipelineStatusSchema>
-
-/** Aggregate test evidence published by one selected CI workflow run. */
-export const testCountSchema = z.discriminatedUnion('status', [
-  z.object({
-    type: z.literal('test-count'),
-    status: z.literal('reported'),
-    total: z.number().int().nonnegative(),
-    passed: z.number().int().nonnegative().optional(),
-    failed: z.number().int().nonnegative().optional(),
-    skipped: z.number().int().nonnegative().optional(),
-  }),
-  z.object({ type: z.literal('test-count'), status: z.literal('pending') }),
-  z.object({ type: z.literal('test-count'), status: z.literal('not-reported') }),
-])
-export type TestCount = z.infer<typeof testCountSchema>
 
 /** Higher values need more immediate attention in a compact aggregate. */
 const pipelineStatusPriorities: Record<PipelineStatus['status'], number> = {

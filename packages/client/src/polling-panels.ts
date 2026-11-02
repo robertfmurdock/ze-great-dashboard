@@ -1,24 +1,25 @@
+import type { Panel } from '@ze-great-dashboard/shared/browser'
 import {
   type Board,
   type ClientEnv,
   isZeroPosition,
   resolvePollingSettings,
 } from '@ze-great-dashboard/shared/browser'
+import type { RemotePanelPolling } from './panel-feature.ts'
+import { panelFeature } from './panel-registry.tsx'
 import type { PollingScheduleSnapshot } from './polling-schedule.ts'
 
-type PollingPanel = Board['panels'][number] & {
-  type: 'pipeline-status' | 'pull-request-health' | 'http-value'
-}
+export { readUpdateWorkflows } from './update-workflows.ts'
 
-/** The exact visible panel types that originate proxy polling in this client. */
+export type PollingPanel = { panel: Panel; polling: RemotePanelPolling }
+
+/** Visible remote features carry their registered polling behavior into the lifecycle. */
 export function pollingPanels(board: Board): PollingPanel[] {
-  return board.panels.filter(
-    (panel): panel is PollingPanel =>
-      !isZeroPosition(panel.position) &&
-      (panel.type === 'pipeline-status' ||
-        panel.type === 'pull-request-health' ||
-        panel.type === 'http-value'),
-  )
+  return board.panels.flatMap((panel) => {
+    if (isZeroPosition(panel.position)) return []
+    const polling = panelFeature(panel.type)?.polling
+    return polling && polling.kind !== 'local' ? [{ panel, polling }] : []
+  })
 }
 
 export function panelProxyPath(env: ClientEnv, panelId: string) {
@@ -29,20 +30,10 @@ export function panelProxyPath(env: ClientEnv, panelId: string) {
 export function initialPollingSchedule(
   board: Board,
   env: ClientEnv,
-  panel: PollingPanel,
+  { panel, polling }: PollingPanel,
 ): PollingScheduleSnapshot {
   const path = panelProxyPath(env, panel.id)
-  const knownPaths =
-    panel.type === 'http-value' && panel.facts
-      ? panel.facts.map((fact) => `${path}/facts/${encodeURIComponent(fact.id)}`)
-      : panel.type === 'pull-request-health'
-        ? [
-            `${path}/pull-requests`,
-            ...readUpdateWorkflows(panel).map(
-              ({ workflow }) => `${path}/update-workflow/${encodeURIComponent(workflow)}`,
-            ),
-          ]
-        : [path]
+  const knownPaths = polling.initialPaths(panel, path)
   return {
     panelId: panel.id,
     label: panel.label ?? panel.id,
@@ -51,19 +42,4 @@ export function initialPollingSchedule(
     inFlight: false,
     knownPaths,
   }
-}
-
-export function readUpdateWorkflows(panel: unknown) {
-  const value =
-    typeof panel === 'object' && panel !== null
-      ? (panel as { update_workflows?: unknown }).update_workflows
-      : undefined
-  if (!Array.isArray(value)) return []
-  return value.flatMap((entry) =>
-    typeof entry === 'object' &&
-    entry !== null &&
-    typeof (entry as { workflow?: unknown }).workflow === 'string'
-      ? [{ workflow: (entry as { workflow: string }).workflow }]
-      : [],
-  )
 }

@@ -89,7 +89,7 @@ export function usePanelSignals({
         ),
       )
     }
-    for (const panel of panels) {
+    for (const { panel, polling } of panels) {
       let inFlight = false
       const memory = memoryRef.current
       if (!memory) return
@@ -125,167 +125,175 @@ export function usePanelSignals({
           }
         })
       }
-      if (panel.type === 'http-value' && panel.facts) {
-        const facts = panel.facts
-        const components = new Map<string, Envelope>()
-        let activeController: AbortController | undefined
-        const refreshFacts = async () => {
-          if (cancelled || inFlight) return
-          inFlight = true
-          updateSchedule(panel.id, {
-            inFlight: true,
-            lastRequestStartedAt: new Date().toISOString(),
-            nextDueAt: undefined,
-          })
-          activeController = new AbortController()
-          abortControllers.add(activeController)
-          const root = `${path}/facts`
-          const observations = await Promise.all(
-            facts.map(async (fact) => {
-              const factPath = `${root}/${encodeURIComponent(fact.id)}`
-              const result = await readPanelObservation({
-                diagnostics,
-                panelId: panel.id,
-                path: factPath,
-                signal: activeController?.signal,
-                cache: components,
-                fetcher: (input, init) => dashboardFetch(env, input, init, globalThis.fetch, auth),
-              })
-              return [fact.id, result.error ? { failure: result.error } : result] as const
-            }),
-          )
-          if (!cancelled && !activeController.signal.aborted) {
-            const next = Object.fromEntries(observations)
-            const previous = factSignalsRef.current[panel.id]
-            if (httpValueFactsDiagnosticChanged(previous, next))
-              diagnostics.record({
-                kind: 'panel-rendered',
-                panelId: panel.id,
-                path,
-                rendered: projectHttpValueFactsDiagnostic(next),
-              })
-            factSignalsRef.current = { ...factSignalsRef.current, [panel.id]: next }
-            setFactSignals(factSignalsRef.current)
-          }
-          inFlight = false
-          abortControllers.delete(activeController)
-          if (!cancelled) {
-            const due = Date.now() + settings.refreshMillis
+      switch (polling.kind) {
+        case 'facts': {
+          if (!panel.facts) break
+          const facts = panel.facts
+          const components = new Map<string, Envelope>()
+          let activeController: AbortController | undefined
+          const refreshFacts = async () => {
+            if (cancelled || inFlight) return
+            inFlight = true
             updateSchedule(panel.id, {
-              inFlight: false,
-              cadence: 'normal',
-              nextDueAt: new Date(due).toISOString(),
+              inFlight: true,
+              lastRequestStartedAt: new Date().toISOString(),
+              nextDueAt: undefined,
             })
-            const timer = window.setTimeout(() => {
-              timers.delete(timer)
-              void refreshFacts()
-            }, settings.refreshMillis)
-            timers.add(timer)
-          }
-        }
-        void refreshFacts()
-        continue
-      }
-      if (panel.type === 'pull-request-health') {
-        const workflows = readUpdateWorkflows(panel)
-        const components = new Map<string, Envelope>()
-        let activeController: AbortController | undefined
-        const request = async (componentPath: string) => {
-          const result = await readPanelObservation({
-            diagnostics,
-            panelId: panel.id,
-            path: componentPath,
-            signal: activeController?.signal,
-            cache: components,
-            fetcher: (input, init) => dashboardFetch(env, input, init, globalThis.fetch, auth),
-          })
-          if (result.envelope?.state === 'error') return { error: result.envelope.error.message }
-          return result
-        }
-        const refreshPullRequestHealth = async () => {
-          if (cancelled || inFlight) return
-          inFlight = true
-          updateSchedule(panel.id, {
-            inFlight: true,
-            lastRequestStartedAt: new Date().toISOString(),
-            nextDueAt: undefined,
-          })
-          activeController = new AbortController()
-          abortControllers.add(activeController)
-          const root = path
-          const [candidateResult, ...workflowResults] = await Promise.all([
-            request(`${root}/pull-requests`),
-            ...workflows.map(({ workflow }) =>
-              request(`${root}/update-workflow/${encodeURIComponent(workflow)}`),
-            ),
-          ])
-          const candidates =
-            candidateResult.envelope?.state === 'ok' &&
-            isCandidates(candidateResult.envelope.signal)
-              ? candidateResult.envelope.signal.pullRequests
-              : []
-          if (cancelled || activeController.signal.aborted) {
+            activeController = new AbortController()
+            abortControllers.add(activeController)
+            const root = `${path}/facts`
+            const observations = await Promise.all(
+              facts.map(async (fact) => {
+                const factPath = `${root}/${encodeURIComponent(fact.id)}`
+                const result = await readPanelObservation({
+                  diagnostics,
+                  panelId: panel.id,
+                  path: factPath,
+                  signal: activeController?.signal,
+                  cache: components,
+                  fetcher: (input, init) =>
+                    dashboardFetch(env, input, init, globalThis.fetch, auth),
+                })
+                return [fact.id, result.error ? { failure: result.error } : result] as const
+              }),
+            )
+            if (!cancelled && !activeController.signal.aborted) {
+              const next = Object.fromEntries(observations)
+              const previous = factSignalsRef.current[panel.id]
+              if (httpValueFactsDiagnosticChanged(previous, next))
+                diagnostics.record({
+                  kind: 'panel-rendered',
+                  panelId: panel.id,
+                  path,
+                  rendered: projectHttpValueFactsDiagnostic(next),
+                })
+              factSignalsRef.current = { ...factSignalsRef.current, [panel.id]: next }
+              setFactSignals(factSignalsRef.current)
+            }
+            inFlight = false
             abortControllers.delete(activeController)
-            return
-          }
-          const buildResults = await Promise.all(
-            candidates.map(
-              async (candidate) =>
-                [
-                  candidate.branch,
-                  await request(
-                    `${root}/pull-request-build?branch=${encodeURIComponent(candidate.branch)}`,
-                  ),
-                ] as const,
-            ),
-          )
-          const rolled = rollupPullRequestHealth({
-            panelId: panel.id,
-            link: candidateResult.envelope?.link ?? null,
-            workflows: workflows.map(({ workflow }, index) => ({
-              workflow,
-              observation: workflowResults[index] ?? { error: 'Missing workflow result.' },
-            })),
-            candidates: candidateResult,
-            builds: new Map(buildResults),
-          })
-          if (cancelled || activeController.signal.aborted) {
-            abortControllers.delete(activeController)
-            return
-          }
-          if (rolled && !cancelled) {
-            lastEnvelope = rolled
-            recordConfirmedUpdate()
-            const previous = signalsRef.current[panel.id]
-            if (panelDiagnosticChanged(previous, panel, rolled))
-              diagnostics.record({
-                kind: 'panel-rendered',
-                panelId: panel.id,
-                path,
-                rendered: projectPanelDiagnostic(panel, rolled),
+            if (!cancelled) {
+              const due = Date.now() + settings.refreshMillis
+              updateSchedule(panel.id, {
+                inFlight: false,
+                cadence: 'normal',
+                nextDueAt: new Date(due).toISOString(),
               })
-            signalsRef.current = { ...signalsRef.current, [panel.id]: rolled }
-            setSignals(signalsRef.current)
-          } else if (!cancelled) recordUpdateFailure('No usable pull-request observations.')
-          inFlight = false
-          abortControllers.delete(activeController)
-          if (!cancelled) {
-            const next = resolveNextPoll(lastEnvelope, Date.now(), settings)
-            const due = Date.now() + next.delayMillis
-            updateSchedule(panel.id, {
-              inFlight: false,
-              cadence: next.cadence,
-              nextDueAt: new Date(due).toISOString(),
-            })
-            const nextTimer = window.setTimeout(() => {
-              timers.delete(nextTimer)
-              void refreshPullRequestHealth()
-            }, next.delayMillis)
-            timers.add(nextTimer)
+              const timer = window.setTimeout(() => {
+                timers.delete(timer)
+                void refreshFacts()
+              }, settings.refreshMillis)
+              timers.add(timer)
+            }
           }
+          void refreshFacts()
+          continue
         }
-        void refreshPullRequestHealth()
-        continue
+        case 'pull-request-health': {
+          const workflows = readUpdateWorkflows(panel)
+          const components = new Map<string, Envelope>()
+          let activeController: AbortController | undefined
+          const request = async (componentPath: string) => {
+            const result = await readPanelObservation({
+              diagnostics,
+              panelId: panel.id,
+              path: componentPath,
+              signal: activeController?.signal,
+              cache: components,
+              fetcher: (input, init) => dashboardFetch(env, input, init, globalThis.fetch, auth),
+            })
+            if (result.envelope?.state === 'error') return { error: result.envelope.error.message }
+            return result
+          }
+          const refreshPullRequestHealth = async () => {
+            if (cancelled || inFlight) return
+            inFlight = true
+            updateSchedule(panel.id, {
+              inFlight: true,
+              lastRequestStartedAt: new Date().toISOString(),
+              nextDueAt: undefined,
+            })
+            activeController = new AbortController()
+            abortControllers.add(activeController)
+            const root = path
+            const [candidateResult, ...workflowResults] = await Promise.all([
+              request(`${root}/pull-requests`),
+              ...workflows.map(({ workflow }) =>
+                request(`${root}/update-workflow/${encodeURIComponent(workflow)}`),
+              ),
+            ])
+            const candidates =
+              candidateResult.envelope?.state === 'ok' &&
+              isCandidates(candidateResult.envelope.signal)
+                ? candidateResult.envelope.signal.pullRequests
+                : []
+            if (cancelled || activeController.signal.aborted) {
+              abortControllers.delete(activeController)
+              return
+            }
+            const buildResults = await Promise.all(
+              candidates.map(
+                async (candidate) =>
+                  [
+                    candidate.branch,
+                    await request(
+                      `${root}/pull-request-build?branch=${encodeURIComponent(candidate.branch)}`,
+                    ),
+                  ] as const,
+              ),
+            )
+            const rolled = rollupPullRequestHealth({
+              panelId: panel.id,
+              link: candidateResult.envelope?.link ?? null,
+              workflows: workflows.map(({ workflow }, index) => ({
+                workflow,
+                observation: workflowResults[index] ?? { error: 'Missing workflow result.' },
+              })),
+              candidates: candidateResult,
+              builds: new Map(buildResults),
+            })
+            if (cancelled || activeController.signal.aborted) {
+              abortControllers.delete(activeController)
+              return
+            }
+            if (rolled && !cancelled) {
+              lastEnvelope = rolled
+              recordConfirmedUpdate()
+              const previous = signalsRef.current[panel.id]
+              if (panelDiagnosticChanged(previous, panel, rolled))
+                diagnostics.record({
+                  kind: 'panel-rendered',
+                  panelId: panel.id,
+                  path,
+                  rendered: projectPanelDiagnostic(panel, rolled),
+                })
+              signalsRef.current = { ...signalsRef.current, [panel.id]: rolled }
+              setSignals(signalsRef.current)
+            } else if (!cancelled) recordUpdateFailure('No usable pull-request observations.')
+            inFlight = false
+            abortControllers.delete(activeController)
+            if (!cancelled) {
+              const next = resolveNextPoll(lastEnvelope, Date.now(), settings)
+              const due = Date.now() + next.delayMillis
+              updateSchedule(panel.id, {
+                inFlight: false,
+                cadence: next.cadence,
+                nextDueAt: new Date(due).toISOString(),
+              })
+              const nextTimer = window.setTimeout(() => {
+                timers.delete(nextTimer)
+                void refreshPullRequestHealth()
+              }, next.delayMillis)
+              timers.add(nextTimer)
+            }
+          }
+          void refreshPullRequestHealth()
+          continue
+        }
+        case 'single':
+          break
+        default:
+          polling satisfies never
       }
       const refresh = () => {
         if (cancelled || inFlight) return

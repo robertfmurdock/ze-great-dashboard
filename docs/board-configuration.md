@@ -190,14 +190,15 @@ single-value `url` or `json_path` fields.
 
 ### GitHub Actions test totals
 
-A `test-count` panel reads one versioned JSON summary published as an artifact of the configured
-GitHub Actions workflow run. It is separate from `pipeline-status`, so a board can decide whether
-to display build health, test totals, or both. Omitting the panel leaves artifact reads disabled.
+Add `test_results` to a GitHub Actions `pipeline-status` panel to show test totals inside the
+run panel. It reads one versioned JSON summary published as an artifact of that exact workflow
+run. Omitting `test_results` leaves artifact reads disabled. Existing standalone `test-count`
+panels are also supported.
 
 ```yaml
-- id: dashboard-tests
-  label: Tests
-  type: test-count
+- id: dashboard-build
+  label: Dashboard build
+  type: pipeline-status
   source: github
   pipeline: main.yml
   test_results:

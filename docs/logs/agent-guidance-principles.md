@@ -207,3 +207,17 @@ While promoting the migration feedback into current guidance, Rob clarified that
 cleanup is already registered globally in this repository. Guidance should therefore not preserve
 an exception for suite-local `afterEach(cleanup)`: it will not serve a suite here. This corrects the
 historical caution against mechanically removing it without changing the broader phase discipline.
+
+## Feature behavior belongs behind one typed contract — 2026-11-02
+
+While reviewing the test-results polling omission, Rob called out the root structure:
+
+> "separate lists of supported types" yikes, that's very anti-polymorphism. we can do better.
+> make more intentional use of the type system.
+
+The renderer registry admitted test-count while a separate polling selector omitted it. The
+response was to make each feature register its symbol, renderer, observation strategy, and public
+diagnostic projection under one required TypeScript contract. Supported client types derive from
+that registry. The lifecycle handles a closed, exhaustively checked union of observation protocols,
+not a second enumeration of feature names. This records the reasoning behind the refactor; it does
+not add a new requirement for a general plugin framework or class hierarchy.

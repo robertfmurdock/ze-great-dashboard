@@ -1,9 +1,10 @@
-import { render } from '@testing-library/react'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
+import { render, screen } from '@testing-library/react'
 import type { Panel } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PipelineAnimationDemoPanel } from '../src/PipelineAnimationDemoPanel.tsx'
-import { panelRenderers } from '../src/panel-registry.tsx'
+import { PanelRenderer } from '../src/panel-registry.tsx'
 
 vi.mock('../src/RunningField.tsx', async () => {
   const actual =
@@ -35,9 +36,17 @@ afterEach(() => {
 
 describe('PipelineAnimationDemoPanel', () => {
   describe('panel registration', () => {
-    it('is selected by the centralized panel registry', () => {
-      expect(panelRenderers['pipeline-animation-demo']).toBe(PipelineAnimationDemoPanel)
-    })
+    it(
+      'renders a local demo through the public panel renderer',
+      mint({
+        setup: () => {
+          const animation = 'runway' as const
+          return { animation, panel: { ...panel, running_animation: animation } }
+        },
+        exercise: ({ panel }) => render(<PanelRenderer panel={panel} envelope={undefined} />),
+        verify: (_result, { animation }) => expect(screen.getByText(animation)).toBeTruthy(),
+      }),
+    )
   })
 
   describe('rotating demos', () => {

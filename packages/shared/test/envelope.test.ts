@@ -1,6 +1,11 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { describe, expect, test } from 'vitest'
-import { pipelineStatusPriority, pipelineStatusSchema, testCountSchema } from '../src/envelope.ts'
+import {
+  pipelineStatusPriority,
+  pipelineStatusSchema,
+  testCountSchema,
+  testEvidenceSchema,
+} from '../src/envelope.ts'
 
 describe('pipeline signal activity', () => {
   const base = {
@@ -76,6 +81,46 @@ describe('test-count signal states', () => {
         expect(result.reported.success).toBe(false)
         expect(result.pending.success).toBe(true)
       },
+    }),
+  )
+})
+
+describe('run test evidence contract', () => {
+  test(
+    'accepts test evidence without another panel identity or link',
+    mint({
+      setup: () => ({
+        evidence: {
+          state: 'ok',
+          observedAt: '2026-11-02T15:00:00.000Z',
+          signal: { type: 'test-count', status: 'reported', total: 37 },
+        },
+      }),
+      exercise: ({ evidence }) => testEvidenceSchema.safeParse(evidence),
+      verify: (result, { evidence }) => {
+        expect(result.success).toBe(true)
+        expect(result.data).toEqual(evidence)
+      },
+    }),
+  )
+  test(
+    'rejects an unrelated successful signal inside a run',
+    mint({
+      setup: () => ({
+        signal: {
+          type: 'pipeline-status',
+          status: 'passed',
+          rawStatus: 'success',
+          name: 'Build',
+          testResults: {
+            state: 'ok',
+            observedAt: '2026-11-02T15:00:00.000Z',
+            signal: { type: 'http-value', value: '37' },
+          },
+        },
+      }),
+      exercise: ({ signal }) => pipelineStatusSchema.safeParse(signal),
+      verify: (result) => expect(result.success).toBe(false),
     }),
   )
 })

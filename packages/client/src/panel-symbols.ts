@@ -1,19 +1,6 @@
 import type { PipelineStatus } from '@ze-great-dashboard/shared/browser'
 
-/**
- * The compact tile contract. These are primary scan symbols, so a glyph has one meaning here.
- * Secondary metadata may reuse familiar symbols only when it retains that same meaning.
- */
-export const panelTypeSymbols = {
-  'pipeline-status': { glyph: '▣', label: 'Pipeline status' },
-  'pull-request-health': { glyph: '⌘', label: 'Pull request health' },
-  'http-value': { glyph: '◌', label: 'HTTP value' },
-  'test-count': { glyph: '≡', label: 'Test count' },
-  'pipeline-animation-demo': { glyph: '✦', label: 'Pipeline animation demo' },
-} as const
-
-/** Renderable client panel types are defined by the compact identity contract. */
-export type RenderablePanelType = keyof typeof panelTypeSymbols
+import { panelFeature, panelFeatures } from './panel-registry.tsx'
 
 export const statusSymbols: Record<PipelineStatus['status'], { glyph: string; label: string }> = {
   passed: { glyph: '✓', label: 'Passed' },
@@ -25,17 +12,19 @@ export const statusSymbols: Record<PipelineStatus['status'], { glyph: string; la
 }
 
 export function panelTypeSymbol(type: string) {
-  return panelTypeSymbols[type as keyof typeof panelTypeSymbols]
+  return panelFeature(type)?.symbol
 }
 
 /** Every primary glyph and its single semantic meaning, useful for keeping the registry auditable. */
-export const primarySymbolMeanings = [
-  ...Object.entries(panelTypeSymbols).map(([type, symbol]) => ({
-    glyph: symbol.glyph,
-    meaning: `panel type: ${type}`,
-  })),
-  ...Object.entries(statusSymbols).map(([status, symbol]) => ({
-    glyph: symbol.glyph,
-    meaning: `status: ${status}`,
-  })),
-]
+export function primarySymbolMeanings() {
+  return [
+    ...Object.entries(panelFeatures).map(([type, { symbol }]) => ({
+      glyph: symbol.glyph,
+      meaning: `panel type: ${type}`,
+    })),
+    ...Object.entries(statusSymbols).map(([status, symbol]) => ({
+      glyph: symbol.glyph,
+      meaning: `status: ${status}`,
+    })),
+  ]
+}

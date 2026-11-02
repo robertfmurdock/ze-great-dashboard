@@ -1,22 +1,77 @@
-import type { ComponentType } from 'react'
 import { HttpValuePanel } from './HttpValuePanel.tsx'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PipelineAnimationDemoPanel } from './PipelineAnimationDemoPanel.tsx'
-import { PipelinePanel } from './PipelinePanel.tsx'
-import { PullRequestHealthPanel } from './PullRequestHealthPanel.tsx'
+import { PipelinePanel, projectPipelineDiagnostic } from './PipelinePanel.tsx'
+import { PullRequestHealthPanel, projectPullRequestDiagnostic } from './PullRequestHealthPanel.tsx'
+import type { PanelFeature } from './panel-feature.ts'
 import type { PanelProps } from './panel-props.ts'
-import type { RenderablePanelType } from './panel-symbols.ts'
-import { TestCountPanel } from './TestCountPanel.tsx'
+import { projectTestCountDiagnostic, TestCountPanel } from './TestCountPanel.tsx'
+import { readUpdateWorkflows } from './update-workflows.ts'
 
 type PanelRendererProps = PanelProps
 
-/** The one client-side dispatch point for panel types. */
-export const panelRenderers: Record<RenderablePanelType, ComponentType<PanelRendererProps>> = {
-  'pipeline-status': PipelinePanel,
-  'pull-request-health': PullRequestHealthPanel,
-  'http-value': HttpValuePanel,
-  'test-count': TestCountPanel,
-  'pipeline-animation-demo': PipelineAnimationDemoPanel,
+const singlePolling = {
+  kind: 'single',
+  initialPaths: (_panel, root) => [root],
+} satisfies PanelFeature['polling']
+const basicDiagnostic: PanelFeature['projectDiagnostic'] = (envelope) => ({
+  state: envelope.state,
+  link: envelope.link,
+})
+
+/** Exhaustive feature contracts: a renderer cannot be registered without polling and diagnostics. */
+export const panelFeatures = {
+  'pipeline-status': {
+    symbol: { glyph: '▣', label: 'Pipeline status' },
+    Renderer: PipelinePanel,
+    polling: singlePolling,
+    projectDiagnostic: projectPipelineDiagnostic,
+  },
+  'pull-request-health': {
+    symbol: { glyph: '⌘', label: 'Pull request health' },
+    Renderer: PullRequestHealthPanel,
+    polling: {
+      kind: 'pull-request-health',
+      initialPaths: (panel, root) => [
+        `${root}/pull-requests`,
+        ...readUpdateWorkflows(panel).map(
+          ({ workflow }) => `${root}/update-workflow/${encodeURIComponent(workflow)}`,
+        ),
+      ],
+    },
+    projectDiagnostic: projectPullRequestDiagnostic,
+  },
+  'http-value': {
+    symbol: { glyph: '◌', label: 'HTTP value' },
+    Renderer: HttpValuePanel,
+    polling: {
+      kind: 'facts',
+      initialPaths: (panel, root) =>
+        panel.facts
+          ? panel.facts.map((fact) => `${root}/facts/${encodeURIComponent(fact.id)}`)
+          : [root],
+    },
+    projectDiagnostic: basicDiagnostic,
+  },
+  'test-count': {
+    symbol: { glyph: '≡', label: 'Test count' },
+    Renderer: TestCountPanel,
+    polling: singlePolling,
+    projectDiagnostic: projectTestCountDiagnostic,
+  },
+  'pipeline-animation-demo': {
+    symbol: { glyph: '✦', label: 'Pipeline animation demo' },
+    Renderer: PipelineAnimationDemoPanel,
+    polling: { kind: 'local' },
+    projectDiagnostic: basicDiagnostic,
+  },
+} satisfies Record<string, PanelFeature>
+
+export type RenderablePanelType = keyof typeof panelFeatures
+
+const featuresByType = new Map<string, PanelFeature>(Object.entries(panelFeatures))
+export function panelFeature(type: string) {
+  return featuresByType.get(type)
 }
 
 export function PanelRenderer({
@@ -27,7 +82,7 @@ export function PanelRenderer({
   rejectedPipeline,
   facts,
 }: PanelRendererProps) {
-  const Renderer = panelRenderers[panel.type as RenderablePanelType]
+  const Renderer = panelFeature(panel.type)?.Renderer
   return Renderer ? (
     <Renderer
       panel={panel}
