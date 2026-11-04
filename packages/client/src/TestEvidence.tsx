@@ -1,16 +1,6 @@
 import type { TestCount, TestEvidence } from '@ze-great-dashboard/shared/browser'
+import styles from './PanelFrame.module.css'
 import { PanelMetadata } from './PanelFrame.tsx'
-
-export function formatTestOutcomes(tests: Extract<TestCount, { status: 'reported' }>) {
-  return [
-    ['passed', tests.passed],
-    ['failed', tests.failed],
-    ['skipped', tests.skipped],
-  ]
-    .filter(([, count]) => count !== undefined)
-    .map(([label, count]) => `${count} ${label}`)
-    .join(' · ')
-}
 
 export function RunTestResults({ envelope }: { envelope: TestEvidence }) {
   if (envelope.state === 'error')
@@ -30,13 +20,30 @@ export function RunTestResults({ envelope }: { envelope: TestEvidence }) {
         value={tests.status === 'pending' ? 'Tests pending' : 'No test results published'}
       />
     )
-  const outcomes = formatTestOutcomes(tests)
+  return <PanelMetadata glyph="≡" label="Tests" value={<TestOutcomeSummary tests={tests} />} />
+}
+
+/** The same reported evidence in both standalone panels and workflow runs. */
+export function TestOutcomeSummary({
+  tests,
+}: {
+  tests: Extract<TestCount, { status: 'reported' }>
+}) {
+  const allPassed = tests.total > 0 && tests.passed === tests.total
   return (
-    <PanelMetadata
-      glyph="≡"
-      label="Tests"
-      value={`${tests.total.toLocaleString()} tests${outcomes ? ` · ${outcomes}` : ''}`}
-    />
+    <>
+      {allPassed ? (
+        <span className={styles.passed}>✓ {tests.total.toLocaleString()} passed</span>
+      ) : (
+        `${tests.total.toLocaleString()} tests`
+      )}
+      {!!tests.failed && (
+        <span className={styles.failed}> · ✕ {tests.failed.toLocaleString()} failed</span>
+      )}
+      {!!tests.skipped && (
+        <span className={styles.warning}> · ↷ {tests.skipped.toLocaleString()} skipped</span>
+      )}
+    </>
   )
 }
 

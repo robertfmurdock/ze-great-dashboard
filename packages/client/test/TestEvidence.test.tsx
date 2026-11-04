@@ -2,13 +2,13 @@ import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render, screen } from '@testing-library/react'
 import type { TestEvidence } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, test } from 'vitest'
-import { RunTestResults } from '../src/TestEvidence.tsx'
+import { RunTestResults, TestOutcomeSummary } from '../src/TestEvidence.tsx'
 
 const observedAt = '2026-11-02T15:00:00.000Z'
 
 describe('run test evidence', () => {
   test(
-    'renders totals with every supplied outcome',
+    'renders totals with only nonzero exceptions',
     mint({
       setup: () => {
         const counts = { total: 37, passed: 35, failed: 1, skipped: 1 }
@@ -22,35 +22,53 @@ describe('run test evidence', () => {
         }
       },
       exercise: ({ envelope }) => render(<RunTestResults envelope={envelope} />),
-      verify: (_result, { counts }) =>
-        expect(
-          screen.getByText(
-            `${counts.total} tests · ${counts.passed} passed · ${counts.failed} failed · ${counts.skipped} skipped`,
-          ),
-        ).toBeTruthy(),
-    }),
-  )
-  test(
-    'leaves unreported outcome breakdowns absent',
-    mint({
-      setup: () => {
-        const total = 0
-        return {
-          total,
-          envelope: {
-            state: 'ok',
-            observedAt,
-            signal: { type: 'test-count', status: 'reported', total },
-          } satisfies TestEvidence,
-        }
-      },
-      exercise: ({ envelope }) => render(<RunTestResults envelope={envelope} />),
-      verify: (_result, { total }) => {
-        expect(screen.getByText(`${total} tests`)).toBeTruthy()
-        expect(screen.queryByText(/\d+ (passed|failed|skipped)/)).toBeNull()
+      verify: ({ container }, { counts }) => {
+        expect(container.textContent).toContain(
+          `${counts.total} tests · ✕ ${counts.failed} failed · ↷ ${counts.skipped} skipped`,
+        )
+        expect(container.textContent).not.toContain('passed')
       },
     }),
   )
+  describe('reported outcome summary', () => {
+    const scenarios = [
+      {
+        name: 'all passing',
+        counts: { total: 666, passed: 666, failed: 0, skipped: 0 },
+        expected: '✓ 666 passed',
+      },
+      {
+        name: 'failures',
+        counts: { total: 12, passed: 10, failed: 2, skipped: 0 },
+        expected: '12 tests · ✕ 2 failed',
+      },
+      {
+        name: 'skips',
+        counts: { total: 12, passed: 10, failed: 0, skipped: 2 },
+        expected: '12 tests · ↷ 2 skipped',
+      },
+      {
+        name: 'zero tests',
+        counts: { total: 0, passed: 0, failed: 0, skipped: 0 },
+        expected: '0 tests',
+      },
+      { name: 'total only', counts: { total: 1234 }, expected: `${(1234).toLocaleString()} tests` },
+      { name: 'partial outcomes', counts: { total: 12, passed: 10 }, expected: '12 tests' },
+    ] as const
+    for (const scenario of scenarios) {
+      test(
+        scenario.name,
+        mint({
+          setup: () => ({
+            tests: { type: 'test-count', status: 'reported', ...scenario.counts } as const,
+            expected: scenario.expected,
+          }),
+          exercise: ({ tests }) => render(<TestOutcomeSummary tests={tests} />),
+          verify: ({ container }, { expected }) => expect(container.textContent).toBe(expected),
+        }),
+      )
+    }
+  })
   const messages = [
     { name: 'pending evidence', status: 'pending', label: 'Tests pending' },
     { name: 'absent reporting', status: 'not-reported', label: 'No test results published' },

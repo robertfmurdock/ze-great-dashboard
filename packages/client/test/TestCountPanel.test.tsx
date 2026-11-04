@@ -33,13 +33,10 @@ describe('TestCountPanel', () => {
       },
       exercise: ({ panel, envelope }) =>
         render(<TestCountPanel panel={panel} envelope={envelope} />),
-      verify: (_rendered, { total, outcomes }) => {
-        expect(screen.getByText(`${total} tests`)).not.toBeNull()
-        expect(
-          screen.getByText(
-            `${outcomes.passed} passed · ${outcomes.failed} failed · ${outcomes.skipped} skipped`,
-          ),
-        ).not.toBeNull()
+      verify: ({ container }, { total, outcomes }) => {
+        expect(container.textContent).toContain(
+          `${total} tests · ✕ ${outcomes.failed} failed · ↷ ${outcomes.skipped} skipped`,
+        )
       },
     }),
   )

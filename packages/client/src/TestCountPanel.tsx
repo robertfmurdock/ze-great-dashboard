@@ -5,16 +5,9 @@ import {
 } from '@ze-great-dashboard/shared/browser'
 import type { RenderedPanelDiagnostic } from './diagnostics.ts'
 import { errorPresentation } from './error-presentation.ts'
-import {
-  PanelEvidence,
-  PanelFrame,
-  PanelHint,
-  PanelMetadata,
-  PanelStatus,
-  PanelValue,
-} from './PanelFrame.tsx'
+import { PanelEvidence, PanelFrame, PanelHint, PanelStatus, PanelValue } from './PanelFrame.tsx'
 import type { PanelProps } from './panel-props.ts'
-import { formatTestOutcomes, projectTestEvidence } from './TestEvidence.tsx'
+import { projectTestEvidence, TestOutcomeSummary } from './TestEvidence.tsx'
 import { ObservedAt, UpdateHealth } from './TimeAge.tsx'
 
 /** Renders one workflow run's declared aggregate test evidence. */
@@ -68,13 +61,13 @@ export function TestCountPanel({ panel, envelope, attentionActive, updateHealth 
         hint="This completed workflow did not publish the configured test summary."
       />
     )
-  const outcomes = formatTestOutcomes(signal)
   return (
     <PanelFrame panel={panel} envelope={envelope} attentionActive={attentionActive}>
       <PanelEvidence>
         <PanelStatus glyph="✓" label="Test results reported" compactOnly />
-        <PanelValue>{signal.total.toLocaleString()} tests</PanelValue>
-        {outcomes && <PanelMetadata glyph="≡" label="Outcomes" value={outcomes} />}
+        <PanelValue>
+          <TestOutcomeSummary tests={signal} />
+        </PanelValue>
         <ObservedAt value={envelope.observedAt} />
         {updateHealth && <UpdateHealth health={updateHealth} />}
       </PanelEvidence>
