@@ -48,6 +48,7 @@ behavioral specification_, a hidden verifier must not impose extra semantics mer
 difference: that would mean the visible specification was incomplete. But a hidden verifier that
 only repeats visible semantics is unlikely to measure deeper comprehension. Future work must choose
 one honest construct:
+
 - For correctness against a complete visible test, use hidden tests as robustness checks and do not
   interpret a tie as a phase-comprehension result.
 - For recovery of a broader invariant, expose that compact public contract visibly and let hidden
@@ -128,6 +129,7 @@ calling the review independent.
 ## Gates before a fourth study
 
 Do not spend another 16-run budget until a disposable pilot clears every gate below.
+
 1. Name the proposed mechanism: why should `setup`/`exercise`/`verify` change a decision compared
    with linear native code, and which plausible incorrect decision should it prevent?
 2. Write a wrong-repair catalogue before the visible test. For each repair, show whether it passes

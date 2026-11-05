@@ -95,6 +95,7 @@ the local token.
 ## Authentication modes and boundaries
 
 An Azure DevOps source must use exactly one mode:
+
 - `token_env`: a Build (read)-scoped PAT, sent using Basic authentication.
 - `entra_token_file_env`: a local short-lived delegated Entra token file, sent using Bearer authentication.
 

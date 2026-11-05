@@ -56,6 +56,7 @@ files for unpublished dependencies and TypeScript, then imports it and exercises
 dry-run behavior without AWS credentials.
 
 Verified locally:
+
 - `npm run check`
 - `npm run build:release`
 - `npm run test:published`
@@ -75,6 +76,7 @@ test follows the same CLI path before publication, so command-level regressions 
 and registry/package/CDN integration failures fail after publication.
 
 The first run exposed two setup frictions:
+
 - Lambda archives originally depended on the system `zip` command. Packaging now uses bundled
   `fflate`, stable entry ordering, and a fixed archive timestamp, so repeated builds are
   byte-identical and consumers need no additional archive tool.
@@ -113,6 +115,7 @@ checksums, artifact keys, entries, and readable contents. Repository development
 version verification. The published consumer package retains only its Node engine requirement.
 
 Verified locally for this slice:
+
 - TypeScript typecheck and Biome lint
 - 87 unit tests across 14 test files
 - Playwright production-client browser smoke test
@@ -202,6 +205,7 @@ the one public package through its configured AWS roles.
 ## Release administration follow-up
 
 The first real release exposed the one-time npm bootstrap sequence:
+
 - The first `main` run (`32204395844`) passed checks, packaging, AWS provisioning, deployment, smoke
   tests, and tagging at `0.1.12`. Only npm publication failed because the package did not yet exist.
 - The package was manually staged and published as `0.0.0` using npm account authentication and a

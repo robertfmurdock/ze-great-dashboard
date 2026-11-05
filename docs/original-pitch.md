@@ -18,6 +18,7 @@ Panels are defined by the _signal_ they show, not the system they read from. Azu
 **Small server, no client secrets.** The browser renders and holds nothing secret or source-specific. The server holds credentials, verifies identity, hands the browser its entrypoint, and normalizes upstream responses into the signal model. It stays stateless and small — but it is not a dumb pipe; see _The proxy is small, but it is not fifty lines_.
 
 Structurally this follows [Immutable Web Applications](https://immutablewebapps.com/): the client is built once, versioned, and published to a permanent location containing zero environment-specific values. Everything environment-specific arrives via `index.html`, which is _deployable configuration_, not a build artifact. See `Essays/TheIncredibleImmutable.md` for a walkthrough of doing this in practice.
+
 - **Versioned client assets on a CDN.** Built once, uploaded to a versioned path (`https://assets.example.com/dashboard/1.0.7/`), never rebuilt per environment. The browser loads these directly from the CDN — the server is not in the asset path.
 - **Server-rendered `index.html`.** The entrypoint is not a static file. The server fetches the template `index.html` from the pinned asset version, injects a `window.env` block as the first element in `<head>`, and serves the result with `cache-control: no-store` so configuration can change on a dime. See _Where the template comes from_.
 - **Data proxy on the same origin.** Attaches upstream credentials, validates inbound JWTs, normalizes responses, exposes only the calls the config permits. Small, but not trivial — see below.
@@ -51,6 +52,7 @@ The template still needs its asset references made absolute, because the documen
 The tempting alternative — injecting `<base href="{assetPath}">` — should be rejected. It would repoint _every_ relative URL in the document, including root-relative ones like `/api`, which resolve against the base URL's origin rather than the server's. That silently sends proxy calls to the CDN, and it fails at runtime rather than at build time.
 
 Consequences worth deciding now, since Stage 1 hits all three:
+
 - **Fetch at boot, cache in memory, keyed by version.** The template is immutable at a given version, so there's nothing to invalidate and no staleness question. This is the one thing the server holds that looks like state, and it doesn't violate the no-persistence rule: it's a cache of an immutable artifact, reconstructible from its URL, lost freely on restart.
 - **A missing or unfetchable template is a startup failure, loudly.** Refuse to start rather than serving a 500 per request — a typo'd `assetPath` should fail like the misconfiguration it is, at the moment someone can still see the logs. On serverless, "boot" is cold start, so this becomes a first-request failure with a clear message instead.
 - **The template must be CORS-irrelevant, not CORS-permissive.** The server fetches it server-side, so no CORS applies to that hop. The assets it references still need permissive CORS, because the _browser_ fetches those.
@@ -81,6 +83,7 @@ never silently switches deployment mode or mutates bootstrap infrastructure as a
 ### Caching by Passthrough Revalidation
 
 The freshness question belongs to the data source, not to the dashboard. **If the API says its data can be cached, we don't second-guess it.** The proxy never invents, shortens, or overrides a cache directive — it forwards the conversation:
+
 - Upstream's `ETag` / `Last-Modified` / `Cache-Control` are forwarded down to the browser.
 - The browser's `If-None-Match` / `If-Modified-Since` are forwarded back up.
 - A `304` upstream becomes a `304` downstream. The browser's own HTTP cache does the storing.
@@ -90,6 +93,7 @@ Polling with a plain `fetch()` in default cache mode gets conditional requests e
 **The corollary is disclosure, not override.** If an upstream declares `max-age=300`, the browser may legitimately show a five-minute-old value without asking anyone — and the answer is to say so on the panel, not to secretly revalidate anyway. `Date` is on every response, so the panel can render "as of 4 minutes ago" and the viewer decides whether that's good enough. (`Age` would say it more directly, but only a shared cache emits one, and there deliberately isn't one.) An honest stale reading beats both a silent stale reading and a dishonest override of the source's own policy. Where a team genuinely needs tighter freshness than the API offers, that's the per-panel `refresh` override the board author sets deliberately — not a default the proxy imposes.
 
 Two limits, stated so they don't get forgotten:
+
 1. **This does not solve multi-viewer fan-out.** Browser caches are per-browser. Eight viewers still make eight upstream calls — what's eliminated is each viewer's _redundant_ calls, not the fan-out. The fix is a shared cache, deliberately deferred; the arithmetic and the reasoning are under _Deferred until the project matures_.
 2. **Responses derived from a user's token need `Cache-Control: private`** and appropriate `Vary`, or a shared intermediary could serve one viewer's data to another. This is the one case where the proxy _adds_ a directive rather than relaying one, and it's a correctness requirement rather than a policy judgment.
 
@@ -182,6 +186,7 @@ A deployed instance serves boards by name (`/boards/team-alpha`). Because the se
 ### The proxy is small, but it is not fifty lines
 
 Worth stating plainly so the "thin proxy" framing doesn't get used to reject things it actually needs. The proxy's real job list:
+
 1. Render and serve `index.html` (fetch the pinned template, inject `window.env`, replace the asset-path sentinel).
 2. Serve the board config it fetched from its configured location.
 3. Attach upstream credentials to a **bounded set** of permitted calls.
@@ -268,6 +273,7 @@ These are two separate axes, and keeping them separate is what stops the tool fr
 ### Signals (what a panel means)
 
 Panel types are named after the _question they answer_, never after the system they read. Three cover the core trust signals:
+
 1. **Pipeline status** (`pipeline-status`) — latest run of a named pipeline (pass / fail / running / unknown).
 2. **Deployed version** (`http-value`) — a value pulled from an HTTP endpoint (health check, version endpoint).
 3. **Test count** (`test-count`) — number of tests reported by the latest run.
@@ -300,6 +306,7 @@ Each signal type has its own payload shape — that's what "panels are defined b
 The envelope exists because _"is it fresh"_ and _"did it fail"_ are asked identically of every panel — the age disclosure (_Caching by Passthrough Revalidation_) and the error state (_Still open_) are both universal requirements, and duplicating them per signal type invites one adapter to forget. `signal` is deliberately unconstrained: adding a signal type means adding a payload shape, not touching the envelope.
 
 Two consequences worth stating early, since both are easy to get wrong once and live with:
+
 - **`state: "error"` is still an HTTP 200.** An unreachable upstream is a successful report of a failure, not a proxy failure. Reserving 5xx for the proxy's own breakage keeps the two distinguishable in the browser, which the error-state design needs. `error.kind` is a small closed set (`unreachable`, `unauthorized`, `not-found`, `upstream-error`) because those want different visual treatments; the free-text `message` is for humans, never for branching.
 - **`link` and `observedAt` are populated even when `state` is `"error"`.** A panel that can't reach its source is exactly when a viewer most wants to click through to the authority, and knowing _when_ the failure was observed is the difference between "broken just now" and "broken all morning."
 
@@ -320,6 +327,7 @@ interface Adapter {
 ```
 
 Four choices in there worth naming:
+
 - **One adapter per source type, not per (source, signal) pair.** ADO's `test-count` needing a second endpoint is a branch inside `fetch`, not a separate adapter. Splitting per signal would duplicate the auth scheme and URL-construction knowledge that's the whole reason the adapter exists.
 - **`http` is injected, never imported.** This is what makes fixture replay work: tests hand in a recorded-response implementation, production hands in the real one with credentials attached. An adapter that calls `fetch()` directly is untestable without credentials, which defeats the Stage 0 fixtures.
 - **`permittedCalls` is separate from `fetch`.** The allowlist is derived by asking every panel's adapter what it _would_ call, before any request arrives — so the derivation is inspectable, testable, and reviewable in the one quarantined file. An adapter whose `fetch` reaches somewhere `permittedCalls` didn't declare is a bug the proxy should catch and refuse, not trust.
@@ -344,6 +352,7 @@ The dashboard never implements auth. Auth is either handled externally or absent
 ### Config-Driven, Not Mode-Driven
 
 Authentication is controlled solely by the presence or absence of an `auth` section in config:
+
 - `auth` section present → enforce on every proxy request, regardless of where it's running (deployed or localhost)
 - `auth` section absent + binding to localhost → run quietly, no friction
 - `auth` section absent + binding to nonlocal address → emit a loud startup warning ("No auth configured. This instance is accessible to anyone who can reach it.")
@@ -355,6 +364,7 @@ There is no `--local` flag or deployment mode toggle. A developer testing auth l
 When `auth` is configured, the proxy validates a JWT on every inbound request — regardless of how the token got to the browser. This is the zero-trust guarantee: no request reaches upstream APIs without a cryptographically verified identity, even if someone bypasses a gateway, hits the proxy directly, or forges headers.
 
 Validation uses OIDC Discovery. The proxy fetches `{issuer}/.well-known/openid-configuration`, retrieves the JWKS keys, and checks every token against them. Guarantees:
+
 - HTTPS on the issuer URL proves the signing keys came from the real provider
 - The `iss` claim must match the configured issuer — tokens from other providers are rejected
 - The `aud` claim must match the expected audience — tokens meant for other apps are rejected
@@ -478,6 +488,7 @@ Two corrections to the naive version of this contract:
 ### Isolation via Iframe Sandbox
 
 Widgets run in sandboxed iframes by default. The dashboard creates an iframe per widget panel, loads the module inside it via the bootstrap document, and communicates via `postMessage`. This provides:
+
 - **Origin isolation** — widget code cannot access the host page's DOM, cookies, or localStorage
 - **CSP per widget** — the iframe's Content-Security-Policy restricts network access to the widget's own origin plus whatever the panel's `connect` list permits, which is empty unless the config author adds to it
 - **Crash containment** — a broken widget can't take down the board
@@ -565,6 +576,7 @@ Fixed 12-column grid honoring `{x,y,w,h}`. Staleness _emphasis_ — the raw time
 ### Sequencing notes
 
 Two ordering choices carry most of the risk:
+
 - **Stage 1 before Stage 2.** IWA plumbing is the piece with no visible payoff and the most fiddly failure modes (sentinel replacement, cache headers, CORS on the asset host). Proving it against a blank page is far cheaper than debugging it alongside a broken ADO adapter.
 - **Stage 3 before Stages 4–5.** The second adapter is the only real test of the normalization layer, and it's near-certain to change the signal model. Every panel and layout feature built before it is potential rework.
 
@@ -583,6 +595,7 @@ The deciding factor is that the proxy's permitted-call allowlist and the fronten
 Secondary reasons: deepest training data of the candidates, so the highest first-pass generation quality; strict mode plus zod gives an agent a fast machine-checkable signal; Hono runs on Node, Bun, Deno, Lambda, and Cloudflare Workers with the same handler code, which makes the "serverless or container" claim nearly free rather than aspirational; and the OIDC/JOSE library story (`jose`, `oidc-client-ts`) is the best available.
 
 Options considered and rejected:
+
 - **Kotlin Multiplatform** — the natural choice on prior art (`Essays/TheIncredibleImmutable.md`) and the fastest to hand-write, but the worst fit for agent authoring. Gradle/KMP build configuration is where current models are weakest, and failures surface as opaque build errors rather than type errors — maximum agent flailing for zero user-visible value. Kotlin/JS external declarations for JS libraries have the same problem.
 - **Go server + TS frontend** — best operational story (static binary, fast cold start) and genuinely good review properties: small language surface, `gofmt` removing style variance, explicit error handling that makes generated mistakes visible in a diff. Loses on the duplicated allowlist.
 - **Kotlin server + TS frontend** — pragmatic, but pays the duplicated-parser cost without a compensating benefit under agent authoring.
@@ -603,6 +616,7 @@ Options considered and rejected:
 ### Resolved
 
 Five of these fell out of adopting Immutable Web Apps:
+
 - Where browser config comes from — injected into `index.html`, not fetched.
 - CORS between frontend and proxy — same origin, so none.
 - Gateway-mode cookie forwarding — same origin, so it works.
@@ -610,6 +624,7 @@ Five of these fell out of adopting Immutable Web Apps:
 - Private board config — fetched through the proxy, so it needn't be public or CORS-enabled.
 
 And three were settled on their own terms:
+
 - Per-viewer redundant polling — passthrough revalidation, with no proxy-side storage.
 - Refresh interval ownership — board default, per-panel override, adapter floor clamping both.
 - Language choice — TypeScript end-to-end, decided on agent-authoring criteria.

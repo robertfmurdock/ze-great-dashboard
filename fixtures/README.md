@@ -1,6 +1,7 @@
 # Upstream response fixtures
 
 There are two deliberately distinct evidence levels for CI adapters:
+
 - **Controlled conformance** is required for every registered adapter. The shared server route
   contract exercises deterministic, minimal upstream responses through
   `/api/panel/{board}/{panelId}`. It proves the browser-visible proxy envelope, cache relay,
@@ -15,6 +16,7 @@ redact identifying values without changing its structure, and commit one file pe
 ## Required scenarios
 
 For each signal source, capture distinct responses for:
+
 - a successful run;
 - warning or partial-success states such as Azure DevOps `succeededWithIssues`;
 - cancelled and in-progress runs;

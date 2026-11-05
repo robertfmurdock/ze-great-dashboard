@@ -76,6 +76,7 @@ README files and setup, deployment, and configuration guides are for people deci
 the dashboard or trying to use it—not for contributors reconstructing the repository. Before
 editing one, name its audience and the decision or task the reader needs to complete. Review the
 result as a first-time consumer with no repository context:
+
 - Does it say what the product does, what is supported, what is out of scope, and what the reader
   should do next?
 - Do every command, link, version, default, and configuration example match the current product and
@@ -243,6 +244,7 @@ and prod alike. The server's only rewriting is replacing that sentinel with the 
 uses the identical code path because Vite's dev server also serves under the sentinel prefix.
 
 Things that follow, and are load-bearing:
+
 - `index.html` is **deployable configuration**, not a build artifact to bake in. It is fetched from
   `{assetPath}/index.html` at runtime. Baking it into the server image would serve one version's
   assets under another version's hashed filenames — the most confusing available failure.
@@ -298,6 +300,7 @@ when it replaces the existing selection and presentation logic instead of duplic
 ## Design constraints for the cosmetic work
 
 Most of the work ahead is visual, and `npm run dev` is the loop for it.
+
 - Sized for a wall: `font-size` scales with the viewport, so the same board reads on a laptop and on
   a TV across the room.
 - **Status is never color alone.** Every status pairs with a glyph and a label. The palette in

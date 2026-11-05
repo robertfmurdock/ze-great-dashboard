@@ -36,6 +36,7 @@ engineering data. The board holds each treatment explicitly, including the stabl
 `signal-field` and `falling-shapes` panels; the status glyphs and “Running” labels remain visible.
 
 The capture settings are deliberately fixed:
+
 - Browser viewport: 1440 × 900 CSS pixels, device scale factor 1, animations enabled.
 - Duration and cadence: 6 seconds at 10 frames per second, beginning 750 ms after the first field
   appears.
@@ -101,6 +102,7 @@ The repository's AWS application template deliberately creates no public endpoin
 with no credentials, and use the generated `AssetPath` for the matching immutable client.
 
 Verify the handoff before editing the README link:
+
 1. `GET /health` succeeds through the public URL.
 2. The dashboard opens anonymously and renders the `animation-showcase` board.
 3. The browser-visible configuration contains no secrets or private URLs.

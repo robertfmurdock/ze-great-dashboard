@@ -22,6 +22,7 @@ Immutable Web Application rendering path, the commit and push hooks.
 
 **Original unproven deployment state (at initialization; later evidence may supersede it).** Never
 executed during the initialization session, and therefore unproven by that session:
+
 - **The CI workflow has never run.** Not once, on any branch. There is no remote.
 - **`terraform apply` has never run.** Only `init -backend=false`, `validate`, and `fmt -check`.
   Never even `plan` — the session's AWS credentials were `ReadOnlyAccess` throughout.

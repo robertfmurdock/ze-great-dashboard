@@ -5,6 +5,7 @@ Recorded 2026-08-21 after implementing the security-focused consumer bootstrap p
 ## What was implemented
 
 The AWS package now ships versioned, consumer-owned bootstrap templates:
+
 - `bootstrap/core-v1.yml` creates a retained Lambda-artifact bucket with bucket-owner-enforced
   ownership, all S3 public-access blocks, TLS-only access, and SSE-S3 or an optional customer CMK.
   It creates a restricted CloudFormation execution role for one application stack, function, log
