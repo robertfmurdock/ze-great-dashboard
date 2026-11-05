@@ -689,3 +689,77 @@ removed afterward so the normal feedback loop adds no deliberate sleep. Reversib
 publish an incorrect successful board or suppress the empty failure board still fail the intended
 state assertions. Shared React cleanup remains authoritative; no new fixture infrastructure or
 production change was needed.
+
+### Follow-up: client data/build and AWS operator handoffs
+
+This slice finishes the client pull-request-health, published-schema, and CDN-graph files, plus
+AWS guided bootstrap, handoff, consistency-check, CLI-format, and provider-bootstrap tests. The
+inventory must include partially migrated files: PipelineAnimationDemoPanel, usePanelSignals, and
+doctor still contain native scenarios even though they already import the adapter. The remaining
+work also includes the animation models/presentation and AWS bootstrap, packaging, and reference
+contracts; node-runner scripts and browser suites remain outside this migration.
+
+Captured-stack acceptance, missing OIDC outputs, wrong Region, ready GitHub identity, unavailable
+GitHub discovery, and incomplete versus complete work-directory handoffs now have separate visible
+exercises. The CLI guide keeps its two intentional format requests together for one input manifest.
+Temporary CLI, CDN-lockfile, and fake-AWS directories belong to setup and are disposed through the
+scenario scope. Provider shell execution remains visible in exercise; its helper only invokes the
+real shell interface and captures status/output. Bootstrap collaborators no longer assert during
+execution; the normal consistency scenario verifies the recorded AWS service/operation calls.
+
+Review found a false-positive path in the inherited inaccessible-provider-policy test. Its try/catch
+accepted an unexpectedly successful invocation if stdout was empty, and the temporary fake-AWS
+directory was never removed. A reversible early successful exit in the real script passes that
+prior test but fails the migrated status assertion. No production defect or change was involved.
+The missing-role fixture also lacked secret permission, so it now supplies valid secret permission
+to isolate the role guard. Bypassing each permission guard independently fails the corresponding
+exit-status assertion. An import-map fault retaining query parameters in prefix URLs likewise fails
+the expected mapping assertion. All faults were restored; the unified repository gate passed.
+
+### Grouping review after the operator-handoff slice
+
+Applied the earlier API-auth and adapter lesson to group by the exercised contract. Handoff
+planning, GitHub prerequisites, and captured-stack verification now form separate groups; desired
+manifest state, deployed-stack consistency, and optional resource drift likewise have distinct
+homes. Guided bootstrap separates scaffolding, guide generation, and read-only preflight; CDN tests
+separate lockfile graph resolution from import-map generation. Group-specific helpers live beside
+their callers. The pull-request-health groups already reflect their subjects and were retained.
+
+The two work-directory scenarios now derive expected paths from their setup-owned input rather
+than repeating that directory in assertions. Grouping does not split assertions about the same
+output or combine different inputs: the intentionally paired CLI text/JSON requests still belong
+to one manifest scenario. No generic test-registration helper or new behavioral contract is needed.
+
+### Schema-test ownership correction
+
+The client schema migration exposed a misleading subject boundary: reading a prebuilt file is
+artifact inspection, not schema generation, and its title claimed determinism without exercising
+it. Grouping alone did not correct that mistake. The test has now dissolved into existing owners.
+The shared serializer scenario retains its two executions for determinism and now checks editor
+metadata, runtime-rule disclosures, the security enum, and fact-link URI constraints through parsed
+JSON. Existing default and environment-value exclusions remain. The published-package scenario
+compares the delivered schema bytes with the shared serializer output instead of checking only
+file existence. The build/package pipeline remains the exercised publication interface, with no
+extra build or new test infrastructure.
+
+A wrong serializer schema ID fails the shared content assertion; replacing the built schema with
+empty JSON fails the exact published-byte assertion through the normal no-build package path.
+Both reversible faults were restored. This supersedes treating the deleted client test as a
+meaningful standalone Testmints migration.
+
+### Remaining mixed-subject cleanup
+
+The same ownership review found smaller mixed boundaries in this slice. Bootstrap consistency
+verification was invoking the text formatter; the structured tests now own command generation and
+report state, while a separate text-rendering group receives representative reports in setup and
+visibly formats them in exercise. It owns migration-command display, informational package
+provenance without an upgrade instruction, successful stack lines, and the administrator safety
+note. Deliberately wrong command/provenance labels, failed status labels, and an omitted safety
+note each fail their intended text assertion; all source faults were restored.
+
+The bundled-CDN scenario now exercises graph resolution alone and retains membership and subpath
+externalization assertions. Unrelated React import-map assertions were removed because the existing
+import-map scenario already owns exact and prefix mappings. The scaffolding title now claims the
+expected manifest from explicit inputs rather than unexercised determinism. The consistency test's
+redundant JSON round-trip assertion was also removed; actual CLI JSON output remains covered through
+the CLI interface. These are assertion-ownership corrections, with no production changes.

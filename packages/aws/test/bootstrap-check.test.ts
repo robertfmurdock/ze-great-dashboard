@@ -1,3 +1,4 @@
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { describe, expect, it } from 'vitest'
 import {
   type BootstrapCheckDependencies,
@@ -6,7 +7,7 @@ import {
   formatBootstrapCheckText,
 } from '../src/index.ts'
 
-const config: BootstrapConfig = {
+const config = {
   desiredState: {
     packageVersion: '0.0.0-dev',
     templates: {
@@ -29,7 +30,7 @@ const config: BootstrapConfig = {
     repositoryId: '2',
     environment: 'production',
   },
-}
+} satisfies BootstrapConfig
 
 const executionRole = 'arn:aws:iam::123456789012:role/dashboard-execution'
 
@@ -90,8 +91,7 @@ function stackName(args: string[]): string {
 
 function dependencies(driftStatus: 'IN_SYNC' | 'DRIFTED' = 'IN_SYNC'): BootstrapCheckDependencies {
   return {
-    async execute(command, args) {
-      expect(command).toBe('aws')
+    async execute(_command, args) {
       if (args[1] === 'describe-stacks')
         return JSON.stringify({
           Stacks: [stack(stackName(args) === config.core?.stackName ? 'core' : 'github-oidc')],
@@ -127,199 +127,340 @@ function dependencies(driftStatus: 'IN_SYNC' | 'DRIFTED' = 'IN_SYNC'): Bootstrap
 }
 
 describe('canonical bootstrap consistency check', () => {
-  it('fails old manifests without desired state and gives the explicit migration command', async () => {
-    const result = await checkBootstrap(
-      { ...config, desiredState: undefined },
-      { configPath: 'dashboard-bootstrap.json' },
-      dependencies(),
-    )
-    expect(result.ok).toBe(false)
-    expect(result.desiredState.ok).toBe(false)
-    expect(formatBootstrapCheckText(result)).toContain(
-      'bootstrap upgrade --config dashboard-bootstrap.json',
-    )
-  })
-
-  it('fails when a deployed revision differs from the manifest desired revision', async () => {
-    const base = dependencies()
-    const result = await checkBootstrap(
-      config,
-      {},
-      {
-        async execute(command, args) {
-          const raw = await base.execute(command, args)
-          if (args[1] === 'describe-stacks' && stackName(args) === config.core?.stackName) {
-            const value = JSON.parse(raw)
-            value.Stacks[0].Outputs.find(
-              (output: { OutputKey: string }) => output.OutputKey === 'BootstrapTemplateRevision',
-            ).OutputValue = 'old'
-            return JSON.stringify(value)
-          }
-          return raw
+  describe('manifest desired state', () => {
+    it(
+      'fails old manifests without desired state and gives the explicit migration command',
+      mint({
+        setup: () => {
+          const manifest = { ...config, desiredState: undefined } satisfies NonNullable<
+            Parameters<typeof checkBootstrap>[0]
+          >
+          const options = { configPath: 'dashboard-bootstrap.json' } satisfies NonNullable<
+            Parameters<typeof checkBootstrap>[1]
+          >
+          const runner = dependencies() satisfies NonNullable<Parameters<typeof checkBootstrap>[2]>
+          return { manifest, options, runner }
         },
-      },
+        exercise: ({ manifest, options, runner }) => checkBootstrap(manifest, options, runner),
+        verify: (result, { options }) => {
+          expect(result.ok).toBe(false)
+          expect(result.desiredState.ok).toBe(false)
+          expect(result.remediation.desiredStateUpdateCommand).toContain(
+            `bootstrap upgrade --config ${options.configPath}`,
+          )
+        },
+      }),
     )
-    expect(result.ok).toBe(false)
-    expect(result.stacks[0]?.consistency.mismatches).toContain(
-      'template revision is old; expected 1.3',
+
+    it(
+      'does not fail or request a manifest update for a package-only version change',
+      mint({
+        setup: () => {
+          const manifest = {
+            ...config,
+            desiredState: {
+              packageVersion: 'previous-package',
+              templates: {
+                core: { contractVersion: '1', templateRevision: '1.3' },
+                githubOidc: { contractVersion: '2', templateRevision: '2.3' },
+              },
+            },
+          } satisfies NonNullable<Parameters<typeof checkBootstrap>[0]>
+          const options = { configPath: 'dashboard-bootstrap.json' } satisfies NonNullable<
+            Parameters<typeof checkBootstrap>[1]
+          >
+          const runner = dependencies() satisfies NonNullable<Parameters<typeof checkBootstrap>[2]>
+          return { manifest, options, runner }
+        },
+        exercise: ({ manifest, options, runner }) => checkBootstrap(manifest, options, runner),
+        verify: (result) => {
+          expect(result.ok).toBe(true)
+          expect(result.desiredState.ok).toBe(true)
+          expect(result.desiredState.packageVersionMatches).toBe(false)
+          expect(result.remediation.desiredStateUpdateCommand).toBeUndefined()
+        },
+      }),
     )
   })
 
-  it('does not fail or request a manifest update for a package-only version change', async () => {
-    const result = await checkBootstrap(
-      {
-        ...config,
-        desiredState: {
-          packageVersion: 'previous-package',
-          templates: {
-            core: { contractVersion: '1', templateRevision: '1.3' },
-            githubOidc: { contractVersion: '2', templateRevision: '2.3' },
+  describe('deployed-stack consistency', () => {
+    it(
+      'fails when a deployed revision differs from the manifest desired revision',
+      mint({
+        setup: () => {
+          const base = dependencies()
+          const manifest = config satisfies NonNullable<Parameters<typeof checkBootstrap>[0]>
+          const options = {} satisfies NonNullable<Parameters<typeof checkBootstrap>[1]>
+          const runner = {
+            async execute(command, args) {
+              const raw = await base.execute(command, args)
+              if (args[1] === 'describe-stacks' && stackName(args) === config.core?.stackName) {
+                const value = JSON.parse(raw)
+                value.Stacks[0].Outputs.find(
+                  (output: { OutputKey: string }) =>
+                    output.OutputKey === 'BootstrapTemplateRevision',
+                ).OutputValue = 'old'
+                return JSON.stringify(value)
+              }
+              return raw
+            },
+          } satisfies NonNullable<Parameters<typeof checkBootstrap>[2]>
+          return { manifest, options, runner }
+        },
+        exercise: ({ manifest, options, runner }) => checkBootstrap(manifest, options, runner),
+        verify: (result) => {
+          expect(result.ok).toBe(false)
+          expect(result.stacks[0]?.consistency.mismatches).toContain(
+            'template revision is old; expected 1.3',
+          )
+        },
+      }),
+    )
+
+    it(
+      'checks both live stacks without invoking resource drift by default',
+      mint({
+        setup: () => {
+          const calls: string[][] = []
+          const base = dependencies()
+          const manifest = config satisfies NonNullable<Parameters<typeof checkBootstrap>[0]>
+          const options = {} satisfies NonNullable<Parameters<typeof checkBootstrap>[1]>
+          const runner = {
+            async execute(command, args) {
+              calls.push([command, ...args])
+              return base.execute(command, args)
+            },
+          } satisfies NonNullable<Parameters<typeof checkBootstrap>[2]>
+          return { manifest, options, runner, calls }
+        },
+        exercise: ({ manifest, options, runner }) => checkBootstrap(manifest, options, runner),
+        verify: (result, { calls }) => {
+          expect(result.ok).toBe(true)
+          expect(result.stacks.map(({ kind }) => kind)).toEqual(['core', 'github-oidc'])
+          expect(
+            calls.map(([command, service, operation]) => [command, service, operation]),
+          ).toEqual([
+            ['aws', 'cloudformation', 'describe-stacks'],
+            ['aws', 'cloudformation', 'describe-stacks'],
+          ])
+          expect(result.remediation.affectedStacks).toHaveLength(2)
+          expect(result.remediation.revalidateCommand).toContain(
+            'bootstrap check --config manifest.json',
+          )
+          expect(result.remediation.recoveryCommands).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                name: 'capture-core-stack',
+                command: expect.stringContaining('--stack-name dashboard-bootstrap'),
+              }),
+              expect.objectContaining({
+                name: 'capture-github-oidc-stack',
+                command: expect.stringContaining('--stack-name dashboard-github-bootstrap'),
+              }),
+              expect.objectContaining({
+                name: 'preserve-github-oidc-parameters',
+                command: expect.stringContaining(
+                  '--deployed-stack-json .bootstrap-work/github-oidc-deployed-stack.json',
+                ),
+              }),
+              expect.objectContaining({
+                name: 'generate-core-update-change-set',
+                command: expect.stringContaining('--change-set-type UPDATE'),
+              }),
+              expect.objectContaining({
+                name: 'revalidate-bootstrap',
+                command: expect.stringContaining('bootstrap check --config manifest.json'),
+              }),
+            ]),
+          )
+          expect(result.remediation.runbookTarget).toBe('docs/aws-bootstrap-upgrade.md')
+        },
+      }),
+    )
+
+    it(
+      'reports inaccessible stacks as failed consistency rather than throwing away the report',
+      mint({
+        setup: () => {
+          const base = dependencies()
+          const manifest = config satisfies NonNullable<Parameters<typeof checkBootstrap>[0]>
+          const options = {} satisfies NonNullable<Parameters<typeof checkBootstrap>[1]>
+          const runner = {
+            async execute(command, args) {
+              if (args[1] === 'describe-stacks' && stackName(args) === config.githubOidc?.stackName)
+                throw new Error('AccessDenied')
+              return base.execute(command, args)
+            },
+          } satisfies NonNullable<Parameters<typeof checkBootstrap>[2]>
+          return { manifest, options, runner }
+        },
+        exercise: ({ manifest, options, runner }) => checkBootstrap(manifest, options, runner),
+        verify: (result) => {
+          expect(result.ok).toBe(false)
+          expect(result.stacks[1]?.consistency.mismatches).toContain(
+            'unable to describe stack: AccessDenied',
+          )
+        },
+      }),
+    )
+  })
+
+  describe('optional resource drift', () => {
+    it(
+      'reports drifted resources and fails the optional full drift check',
+      mint({
+        setup: () => {
+          const manifest = config satisfies NonNullable<Parameters<typeof checkBootstrap>[0]>
+          const options = { resourceDrift: true } satisfies NonNullable<
+            Parameters<typeof checkBootstrap>[1]
+          >
+          const runner = dependencies('DRIFTED') satisfies NonNullable<
+            Parameters<typeof checkBootstrap>[2]
+          >
+          return { manifest, options, runner }
+        },
+        exercise: ({ manifest, options, runner }) => checkBootstrap(manifest, options, runner),
+        verify: (result) => {
+          expect(result.ok).toBe(false)
+          expect(result.stacks[0]?.resourceDrift).toMatchObject({ status: 'DRIFTED', ok: false })
+          expect(result.stacks[0]?.resourceDrift?.resources[0]).toMatchObject({
+            logicalId: 'GitHubDeployRole',
+            resourceType: 'AWS::IAM::Role',
+          })
+          expect(result.stacks[0]?.resourceDrift?.resources[0]?.differences[0]?.path).toBe(
+            '/Policies/0',
+          )
+          expect(result.remediation.affectedStacks).toContainEqual(
+            expect.objectContaining({ kind: 'core', issue: 'resource drift: DRIFTED' }),
+          )
+        },
+      }),
+    )
+
+    it(
+      'times out resource drift after ten minutes',
+      mint({
+        setup: () => {
+          const base = dependencies()
+          let now = 0
+          const manifest = config satisfies NonNullable<Parameters<typeof checkBootstrap>[0]>
+          const options = { resourceDrift: true } satisfies NonNullable<
+            Parameters<typeof checkBootstrap>[1]
+          >
+          const runner = {
+            ...base,
+            now: () => now,
+            async sleep(milliseconds) {
+              now += milliseconds
+            },
+            async execute(command, args) {
+              if (args[1] === 'describe-stack-drift-detection-status')
+                return JSON.stringify({ DetectionStatus: 'DETECTION_IN_PROGRESS' })
+              return base.execute(command, args)
+            },
+          } satisfies NonNullable<Parameters<typeof checkBootstrap>[2]>
+          return { manifest, options, runner }
+        },
+        exercise: ({ manifest, options, runner }) => checkBootstrap(manifest, options, runner),
+        verify: (result) => {
+          expect(result.ok).toBe(false)
+          expect(result.stacks[0]?.resourceDrift).toMatchObject({ status: 'TIMED_OUT' })
+        },
+      }),
+    )
+
+    it(
+      'reports a CloudFormation drift-detection failure',
+      mint({
+        setup: () => {
+          const base = dependencies()
+          const manifest = config satisfies NonNullable<Parameters<typeof checkBootstrap>[0]>
+          const options = { resourceDrift: true } satisfies NonNullable<
+            Parameters<typeof checkBootstrap>[1]
+          >
+          const runner = {
+            ...base,
+            async execute(command, args) {
+              if (args[1] === 'describe-stack-drift-detection-status')
+                return JSON.stringify({
+                  DetectionStatus: 'DETECTION_FAILED',
+                  DetectionStatusReason: 'insufficient permissions',
+                })
+              return base.execute(command, args)
+            },
+          } satisfies NonNullable<Parameters<typeof checkBootstrap>[2]>
+          return { manifest, options, runner }
+        },
+        exercise: ({ manifest, options, runner }) => checkBootstrap(manifest, options, runner),
+        verify: (result) => {
+          expect(result.ok).toBe(false)
+          expect(result.stacks[0]?.resourceDrift).toMatchObject({
+            status: 'DETECTION_FAILED',
+            reason: 'insufficient permissions',
+          })
+        },
+      }),
+    )
+  })
+})
+
+describe('bootstrap check text rendering', () => {
+  it(
+    'renders the desired-state migration command from the report',
+    mint({
+      setup: async () => ({
+        report: await checkBootstrap(
+          { ...config, desiredState: undefined },
+          { configPath: 'dashboard-bootstrap.json' },
+          dependencies(),
+        ),
+      }),
+      exercise: ({ report }) => formatBootstrapCheckText(report),
+      verify: (text, { report }) => {
+        expect(text).toContain(
+          `Desired-state update command (review, commit, then deploy): ${report.remediation.desiredStateUpdateCommand}`,
+        )
+      },
+    }),
+  )
+
+  it(
+    'renders package-only provenance differences as informational without an upgrade instruction',
+    mint({
+      setup: async () => ({
+        report: await checkBootstrap(
+          {
+            ...config,
+            desiredState: {
+              packageVersion: 'previous-package',
+              templates: config.desiredState.templates,
+            },
           },
-        },
+          { configPath: 'dashboard-bootstrap.json' },
+          dependencies(),
+        ),
+      }),
+      exercise: ({ report }) => formatBootstrapCheckText(report),
+      verify: (text, { report }) => {
+        expect(text).toContain(
+          `Package provenance: manifest ${report.desiredState.manifest?.packageVersion}, installed ${report.desiredState.installed.packageVersion} (informational)`,
+        )
+        expect(text).not.toContain('Desired-state update command')
       },
-      { configPath: 'dashboard-bootstrap.json' },
-      dependencies(),
-    )
-    expect(result.ok).toBe(true)
-    expect(result.desiredState.ok).toBe(true)
-    expect(result.desiredState.packageVersionMatches).toBe(false)
-    expect(result.remediation.desiredStateUpdateCommand).toBeUndefined()
-    expect(formatBootstrapCheckText(result)).toContain('informational')
-    expect(formatBootstrapCheckText(result)).not.toContain('Desired-state update command')
-  })
+    }),
+  )
 
-  it('checks both live stacks without invoking resource drift by default', async () => {
-    const calls: string[][] = []
-    const base = dependencies()
-    const result = await checkBootstrap(
-      config,
-      {},
-      {
-        async execute(command, args) {
-          calls.push([command, ...args])
-          return base.execute(command, args)
-        },
+  it(
+    'renders successful stack status and the administrator safety note',
+    mint({
+      setup: async () => ({ report: await checkBootstrap(config, {}, dependencies()) }),
+      exercise: ({ report }) => formatBootstrapCheckText(report),
+      verify: (text, { report }) => {
+        for (const stack of report.stacks) {
+          expect(text).toContain(`PASS ${stack.kind}: ${stack.stackName} (${stack.stackStatus})`)
+        }
+        expect(text).toContain(`Safety: ${report.remediation.safetyNote}`)
       },
-    )
-    expect(result.ok).toBe(true)
-    expect(result.stacks.map(({ kind }) => kind)).toEqual(['core', 'github-oidc'])
-    expect(calls.map(([, , operation]) => operation)).toEqual([
-      'describe-stacks',
-      'describe-stacks',
-    ])
-    expect(JSON.parse(JSON.stringify(result))).toMatchObject({ ok: true })
-    expect(formatBootstrapCheckText(result)).toContain(
-      'PASS github-oidc: dashboard-github-bootstrap (UPDATE_COMPLETE)',
-    )
-    expect(result.remediation.affectedStacks).toHaveLength(2)
-    expect(result.remediation.revalidateCommand).toContain('bootstrap check --config manifest.json')
-    expect(result.remediation.recoveryCommands).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: 'capture-core-stack',
-          command: expect.stringContaining('--stack-name dashboard-bootstrap'),
-        }),
-        expect.objectContaining({
-          name: 'capture-github-oidc-stack',
-          command: expect.stringContaining('--stack-name dashboard-github-bootstrap'),
-        }),
-        expect.objectContaining({
-          name: 'preserve-github-oidc-parameters',
-          command: expect.stringContaining(
-            '--deployed-stack-json .bootstrap-work/github-oidc-deployed-stack.json',
-          ),
-        }),
-        expect.objectContaining({
-          name: 'generate-core-update-change-set',
-          command: expect.stringContaining('--change-set-type UPDATE'),
-        }),
-        expect.objectContaining({
-          name: 'revalidate-bootstrap',
-          command: expect.stringContaining('bootstrap check --config manifest.json'),
-        }),
-      ]),
-    )
-    expect(result.remediation.runbookTarget).toBe('docs/aws-bootstrap-upgrade.md')
-    expect(formatBootstrapCheckText(result)).toContain('Safety: AWS mutations are emitted')
-  })
-
-  it('reports drifted resources and fails the optional full drift check', async () => {
-    const result = await checkBootstrap(config, { resourceDrift: true }, dependencies('DRIFTED'))
-    expect(result.ok).toBe(false)
-    expect(result.stacks[0]?.resourceDrift).toMatchObject({ status: 'DRIFTED', ok: false })
-    expect(result.stacks[0]?.resourceDrift?.resources[0]).toMatchObject({
-      logicalId: 'GitHubDeployRole',
-      resourceType: 'AWS::IAM::Role',
-    })
-    expect(result.stacks[0]?.resourceDrift?.resources[0]?.differences[0]?.path).toBe('/Policies/0')
-    expect(result.remediation.affectedStacks).toContainEqual(
-      expect.objectContaining({ kind: 'core', issue: 'resource drift: DRIFTED' }),
-    )
-  })
-
-  it('reports inaccessible stacks as failed consistency rather than throwing away the report', async () => {
-    const base = dependencies()
-    const result = await checkBootstrap(
-      config,
-      {},
-      {
-        async execute(command, args) {
-          if (args[1] === 'describe-stacks' && stackName(args) === config.githubOidc?.stackName)
-            throw new Error('AccessDenied')
-          return base.execute(command, args)
-        },
-      },
-    )
-    expect(result.ok).toBe(false)
-    expect(result.stacks[1]?.consistency.mismatches).toContain(
-      'unable to describe stack: AccessDenied',
-    )
-  })
-
-  it('times out resource drift after ten minutes', async () => {
-    const base = dependencies()
-    let now = 0
-    const result = await checkBootstrap(
-      config,
-      { resourceDrift: true },
-      {
-        ...base,
-        now: () => now,
-        async sleep(milliseconds) {
-          now += milliseconds
-        },
-        async execute(command, args) {
-          if (args[1] === 'describe-stack-drift-detection-status')
-            return JSON.stringify({ DetectionStatus: 'DETECTION_IN_PROGRESS' })
-          return base.execute(command, args)
-        },
-      },
-    )
-    expect(result.ok).toBe(false)
-    expect(result.stacks[0]?.resourceDrift).toMatchObject({ status: 'TIMED_OUT' })
-  })
-
-  it('reports a CloudFormation drift-detection failure', async () => {
-    const base = dependencies()
-    const result = await checkBootstrap(
-      config,
-      { resourceDrift: true },
-      {
-        ...base,
-        async execute(command, args) {
-          if (args[1] === 'describe-stack-drift-detection-status')
-            return JSON.stringify({
-              DetectionStatus: 'DETECTION_FAILED',
-              DetectionStatusReason: 'insufficient permissions',
-            })
-          return base.execute(command, args)
-        },
-      },
-    )
-    expect(result.ok).toBe(false)
-    expect(result.stacks[0]?.resourceDrift).toMatchObject({
-      status: 'DETECTION_FAILED',
-      reason: 'insufficient permissions',
-    })
-  })
+    }),
+  )
 })

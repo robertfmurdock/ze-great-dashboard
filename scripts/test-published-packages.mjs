@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { packageLayout } from './package-layout.mjs'
@@ -58,7 +58,12 @@ try {
     await readFile(join(stagingRoot, 'client', 'client', 'index.html'), 'utf8'),
     /__ASSET_PATH__/,
   )
-  assert.ok(await stat(join(stagingRoot, 'client', 'client', 'board-config.schema.json')))
+  const { serializeBoardConfigJsonSchema } = await import('../packages/shared/dist/index.js')
+  assert.equal(
+    await readFile(join(stagingRoot, 'client', 'client', 'board-config.schema.json'), 'utf8'),
+    serializeBoardConfigJsonSchema(),
+    'The published client must contain the exact generated board configuration schema.',
+  )
   const publishedClientFiles = []
   async function collectClientFiles(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {

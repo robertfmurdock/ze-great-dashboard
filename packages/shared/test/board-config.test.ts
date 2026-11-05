@@ -934,7 +934,7 @@ describe('duration parsing', () => {
 
 describe('the published board schema projection', () => {
   test(
-    'is deterministic, valid JSON, and omits parser defaults',
+    'serializes deterministic editor metadata and field constraints without parser defaults',
     mint({
       setup: () => ({}),
       exercise: () => ({
@@ -943,7 +943,34 @@ describe('the published board schema projection', () => {
       }),
       verify: ({ first, second }) => {
         expect(second).toBe(first)
-        expect(() => JSON.parse(first)).not.toThrow()
+        const schema = JSON.parse(first)
+        expect(schema).toMatchObject({
+          $schema: 'https://json-schema.org/draft/2020-12/schema',
+          $id: 'board-config.schema.json',
+          title: 'Ze Great Dashboard board configuration',
+          'x-dashboard-runtime-rules': expect.arrayContaining([
+            expect.objectContaining({ category: 'unique-panel-and-fact-ids' }),
+            expect.objectContaining({ category: 'panel-source-relationships' }),
+          ]),
+          properties: {
+            security: { enum: ['warn', 'required', 'unsecured'] },
+            boards: {
+              additionalProperties: {
+                properties: {
+                  panels: {
+                    items: {
+                      properties: {
+                        facts: {
+                          items: { properties: { link: { type: 'string', format: 'uri' } } },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        })
         expect(first).not.toMatch(/"default"\s*:/)
         expect(first).not.toMatch(/gitlab\.com/i)
       },
