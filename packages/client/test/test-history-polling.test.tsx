@@ -1,9 +1,8 @@
-import type { ResourceScope } from '@continuous-excellence/testmints-js'
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { renderHook } from '@testing-library/react'
 import { type Panel, type TestHistory, testHistoryHeader } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import type { DiagnosticEventInput } from '../src/diagnostics.ts'
 import { BrowserPanelMemory } from '../src/panel-memory.ts'
 import { usePanelSignals } from '../src/usePanelSignals.ts'
@@ -37,15 +36,9 @@ function currentTests() {
     run: { id: '3', attempt: 1, updatedAt: '2026-11-04T12:00:00Z' },
   } as const
 }
-async function pollingFixture(scope: ResourceScope, scenario: (typeof cases)[number]) {
-  await scope.using(
-    'polling clock',
-    () => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date('2026-11-05T00:00:00Z'))
-    },
-    () => vi.useRealTimers(),
-  )
+async function pollingFixture(scenario: (typeof cases)[number]) {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-11-05T00:00:00Z'))
   const tests = currentTests()
   const envelope = {
     panelId: scenario.panel.id,
@@ -67,19 +60,12 @@ async function pollingFixture(scope: ResourceScope, scenario: (typeof cases)[num
   const historyResponse = new Promise<Response>((resolve) => {
     release = resolve
   })
-  const fetcher = await scope.using(
-    'panel fetch',
-    () => {
-      const fetcher = vi.fn<typeof fetch>(async (input) =>
-        String(input).endsWith('/test-history')
-          ? historyResponse
-          : Response.json(envelope, { headers: { [testHistoryHeader]: 'supported' } }),
-      )
-      vi.stubGlobal('fetch', fetcher)
-      return fetcher
-    },
-    () => vi.unstubAllGlobals(),
+  const fetcher = vi.fn<typeof fetch>(async (input) =>
+    String(input).endsWith('/test-history')
+      ? historyResponse
+      : Response.json(envelope, { headers: { [testHistoryHeader]: 'supported' } }),
   )
+  vi.stubGlobal('fetch', fetcher)
   let finished: () => void = () => {}
   const completion = new Promise<void>((resolve) => {
     finished = resolve
@@ -94,12 +80,13 @@ async function pollingFixture(scope: ResourceScope, scenario: (typeof cases)[num
   }
   const memory = new BrowserPanelMemory({ getItem: () => null, setItem: () => {} })
   const board = { panels: [scenario.panel] }
-  const hook = await scope.using(
-    'panel polling lifecycle',
-    () => renderHook(() => usePanelSignals({ board, env, diagnostics, memory })),
-    (hook) => hook.unmount(),
+  const hook = renderHook(() => usePanelSignals({ board, env, diagnostics, memory }))
+  await vi.waitUntil(
+    () =>
+      hook.result.current.schedules[0]?.inFlight === false &&
+      fetcher.mock.calls.some(([input]) => String(input).endsWith('/test-history')),
+    { interval: 1, timeout: 500 },
   )
-  await act(async () => {})
   return {
     hook,
     fetcher,
@@ -113,66 +100,83 @@ async function pollingFixture(scope: ResourceScope, scenario: (typeof cases)[num
   }
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
+
 describe('current polling remains authoritative during repair', () => {
   for (const scenario of cases) {
     test(
       `${scenario.name}: normal polling continues while history is pending`,
       mint({
-        setup: ({ scope }) => pollingFixture(scope, scenario),
+        setup: () => pollingFixture(scenario),
         exercise: async ({ hook }) => {
           await act(async () => {
             await vi.advanceTimersByTimeAsync(1000)
           })
-          return hook.result.current
+          return hook
         },
-        verify: (result, { fetcher, envelope, panel, tests }) => {
-          const currentCalls = fetcher.mock.calls.filter(
-            ([input]) => !String(input).endsWith('/test-history'),
+        verify: async (hook, { fetcher, envelope, panel, tests }) => {
+          await vi.waitFor(
+            () => {
+              const result = hook.result.current
+              const currentCalls = fetcher.mock.calls.filter(
+                ([input]) => !String(input).endsWith('/test-history'),
+              )
+              const historyCalls = fetcher.mock.calls.filter(([input]) =>
+                String(input).endsWith('/test-history'),
+              )
+              expect(currentCalls).toHaveLength(2)
+              expect(historyCalls).toHaveLength(1)
+              expect(result.signals[panel.id]).toEqual(envelope)
+              expect(result.testDirections[panel.id]?.totals).toEqual([tests.total])
+              expect(result.updateHealth[panel.id]).toBeUndefined()
+            },
+            { interval: 1, timeout: 500 },
           )
-          const historyCalls = fetcher.mock.calls.filter(([input]) =>
-            String(input).endsWith('/test-history'),
-          )
-          expect(currentCalls).toHaveLength(2)
-          expect(historyCalls).toHaveLength(1)
-          expect(result.signals[panel.id]).toEqual(envelope)
-          expect(result.testDirections[panel.id]?.totals).toEqual([tests.total])
-          expect(result.updateHealth[panel.id]).toBeUndefined()
         },
       }),
     )
     test(
       `${scenario.name}: completing history enriches the trend without replacing current evidence`,
       mint({
-        setup: ({ scope }) => pollingFixture(scope, scenario),
+        setup: () => pollingFixture(scenario),
         exercise: async ({ hook, release, history, completion }) => {
           await act(async () => {
             release(Response.json(history))
             await completion
           })
-          return hook.result.current
+          return hook
         },
-        verify: (result, { envelope, history, panel, tests, events }) => {
-          expect(result.signals[panel.id]).toEqual(envelope)
-          expect(result.testDirections[panel.id]?.totals).toEqual([
-            ...history.samples.map((sample) => sample.total),
-            tests.total,
-          ])
-          expect(result.updateHealth[panel.id]).toBeUndefined()
-          expect(events).toContainEqual(
-            expect.objectContaining({
-              kind: 'test-history-repair',
-              outcome: 'complete',
-              samples: history.samples.length,
-            }),
-          )
-          const rendered = events.filter((event) => event.kind === 'panel-rendered')
-          expect(rendered.at(-1)).toMatchObject({
-            rendered: {
-              testDirection: {
-                totals: [...history.samples.map((sample) => sample.total), tests.total],
-              },
+        verify: async (hook, { envelope, history, panel, tests, events }) => {
+          await vi.waitFor(
+            () => {
+              const result = hook.result.current
+              expect(result.signals[panel.id]).toEqual(envelope)
+              expect(result.testDirections[panel.id]?.totals).toEqual([
+                ...history.samples.map((sample) => sample.total),
+                tests.total,
+              ])
+              expect(result.updateHealth[panel.id]).toBeUndefined()
+              expect(events).toContainEqual(
+                expect.objectContaining({
+                  kind: 'test-history-repair',
+                  outcome: 'complete',
+                  samples: history.samples.length,
+                }),
+              )
+              const rendered = events.filter((event) => event.kind === 'panel-rendered')
+              expect(rendered.at(-1)).toMatchObject({
+                rendered: {
+                  testDirection: {
+                    totals: [...history.samples.map((sample) => sample.total), tests.total],
+                  },
+                },
+              })
             },
-          })
+            { interval: 1, timeout: 500 },
+          )
         },
       }),
     )
@@ -180,19 +184,25 @@ describe('current polling remains authoritative during repair', () => {
   test(
     'repair failure leaves normal update health alone',
     mint({
-      setup: ({ scope }) => pollingFixture(scope, cases[0]),
+      setup: () => pollingFixture(cases[0]),
       exercise: async ({ hook, release, completion }) => {
         await act(async () => {
           release(new Response(null, { status: 503 }))
           await completion
         })
-        return hook.result.current
+        return hook
       },
-      verify: (result, { panel, envelope, events }) => {
-        expect(result.signals[panel.id]).toEqual(envelope)
-        expect(result.updateHealth[panel.id]).toBeUndefined()
-        expect(events).toContainEqual(
-          expect.objectContaining({ kind: 'test-history-repair', outcome: 'failed' }),
+      verify: async (hook, { panel, envelope, events }) => {
+        await vi.waitFor(
+          () => {
+            const result = hook.result.current
+            expect(result.signals[panel.id]).toEqual(envelope)
+            expect(result.updateHealth[panel.id]).toBeUndefined()
+            expect(events).toContainEqual(
+              expect.objectContaining({ kind: 'test-history-repair', outcome: 'failed' }),
+            )
+          },
+          { interval: 1, timeout: 500 },
         )
       },
     }),

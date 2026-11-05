@@ -21,26 +21,21 @@ describe('the example board configs', () => {
   const examplePath = fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url))
 
   test(
-    'validate against the schema',
+    'validates the example and preserves credential environment references',
     mint({
       setup: () => ({ config: parseYaml(readFileSync(examplePath, 'utf8')) }),
       exercise: ({ config }) => boardConfigSchema.safeParse(config),
-      verify: (result) => {
+      verify: (result, { config }) => {
         expect(result.error?.issues ?? []).toEqual([])
         expect(result.success).toBe(true)
-      },
-    }),
-  )
-
-  test(
-    'keeps credentials out of the file, naming env vars instead',
-    mint({
-      setup: () => ({ examplePath }),
-      exercise: ({ examplePath }) => readFileSync(examplePath, 'utf8'),
-      verify: (text) => {
-        expect(text).toContain('token_env:')
-        expect(text).not.toMatch(/token:\s*\S/)
-        expect(text).not.toMatch(/password:\s*\S/)
+        expect(result.data?.sources).toMatchObject(config.sources)
+        expect(Object.values(config.sources)).toContainEqual(
+          expect.objectContaining({ token_env: expect.any(String) }),
+        )
+        for (const source of Object.values(config.sources)) {
+          expect(source).not.toHaveProperty('token')
+          expect(source).not.toHaveProperty('password')
+        }
       },
     }),
   )
@@ -901,6 +896,44 @@ describe('active-run polling settings', () => {
       verify: (settings, { expectedSettings }) => expect(settings).toEqual(expectedSettings),
     }),
   )
+})
+
+describe('normal polling precedence', () => {
+  const scenarios = [
+    { name: 'panel override', boardRefresh: '200ms', panelRefresh: '100ms', expectedMillis: 100 },
+    { name: 'board default', boardRefresh: '200ms', panelRefresh: undefined, expectedMillis: 200 },
+    {
+      name: 'product default',
+      boardRefresh: undefined,
+      panelRefresh: undefined,
+      expectedMillis: 60_000,
+    },
+  ]
+  for (const scenario of scenarios) {
+    test(
+      `uses the ${scenario.name}`,
+      mint({
+        setup: () => ({
+          board: boardConfigSchema.parse({
+            boards: {
+              a: {
+                refresh: scenario.boardRefresh,
+                panels: [{ id: 'build', type: 'pipeline-status', refresh: scenario.panelRefresh }],
+              },
+            },
+          }).boards.a,
+          expectedMillis: scenario.expectedMillis,
+        }),
+        exercise: ({ board }) => {
+          const panel = board?.panels[0]
+          if (!board || !panel) throw new Error('Expected polling fixture')
+          return resolvePollingSettings(board, panel)
+        },
+        verify: (settings, { expectedMillis }) =>
+          expect(settings.refreshMillis).toBe(expectedMillis),
+      }),
+    )
+  }
 })
 
 describe('duration parsing', () => {

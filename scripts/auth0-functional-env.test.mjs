@@ -23,12 +23,13 @@ test('reads the exact parameter through the current identity', async () => {
 })
 
 test('assumes the fixed reader role after direct access fails', async () => {
-  const environments = []
+  const calls = []
+  const environment = { AWS_PROFILE: 'local-sso' }
   let call = 0
   const result = await resolveAuth0FunctionalEnvironment({
-    environment: { AWS_PROFILE: 'local-sso' },
+    environment,
     execute: async (_file, args, environment) => {
-      environments.push(environment)
+      calls.push({ args, environment })
       call += 1
       if (call === 1) throw new Error('denied')
       if (args[0] === 'sts') return '["access","secret","token"]'
@@ -36,10 +37,12 @@ test('assumes the fixed reader role after direct access fails', async () => {
     },
   })
   assert.equal(result.source, 'assumed-role')
-  assert.ok(environments[1].AWS_PROFILE)
-  assert.ok(auth0ReaderRoleArn.endsWith('/ZeGreatDashboardAuth0FunctionalReader'))
-  assert.equal(environments[2].AWS_ACCESS_KEY_ID, 'access')
-  assert.equal(environments[2].AWS_SESSION_TOKEN, 'token')
+  assert.equal(calls[1].environment.AWS_PROFILE, environment.AWS_PROFILE)
+  const roleIndex = calls[1].args.indexOf('--role-arn')
+  assert.ok(roleIndex >= 0)
+  assert.equal(calls[1].args[roleIndex + 1], auth0ReaderRoleArn)
+  assert.equal(calls[2].environment.AWS_ACCESS_KEY_ID, 'access')
+  assert.equal(calls[2].environment.AWS_SESSION_TOKEN, 'token')
 })
 
 for (const [name, parameter] of [
@@ -108,7 +111,8 @@ test('reports which safe discovery stages failed without exposing command diagno
 test('classifies AWS CLI diagnostics without returning their potentially sensitive text', () => {
   const diagnostic =
     'AccessDeniedException for arn:aws:sts::174159267544:assumed-role/private-session'
-  assert.equal(classifyAwsFailure({}, diagnostic), 'was denied')
-  assert.doesNotMatch(classifyAwsFailure({}, diagnostic), /private-session/)
+  const classification = classifyAwsFailure({}, diagnostic)
+  assert.equal(classification, 'was denied')
+  assert.doesNotMatch(classification, /private-session/)
   assert.equal(classifyAwsFailure({ code: 'ENOENT' }, ''), 'could not run the AWS CLI')
 })

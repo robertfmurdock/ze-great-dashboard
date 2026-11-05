@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import type { BoardConfig, PipelineStatus } from '@ze-great-dashboard/shared'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
   fetchGithubActionsPipeline,
   fetchGithubActionsPullRequestBuild,
@@ -21,6 +21,11 @@ const panel = {
   source: 'github',
   pipeline: 'build.yml',
 } as const
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
+
 const source = { type: 'github-actions', repo: 'example-org/example-repo' } as const
 const TEMPLATE = '<!doctype html><html><head></head><body></body></html>'
 const githubCredentials: CredentialResolver = {
@@ -151,10 +156,9 @@ describe('the GitHub Actions adapter', () => {
   test(
     'first requests up to 100 workflow runs created in the last 30 UTC days',
     mint({
-      setup: ({ scope }) => {
+      setup: () => {
         vi.useFakeTimers()
         vi.setSystemTime(new Date('2026-08-31T12:00:00.000Z'))
-        scope.defer('real clock', () => vi.useRealTimers())
         return { fetcher: upstream('success'), source: { ...source, branch: 'trunk' } }
       },
       exercise: ({ fetcher, source }) =>

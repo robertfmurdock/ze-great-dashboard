@@ -1,10 +1,9 @@
-import type { ResourceScope } from '@continuous-excellence/testmints-js'
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render } from '@testing-library/react'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { FallingShapesField } from '../src/FallingShapesField.tsx'
 
-function fieldFixture(scope: ResourceScope, reducedMotion = false) {
+function fieldFixture(reducedMotion = false) {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
     width: 1200,
     height: 180,
@@ -14,19 +13,19 @@ function fieldFixture(scope: ResourceScope, reducedMotion = false) {
       'matchMedia',
       vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
     )
-  scope.defer('restore field environment', () => {
-    vi.useRealTimers()
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
-  })
   return { progress: 0.4, overdue: false, seed: 7 }
 }
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 describe('FallingShapesField', () => {
   test(
     'chooses horizontal geometry for a wide panel',
     mint({
-      setup: ({ scope }) => ({ fieldProps: fieldFixture(scope) }),
+      setup: () => ({ fieldProps: fieldFixture() }),
       exercise: ({ fieldProps }) => render(<FallingShapesField {...fieldProps} />).container,
       verify: (rendered) => {
         expect(
@@ -39,9 +38,9 @@ describe('FallingShapesField', () => {
   )
 
   test(
-    'renders a stable settled composition when reduced motion is requested',
+    'renders settled pieces when reduced motion is requested',
     mint({
-      setup: ({ scope }) => ({ fieldProps: fieldFixture(scope, true) }),
+      setup: () => ({ fieldProps: fieldFixture(true) }),
       exercise: ({ fieldProps }) => render(<FallingShapesField {...fieldProps} />).container,
       verify: (rendered) => {
         const phases = [

@@ -281,31 +281,37 @@ describe('panel observations and public diagnostics', () => {
       },
     }),
   )
-  it(
-    'classifies malformed JSON as a parse failure',
-    mint({
-      setup: () => {
-        const diagnostics = recordingSink()
-        vi.stubGlobal(
-          'fetch',
-          vi.fn(async () => new Response('{')),
-        )
-        return { diagnostics }
-      },
-      exercise: ({ diagnostics }) => renderHook(() => usePanelSignals({ board, env, diagnostics })),
-      verify: async (hook, { diagnostics }) => {
-        await waitFor(() => {
-          expect(hook.result.current.schedules[0]?.inFlight).toBe(false)
-          expect(
-            diagnostics.events.some((event) => event.kind === 'panel-fetch-parse-failure'),
-          ).toBe(true)
-          expect(diagnostics.events.some((event) => event.kind === 'panel-fetch-failure')).toBe(
-            false,
+  for (const scenario of [
+    { name: 'malformed JSON', body: '{' },
+    { name: 'an invalid envelope', body: JSON.stringify({ unrelated: true }) },
+  ]) {
+    it(
+      `classifies ${scenario.name} as a parse failure`,
+      mint({
+        setup: () => {
+          const diagnostics = recordingSink()
+          vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response(scenario.body)),
           )
-        })
-      },
-    }),
-  )
+          return { diagnostics }
+        },
+        exercise: ({ diagnostics }) =>
+          renderHook(() => usePanelSignals({ board, env, diagnostics })),
+        verify: async (hook, { diagnostics }) => {
+          await waitFor(() => {
+            expect(hook.result.current.schedules[0]?.inFlight).toBe(false)
+            expect(
+              diagnostics.events.some((event) => event.kind === 'panel-fetch-parse-failure'),
+            ).toBe(true)
+            expect(diagnostics.events.some((event) => event.kind === 'panel-fetch-failure')).toBe(
+              false,
+            )
+          })
+        },
+      }),
+    )
+  }
 })
 describe('poll lifecycle scheduling', () => {
   it(
@@ -433,16 +439,19 @@ describe('poll lifecycle scheduling', () => {
           () => hook.result.current.updateHealth.build?.consecutiveFailures === 1,
           { interval: 1, timeout: 500 },
         )
-        return { hook, fetcher }
+        return { hook, fetcher, diagnostics }
       },
       exercise: async ({ hook }) => {
         await act(async () => vi.advanceTimersByTimeAsync(1000))
         return hook
       },
-      verify: async (hook, { fetcher }) => {
+      verify: async (hook, { fetcher, diagnostics }) => {
         await vi.waitFor(
           () => {
             expect(fetcher).toHaveBeenCalledTimes(3)
+            expect(diagnostics.events).toContainEqual(
+              expect.objectContaining({ kind: 'panel-fetch-response', status: 304 }),
+            )
             expect(hook.result.current.schedules[0]?.inFlight).toBe(false)
             expect(hook.result.current.updateHealth.build).toBeUndefined()
           },

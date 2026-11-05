@@ -167,16 +167,29 @@ Do not register duplicate React cleanup in individual tests or fixtures. Keep sh
 and timer restoration in ordinary Vitest hooks; reserve scoped disposal for resources specific to
 one scenario's setup.
 
-## Testmints migrations
+## Writing tests with Testmints
 
-When porting a test to Testmints, use the installed Vitest adapter only; do not enable reporting or
-add shared Testmints infrastructure. Preserve the scenario's real data flow: `setup` arranges
+Testmints is the standard for this repository's Vitest tests. Write every new or changed Vitest
+scenario with `mint` from the installed Vitest adapter; keep ordinary Vitest suite and lifecycle
+hooks. Do not enable reporting or add shared Testmints infrastructure. Playwright browser tests and
+Node-runner script tests retain their runner-specific integration and follow the same scenario,
+subject, data-flow, and evidence principles below.
+
+Testmints adds semantics that should inform test-design decisions. Phase labels make claims about
+what the test arranges, executes, and proves; merely fitting code into those labels does not make
+the claims true. Treat an awkward or incoherent phase boundary as a review question. Identify the
+real subject and resolve the discrepancy by changing ownership, splitting distinct scenarios,
+consolidating duplicate evidence, or dissolving a redundant test into existing contracts. Even an
+imperfect Testmints test can expose its own incoherence; syntactic conformity is not proof that the
+semantic questions have been resolved.
+
+Preserve the scenario's real data flow: `setup` arranges
 isolated inputs, apps, mocks, clocks, and scoped resources; `exercise` visibly performs the
 meaningful subject action; `verify` owns every observable assertion, including collaborator calls.
 Do not assert while the action is in progress. The phases should expose one feature-owning subject
 from the outside perspective. If they instead harvest observations, expose multiple inflection
 points, or require incidental-DOM assertions, split the contracts or extract a narrower production
-boundary; do not keep a test in native Vitest merely because it does not fit the form.
+boundary. Resolve the semantic mismatch rather than falling back to a native Vitest test body.
 
 Create scenario-specific values once in `setup`, return them, carry them through `exercise`, and
 compare the resulting public or collaborator evidence to those same values in `verify`. Do not

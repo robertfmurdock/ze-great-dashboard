@@ -1,9 +1,8 @@
-import type { ResourceScope } from '@continuous-excellence/testmints-js'
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import type { BoardConfig, Panel } from '@ze-great-dashboard/shared'
 import { testHistoryHeader, testHistorySchema } from '@ze-great-dashboard/shared'
 import { zipSync } from 'fflate/browser'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { createApp } from '../src/app.ts'
 import { loadConfig } from '../src/config.ts'
 
@@ -60,23 +59,18 @@ function appFixture(
     path: `/api/panel/team/${configuredPanel.id}/test-history`,
   }
 }
-function clock(scope: ResourceScope) {
-  return scope.using(
-    'controlled clock',
-    () => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date('2026-11-05T00:00:00Z'))
-    },
-    () => vi.useRealTimers(),
-  )
+afterEach(() => vi.useRealTimers())
+function clock() {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-11-05T00:00:00Z'))
 }
 
 describe('bounded source test history', () => {
   test(
     'reads at most eight runs using configured workflow and branch without validators',
     mint({
-      setup: async ({ scope }) => {
-        await clock(scope)
+      setup: () => {
+        clock()
         const runs = Array.from({ length: 10 }, (_, i) => run(i + 1))
         const totals = runs.map((selected) => selected.id * 10)
         const fetcher = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
@@ -144,8 +138,8 @@ describe('bounded source test history', () => {
     test(
       `${scenario.name} artifacts leave an empty completed inspection rather than zero`,
       mint({
-        setup: async ({ scope }) => {
-          await clock(scope)
+        setup: () => {
+          clock()
           const fetcher = vi.fn(async (input: string | URL | Request) =>
             String(input).includes('/runs?')
               ? Response.json({ workflow_runs: [run(1)] })
@@ -167,8 +161,8 @@ describe('bounded source test history', () => {
   test(
     'a mismatched manifest leaves partial history and continues inspecting later runs',
     mint({
-      setup: async ({ scope }) => {
-        await clock(scope)
+      setup: () => {
+        clock()
         const runs = [run(1), run(2)]
         const total = 37
         const fetcher = vi.fn(async (input: string | URL | Request) => {
@@ -199,8 +193,8 @@ describe('bounded source test history', () => {
     test(
       `upstream ${status} stops further artifact requests and exposes retry timing`,
       mint({
-        setup: async ({ scope }) => {
-          await clock(scope)
+        setup: () => {
+          clock()
           const retrySeconds = 7200
           const fetcher = vi.fn(async (input: string | URL | Request) =>
             String(input).includes('/runs?')

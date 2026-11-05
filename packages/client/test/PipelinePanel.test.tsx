@@ -6,14 +6,18 @@ import { PipelinePanel } from '../src/PipelinePanel.tsx'
 
 const panel: Panel = { id: 'build', type: 'pipeline-status' }
 
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
+
 describe('PipelinePanel', () => {
   test(
     'discloses a GitHub-rejected older response as historical evidence, not loading or attention',
     mint({
-      setup: ({ scope }) => {
+      setup: () => {
         vi.useFakeTimers()
         vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
-        scope.defer('restore real timers', () => vi.useRealTimers())
         return {
           rejectedPipeline: {
             status: 'failed' as const,
@@ -98,10 +102,6 @@ describe('pipeline running treatment composition', () => {
       runStartedAt: '2026-08-24T13:58:00.000Z',
       estimatedDurationMs: 300_000,
     },
-  })
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.restoreAllMocks()
   })
   it(
     'renders a completed warning with its label, duration, and source link',
@@ -351,4 +351,152 @@ describe('pipeline running treatment composition', () => {
         }),
       )
   })
+})
+
+describe('source evidence presentation', () => {
+  function evidence(
+    overrides: Partial<import('@ze-great-dashboard/shared/browser').PipelineStatus> = {},
+  ) {
+    return {
+      panelId: panel.id,
+      state: 'ok' as const,
+      observedAt: '2026-08-28T12:00:00.000Z',
+      link: 'https://github.com/example/repo/actions',
+      signal: {
+        type: 'pipeline-status' as const,
+        status: 'passed' as const,
+        rawStatus: 'success',
+        name: panel.id,
+        sourceUpdatedAt: '2026-08-28T11:00:00.000Z',
+        ...overrides,
+      },
+    }
+  }
+  test(
+    'shows the duration of a completed run',
+    mint({
+      setup: () => ({ envelope: evidence({ durationMs: 134000 }) }),
+      exercise: ({ envelope }) => render(<PipelinePanel panel={panel} envelope={envelope} />),
+      verify: () => expect(screen.getByText('Took 2m 14s')).toBeTruthy(),
+    }),
+  )
+  test(
+    'omits duration for a still-running pipeline',
+    mint({
+      setup: () => ({ envelope: evidence({ status: 'running', durationMs: 134000 }) }),
+      exercise: ({ envelope }) =>
+        render(
+          <PipelinePanel panel={{ ...panel, running_animation: 'off' }} envelope={envelope} />,
+        ),
+      verify: () => {
+        expect(screen.getByText('Running')).toBeTruthy()
+        expect(screen.queryByText(/Took/)).toBeNull()
+      },
+    }),
+  )
+  test(
+    'shows the live activity rather than its raw status',
+    mint({
+      setup: () => ({
+        envelope: evidence({
+          status: 'running',
+          rawStatus: 'in_progress',
+          activity: { kind: 'step', name: 'integration tests', parent: 'build' },
+        }),
+      }),
+      exercise: ({ envelope }) =>
+        render(
+          <PipelinePanel panel={{ ...panel, running_animation: 'off' }} envelope={envelope} />,
+        ),
+      verify: (_, { envelope }) => {
+        expect(
+          screen.getByText(
+            `${envelope.signal.activity?.parent} › ${envelope.signal.activity?.name}`,
+          ),
+        ).toBeTruthy()
+        expect(screen.queryByText('in_progress')).toBeNull()
+      },
+    }),
+  )
+  test(
+    'discloses an unavailable estimate on an indeterminate active field',
+    mint({
+      setup: () => ({ envelope: evidence({ status: 'running', sourceUpdatedAt: undefined }) }),
+      exercise: ({ envelope }) =>
+        render(
+          <PipelinePanel
+            panel={{ ...panel, running_animation: 'telemetry-bloom' }}
+            envelope={envelope}
+          />,
+        ),
+      verify: ({ container }) => {
+        expect(screen.getByText(/Expected duration unavailable/)).toBeTruthy()
+        expect(
+          container.querySelector('[data-running-field][data-indeterminate="true"]'),
+        ).not.toBeNull()
+      },
+    }),
+  )
+  for (const scenario of [
+    {
+      kind: 'no-runs',
+      message: 'No workflow runs found for branch "master".',
+      heading: 'No workflow runs',
+    },
+    {
+      kind: 'unauthorized',
+      message: 'Token no longer grants workflow access.',
+      heading: 'Access denied',
+    },
+  ] as const)
+    test(
+      `presents ${scenario.kind} without inventing an incident timestamp`,
+      mint({
+        setup: () => ({
+          envelope: {
+            panelId: panel.id,
+            state: 'error' as const,
+            observedAt: '2026-08-28T12:00:00.000Z',
+            link: 'https://github.com/example/repo/actions',
+            error: { kind: scenario.kind, message: scenario.message },
+          },
+          heading: scenario.heading,
+        }),
+        exercise: ({ envelope }) => render(<PipelinePanel panel={panel} envelope={envelope} />),
+        verify: ({ container }, { envelope, heading }) => {
+          expect(screen.getByText(heading)).toBeTruthy()
+          expect(screen.getByText(envelope.error.message)).toBeTruthy()
+          expect(
+            screen
+              .getByRole('link', { name: `View source for ${panel.id} (opens in a new tab)` })
+              .getAttribute('href'),
+          ).toBe(envelope.link)
+          expect(container.textContent).not.toContain('Observed')
+          expect(container.textContent).not.toContain('Checked')
+        },
+      }),
+    )
+  test(
+    'retains the source action when the signal cannot be interpreted',
+    mint({
+      setup: () => ({
+        envelope: {
+          panelId: panel.id,
+          state: 'ok' as const,
+          observedAt: '2026-08-28T12:00:00.000Z',
+          link: 'https://github.com/example/repo/actions',
+          signal: { type: 'pipeline-status', status: 'surprising' },
+        },
+      }),
+      exercise: ({ envelope }) => render(<PipelinePanel panel={panel} envelope={envelope} />),
+      verify: (_, { envelope }) => {
+        expect(screen.getByText('Invalid signal')).toBeTruthy()
+        expect(
+          screen
+            .getByRole('link', { name: `View source for ${panel.id} (opens in a new tab)` })
+            .getAttribute('href'),
+        ).toBe(envelope.link)
+      },
+    }),
+  )
 })

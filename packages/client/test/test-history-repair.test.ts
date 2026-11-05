@@ -1,9 +1,11 @@
 import type { ResourceScope } from '@continuous-excellence/testmints-js'
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import type { Panel, TestHistory } from '@ze-great-dashboard/shared/browser'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { BrowserPanelMemory } from '../src/panel-memory.ts'
 import { TestHistoryRepair } from '../src/test-history-repair.ts'
+
+afterEach(() => vi.useRealTimers())
 
 const panel: Panel = { id: 'tests', type: 'test-count', source: 'github', pipeline: 'ci.yml' }
 const path = '/api/panel/team/tests'
@@ -14,14 +16,8 @@ const inspection: TestHistory = {
   samples: [],
 }
 async function fixture(scope: ResourceScope, response = Response.json(inspection)) {
-  await scope.using(
-    'controlled clock',
-    () => {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date(inspection.inspectedAt))
-    },
-    () => vi.useRealTimers(),
-  )
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date(inspection.inspectedAt))
   const storageValues = new Map<string, string>()
   const storage = {
     getItem: (key: string) => storageValues.get(key) ?? null,

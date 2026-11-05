@@ -241,7 +241,7 @@ describe('rolling assembly', () => {
   )
 
   it(
-    'anchors the completed figure while nearby settled snow continues to relax',
+    'keeps the completed figure anchored as the simulation advances',
     mint({
       setup: () => {
         const complete = advanceTo(9_600, 0.96)

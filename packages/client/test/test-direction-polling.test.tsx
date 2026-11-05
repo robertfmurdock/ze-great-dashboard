@@ -2,7 +2,7 @@ import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render, renderHook, screen } from '@testing-library/react'
 import type { Board, Envelope, Panel, TestCount } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import type { DiagnosticEventInput } from '../src/diagnostics.ts'
 import { BrowserPanelMemory } from '../src/panel-memory.ts'
 import { PanelRenderer } from '../src/panel-registry.tsx'
@@ -47,20 +47,19 @@ function counts(id: string, total: number, updatedAt: string) {
   } satisfies TestCount
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
+
 describe('test direction through panel polling', () => {
   for (const scenario of cases) {
     test(
       `${scenario.name}: repeated polls preserve the comparison without re-emitting rendered evidence`,
       mint({
-        setup: async ({ scope }) => {
-          await scope.using(
-            'controlled polling clock',
-            () => {
-              vi.useFakeTimers()
-              vi.setSystemTime(new Date('2026-11-04T12:00:00Z'))
-            },
-            () => vi.useRealTimers(),
-          )
+        setup: async () => {
+          vi.useFakeTimers()
+          vi.setSystemTime(new Date('2026-11-04T12:00:00Z'))
           const memory = new BrowserPanelMemory({ getItem: () => null, setItem: () => {} })
           const earlier = counts('1', 100, '2026-11-04T10:00:00Z')
           const current = counts('2', 120, '2026-11-04T11:00:00Z')
@@ -70,15 +69,8 @@ describe('test direction through panel polling', () => {
             response(scenario.panel, scenario.signal(earlier)),
           )
           const envelope = response(scenario.panel, scenario.signal(current))
-          const fetcher = await scope.using(
-            'panel fetch',
-            () => {
-              const fetcher = vi.fn(async () => Response.json(envelope))
-              vi.stubGlobal('fetch', fetcher)
-              return fetcher
-            },
-            () => vi.unstubAllGlobals(),
-          )
+          const fetcher = vi.fn(async () => Response.json(envelope))
+          vi.stubGlobal('fetch', fetcher)
           const events: DiagnosticEventInput[] = []
           const board = { panels: [scenario.panel] } satisfies Board
           const diagnostics = {
@@ -87,12 +79,11 @@ describe('test direction through panel polling', () => {
             },
             recordGithubConsistencyIncident: vi.fn(),
           }
-          const hook = await scope.using(
-            'settled polling hook',
-            () => renderHook(() => usePanelSignals({ board, env, diagnostics, memory })),
-            (hook) => hook.unmount(),
-          )
-          await act(async () => {})
+          const hook = renderHook(() => usePanelSignals({ board, env, diagnostics, memory }))
+          await vi.waitUntil(() => hook.result.current.schedules[0]?.inFlight === false, {
+            interval: 1,
+            timeout: 500,
+          })
           fetcher.mockClear()
           events.length = 0
           return { hook, earlier, current, envelope, fetcher, panel: scenario.panel, events }
@@ -102,20 +93,26 @@ describe('test direction through panel polling', () => {
           await act(async () => {
             await vi.advanceTimersByTimeAsync(2000)
           })
-          return hook.result.current
+          return hook
         },
-        verify: (result, { panel, envelope, fetcher, events, earlier, current }) => {
-          expect(fetcher).toHaveBeenCalledTimes(2)
-          const delta = current.total - earlier.total
-          const totals = [earlier.total, current.total]
-          expect(result.signals[panel.id]).toEqual(envelope)
-          expect(result.testDirections[panel.id]).toMatchObject({
-            mode: 'jump',
-            delta,
-            totals,
-          })
-          const rendered = events.filter((event) => event.kind === 'panel-rendered')
-          expect(rendered).toHaveLength(0)
+        verify: async (hook, { panel, envelope, fetcher, events, earlier, current }) => {
+          await vi.waitFor(
+            () => {
+              const result = hook.result.current
+              expect(fetcher).toHaveBeenCalledTimes(2)
+              const delta = current.total - earlier.total
+              const totals = [earlier.total, current.total]
+              expect(result.signals[panel.id]).toEqual(envelope)
+              expect(result.testDirections[panel.id]).toMatchObject({
+                mode: 'jump',
+                delta,
+                totals,
+              })
+              const rendered = events.filter((event) => event.kind === 'panel-rendered')
+              expect(rendered).toHaveLength(0)
+            },
+            { interval: 1, timeout: 500 },
+          )
         },
       }),
     )

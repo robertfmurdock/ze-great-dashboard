@@ -1,10 +1,9 @@
-import type { ResourceScope } from '@continuous-excellence/testmints-js'
 import { mint } from '@continuous-excellence/testmints-js/vitest'
-import { render } from '@testing-library/react'
+import { renderHook, waitFor } from '@testing-library/react'
 import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
-import { describe, expect, test, vi } from 'vitest'
-import type { DiagnosticEventInput, DiagnosticSink } from '../src/diagnostics.ts'
+import { afterEach, describe, expect, test, vi } from 'vitest'
+import type { DiagnosticEventInput } from '../src/diagnostics.ts'
 import { useClientUpdate } from '../src/useClientUpdate.ts'
 
 const env: ClientEnv = {
@@ -14,306 +13,233 @@ const env: ClientEnv = {
   board: 'ze-great-team',
 }
 
-function Probe({
-  diagnostics,
-  fetcher,
-  reload,
-}: {
-  diagnostics: DiagnosticSink
-  fetcher: typeof fetch
-  reload: () => void
-}) {
-  useClientUpdate({ env, diagnostics, fetcher, reload })
-  return null
+const serverVersion = 'server-dev'
+function identity(overrides: Partial<ClientEnv> = {}) {
+  return Response.json({
+    assetPath: env.assetPath,
+    assetPathId: env.assetPathId,
+    serverVersion,
+    ...overrides,
+  })
 }
-
-function recordingSink() {
+function clientUpdateFixture(fetcher: ReturnType<typeof vi.fn<typeof fetch>>) {
   const events: DiagnosticEventInput[] = []
   return {
-    events,
-    record: (event: DiagnosticEventInput) => events.push(event),
-    recordGithubConsistencyIncident: vi.fn(),
+    env,
+    fetcher,
+    reload: vi.fn(),
+    diagnostics: {
+      events,
+      record: (event: DiagnosticEventInput) => events.push(event),
+      recordGithubConsistencyIncident: vi.fn(),
+    },
   }
 }
-
-function identity(overrides: Partial<ClientEnv> & { serverVersion?: string } = {}) {
-  return new Response(
-    JSON.stringify({
-      assetPath: env.assetPath,
-      assetPathId: env.assetPathId,
-      serverVersion: 'server-dev',
-      ...overrides,
+afterEach(() => vi.useRealTimers())
+describe('client identity selection', () => {
+  test(
+    'checks immediately and retains the current client identity',
+    mint({
+      setup: () => clientUpdateFixture(vi.fn<typeof fetch>(async () => identity())),
+      exercise: (input) => renderHook(() => useClientUpdate(input)),
+      verify: async (_, { fetcher, reload, diagnostics }) => {
+        await waitFor(() =>
+          expect(diagnostics.events).toContainEqual(
+            expect.objectContaining({
+              kind: 'client-update-response',
+              serverVersion,
+              assetPathIdMatches: true,
+            }),
+          ),
+        )
+        expect(fetcher).toHaveBeenCalledWith('/api/client', expect.anything())
+        const init = fetcher.mock.calls[0]?.[1]
+        expect(init).toMatchObject({ cache: 'no-store', signal: expect.any(AbortSignal) })
+        const headers = new Headers(init?.headers)
+        expect(headers.get('x-dashboard-client-version')).toBe('dev')
+        expect(headers.get('x-dashboard-client-origin')).toBe(window.location.origin)
+        expect(headers.get('x-dashboard-client-asset-id')).toBe(env.assetPathId)
+        expect(reload).not.toHaveBeenCalled()
+        expect(diagnostics.events).toContainEqual(
+          expect.objectContaining({ kind: 'client-update-check' }),
+        )
+      },
     }),
   )
-}
-
-function deferredResponse() {
-  let resolve!: (response: Response) => void
-  const response = new Promise<Response>((resolveResponse) => {
-    resolve = resolveResponse
-  })
-  return { response, resolve }
-}
-
-type Fetcher = ReturnType<typeof vi.fn<typeof fetch>>
-
-function clientUpdateFixture(scope: ResourceScope, fetcher: Fetcher, fakeTimers = false) {
-  if (fakeTimers) vi.useFakeTimers()
-  scope.defer('restore client update timers', () => vi.useRealTimers())
-  return { diagnostics: recordingSink(), fetcher, reload: vi.fn() }
-}
-
-describe('useClientUpdate', () => {
-  describe('client identity selection', () => {
-    test(
-      'checks the server immediately and does not reload for the current identity',
-      mint({
-        setup: ({ scope }) => {
-          const response = deferredResponse()
-          return {
-            ...clientUpdateFixture(
-              scope,
-              vi.fn<typeof fetch>(() => response.response),
-            ),
-            response,
-          }
-        },
-        exercise: async ({ diagnostics, fetcher, reload, response }) => {
-          render(<Probe diagnostics={diagnostics} fetcher={fetcher} reload={reload} />)
-          await act(async () => response.resolve(identity()))
-        },
-        verify: (_result, { diagnostics, fetcher, reload }) => {
-          expect(fetcher).toHaveBeenCalledWith('/api/client', expect.anything())
-          const init = fetcher.mock.calls[0]?.[1]
-          expect(init).toMatchObject({ cache: 'no-store', signal: expect.any(AbortSignal) })
-          const headers = new Headers(init?.headers)
-          expect(headers.get('x-dashboard-client-version')).toBe('dev')
-          expect(headers.get('x-dashboard-client-origin')).toBe(window.location.origin)
-          expect(headers.get('x-dashboard-client-asset-id')).toBe(env.assetPathId)
-          expect(reload).not.toHaveBeenCalled()
-          expect(diagnostics.events).toEqual(
-            expect.arrayContaining([
-              expect.objectContaining({ kind: 'client-update-check' }),
-              expect.objectContaining({
-                kind: 'client-update-response',
-                serverVersion: 'server-dev',
-                assetPathIdMatches: true,
-              }),
-            ]),
-          )
-        },
-      }),
+  test(
+    'reloads when the server selects another client',
+    mint({
+      setup: () => {
+        const nextAssetPath = 'https://assets.example.com/dashboard/1.0.8'
+        return {
+          ...clientUpdateFixture(
+            vi.fn<typeof fetch>(async () => identity({ assetPath: nextAssetPath })),
+          ),
+          nextAssetPath,
+        }
+      },
+      exercise: (input) => renderHook(() => useClientUpdate(input)),
+      verify: async (_, { diagnostics, reload, nextAssetPath }) => {
+        await waitFor(() => expect(reload).toHaveBeenCalledOnce())
+        expect(diagnostics.events).toContainEqual(
+          expect.objectContaining({
+            kind: 'client-update-detected',
+            next: expect.objectContaining({ assetPath: nextAssetPath }),
+          }),
+        )
+      },
+    }),
+  )
+  test(
+    'records a failed identity response without reloading',
+    mint({
+      setup: () =>
+        clientUpdateFixture(vi.fn<typeof fetch>(async () => new Response('nope', { status: 503 }))),
+      exercise: (input) => renderHook(() => useClientUpdate(input)),
+      verify: async (_, { diagnostics, reload }) => {
+        await waitFor(() =>
+          expect(diagnostics.events).toContainEqual(
+            expect.objectContaining({ kind: 'client-update-failure' }),
+          ),
+        )
+        expect(reload).not.toHaveBeenCalled()
+      },
+    }),
+  )
+})
+describe('identity check lifecycle', () => {
+  async function settledFixture() {
+    vi.useFakeTimers()
+    const world = clientUpdateFixture(vi.fn<typeof fetch>(async () => identity()))
+    const hook = renderHook(() => useClientUpdate(world))
+    await vi.waitUntil(
+      () => world.diagnostics.events.some((event) => event.kind === 'client-update-response'),
+      { interval: 1, timeout: 500 },
     )
-
-    test(
-      'reloads when the server selects a different client',
-      mint({
-        setup: ({ scope }) => {
-          const nextAssetPath = 'https://assets.example.com/dashboard/1.0.8'
-          const response = deferredResponse()
-          return {
-            ...clientUpdateFixture(
-              scope,
-              vi.fn<typeof fetch>(() => response.response),
-            ),
-            response,
-            nextAssetPath,
-          }
-        },
-        exercise: async ({ diagnostics, fetcher, reload, response, nextAssetPath }) => {
-          render(<Probe diagnostics={diagnostics} fetcher={fetcher} reload={reload} />)
-          await act(async () => response.resolve(identity({ assetPath: nextAssetPath })))
-        },
-        verify: (_result, { diagnostics, reload, nextAssetPath }) => {
-          expect(reload).toHaveBeenCalledOnce()
-          expect(diagnostics.events).toEqual(
-            expect.arrayContaining([
-              expect.objectContaining({
-                kind: 'client-update-detected',
-                next: expect.objectContaining({ assetPath: nextAssetPath }),
-              }),
-            ]),
+    return { ...world, hook }
+  }
+  test(
+    'checks again sixty seconds after settlement',
+    mint({
+      setup: settledFixture,
+      exercise: async () => {
+        await act(async () => vi.advanceTimersByTimeAsync(60000))
+      },
+      verify: async (_, { fetcher, diagnostics }) => {
+        await vi.waitFor(
+          () => {
+            expect(fetcher).toHaveBeenCalledTimes(2)
+            expect(
+              diagnostics.events.filter((event) => event.kind === 'client-update-response'),
+            ).toHaveLength(2)
+          },
+          { interval: 1, timeout: 500 },
+        )
+      },
+    }),
+  )
+  test(
+    'keeps its existing schedule through a hook rerender',
+    mint({
+      setup: async () => {
+        const world = await settledFixture()
+        await act(async () => vi.advanceTimersByTimeAsync(30000))
+        return world
+      },
+      exercise: async ({ hook }) => {
+        hook.rerender()
+        await act(async () => vi.advanceTimersByTimeAsync(30000))
+      },
+      verify: async (_, { fetcher, diagnostics }) => {
+        await vi.waitFor(
+          () => {
+            expect(fetcher).toHaveBeenCalledTimes(2)
+            expect(
+              diagnostics.events.filter((event) => event.kind === 'client-update-response'),
+            ).toHaveLength(2)
+          },
+          { interval: 1, timeout: 500 },
+        )
+      },
+    }),
+  )
+  function pendingFixture() {
+    vi.useFakeTimers()
+    const pending = vi.fn<typeof fetch>(
+      (_path, options) =>
+        new Promise<Response>((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
           )
-        },
-      }),
+        }),
     )
-  })
-
-  describe('check lifecycle', () => {
-    test(
-      'checks again after 60 seconds',
-      mint({
-        setup: async ({ scope }) => {
-          const response = deferredResponse()
-          const fetcher: Fetcher = vi.fn<typeof fetch>(() =>
-            fetcher.mock.calls.length === 1 ? response.response : Promise.resolve(identity()),
-          )
-          const fixture = clientUpdateFixture(scope, fetcher, true)
-          render(
-            <Probe
-              diagnostics={fixture.diagnostics}
-              fetcher={fixture.fetcher}
-              reload={fixture.reload}
-            />,
-          )
-          await act(async () => response.resolve(identity()))
-          return fixture
-        },
-        exercise: async () => {
-          await act(async () => {
-            vi.advanceTimersByTime(60_000)
-            await Promise.resolve()
-          })
-        },
-        verify: (_result, { fetcher }) => expect(fetcher).toHaveBeenCalledTimes(2),
-      }),
-    )
-
-    test(
-      'stops polling after unmount',
-      mint({
-        setup: ({ scope }) => {
-          const fixture = clientUpdateFixture(
-            scope,
-            vi.fn<typeof fetch>(
-              (_path, options?: RequestInit) =>
-                new Promise<Response>((_, reject) => {
-                  options?.signal?.addEventListener('abort', () =>
-                    reject(new DOMException('aborted', 'AbortError')),
-                  )
-                }),
-            ),
-            true,
-          )
-          const rendered = render(
-            <Probe
-              diagnostics={fixture.diagnostics}
-              fetcher={fixture.fetcher}
-              reload={fixture.reload}
-            />,
-          )
-          return { ...fixture, rendered }
-        },
-        exercise: async ({ rendered }) => {
-          await act(async () => rendered.unmount())
-          await act(async () => {
-            vi.advanceTimersByTime(60_000)
-            await Promise.resolve()
-          })
-        },
-        verify: (_result, { diagnostics, fetcher }) => {
-          expect(fetcher).toHaveBeenCalledOnce()
-          expect(diagnostics.events).not.toEqual(
-            expect.arrayContaining([expect.objectContaining({ kind: 'client-update-failure' })]),
-          )
-        },
-      }),
-    )
-
-    test(
-      'does not restart the schedule when the component rerenders',
-      mint({
-        setup: async ({ scope }) => {
-          const response = deferredResponse()
-          const fetcher: Fetcher = vi.fn<typeof fetch>(() =>
-            fetcher.mock.calls.length === 1 ? response.response : Promise.resolve(identity()),
-          )
-          const fixture = clientUpdateFixture(scope, fetcher, true)
-          const rendered = render(
-            <Probe
-              diagnostics={fixture.diagnostics}
-              fetcher={fixture.fetcher}
-              reload={fixture.reload}
-            />,
-          )
-          await act(async () => response.resolve(identity()))
-          await act(async () => {
-            vi.advanceTimersByTime(30_000)
-            await Promise.resolve()
-          })
-          return { ...fixture, rendered }
-        },
-        exercise: async ({ diagnostics, fetcher, reload, rendered }) => {
-          await act(async () =>
-            rendered.rerender(
-              <Probe diagnostics={diagnostics} fetcher={fetcher} reload={reload} />,
-            ),
-          )
-          await act(async () => {
-            vi.advanceTimersByTime(30_000)
-            await Promise.resolve()
-          })
-        },
-        verify: (_result, { fetcher }) => expect(fetcher).toHaveBeenCalledTimes(2),
-      }),
-    )
-
-    test(
-      'records failures and keeps the radiator running',
-      mint({
-        setup: ({ scope }) => {
-          const response = deferredResponse()
-          return {
-            ...clientUpdateFixture(
-              scope,
-              vi.fn<typeof fetch>(() => response.response),
-            ),
-            response,
-          }
-        },
-        exercise: async ({ diagnostics, fetcher, reload, response }) => {
-          render(<Probe diagnostics={diagnostics} fetcher={fetcher} reload={reload} />)
-          await act(async () => response.resolve(new Response('nope', { status: 503 })))
-        },
-        verify: (_result, { diagnostics, reload }) => {
-          expect(reload).not.toHaveBeenCalled()
-          expect(diagnostics.events).toEqual(
-            expect.arrayContaining([expect.objectContaining({ kind: 'client-update-failure' })]),
-          )
-        },
-      }),
-    )
-
-    test(
-      'times out a hung request and continues checking later',
-      mint({
-        setup: ({ scope }) => {
-          const fetcher = vi.fn<typeof fetch>((_path, options?: RequestInit) => {
-            if (fetcher.mock.calls.length > 1) return Promise.resolve(identity())
-            return new Promise<Response>((_, reject) => {
-              options?.signal?.addEventListener('abort', () =>
-                reject(new DOMException('timed out', 'AbortError')),
-              )
-            })
-          })
-          const fixture = clientUpdateFixture(scope, fetcher, true)
-          render(
-            <Probe
-              diagnostics={fixture.diagnostics}
-              fetcher={fixture.fetcher}
-              reload={fixture.reload}
-            />,
-          )
-          return fixture
-        },
-        exercise: async () => {
-          await act(async () => {
-            vi.advanceTimersByTime(10_000)
-            await Promise.resolve()
-          })
-          await act(async () => {
-            vi.advanceTimersByTime(60_000)
-            await Promise.resolve()
-          })
-        },
-        verify: (_result, { diagnostics, fetcher, reload }) => {
-          expect(fetcher).toHaveBeenCalledTimes(2)
-          expect(reload).not.toHaveBeenCalled()
-          expect(diagnostics.events).not.toEqual(
-            expect.arrayContaining([expect.objectContaining({ kind: 'client-update-failure' })]),
-          )
-        },
-      }),
-    )
-  })
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockImplementationOnce(pending)
+      .mockImplementation(async () => identity())
+    const world = clientUpdateFixture(fetcher)
+    return { ...world, hook: renderHook(() => useClientUpdate(world)) }
+  }
+  test(
+    'aborts an in-flight identity request and stops checking after unmount',
+    mint({
+      setup: pendingFixture,
+      exercise: async ({ hook }) => {
+        hook.unmount()
+        await act(async () => vi.advanceTimersByTimeAsync(60000))
+      },
+      verify: (_, { fetcher, diagnostics }) => {
+        expect(fetcher).toHaveBeenCalledOnce()
+        expect(fetcher.mock.calls[0]?.[1]?.signal?.aborted).toBe(true)
+        expect(diagnostics.events.some((event) => event.kind === 'client-update-failure')).toBe(
+          false,
+        )
+      },
+    }),
+  )
+  test(
+    'aborts a hung request at its deadline',
+    mint({
+      setup: pendingFixture,
+      exercise: async () => {
+        await act(async () => vi.advanceTimersByTimeAsync(10000))
+      },
+      verify: (_, { fetcher, diagnostics, reload }) => {
+        expect(fetcher).toHaveBeenCalledOnce()
+        expect(fetcher.mock.calls[0]?.[1]?.signal?.aborted).toBe(true)
+        expect(reload).not.toHaveBeenCalled()
+        expect(diagnostics.events.some((event) => event.kind === 'client-update-failure')).toBe(
+          false,
+        )
+      },
+    }),
+  )
+  test(
+    'continues checking after a timed-out request',
+    mint({
+      setup: async () => {
+        const world = pendingFixture()
+        await act(async () => vi.advanceTimersByTimeAsync(10000))
+        return world
+      },
+      exercise: async () => {
+        await act(async () => vi.advanceTimersByTimeAsync(60000))
+      },
+      verify: async (_, { fetcher, diagnostics, reload }) => {
+        await vi.waitFor(
+          () => {
+            expect(fetcher).toHaveBeenCalledTimes(2)
+            expect(diagnostics.events).toContainEqual(
+              expect.objectContaining({ kind: 'client-update-response' }),
+            )
+          },
+          { interval: 1, timeout: 500 },
+        )
+        expect(reload).not.toHaveBeenCalled()
+        expect(diagnostics.events.some((event) => event.kind === 'client-update-failure')).toBe(
+          false,
+        )
+      },
+    }),
+  )
 })

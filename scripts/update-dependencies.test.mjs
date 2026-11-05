@@ -24,31 +24,36 @@ async function withRegistry(handler, run) {
 }
 
 test('recognizes the exact published Noble Playwright image', async () => {
+  const requests = []
   await withRegistry(
     (request, response) => {
-      assert.equal(request.url, '/v2/playwright/manifests/v1.64.0-noble')
-      assert.match(
-        request.headers.accept ?? '',
-        /application\/vnd\.docker\.distribution\.manifest\.v2\+json/,
-      )
+      requests.push({ url: request.url, accept: request.headers.accept })
       response.writeHead(200).end()
     },
     async (registryUrl) => {
       assert.equal(await playwrightImageIsPublished('1.64.0', { registryUrl }), true)
     },
   )
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].url, '/v2/playwright/manifests/v1.64.0-noble')
+  assert.match(
+    requests[0].accept ?? '',
+    /application\/vnd\.docker\.distribution\.manifest\.v2\+json/,
+  )
 })
 
 test('defers an image tag that MCR has not published', async () => {
+  const paths = []
   await withRegistry(
     (request, response) => {
-      assert.equal(request.url, '/v2/playwright/manifests/v1.64.0-noble')
+      paths.push(request.url)
       response.writeHead(404).end()
     },
     async (registryUrl) => {
       assert.equal(await playwrightImageIsPublished('1.64.0', { registryUrl }), false)
     },
   )
+  assert.deepEqual(paths, ['/v2/playwright/manifests/v1.64.0-noble'])
 })
 
 test('does not conceal an unavailable registry', async () => {

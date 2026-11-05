@@ -2,7 +2,7 @@ import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { BrowserDiagnosticStore } from '../src/diagnostics.ts'
 import type { PollingScheduleSnapshot } from '../src/polling-schedule.ts'
 import { UpdateActivity } from '../src/UpdateActivity.tsx'
@@ -36,6 +36,8 @@ function log() {
     removeItem: (key) => values.delete(key),
   })
 }
+afterEach(() => vi.useRealTimers())
+
 describe('Update activity', () => {
   describe('dialog disclosure', () => {
     test(
@@ -157,9 +159,8 @@ describe('Update activity', () => {
     test(
       'dismisses after a minute without interaction',
       mint({
-        setup: ({ scope }) => {
+        setup: () => {
           vi.useFakeTimers()
-          scope.defer('restore real timers', () => vi.useRealTimers())
           render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={log()} />)
         },
         exercise: () => {
@@ -180,9 +181,8 @@ describe('Update activity', () => {
     test(
       'remains open past the original minute when interaction resets dismissal',
       mint({
-        setup: ({ scope }) => {
+        setup: () => {
           vi.useFakeTimers()
-          scope.defer('restore real timers', () => vi.useRealTimers())
           render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={log()} />)
         },
         exercise: () => {
@@ -203,9 +203,8 @@ describe('Update activity', () => {
     test(
       'dismisses after the reset minute window',
       mint({
-        setup: ({ scope }) => {
+        setup: () => {
           vi.useFakeTimers()
-          scope.defer('restore real timers', () => vi.useRealTimers())
           render(<UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={log()} />)
         },
         exercise: () => {

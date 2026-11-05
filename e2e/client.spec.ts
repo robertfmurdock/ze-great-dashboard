@@ -1179,8 +1179,6 @@ test('keeps panel-scale fields behind readable content, adapts them without over
   expect(snowmanBounds.field.right).toBeLessThanOrEqual(snowmanBounds.panel.right)
   expect(snowmanBounds.field.bottom).toBeLessThanOrEqual(snowmanBounds.panel.bottom)
   await expect(snowman.locator('[data-running-part="snowman-canvas"]')).toBeVisible()
-  // The figure is canvas snow, not replacement CSS circles or DOM flakes.
-  await expect(snowman.locator('.body, .head')).toHaveCount(0)
 
   const weather = page.locator('[data-running-field][data-animation="status-weather"]')
   await expect(weather).toHaveCount(2)
@@ -1448,7 +1446,7 @@ test('keeps phased signal and bloom markers continuous while progress updates an
     ['bloom-marker', 'signal-marker'].every(
       (part) =>
         document.querySelector<HTMLElement>(`[data-running-part="${part}"]`)?.getAnimations()[0]
-          ?.startTime !== null,
+          ?.startTime != null,
     ),
   )
   const samples = [await sample()]

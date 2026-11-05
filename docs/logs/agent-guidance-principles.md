@@ -348,3 +348,40 @@ instructions, with that historical-snapshot distinction.
 Rob also noted that he plans explicit Testmints template support for truly repeated test logic and
 asked to defer the broader fixture refactor for now. This cleanup therefore adds no fixture or
 macro abstraction; prospective template support is context, not a claim about the installed adapter.
+
+## Testmints semantics should inform decisions — 2026-11-05
+
+After the migration and whole-suite review, Rob clarified the purpose of the system:
+
+> the point of testmints was never to add features - it was to add semantics that can and should
+> inform decisions
+>
+> a "mechanical" conversion that doesn't resolve a semantic discrepency of course is low value.
+> at worst it even be actively misleading!
+
+This corrects framing the semantic improvements as a useful side effect of adopting the phase
+syntax. They are the intended purpose. When a scenario does not fit the meaning of its phases,
+that discrepancy should inform decisions about its subject, ownership, inputs, action, and evidence.
+Merely assigning existing code to setup/exercise/verify can imply a coherent boundary the test does
+not actually have. Relocating, splitting, consolidating, or dissolving a test can therefore be the
+successful migration outcome. This entry preserves the clarification alongside the earlier concrete
+ownership examples; it does not introduce another layer of migration infrastructure.
+
+## Make incoherence visible, and write with Testmints by default — 2026-11-05
+
+Rob explained why imperfect Testmints tests can still be useful review material:
+
+> one of my hopes is that even a "bad" testmints test will highlight its own incoherence and raise
+> questions, lol. a lot of my probing came from that kind of review
+
+He then set the ongoing expectation:
+
+> since we're no longer in migration mode, we should tweak the guidance to focus less on
+> "migrating" and more on "all tests should be written with testmints" from here on out. we're
+> in a new era
+
+The phase semantics should expose questions, not certify coherence merely by being present.
+AGENTS.md and CLAUDE.md now promote that principle together with the ongoing Testmints requirement
+for all new or changed Vitest scenarios. Their runner boundary remains explicit: Playwright browser
+and Node script suites retain their integrations and follow the same scenario and evidence rules.
+The fuller conversation is preserved in the migration log's closing entry.

@@ -1,7 +1,7 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import type { BoardConfig } from '@ze-great-dashboard/shared'
 import { describe, expect, test, vi } from 'vitest'
-import { fetchHttpValue, permittedHttpValueCalls } from '../src/adapters/http-value.ts'
+import { fetchHttpValue } from '../src/adapters/http-value.ts'
 import { createApp } from '../src/app.ts'
 import { loadConfig } from '../src/config.ts'
 import type { ServerLogEvent } from '../src/logger.ts'
@@ -97,8 +97,8 @@ describe('the http-value adapter', () => {
       }),
       exercise: ({ panel, requestHeaders, fetcher }) =>
         fetchHttpValue({ panel, requestHeaders, fetcher }),
-      verify: (result, { panel }) => {
-        expect(permittedHttpValueCalls(panel)[0]?.url).toBe(panel.url)
+      verify: (result, { panel, fetcher }) => {
+        expect(fetcher).toHaveBeenCalledExactlyOnceWith(panel.url, { headers: expect.any(Headers) })
         expect(result.envelope).toMatchObject({
           panelId: 'version',
           state: 'ok',

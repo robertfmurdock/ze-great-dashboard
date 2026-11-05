@@ -816,3 +816,110 @@ publication, omitted aborts, incorrect demo cadence and camera centering, wrong 
 and snowman duration threshold, substituted reference CLI parameters, weakened bucket declarations,
 and broken administrator-script syntax. Every fault was restored before the unified gate. These
 controls validate the changed test boundaries; they did not reveal or fix a production defect.
+
+## 2026-11-05 — reviewing the whole suite after migration
+
+The second pass applied lessons learned late in the migration to the earlier suites. The main
+change is ownership: App now proves board loading, panel selection, layout forwarding, public
+evidence persistence, and the presentation of refreshed or missed readings. Duration formatting,
+source-age precedence, missed-update escalation, running-treatment selection, and local timing
+advance live at PipelinePanel, TimeAge, RunningProgress, and useRunningTiming. Normal polling
+precedence is exercised through the parsed configuration and policy resolver. Invalid envelopes
+and 304 transport evidence remain at usePanelSignals. Removing the duplicate App executions was
+conditional on retaining those distinct contracts at their narrower interfaces.
+
+The old App composition scenario failed when its board response was delayed by 100 milliseconds:
+it asserted that panel requests existed before board loading had completed. The rewritten scenario
+passes that same perturbation by awaiting the actual rendered readings. This exposed fragile test
+synchronization, not a production defect. The controlled App transport also needs to distinguish
+client-identity requests from panel requests and honor Strict Mode cancellation before consuming a
+queued panel response. Its short real polling cadence only enables response-composition scenarios;
+precise timing claims use controlled clocks in hook and policy tests. Client-update, test-direction,
+and history-repair composition now use renderHook, live state, and completion evidence rather than
+Probe callbacks, unfinished snapshots, or generic microtask flushing. Browser animation readiness
+now rejects both absent animations and null start times; the prior undefined comparison could let
+sampling start prematurely.
+
+Opening a security dialog and closing it with Escape are separate interactions with separate focus
+contracts, so they no longer harvest intermediate booleans. Persisted diagnostics loading visibly
+constructs the store in exercise, and malformed-store checks inspect the persisted schema and
+session event rather than searching for a version digit. Shared timer, mock, and global restoration
+uses ordinary Vitest hooks; temporary servers, files, and repair coordinators retain scenario-scoped
+disposal. Incidental decorative DOM assertions were removed while public reduced-motion and
+rendered-browser behavior remain covered.
+
+Fixture-only GitHub status checks dissolved into the adapter's existing recorded-response matrix.
+Example-board validation now checks the parsed input's credential references and absence of raw
+credential properties in the same scenario. The HTTP-value test verifies the actual outbound call
+rather than invoking a second call-construction subject during verification. Immutable-client
+positive and negative assertions now share one request per published version, retaining the real
+HTTP fixture origin, environment parsing, both hashed asset types, cross-version exclusions, and
+sentinel removal. Script HTTP handlers capture requests for assertions after completion; the Auth0
+role fallback test now checks the role argument actually passed to AWS rather than a constant in
+isolation. These changes add no dependencies or shared Testmints machinery; prospective template
+support remains deferred.
+
+Reversible controls detected omitted App envelope wiring, disabled local clock advancement,
+premature missed-update escalation, omitted client reload, missing repaired-history publication,
+incorrect retention, an altered outbound URL, a substituted reader-role argument, and disabled
+asset-path rewriting at their observable assertions. Each implementation was restored. Browser and
+script tests retain their native runners; historical migration experiments remain historical.
+
+## 2026-11-05 — closing conversation: semantics, review, and the new default
+
+After the whole-suite review, the conversation made explicit what the migration had been for.
+These excerpts preserve the exchange rather than retroactively rewriting the earlier migration
+notes around its conclusions.
+
+**Codex**, reflecting on the changes:
+
+> The biggest gain is that we repeatedly asked **“what is this test actually testing?”** That led
+> to better ownership, fewer duplicate executions, clearer data flow, and removal of tests that
+> mostly inspected fixtures or implementation choices. The async cleanup also made the evidence
+> more trustworthy.
+
+**Rob**, correcting the framing:
+
+> and that is in the spirit of the system - the point of testmints was never to add features - it
+> was to add semantics that can and should inform decisions
+>
+> a "mechanical" conversion that doesn't resolve a semantic discrepency of course is low value.
+> at worst it even be actively misleading!
+
+**Codex**:
+
+> That corrects my framing. I described the design improvements as something the migration
+> prompted; you’re saying they’re the intended work of adopting the semantics.
+>
+> And the misleading part matters: labeling something `exercise` makes a claim about what the
+> test executes. If the meaningful action already happened in setup, the new structure gives a
+> false explanation of the evidence.
+
+**Rob**, on the diagnostic value of an imperfect test:
+
+> yeah one of my hopes is that even a "bad" testmints test will highlight its own incoherence and
+> raise questions, lol. a lot of my probing came from that kind of review
+
+**Codex**:
+
+> That’s a useful distinction: the semantics don’t have to prevent incoherence to make it easier
+> to notice.
+>
+> `exercise: readFile(...)` put the questionable subject right in front of us. The phase labels
+> gave your review a concrete question: “Is that really the action this test claims to prove?”
+>
+> So even an imperfect conversion can have diagnostic value. The failure would be treating
+> successful conversion as proof that those questions have been resolved.
+
+**Rob**, making the ongoing expectation explicit:
+
+> similarly, since we're no longer in migration mode, we should tweak the guidance to focus less
+> on "migrating" and more on "all tests should be written with testmints" from here on out. we're
+> in a new era
+
+AGENTS.md and CLAUDE.md now describe writing and reviewing tests with Testmints as the ongoing
+standard, including the semantic questions above. Every new or changed Vitest scenario uses the
+installed adapter. Existing Playwright and Node-runner integrations retain their respective runners
+and apply the same behavioral principles; this guidance change does not introduce another adapter
+or rewrite those runner integrations. The completed migration is historical context, not an opt-in
+workflow for future Vitest tests.

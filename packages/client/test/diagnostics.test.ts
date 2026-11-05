@@ -116,11 +116,12 @@ describe('browser-local diagnostics', () => {
             panelId: String(index),
           }))
           const store = memory(JSON.stringify({ schemaVersion: diagnosticsSchemaVersion, events }))
-          return { stale, log: new BrowserDiagnosticStore(env, store, now) }
+          return { stale, store }
         },
-        exercise: ({ log }) => ({ count: log.count(), exported: log.export() }),
-        verify: ({ count, exported }, { stale }) => {
-          expect(count).toBe(2_000)
+        exercise: ({ store }) => new BrowserDiagnosticStore(env, store, now),
+        verify: (log, { stale }) => {
+          const exported = log.export()
+          expect(log.count()).toBe(2_000)
           expect(exported.events.some((event) => event.at === stale)).toBe(false)
           expect(exported.summary.retained.retention).toEqual({
             eventsPrunedByAge: 1,
@@ -149,12 +150,15 @@ describe('browser-local diagnostics', () => {
         mint({
           setup: () => {
             const store = memory(persistedPayload)
-            return { log: new BrowserDiagnosticStore(env, store, now), store }
+            return { store }
           },
-          exercise: ({ log, store }) => ({ count: log.count(), persisted: store.value() }),
-          verify: ({ count, persisted }) => {
-            expect(count).toBe(1)
-            expect(persisted).toContain(String(diagnosticsSchemaVersion))
+          exercise: ({ store }) => new BrowserDiagnosticStore(env, store, now),
+          verify: (log, { store }) => {
+            expect(log.count()).toBe(1)
+            expect(JSON.parse(store.value() ?? 'null')).toMatchObject({
+              schemaVersion: diagnosticsSchemaVersion,
+              events: [expect.objectContaining({ kind: 'session-start' })],
+            })
           },
         }),
       )
@@ -177,11 +181,12 @@ describe('browser-local diagnostics', () => {
           }
           return {
             values,
-            log: new BrowserDiagnosticStore(env, storage, now),
+            storage,
           }
         },
-        exercise: ({ log }) => log.export(),
-        verify: (exported, { values }) => {
+        exercise: ({ storage }) => new BrowserDiagnosticStore(env, storage, now),
+        verify: (log, { values }) => {
+          const exported = log.export()
           expect(values.has('ze-great-dashboard.diagnostics.v1')).toBe(false)
           expect(JSON.stringify(exported)).not.toContain('upstream secret value')
         },

@@ -1,9 +1,14 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { type BoardConfig, clientEnvSchema } from '@ze-great-dashboard/shared'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { createApp } from '../src/app.ts'
 import { loadConfig } from '../src/config.ts'
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 // noinspection HtmlUnknownTarget
 const TEMPLATE = `<!doctype html>
@@ -126,9 +131,8 @@ describe('the entrypoint document', () => {
     test(
       'refuses a template with nowhere to put configuration',
       mint({
-        setup: ({ scope }) => {
-          const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-          scope.defer('restore console error', () => error.mockRestore())
+        setup: () => {
+          vi.spyOn(console, 'error').mockImplementation(() => undefined)
           return { app: appWith({}, '<html lang="en"><body>no head here</body></html>') }
         },
         exercise: ({ app }) => app.request('/'),

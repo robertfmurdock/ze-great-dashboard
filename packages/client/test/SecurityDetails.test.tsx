@@ -1,77 +1,80 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { SecurityDetails } from '../src/SecurityDetails.tsx'
 import { clientTestFixture, env } from './client-test-fixture.tsx'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
 
 describe('SecurityDetails', () => {
   test(
     'requests and renders policy metadata only after Security is opened',
     mint({
-      setup: ({ scope }) => {
-        clientTestFixture(scope)
-        const fetcher = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
-          () =>
-            Promise.resolve(
-              Response.json({
-                oidc: true,
-                policy: { mode: 'claim', claim: 'groups', match: 'any' },
-              }),
-            ),
-        )
+      setup: () => {
+        clientTestFixture()
+        const metadata = { oidc: true, policy: { mode: 'claim', claim: 'groups', match: 'any' } }
+        const auth = { accessToken: 'access-token', onAuthenticationFailure: vi.fn() }
+        const fetcher = vi.fn(async () => Response.json(metadata))
         vi.stubGlobal('fetch', fetcher)
-        render(
-          <SecurityDetails
-            env={env}
-            auth={{ accessToken: 'access-token', onAuthenticationFailure: vi.fn() }}
-          />,
-        )
-        return { fetcher, user: userEvent.setup() }
+        render(<SecurityDetails env={env} auth={auth} />)
+        return {
+          fetcher,
+          auth,
+          metadata,
+          user: userEvent.setup(),
+          callsBeforeClick: fetcher.mock.calls.length,
+        }
       },
-      exercise: async ({ fetcher, user }) => {
-        const callsBeforeClick = fetcher.mock.calls.length
-        await user.click(screen.getByRole('button', { name: 'Security' }))
-        return { callsBeforeClick }
-      },
-      verify: async ({ callsBeforeClick }, { fetcher }) => {
-        await screen.findByText('groups')
+      exercise: ({ user }) => user.click(screen.getByRole('button', { name: 'Security' })),
+      verify: async (_, { callsBeforeClick, fetcher, auth, metadata }) => {
+        await screen.findByText(metadata.policy.claim)
         const dialog = screen.getByRole('dialog')
         expect(callsBeforeClick).toBe(0)
         expect(fetcher).toHaveBeenCalledOnce()
-        expect(new Headers(fetcher.mock.calls[0]?.[1]?.headers).get('authorization')).toBe(
-          'Bearer access-token',
-        )
-        expect(dialog.textContent).toContain('groups')
-        expect(dialog.textContent).toContain('any')
-        expect(dialog.textContent).not.toContain('access-token')
+        const init = vi.mocked(fetch).mock.calls[0]?.[1]
+        expect(new Headers(init?.headers).get('authorization')).toBe(`Bearer ${auth.accessToken}`)
+        expect(dialog.textContent).toContain(metadata.policy.claim)
+        expect(dialog.textContent).toContain(metadata.policy.match)
+        expect(dialog.textContent).not.toContain(auth.accessToken)
       },
     }),
   )
 
   test(
-    'focuses the close control on open and returns focus after Escape',
+    'focuses the close control when opened',
     mint({
-      setup: ({ scope }) => {
-        clientTestFixture(scope)
+      setup: () => {
+        clientTestFixture()
         render(<SecurityDetails env={env} auth={{ accessToken: 'access-token' }} />)
         return { user: userEvent.setup() }
       },
-      exercise: async ({ user }) => {
-        await user.click(screen.getByRole('button', { name: 'Security' }))
-        const closeButton = await screen.findByRole('button', { name: 'Close' })
-        const focusWasClose = document.activeElement === closeButton
-        await user.keyboard('{Escape}')
-        return {
-          focusWasClose,
-          focusWasSecurityAfterEscape:
-            document.activeElement === screen.getByRole('button', { name: 'Security' }),
-        }
+      exercise: ({ user }) => user.click(screen.getByRole('button', { name: 'Security' })),
+      verify: async () => {
+        const close = await screen.findByRole('button', { name: 'Close' })
+        expect(document.activeElement).toBe(close)
       },
-      verify: ({ focusWasClose, focusWasSecurityAfterEscape }) => {
-        expect(focusWasClose).toBe(true)
+    }),
+  )
+
+  test(
+    'closes on Escape and returns focus to Security',
+    mint({
+      setup: async () => {
+        clientTestFixture()
+        render(<SecurityDetails env={env} auth={{ accessToken: 'access-token' }} />)
+        const user = userEvent.setup()
+        await user.click(screen.getByRole('button', { name: 'Security' }))
+        await screen.findByRole('dialog')
+        return { user }
+      },
+      exercise: ({ user }) => user.keyboard('{Escape}'),
+      verify: () => {
         expect(screen.queryByRole('dialog')).toBeNull()
-        expect(focusWasSecurityAfterEscape).toBe(true)
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Security' }))
       },
     }),
   )
@@ -79,8 +82,8 @@ describe('SecurityDetails', () => {
   test(
     'renders an unavailable alert without policy metadata after a failed request',
     mint({
-      setup: ({ scope }) => {
-        clientTestFixture(scope)
+      setup: () => {
+        clientTestFixture()
         vi.stubGlobal(
           'fetch',
           vi.fn(() => Promise.resolve(new Response(null, { status: 500 }))),
@@ -101,8 +104,8 @@ describe('SecurityDetails', () => {
   test(
     'forwards a denied security response to the authentication handler',
     mint({
-      setup: ({ scope }) => {
-        clientTestFixture(scope)
+      setup: () => {
+        clientTestFixture()
         const denied = vi.fn()
         vi.stubGlobal(
           'fetch',

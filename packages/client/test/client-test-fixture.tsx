@@ -1,5 +1,3 @@
-import type { ResourceScope } from '@continuous-excellence/testmints-js'
-import { cleanup } from '@testing-library/react'
 import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { vi } from 'vitest'
 
@@ -10,19 +8,9 @@ export const env: ClientEnv = {
   board: 'ze-great-team',
 }
 
-export function clientTestFixture(scope: ResourceScope) {
+export function clientTestFixture() {
   vi.stubGlobal(
     'fetch',
     vi.fn(() => new Promise<Response>(() => {})),
   )
-  try {
-    window.localStorage.clear()
-  } catch {
-    // Browser storage is an optional application optimization.
-  }
-  scope.defer('client test cleanup', () => {
-    cleanup()
-    vi.unstubAllGlobals()
-    vi.useRealTimers()
-  })
 }
