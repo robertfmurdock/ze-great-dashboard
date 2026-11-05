@@ -6,16 +6,22 @@ import { describe, expect, it, vi } from 'vitest'
 import { type DoctorDependencies, runDoctor } from '../src/doctor.ts'
 
 async function parameterFile(
+  scope: ResourceScope,
   values: unknown = [{ ParameterKey: 'LambdaArtifactBucket', ParameterValue: 'artifacts' }],
 ) {
   const root = await mkdtemp('/tmp/dashboard-doctor-')
+  scope.defer('doctor parameter directory', () => rm(root, { recursive: true, force: true }))
   const path = join(root, 'parameters.json')
   await writeFile(path, JSON.stringify(values))
   return path
 }
 
-async function stackFile(output: { OutputKey: string; OutputValue?: string }[] = []) {
+async function stackFile(
+  scope: ResourceScope,
+  output: { OutputKey: string; OutputValue?: string }[] = [],
+) {
   const root = await mkdtemp('/tmp/dashboard-doctor-stack-')
+  scope.defer('doctor captured-stack directory', () => rm(root, { recursive: true, force: true }))
   const path = join(root, 'github-oidc.json')
   await writeFile(path, JSON.stringify({ Outputs: output }))
   return path
@@ -67,15 +73,17 @@ describe('deployment doctor', () => {
             fetch.mockResolvedValue(response)
             const deps = dependencies({ fetch })
             const url = `https://public-assets.zegreatrob.com/dashboard/${deps.packageVersion}/index.html`
-            return { options, deps, fetch, url, response }
+            return { options, deps, url, response }
           },
           exercise: ({ options, deps }) => runDoctor(options, deps),
-          verify: (checks, { fetch, url, response }) => {
+          verify: (checks, { deps, url, response }) => {
             expect(checks.find(({ name }) => name === 'Hosted client')).toMatchObject({
               ok: true,
               detail: `${url} returned HTTP ${response.status}`,
             })
-            expect(fetch.mock.calls).toEqual(Array.from({ length: attempts }, () => [url]))
+            expect(vi.mocked(deps.fetch).mock.calls).toEqual(
+              Array.from({ length: attempts }, () => [url]),
+            )
           },
         }),
       )
@@ -94,17 +102,16 @@ describe('deployment doctor', () => {
           return {
             options,
             deps: dependencies({ fetch }),
-            fetch,
             finalError,
           }
         },
         exercise: ({ options, deps }) => runDoctor(options, deps),
-        verify: (checks, { fetch, finalError }) => {
+        verify: (checks, { deps, finalError }) => {
           expect(checks.find(({ name }) => name === 'Hosted client')).toMatchObject({
             ok: false,
             detail: finalError.message,
           })
-          expect(fetch).toHaveBeenCalledTimes(3)
+          expect(deps.fetch).toHaveBeenCalledTimes(3)
         },
       }),
     )
@@ -118,148 +125,222 @@ describe('deployment doctor', () => {
           const fetch = vi.fn<DoctorDependencies['fetch']>().mockResolvedValue(response)
           const deps = dependencies({ fetch })
           const url = `https://public-assets.zegreatrob.com/dashboard/${deps.packageVersion}/index.html`
-          return { options, deps, fetch, url, response }
+          return { options, deps, url, response }
         },
         exercise: ({ options, deps }) => runDoctor(options, deps),
-        verify: (checks, { fetch, url, response }) => {
+        verify: (checks, { deps, url, response }) => {
           expect(checks.find(({ name }) => name === 'Hosted client')).toMatchObject({
             ok: false,
             detail: `${url} returned HTTP ${response.status}`,
           })
-          expect(fetch.mock.calls).toEqual([[url]])
+          expect(vi.mocked(deps.fetch).mock.calls).toEqual([[url]])
         },
       }),
     )
   })
 
-  it('reports a completely healthy read-only deployment setup', async () => {
-    const commands: string[][] = []
-    const base = dependencies()
-    const checks = await runDoctor(
-      { parametersPath: await parameterFile(), region: 'us-east-1' },
-      {
-        ...base,
-        async execute(command, args) {
-          commands.push([command, ...args])
-          return base.execute(command, args)
-        },
+  it(
+    'reports a completely healthy read-only deployment setup',
+    mint({
+      setup: async ({ scope }) => {
+        const commands: string[][] = []
+        const base = dependencies()
+        const options = {
+          parametersPath: await parameterFile(scope),
+          region: 'us-east-1',
+        } satisfies Parameters<typeof runDoctor>[0]
+        const deps = {
+          ...base,
+          async execute(command, args) {
+            commands.push([command, ...args])
+            return base.execute(command, args)
+          },
+        } satisfies Parameters<typeof runDoctor>[1]
+        return { options, deps, commands }
       },
-    )
-    expect(checks.every(({ ok }) => ok)).toBe(true)
-    expect(commands.filter(([command]) => command === 'aws').map(([, action]) => action)).toEqual([
-      '--version',
-      'sts',
-      's3api',
-    ])
-    expect(commands.flat().join(' ')).not.toMatch(/\b(cp|sync|deploy|put|update|delete|create)\b/)
-  })
-
-  it('warns when an explicitly captured GitHub OIDC bootstrap predates the package revision', async () => {
-    const checks = await runDoctor(
-      {
-        parametersPath: await parameterFile(),
-        region: 'us-east-1',
-        githubOidcStackPath: await stackFile([
-          { OutputKey: 'BootstrapContractVersion', OutputValue: '2' },
-        ]),
+      exercise: ({ options, deps }) => runDoctor(options, deps),
+      verify: (checks, { commands }) => {
+        expect(checks.every(({ ok }) => ok)).toBe(true)
+        expect(
+          commands.filter(([command]) => command === 'aws').map(([, action]) => action),
+        ).toEqual(['--version', 'sts', 's3api'])
+        expect(commands.flat().join(' ')).not.toMatch(
+          /\b(cp|sync|deploy|put|update|delete|create)\b/,
+        )
       },
-      dependencies(),
-    )
-    expect(checks.find(({ name }) => name === 'Bootstrap template')).toMatchObject({
-      ok: true,
-      warning: true,
-    })
-    expect(checks.find(({ name }) => name === 'Bootstrap template')?.detail).toContain(
-      'rerun the GitHub OIDC bootstrap review',
-    )
-  })
+    }),
+  )
 
-  it('aggregates missing tools, expired credentials, and malformed parameters', async () => {
-    const checks = await runDoctor(
-      { parametersPath: await parameterFile({ wrong: true }), region: 'us-east-1' },
-      dependencies({
-        nodeVersion: '20.0.0',
-        async execute(command, args) {
-          if (command === 'npm' || command === 'jq')
-            throw Object.assign(new Error('missing'), { code: 'ENOENT' })
-          if (args[0] === '--version') return 'aws-cli/2.27.0'
-          if (args[0] === 'sts') throw new Error('ExpiredToken')
-          throw new Error('unexpected AWS call')
-        },
-        async fetch() {
-          return { ok: false, status: 503 }
-        },
-      }),
-    )
-    const failures = checks.filter(({ ok }) => !ok)
-    expect(failures.map(({ name }) => name)).toEqual([
-      'Node.js',
-      'npm',
-      'jq',
-      'AWS identity',
-      'Parameters/template',
-      'Artifact bucket',
-      'Hosted client',
-    ])
-  })
-
-  it('reports a missing AWS CLI without attempting identity or bucket commands', async () => {
-    const commands: string[][] = []
-    const checks = await runDoctor(
-      { parametersPath: await parameterFile(), region: 'us-east-1' },
-      dependencies({
-        async execute(command, args) {
-          commands.push([command, ...args])
-          if (command === 'aws') throw Object.assign(new Error('missing'), { code: 'ENOENT' })
-          return dependencies().execute(command, args)
-        },
-      }),
-    )
-    expect(checks.find(({ name }) => name === 'AWS CLI')?.detail).toBe('not found on PATH')
-    expect(checks.find(({ name }) => name === 'AWS identity')?.detail).toContain('skipped')
-    expect(checks.find(({ name }) => name === 'Artifact bucket')?.detail).toContain('skipped')
-    expect(commands.filter(([command]) => command === 'aws')).toHaveLength(1)
-  })
-
-  it('reports stale parameters, Region mismatch, missing buckets, and unavailable clients', async () => {
-    const stale = await runDoctor(
-      {
-        parametersPath: await parameterFile([
-          { ParameterKey: 'LambdaArtifactBucket', ParameterValue: 'artifacts' },
-          { ParameterKey: 'RemovedParameter', ParameterValue: 'stale' },
-        ]),
-        region: 'us-east-1',
+  it(
+    'warns when an explicitly captured GitHub OIDC bootstrap predates the package revision',
+    mint({
+      setup: async ({ scope }) => {
+        const options = {
+          parametersPath: await parameterFile(scope),
+          region: 'us-east-1',
+          githubOidcStackPath: await stackFile(scope, [
+            { OutputKey: 'BootstrapContractVersion', OutputValue: '2' },
+          ]),
+        } satisfies Parameters<typeof runDoctor>[0]
+        const deps = dependencies() satisfies Parameters<typeof runDoctor>[1]
+        return { options, deps }
       },
-      dependencies(),
-    )
-    expect(stale.find(({ name }) => name === 'Parameters/template')?.detail).toContain(
-      'stale: RemovedParameter',
-    )
+      exercise: ({ options, deps }) => runDoctor(options, deps),
+      verify: (checks) => {
+        expect(checks.find(({ name }) => name === 'Bootstrap template')).toMatchObject({
+          ok: true,
+          warning: true,
+        })
+        expect(checks.find(({ name }) => name === 'Bootstrap template')?.detail).toContain(
+          'rerun the GitHub OIDC bootstrap review',
+        )
+      },
+    }),
+  )
 
-    const mismatch = await runDoctor(
-      { parametersPath: await parameterFile(), region: 'us-east-1' },
-      dependencies({
-        async execute(command, args) {
-          if (args[0] === 's3api') return JSON.stringify({ LocationConstraint: 'us-west-2' })
-          return dependencies().execute(command, args)
+  it(
+    'aggregates missing tools, expired credentials, and malformed parameters',
+    mint({
+      setup: async ({ scope }) => {
+        const options = {
+          parametersPath: await parameterFile(scope, { wrong: true }),
+          region: 'us-east-1',
+        } satisfies Parameters<typeof runDoctor>[0]
+        const deps = dependencies({
+          nodeVersion: '20.0.0',
+          async execute(command, args) {
+            if (command === 'npm' || command === 'jq')
+              throw Object.assign(new Error('missing'), { code: 'ENOENT' })
+            if (args[0] === '--version') return 'aws-cli/2.27.0'
+            if (args[0] === 'sts') throw new Error('ExpiredToken')
+            throw new Error('unexpected AWS call')
+          },
+          async fetch() {
+            return { ok: false, status: 503 }
+          },
+        }) satisfies Parameters<typeof runDoctor>[1]
+        return { options, deps }
+      },
+      exercise: ({ options, deps }) => runDoctor(options, deps),
+      verify: (checks) => {
+        const failures = checks.filter(({ ok }) => !ok)
+        expect(failures.map(({ name }) => name)).toEqual([
+          'Node.js',
+          'npm',
+          'jq',
+          'AWS identity',
+          'Parameters/template',
+          'Artifact bucket',
+          'Hosted client',
+        ])
+      },
+    }),
+  )
+
+  it(
+    'reports a missing AWS CLI without attempting identity or bucket commands',
+    mint({
+      setup: async ({ scope }) => {
+        const commands: string[][] = []
+        const options = {
+          parametersPath: await parameterFile(scope),
+          region: 'us-east-1',
+        } satisfies Parameters<typeof runDoctor>[0]
+        const deps = dependencies({
+          async execute(command, args) {
+            commands.push([command, ...args])
+            if (command === 'aws') throw Object.assign(new Error('missing'), { code: 'ENOENT' })
+            return dependencies().execute(command, args)
+          },
+        }) satisfies Parameters<typeof runDoctor>[1]
+        return { options, deps, commands }
+      },
+      exercise: ({ options, deps }) => runDoctor(options, deps),
+      verify: (checks, { commands }) => {
+        expect(checks.find(({ name }) => name === 'AWS CLI')?.detail).toBe('not found on PATH')
+        expect(checks.find(({ name }) => name === 'AWS identity')?.detail).toContain('skipped')
+        expect(checks.find(({ name }) => name === 'Artifact bucket')?.detail).toContain('skipped')
+        expect(commands.filter(([command]) => command === 'aws')).toHaveLength(1)
+      },
+    }),
+  )
+
+  describe('parameter and bucket diagnostics', () => {
+    it(
+      'reports stale parameters',
+      mint({
+        setup: async ({ scope }) => {
+          const options = {
+            parametersPath: await parameterFile(scope, [
+              { ParameterKey: 'LambdaArtifactBucket', ParameterValue: 'artifacts' },
+              { ParameterKey: 'RemovedParameter', ParameterValue: 'stale' },
+            ]),
+            region: 'us-east-1',
+          } satisfies Parameters<typeof runDoctor>[0]
+          const deps = dependencies() satisfies Parameters<typeof runDoctor>[1]
+          return { options, deps }
         },
-        async fetch() {
-          return { ok: false, status: 404 }
+        exercise: ({ options, deps }) => runDoctor(options, deps),
+        verify: (stale) => {
+          expect(stale.find(({ name }) => name === 'Parameters/template')?.detail).toContain(
+            'stale: RemovedParameter',
+          )
         },
       }),
     )
-    expect(mismatch.find(({ name }) => name === 'Artifact bucket')?.detail).toContain('us-west-2')
-    expect(mismatch.find(({ name }) => name === 'Hosted client')?.detail).toContain('HTTP 404')
-
-    const missing = await runDoctor(
-      { parametersPath: await parameterFile(), region: 'us-east-1' },
-      dependencies({
-        async execute(command, args) {
-          if (args[0] === 's3api') throw new Error('NoSuchBucket')
-          return dependencies().execute(command, args)
+    it(
+      'reports Region mismatch and an unavailable hosted client',
+      mint({
+        setup: async ({ scope }) => {
+          const options = {
+            parametersPath: await parameterFile(scope),
+            region: 'us-east-1',
+          } satisfies Parameters<typeof runDoctor>[0]
+          const deps = dependencies({
+            async execute(command, args) {
+              if (args[0] === 's3api') return JSON.stringify({ LocationConstraint: 'us-west-2' })
+              return dependencies().execute(command, args)
+            },
+            async fetch() {
+              return { ok: false, status: 404 }
+            },
+          }) satisfies Parameters<typeof runDoctor>[1]
+          return { options, deps }
+        },
+        exercise: ({ options, deps }) => runDoctor(options, deps),
+        verify: (mismatch) => {
+          expect(mismatch.find(({ name }) => name === 'Artifact bucket')?.detail).toContain(
+            'us-west-2',
+          )
+          expect(mismatch.find(({ name }) => name === 'Hosted client')?.detail).toContain(
+            'HTTP 404',
+          )
         },
       }),
     )
-    expect(missing.find(({ name }) => name === 'Artifact bucket')?.detail).toContain('NoSuchBucket')
+    it(
+      'reports an unavailable artifact bucket',
+      mint({
+        setup: async ({ scope }) => {
+          const options = {
+            parametersPath: await parameterFile(scope),
+            region: 'us-east-1',
+          } satisfies Parameters<typeof runDoctor>[0]
+          const deps = dependencies({
+            async execute(command, args) {
+              if (args[0] === 's3api') throw new Error('NoSuchBucket')
+              return dependencies().execute(command, args)
+            },
+          }) satisfies Parameters<typeof runDoctor>[1]
+          return { options, deps }
+        },
+        exercise: ({ options, deps }) => runDoctor(options, deps),
+        verify: (missing) => {
+          expect(missing.find(({ name }) => name === 'Artifact bucket')?.detail).toContain(
+            'NoSuchBucket',
+          )
+        },
+      }),
+    )
   })
 })

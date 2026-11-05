@@ -1,7 +1,7 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render, screen } from '@testing-library/react'
 import type { Envelope, Panel } from '@ze-great-dashboard/shared/browser'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, it, test, vi } from 'vitest'
 import { PipelinePanel } from '../src/PipelinePanel.tsx'
 
 const panel: Panel = { id: 'build', type: 'pipeline-status' }
@@ -82,4 +82,273 @@ describe('run panel test evidence composition', () => {
       },
     }),
   )
+})
+
+describe('pipeline running treatment composition', () => {
+  const envelope = () => ({
+    panelId: 'build',
+    state: 'ok' as const,
+    observedAt: '2026-08-24T14:00:00.000Z',
+    link: 'https://example.com/run',
+    signal: {
+      type: 'pipeline-status' as const,
+      status: 'running' as const,
+      rawStatus: 'in_progress',
+      name: 'Build',
+      runStartedAt: '2026-08-24T13:58:00.000Z',
+      estimatedDurationMs: 300_000,
+    },
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+  it(
+    'renders a completed warning with its label, duration, and source link',
+    mint({
+      setup: () => {
+        return {
+          element: (
+            <PipelinePanel
+              panel={panel}
+              envelope={{
+                ...envelope(),
+                signal: {
+                  ...envelope().signal,
+                  status: 'warning',
+                  rawStatus: 'partiallySucceeded',
+                  durationMs: 207_000,
+                },
+              }}
+            />
+          ),
+        }
+      },
+      exercise: ({ element }) => render(element).container,
+      verify: (rendered) => {
+        expect(rendered.textContent).toContain('⚠ Warning')
+        expect(rendered.textContent).toContain('Took 3m 27s')
+        expect(rendered.querySelector('[data-panel-link]')).not.toBeNull()
+        expect(rendered.querySelector('[data-running-field]')).toBeNull()
+      },
+    }),
+  )
+
+  for (const animation of [
+    'telemetry-bloom',
+    'release-transit',
+    'status-weather',
+    'falling-shapes',
+    'snowman',
+    'flight-path',
+  ] as const)
+    it(
+      `composes ${animation} with timing and a source link`,
+      mint({
+        setup: () => ({ animation, input: envelope() }),
+        exercise: ({ animation, input }) =>
+          render(
+            <PipelinePanel panel={{ ...panel, running_animation: animation }} envelope={input} />,
+          ),
+        verify: ({ container }, { animation, input }) => {
+          expect(container.querySelector(`[data-animation="${animation}"]`)).not.toBeNull()
+          expect(container.textContent).toContain('Elapsed')
+          expect(container.querySelector('[data-panel-link]')?.getAttribute('href')).toBe(
+            input.link,
+          )
+        },
+      }),
+    )
+
+  it(
+    'chooses a visible treatment at random by default',
+    mint({
+      setup: () => {
+        vi.spyOn(Math, 'random').mockReturnValue(0.99)
+        return { element: <PipelinePanel panel={panel} envelope={envelope()} /> }
+      },
+      exercise: ({ element }) => render(element).container,
+      verify: (running) => {
+        expect(running.querySelector('[data-animation="flight-path"]')).not.toBeNull()
+      },
+    }),
+  )
+
+  it(
+    'omits a running treatment when it is configured off',
+    mint({
+      setup: () => {
+        return {
+          element: (
+            <PipelinePanel panel={{ ...panel, running_animation: 'off' }} envelope={envelope()} />
+          ),
+        }
+      },
+      exercise: ({ element }) => render(element).container,
+      verify: (rendered) => {
+        expect(rendered.querySelector('[data-running-field]')).toBeNull()
+      },
+    }),
+  )
+
+  it(
+    'omits a running treatment while the panel is loading',
+    mint({
+      setup: () => {
+        return { element: <PipelinePanel panel={panel} envelope={undefined} /> }
+      },
+      exercise: ({ element }) => render(element).container,
+      verify: (rendered) => {
+        expect(rendered.querySelector('[data-running-field]')).toBeNull()
+      },
+    }),
+  )
+
+  it(
+    'omits a running treatment after the pipeline is no longer active',
+    mint({
+      setup: () => {
+        return {
+          element: (
+            <PipelinePanel
+              panel={panel}
+              envelope={{ ...envelope(), signal: { ...envelope().signal, status: 'passed' } }}
+            />
+          ),
+        }
+      },
+      exercise: ({ element }) => render(element).container,
+      verify: (rendered) => {
+        expect(rendered.querySelector('[data-running-field]')).toBeNull()
+      },
+    }),
+  )
+
+  it(
+    'omits a running treatment when upstream evidence is unreadable',
+    mint({
+      setup: () => {
+        return {
+          element: (
+            <PipelinePanel
+              panel={panel}
+              envelope={{
+                panelId: panel.id,
+                state: 'error',
+                observedAt: '2026-08-24T14:00:00.000Z',
+                link: null,
+                error: { kind: 'unreachable', message: 'Timed out' },
+              }}
+            />
+          ),
+        }
+      },
+      exercise: ({ element }) => render(element).container,
+      verify: (rendered) => {
+        expect(rendered.querySelector('[data-running-field]')).toBeNull()
+      },
+    }),
+  )
+
+  it(
+    'keeps its randomly selected default treatment through re-renders',
+    mint({
+      setup: () => {
+        vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValue(0.99)
+        const input = envelope()
+        const rendered = render(<PipelinePanel panel={panel} envelope={input} />)
+        return {
+          rendered,
+          input,
+          initial: rendered.container
+            .querySelector('[data-running-progress]')
+            ?.getAttribute('data-running-progress'),
+        }
+      },
+      exercise: ({ rendered, input }) => {
+        rendered.rerender(<PipelinePanel panel={panel} envelope={input} />)
+        return rendered.container
+      },
+      verify: (container, { initial }) => {
+        expect(initial).toBe('radial')
+        expect(container.querySelector('[data-running-progress="radial"]')).not.toBeNull()
+        expect(container.querySelector('[data-animation="status-weather"]')).toBeNull()
+      },
+    }),
+  )
+
+  it(
+    'chooses a different default treatment when a panel enters running again',
+    mint({
+      setup: () => {
+        vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0)
+        const input = envelope()
+        const passed = { ...input, signal: { ...input.signal, status: 'passed' as const } }
+        const rendered = render(<PipelinePanel panel={panel} envelope={input} />)
+        const initial = rendered.container
+          .querySelector('[data-running-progress]')
+          ?.getAttribute('data-running-progress')
+        return { rendered, input, passed, initial }
+      },
+      exercise: ({ rendered, input, passed }) => {
+        rendered.rerender(<PipelinePanel panel={panel} envelope={passed} />)
+        rendered.rerender(<PipelinePanel panel={panel} envelope={input} />)
+        return rendered.container
+      },
+      verify: (container, { initial }) => {
+        expect(initial).toBe('radial')
+        expect(container.querySelector('[data-running-progress="radial"]')).toBeNull()
+        expect(
+          container.querySelector('[data-running-progress], [data-running-field]'),
+        ).not.toBeNull()
+      },
+    }),
+  )
+
+  for (const animation of ['radial', 'runway', 'orbit', 'signal-field'] as const)
+    it(
+      `selects legacy treatment ${animation}`,
+      mint({
+        setup: () => ({ animation, input: envelope() }),
+        exercise: ({ animation, input }) =>
+          render(
+            <PipelinePanel panel={{ ...panel, running_animation: animation }} envelope={input} />,
+          ),
+        verify: ({ container }, { animation }) => {
+          expect(container.querySelector(`[data-running-progress="${animation}"]`)).not.toBeNull()
+          expect(container.querySelector('[data-running-field]')).toBeNull()
+        },
+      }),
+    )
+
+  describe('overdue composition', () => {
+    for (const animation of ['radial', 'telemetry-bloom'] as const)
+      it(
+        `passes overdue timing to ${animation}`,
+        mint({
+          setup: () => {
+            vi.useFakeTimers()
+            vi.setSystemTime(new Date('2026-08-24T14:00:00.000Z'))
+            return {
+              animation,
+              envelope: {
+                ...envelope(),
+                signal: { ...envelope().signal, runStartedAt: '2026-08-24T13:00:00.000Z' },
+              },
+            }
+          },
+          exercise: ({ animation, envelope }) =>
+            render(
+              <PipelinePanel
+                panel={{ ...panel, running_animation: animation }}
+                envelope={envelope}
+              />,
+            ),
+          verify: ({ container }) => {
+            expect(container.querySelector('[data-overdue="true"]')).not.toBeNull()
+            expect(container.textContent).toContain('Over estimate')
+          },
+        }),
+      )
+  })
 })

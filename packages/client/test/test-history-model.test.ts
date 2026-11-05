@@ -236,10 +236,13 @@ describe('source-reading merge and projection', () => {
       setup: () => {
         const original = reading(1, 100)
         const corrected = { ...original, total: 101 }
-        return { existing: [original], incoming: [corrected], expected: [corrected] }
+        return { existing: [original], incoming: [corrected] }
       },
       exercise: ({ existing, incoming }) => mergeTestReadings(existing, incoming, now),
-      verify: (readings, { expected }) => expect(readings).toEqual(expected),
+      verify: (readings, { incoming }) => {
+        expect(readings).toHaveLength(1)
+        expect(readings[0]).toEqual(incoming[0])
+      },
     }),
   )
   test(

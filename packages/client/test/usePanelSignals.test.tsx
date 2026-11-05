@@ -1,12 +1,10 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
-import { render, renderHook } from '@testing-library/react'
+import { renderHook, waitFor } from '@testing-library/react'
 import type { Board, ClientEnv, Envelope, PipelineStatus } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { DiagnosticEventInput, DiagnosticSink } from '../src/diagnostics.ts'
+import type { DiagnosticEventInput } from '../src/diagnostics.ts'
 import { BrowserPanelMemory } from '../src/panel-memory.ts'
-import type { HttpValueFactObservation, PanelUpdateHealth } from '../src/panel-props.ts'
-import type { PollingScheduleSnapshot } from '../src/polling-schedule.ts'
 import { usePanelSignals } from '../src/usePanelSignals.ts'
 
 const env: ClientEnv = {
@@ -50,36 +48,6 @@ const groupedHttpValueBoard: Board = {
   ],
 }
 
-function Probe({
-  diagnostics,
-  currentBoard = board,
-  onSignals,
-  onUpdateHealth,
-  onFactSignals,
-  onSchedules,
-  onRejectedPipelines,
-  memory,
-}: {
-  diagnostics: DiagnosticSink
-  currentBoard?: Board
-  onSignals?: (signals: Record<string, Envelope | undefined>) => void
-  onUpdateHealth?: (updateHealth: Record<string, PanelUpdateHealth | undefined>) => void
-  onFactSignals?: (
-    facts: Record<string, Record<string, HttpValueFactObservation | undefined> | undefined>,
-  ) => void
-  onSchedules?: (schedules: PollingScheduleSnapshot[]) => void
-  onRejectedPipelines?: (value: ReturnType<typeof usePanelSignals>['rejectedPipelines']) => void
-  memory?: BrowserPanelMemory
-}) {
-  const result = usePanelSignals({ board: currentBoard, env, diagnostics, memory })
-  onSignals?.(result.signals)
-  onUpdateHealth?.(result.updateHealth)
-  onFactSignals?.(result.factSignals)
-  onSchedules?.(result.schedules)
-  onRejectedPipelines?.(result.rejectedPipelines)
-  return null
-}
-
 function envelope(
   status: PipelineStatus['status'] = 'passed',
   options: { durationMs?: number; sourceUpdatedAt?: string; link?: string } = {},
@@ -113,12 +81,79 @@ afterEach(() => {
   vi.unstubAllGlobals()
   vi.useRealTimers()
 })
-
-describe('usePanelSignals', () => {
+function pendingFetch() {
+  let resolve: (response: Response) => void = () => {
+    throw new Error('Response resolver is not initialized')
+  }
+  const promise = new Promise<Response>((release) => {
+    resolve = release
+  })
+  const pending = { resolve, promise }
+  const fetcher = vi.fn((_input: string | URL | Request, _init?: RequestInit) => pending.promise)
+  vi.stubGlobal('fetch', fetcher)
+  return { ...pending, fetcher }
+}
+function clock() {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
+}
+function updateFetch() {
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(new Response(envelope()))
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce(new Response(null, { status: 304 }))
+  vi.stubGlobal('fetch', fetcher)
+  return fetcher
+}
+type Hook = ReturnType<typeof renderHook<ReturnType<typeof usePanelSignals>, unknown>>
+async function initialPoll(hook: Hook) {
+  await vi.waitUntil(() => hook.result.current.schedules[0]?.inFlight === false, {
+    interval: 1,
+    timeout: 500,
+  })
+}
+function persistedFixture() {
+  const storage = new Map<string, string>()
+  const memory = new BrowserPanelMemory({
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, value),
+  })
+  const accepted = {
+    status: 'failed' as const,
+    sourceUpdatedAt: '2026-08-28T11:30:00.000Z',
+    link: 'https://github.com/example/repo/actions/runs/2',
+  }
+  memory.rememberLatest(
+    { board: env.board, panelId: 'build', source: '', workflow: '', branch: '' },
+    accepted,
+  )
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(
+      new Response(
+        envelope('passed', {
+          sourceUpdatedAt: '2026-08-28T11:00:00.000Z',
+          link: 'https://github.com/example/repo/actions/runs/1',
+        }),
+      ),
+    )
+    .mockResolvedValueOnce(
+      new Response(
+        envelope('passed', {
+          sourceUpdatedAt: '2026-08-28T11:45:00.000Z',
+          link: 'https://github.com/example/repo/actions/runs/3',
+        }),
+      ),
+    )
+  vi.stubGlobal('fetch', fetcher)
+  return { memory, accepted, fetcher, diagnostics: recordingSink() }
+}
+describe('panel observations and public diagnostics', () => {
   it(
-    'fetches test totals through the panel polling lifecycle',
+    'fetches test totals through panel polling',
     mint({
-      setup: async ({ scope }) => {
+      setup: () => {
         const testsPanel = { id: 'tests', type: 'test-count' }
         const reported: Envelope = {
           panelId: testsPanel.id,
@@ -127,17 +162,9 @@ describe('usePanelSignals', () => {
           link: 'https://github.com/example/repo/actions/runs/42',
           signal: { type: 'test-count', status: 'reported', total: 123 },
         }
-        const fetcher = await scope.using(
-          'panel fetch',
-          () => {
-            const fetcher = vi.fn(async () => Response.json(reported))
-            vi.stubGlobal('fetch', fetcher)
-            return fetcher
-          },
-          () => vi.unstubAllGlobals(),
-        )
+        const fetcher = vi.fn(async () => Response.json(reported))
+        vi.stubGlobal('fetch', fetcher)
         return {
-          testsPanel,
           reported,
           fetcher,
           currentBoard: { panels: [testsPanel] },
@@ -145,335 +172,397 @@ describe('usePanelSignals', () => {
           path: `${env.proxyPath}/panel/${env.board}/${testsPanel.id}`,
         }
       },
-      exercise: async ({ currentBoard, diagnostics }, { scope }) => {
-        const hook = await scope.using(
-          'panel signals hook',
-          () => renderHook(() => usePanelSignals({ board: currentBoard, env, diagnostics })),
-          (hook) => hook.unmount(),
-        )
-        await act(async () => {})
-        return hook.result.current
-      },
-      verify: (result, { fetcher, path, testsPanel, reported }) => {
+      exercise: ({ currentBoard, diagnostics }) =>
+        renderHook(() => usePanelSignals({ board: currentBoard, env, diagnostics })),
+      verify: async (hook, { fetcher, path, reported }) => {
+        await waitFor(() => expect(hook.result.current.signals[reported.panelId]).toEqual(reported))
         expect(fetcher).toHaveBeenCalledWith(path, expect.any(Object))
-        expect(result.signals[testsPanel.id]).toEqual(reported)
       },
     }),
   )
-
-  it('publishes an initial request snapshot and schedules the next poll only after settlement', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-09-03T12:00:00.000Z'))
-    const diagnostics = recordingSink()
-    let resolveFetch: ((response: Response) => void) | undefined
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(
-        () =>
-          new Promise<Response>((resolve) => {
-            resolveFetch = resolve
-          }),
-      ),
-    )
-    let schedules: PollingScheduleSnapshot[] = []
-    render(<Probe diagnostics={diagnostics} onSchedules={(next) => (schedules = next)} />)
-    await act(async () => {})
-    expect(schedules[0]).toMatchObject({ panelId: 'build', inFlight: true, nextDueAt: undefined })
-    resolveFetch?.(new Response(envelope()))
-    await act(async () => {})
-    expect(schedules[0]).toMatchObject({
-      inFlight: false,
-      cadence: 'normal',
-      nextDueAt: '2026-09-03T12:00:01.000Z',
-    })
-  })
-
-  it('records a compact rendered projection for independently observed HTTP facts', async () => {
-    const diagnostics = recordingSink()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: string | URL) => {
-        const fact = String(input).endsWith('/api') ? 'api' : 'web'
-        return new Response(
-          JSON.stringify({
+  it(
+    'records independently observed HTTP facts and their public projection',
+    mint({
+      setup: () => {
+        const diagnostics = recordingSink()
+        const responses: Record<string, Envelope> = {
+          api: {
             panelId: 'versions',
-            state: fact === 'api' ? 'ok' : 'error',
+            state: 'ok',
             observedAt: '2026-08-21T12:00:00.000Z',
-            link: `https://${fact}.example.com/version`,
-            ...(fact === 'api'
-              ? { signal: { type: 'http-value', value: '2.0.0' } }
-              : { error: { kind: 'unreachable', message: 'offline' } }),
-          }),
+            link: 'https://api.example.com/version',
+            signal: { type: 'http-value', value: '2.0.0' },
+          },
+          web: {
+            panelId: 'versions',
+            state: 'error',
+            observedAt: '2026-08-21T12:00:00.000Z',
+            link: 'https://web.example.com/version',
+            error: { kind: 'unreachable', message: 'offline' },
+          },
+        }
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async (input: string | URL) =>
+            Response.json(responses[String(input).split('/').at(-1) ?? '']),
+          ),
         )
-      }),
-    )
-    let facts: Record<string, Record<string, HttpValueFactObservation | undefined> | undefined> = {}
-    let schedules: PollingScheduleSnapshot[] = []
-
-    render(
-      <Probe
-        diagnostics={diagnostics}
-        currentBoard={groupedHttpValueBoard}
-        onFactSignals={(next) => (facts = next)}
-        onSchedules={(next) => (schedules = next)}
-      />,
-    )
-    await act(async () => {})
-
-    expect(facts.versions?.api?.envelope?.state).toBe('ok')
-    expect(facts.versions?.web?.envelope?.state).toBe('error')
-    expect(schedules[0]).toMatchObject({
-      panelId: 'versions',
-      knownPaths: [
-        '/api/panel/ze-great-team/versions/facts/api',
-        '/api/panel/ze-great-team/versions/facts/web',
-      ],
-      inFlight: false,
-      cadence: 'normal',
-    })
-    expect(diagnostics.events).toContainEqual(
-      expect.objectContaining({
-        kind: 'panel-rendered',
-        panelId: 'versions',
-        rendered: {
-          state: 'ok',
-          link: null,
-          facts: [
-            { id: 'api', state: 'ok', link: 'https://api.example.com/version' },
-            { id: 'web', state: 'error', link: 'https://web.example.com/version' },
-          ],
-        },
-      }),
-    )
-  })
-
-  it('emits typed fetch evidence and the compact rendered transition through its sink', async () => {
-    const diagnostics = recordingSink()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response(envelope(), { headers: { etag: 'W/"build"' } })),
-    )
-
-    render(<Probe diagnostics={diagnostics} />)
-    await act(async () => {})
-
-    expect(diagnostics.events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ kind: 'panel-fetch-start', panelId: 'build' }),
-        expect.objectContaining({ kind: 'panel-fetch-response', status: 200 }),
-        expect.objectContaining({
-          kind: 'panel-rendered',
-          rendered: { state: 'ok', status: 'passed', link: 'https://example.com/build' },
-        }),
-      ]),
-    )
-    const responses = diagnostics.events.filter((event) => event.kind === 'panel-fetch-response')
-    expect(responses).toHaveLength(1)
-    expect(responses[0]).toMatchObject({
-      status: 200,
-      cache: { etag: 'W/"build"' },
-      envelope: { state: 'ok' },
-    })
-  })
-
-  it('records malformed JSON as a parse failure, not a fetch failure', async () => {
-    const diagnostics = recordingSink()
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response('{')),
-    )
-
-    render(<Probe diagnostics={diagnostics} />)
-    await act(async () => {})
-
-    expect(diagnostics.events.some((event) => event.kind === 'panel-fetch-parse-failure')).toBe(
-      true,
-    )
-    expect(diagnostics.events.some((event) => event.kind === 'panel-fetch-failure')).toBe(false)
-  })
-
-  it('uses a completed fallback estimate for the next running response', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
-    const diagnostics = recordingSink()
-    let resolveCompleted: ((response: Response) => void) | undefined
-    const fetcher = vi
-      .fn()
-      .mockImplementationOnce(
-        () =>
-          new Promise<Response>((resolve) => {
-            resolveCompleted = resolve
-          }),
-      )
-      .mockResolvedValueOnce(
-        new Response(envelope('running', { sourceUpdatedAt: '2026-08-28T11:30:00Z' })),
-      )
-    vi.stubGlobal('fetch', fetcher)
-    let latestSignals: Record<string, Envelope | undefined> = {}
-
-    render(<Probe diagnostics={diagnostics} onSignals={(signals) => (latestSignals = signals)} />)
-    await act(async () => {})
-    resolveCompleted?.(
-      new Response(
-        envelope('failed', { durationMs: 90_000, sourceUpdatedAt: '2026-08-28T11:00:00Z' }),
-      ),
-    )
-    await act(async () => {})
-    expect(latestSignals.build).toMatchObject({
-      state: 'ok',
-      signal: { status: 'failed', durationMs: 90_000 },
-    })
-    await act(async () => vi.advanceTimersByTimeAsync(1_000))
-
-    expect(fetcher).toHaveBeenCalledTimes(2)
-    const latest = latestSignals.build
-    expect(latest?.state).toBe('ok')
-    if (latest?.state === 'ok') {
-      expect(latest.signal).toMatchObject({ status: 'running', estimatedDurationMs: 90_000 })
-    }
-  })
-
-  it('surfaces missed updates and clears them when the server returns not modified', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
-    const diagnostics = recordingSink()
-    const offline = Promise.reject(new Error('offline'))
-    offline.catch(() => undefined)
-    const fetcher = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(envelope()))
-      .mockReturnValueOnce(offline)
-      .mockResolvedValueOnce(new Response(null, { status: 304 }))
-    vi.stubGlobal('fetch', fetcher)
-    const healthSnapshots: Array<Record<string, PanelUpdateHealth | undefined>> = []
-
-    render(
-      <Probe diagnostics={diagnostics} onUpdateHealth={(value) => healthSnapshots.push(value)} />,
-    )
-    await act(async () => {})
-    await act(async () => {
-      vi.setSystemTime(new Date('2026-08-28T12:00:01.000Z'))
-      await vi.advanceTimersByTimeAsync(1_000)
-    })
-    expect(healthSnapshots.at(-1)?.build).toMatchObject({
-      consecutiveFailures: 1,
-      message: 'offline',
-      lastConfirmedAt: '2026-08-28T12:00:00.000Z',
-    })
-    await act(async () => {
-      vi.setSystemTime(new Date('2026-08-28T12:00:02.000Z'))
-      await vi.advanceTimersByTimeAsync(1_000)
-    })
-
-    expect(fetcher).toHaveBeenCalledTimes(3)
-    expect(healthSnapshots.at(-1)?.build).toBeUndefined()
-  })
-
-  it('retains a persisted accepted result for presentation while GitHub returns an older one', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
-    const diagnostics = recordingSink()
-    const storage = new Map<string, string>()
-    const memory = new BrowserPanelMemory({
-      getItem: (key) => storage.get(key) ?? null,
-      setItem: (key, value) => storage.set(key, value),
-    })
-    memory.rememberLatest(
-      { board: env.board, panelId: 'build', source: '', workflow: '', branch: '' },
-      {
-        status: 'failed',
-        sourceUpdatedAt: '2026-08-28T11:30:00.000Z',
-        link: 'https://github.com/example/repo/actions/runs/2',
+        return { diagnostics, responses, currentBoard: groupedHttpValueBoard }
       },
-    )
-    const fetcher = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(
-          envelope('passed', {
-            sourceUpdatedAt: '2026-08-28T11:00:00.000Z',
-            link: 'https://github.com/example/repo/actions/runs/1',
-          }),
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          envelope('passed', {
-            sourceUpdatedAt: '2026-08-28T11:45:00.000Z',
-            link: 'https://github.com/example/repo/actions/runs/3',
-          }),
-        ),
-      )
-    vi.stubGlobal('fetch', fetcher)
-    let latestSignals: Record<string, Envelope | undefined> = {}
-    let rejected: ReturnType<typeof usePanelSignals>['rejectedPipelines'] = {}
-
-    render(
-      <Probe
-        diagnostics={diagnostics}
-        memory={memory}
-        onSignals={(value) => (latestSignals = value)}
-        onRejectedPipelines={(value) => (rejected = value)}
-      />,
-    )
-    await act(async () => {})
-
-    expect(latestSignals.build).toBeUndefined()
-    expect(rejected.build).toEqual({
-      status: 'failed',
-      sourceUpdatedAt: '2026-08-28T11:30:00.000Z',
-      link: 'https://github.com/example/repo/actions/runs/2',
-      github: true,
-    })
-    expect(diagnostics.recordGithubConsistencyIncident).toHaveBeenCalledTimes(1)
-
-    await act(async () => vi.advanceTimersByTimeAsync(1_000))
-    expect(latestSignals.build).toMatchObject({ signal: { status: 'passed' } })
-    expect(rejected.build).toBeUndefined()
-  })
-
-  it('cleans up polling and never overlaps a pending request', async () => {
-    vi.useFakeTimers()
-    const diagnostics = recordingSink()
-    let resolveFetch: ((value: Response) => void) | undefined
-    const pending = new Promise<Response>((resolve) => {
-      resolveFetch = resolve
-    })
-    const fetcher = vi.fn(() => pending)
-    vi.stubGlobal('fetch', fetcher)
-
-    const rendered = render(<Probe diagnostics={diagnostics} />)
-    await act(async () => {})
-    await act(async () => vi.advanceTimersByTime(2_000))
-    expect(fetcher).toHaveBeenCalledTimes(1)
-
-    rendered.unmount()
-    await act(async () => vi.advanceTimersByTime(2_000))
-    expect(fetcher).toHaveBeenCalledTimes(1)
-    resolveFetch?.(new Response(envelope()))
-  })
-
-  it('aborts pull-request component reads on cleanup before they can fan out to build reads', async () => {
-    const diagnostics = recordingSink()
-    const aborted: boolean[] = []
-    const fetcher = vi.fn((_path: string, init?: RequestInit) => {
-      const signal = init?.signal
-      return new Promise<Response>((_resolve, reject) => {
-        signal?.addEventListener('abort', () => {
-          aborted.push(true)
-          reject(new DOMException('Aborted', 'AbortError'))
+      exercise: ({ diagnostics, currentBoard }) =>
+        renderHook(() => usePanelSignals({ board: currentBoard, env, diagnostics })),
+      verify: async (hook, { diagnostics, responses }) => {
+        await waitFor(() => {
+          expect(hook.result.current.factSignals.versions?.api?.envelope).toEqual(responses.api)
+          expect(hook.result.current.factSignals.versions?.web?.envelope).toEqual(responses.web)
+          expect(hook.result.current.schedules[0]).toMatchObject({
+            panelId: 'versions',
+            knownPaths: [
+              '/api/panel/ze-great-team/versions/facts/api',
+              '/api/panel/ze-great-team/versions/facts/web',
+            ],
+            inFlight: false,
+            cadence: 'normal',
+          })
+          expect(diagnostics.events).toContainEqual(
+            expect.objectContaining({
+              kind: 'panel-rendered',
+              panelId: 'versions',
+              rendered: {
+                state: 'ok',
+                link: null,
+                facts: [
+                  { id: 'api', state: 'ok', link: responses.api?.link },
+                  { id: 'web', state: 'error', link: responses.web?.link },
+                ],
+              },
+            }),
+          )
         })
-      })
-    })
-    vi.stubGlobal('fetch', fetcher)
-
-    const rendered = render(<Probe diagnostics={diagnostics} currentBoard={pullRequestBoard} />)
-    await act(async () => {})
-    expect(fetcher).toHaveBeenCalledTimes(2)
-    rendered.unmount()
-    await act(async () => {})
-
-    expect(aborted).toHaveLength(2)
-    expect(fetcher).toHaveBeenCalledTimes(2)
-  })
+      },
+    }),
+  )
+  it(
+    'emits fetch and rendered evidence through its sink',
+    mint({
+      setup: () => {
+        const diagnostics = recordingSink()
+        const reported = JSON.parse(envelope()) as Envelope
+        const etag = 'W/"build"'
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async () => Response.json(reported, { headers: { etag } })),
+        )
+        return { diagnostics, reported, etag }
+      },
+      exercise: ({ diagnostics }) => renderHook(() => usePanelSignals({ board, env, diagnostics })),
+      verify: async (hook, { diagnostics, reported, etag }) => {
+        await waitFor(() => {
+          expect(hook.result.current.signals.build).toEqual(reported)
+          expect(diagnostics.events).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({ kind: 'panel-fetch-start', panelId: reported.panelId }),
+              expect.objectContaining({
+                kind: 'panel-rendered',
+                rendered: { state: 'ok', status: 'passed', link: reported.link },
+              }),
+            ]),
+          )
+          const responses = diagnostics.events.filter(
+            (event) => event.kind === 'panel-fetch-response',
+          )
+          expect(responses).toHaveLength(1)
+          expect(responses[0]).toMatchObject({
+            status: 200,
+            cache: { etag },
+            envelope: { state: reported.state },
+          })
+        })
+      },
+    }),
+  )
+  it(
+    'classifies malformed JSON as a parse failure',
+    mint({
+      setup: () => {
+        const diagnostics = recordingSink()
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async () => new Response('{')),
+        )
+        return { diagnostics }
+      },
+      exercise: ({ diagnostics }) => renderHook(() => usePanelSignals({ board, env, diagnostics })),
+      verify: async (hook, { diagnostics }) => {
+        await waitFor(() => {
+          expect(hook.result.current.schedules[0]?.inFlight).toBe(false)
+          expect(
+            diagnostics.events.some((event) => event.kind === 'panel-fetch-parse-failure'),
+          ).toBe(true)
+          expect(diagnostics.events.some((event) => event.kind === 'panel-fetch-failure')).toBe(
+            false,
+          )
+        })
+      },
+    }),
+  )
+})
+describe('poll lifecycle scheduling', () => {
+  it(
+    'publishes an in-flight schedule without a next poll while a response is pending',
+    mint({
+      setup: () => ({ ...pendingFetch(), diagnostics: recordingSink() }),
+      exercise: ({ diagnostics }) => renderHook(() => usePanelSignals({ board, env, diagnostics })),
+      verify: (hook) =>
+        expect(hook.result.current.schedules[0]).toMatchObject({
+          panelId: 'build',
+          inFlight: true,
+          nextDueAt: undefined,
+        }),
+    }),
+  )
+  it(
+    'schedules the next poll after the response settles',
+    mint({
+      setup: () => {
+        clock()
+        const pending = pendingFetch()
+        const diagnostics = recordingSink()
+        const hook = renderHook(() => usePanelSignals({ board, env, diagnostics }))
+        const releaseAt = Date.now()
+        return { ...pending, hook, releaseAt }
+      },
+      exercise: async ({ hook, resolve }) => {
+        await act(async () => resolve(new Response(envelope())))
+        return hook
+      },
+      verify: async (hook, { releaseAt }) => {
+        await vi.waitFor(
+          () => {
+            const schedule = hook.result.current.schedules[0]
+            expect(schedule).toMatchObject({ inFlight: false, cadence: 'normal' })
+            expect(Date.parse(schedule?.nextDueAt ?? '')).toBeGreaterThanOrEqual(releaseAt + 1000)
+            expect(Date.parse(schedule?.nextDueAt ?? '')).toBeLessThanOrEqual(releaseAt + 1100)
+          },
+          { interval: 1, timeout: 500 },
+        )
+      },
+    }),
+  )
+  it(
+    'uses a completed duration for the next running response',
+    mint({
+      setup: async () => {
+        clock()
+        const durationMs = 90000
+        const fetcher = vi
+          .fn<typeof fetch>()
+          .mockResolvedValueOnce(
+            new Response(
+              envelope('failed', { durationMs, sourceUpdatedAt: '2026-08-28T11:00:00Z' }),
+            ),
+          )
+          .mockResolvedValueOnce(
+            new Response(envelope('running', { sourceUpdatedAt: '2026-08-28T11:30:00Z' })),
+          )
+        vi.stubGlobal('fetch', fetcher)
+        const diagnostics = recordingSink()
+        const hook = renderHook(() => usePanelSignals({ board, env, diagnostics }))
+        await initialPoll(hook)
+        return { hook, fetcher, durationMs }
+      },
+      exercise: async ({ hook }) => {
+        await act(async () => vi.advanceTimersByTimeAsync(1000))
+        return hook
+      },
+      verify: async (hook, { fetcher, durationMs }) => {
+        await vi.waitFor(
+          () => {
+            expect(hook.result.current.signals.build).toMatchObject({
+              state: 'ok',
+              signal: { status: 'running', estimatedDurationMs: durationMs },
+            })
+            expect(fetcher).toHaveBeenCalledTimes(2)
+          },
+          { interval: 1, timeout: 500 },
+        )
+      },
+    }),
+  )
+  it(
+    'surfaces missed updates after previously confirmed evidence',
+    mint({
+      setup: async () => {
+        clock()
+        const fetcher = updateFetch()
+        const diagnostics = recordingSink()
+        const hook = renderHook(() => usePanelSignals({ board, env, diagnostics }))
+        await initialPoll(hook)
+        return { hook, fetcher }
+      },
+      exercise: async ({ hook }) => {
+        await act(async () => vi.advanceTimersByTimeAsync(1000))
+        return hook
+      },
+      verify: async (hook, { fetcher }) => {
+        await vi.waitFor(
+          () => {
+            expect(hook.result.current.updateHealth.build).toMatchObject({
+              consecutiveFailures: 1,
+              message: 'offline',
+            })
+            expect(hook.result.current.updateHealth.build?.lastConfirmedAt).toBeDefined()
+            expect(fetcher).toHaveBeenCalledTimes(2)
+          },
+          { interval: 1, timeout: 500 },
+        )
+      },
+    }),
+  )
+  it(
+    'clears missed updates when the server confirms not modified',
+    mint({
+      setup: async () => {
+        clock()
+        const fetcher = updateFetch()
+        const diagnostics = recordingSink()
+        const hook = renderHook(() => usePanelSignals({ board, env, diagnostics }))
+        await initialPoll(hook)
+        await act(async () => vi.advanceTimersByTimeAsync(1000))
+        await vi.waitUntil(
+          () => hook.result.current.updateHealth.build?.consecutiveFailures === 1,
+          { interval: 1, timeout: 500 },
+        )
+        return { hook, fetcher }
+      },
+      exercise: async ({ hook }) => {
+        await act(async () => vi.advanceTimersByTimeAsync(1000))
+        return hook
+      },
+      verify: async (hook, { fetcher }) => {
+        await vi.waitFor(
+          () => {
+            expect(fetcher).toHaveBeenCalledTimes(3)
+            expect(hook.result.current.schedules[0]?.inFlight).toBe(false)
+            expect(hook.result.current.updateHealth.build).toBeUndefined()
+          },
+          { interval: 1, timeout: 500 },
+        )
+      },
+    }),
+  )
+  it(
+    'never overlaps a pending poll',
+    mint({
+      setup: () => {
+        clock()
+        const pending = pendingFetch()
+        const diagnostics = recordingSink()
+        const hook = renderHook(() => usePanelSignals({ board, env, diagnostics }))
+        return { ...pending, hook }
+      },
+      exercise: async ({ hook }) => {
+        await act(async () => vi.advanceTimersByTimeAsync(2000))
+        return hook
+      },
+      verify: (_hook, { fetcher }) => expect(fetcher).toHaveBeenCalledTimes(1),
+    }),
+  )
+  it(
+    'aborts a pending request and stops polling on unmount',
+    mint({
+      setup: () => {
+        clock()
+        const pending = pendingFetch()
+        const diagnostics = recordingSink()
+        const hook = renderHook(() => usePanelSignals({ board, env, diagnostics }))
+        return { ...pending, hook }
+      },
+      exercise: async ({ hook }) => {
+        hook.unmount()
+        await act(async () => vi.advanceTimersByTimeAsync(2000))
+      },
+      verify: (_result, { fetcher }) => {
+        expect(fetcher).toHaveBeenCalledTimes(1)
+        expect(fetcher.mock.calls[0]?.[1]?.signal?.aborted).toBe(true)
+      },
+    }),
+  )
+})
+describe('accepted pipeline evidence', () => {
+  it(
+    'retains persisted presentation when GitHub returns older evidence',
+    mint({
+      setup: persistedFixture,
+      exercise: ({ memory, diagnostics }) =>
+        renderHook(() => usePanelSignals({ board, env, diagnostics, memory })),
+      verify: async (hook, { accepted, diagnostics }) => {
+        await waitFor(() => {
+          expect(hook.result.current.rejectedPipelines.build).toEqual({ ...accepted, github: true })
+          expect(hook.result.current.signals.build).toBeUndefined()
+          expect(diagnostics.recordGithubConsistencyIncident).toHaveBeenCalledTimes(1)
+        })
+      },
+    }),
+  )
+  it(
+    'clears historical presentation when newer evidence arrives',
+    mint({
+      setup: async () => {
+        clock()
+        const world = persistedFixture()
+        const hook = renderHook(() =>
+          usePanelSignals({ board, env, diagnostics: world.diagnostics, memory: world.memory }),
+        )
+        await initialPoll(hook)
+        return { ...world, hook }
+      },
+      exercise: async ({ hook }) => {
+        await act(async () => vi.advanceTimersByTimeAsync(1000))
+        return hook
+      },
+      verify: async (hook, { fetcher }) => {
+        await vi.waitFor(
+          () => {
+            expect(fetcher).toHaveBeenCalledTimes(2)
+            expect(hook.result.current.signals.build).toMatchObject({
+              signal: { status: 'passed' },
+            })
+            expect(hook.result.current.rejectedPipelines.build).toBeUndefined()
+          },
+          { interval: 1, timeout: 500 },
+        )
+      },
+    }),
+  )
+})
+describe('pull-request cleanup', () => {
+  it(
+    'aborts component reads before they can fan out to build reads',
+    mint({
+      setup: () => {
+        const diagnostics = recordingSink()
+        const aborted: boolean[] = []
+        const fetcher = vi.fn(
+          (_path: string, init?: RequestInit) =>
+            new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () => {
+                aborted.push(true)
+                reject(new DOMException('Aborted', 'AbortError'))
+              })
+            }),
+        )
+        vi.stubGlobal('fetch', fetcher)
+        const hook = renderHook(() =>
+          usePanelSignals({ board: pullRequestBoard, env, diagnostics }),
+        )
+        return { hook, fetcher, aborted }
+      },
+      exercise: ({ hook }) => hook.unmount(),
+      verify: (_result, { fetcher, aborted }) => {
+        expect(aborted).toHaveLength(2)
+        expect(fetcher).toHaveBeenCalledTimes(2)
+      },
+    }),
+  )
 })

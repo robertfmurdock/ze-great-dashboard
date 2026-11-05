@@ -161,15 +161,15 @@ describe('rollupPullRequestHealth', () => {
           candidates: { envelope: candidates },
           builds: new Map([['deps/42', { error: 'offline' }]]),
         } satisfies NonNullable<Parameters<typeof rollupPullRequestHealth>[0]>
-        return { input, workflow, candidates }
+        return { input }
       },
       exercise: ({ input }) => rollupPullRequestHealth(input),
-      verify: (result, { workflow, candidates }) => {
+      verify: (result, { input }) => {
         expect(result).toMatchObject({
-          observedAt: workflow.observedAt,
+          observedAt: input.workflows[0]?.observation.envelope.observedAt,
           signal: {
             status: 'unknown',
-            newestObservedAt: candidates.observedAt,
+            newestObservedAt: input.candidates.envelope.observedAt,
             pullRequests: [{ label: 'PR #42', status: 'unknown' }],
             incompleteObservations: [{ label: 'PR #42', message: 'offline' }],
           },

@@ -41,81 +41,95 @@ describe('PipelineAnimationDemoPanel', () => {
       mint({
         setup: () => {
           const animation = 'runway' as const
-          return { animation, panel: { ...panel, running_animation: animation } }
+          return { panel: { ...panel, running_animation: animation } }
         },
         exercise: ({ panel }) => render(<PanelRenderer panel={panel} envelope={undefined} />),
-        verify: (_result, { animation }) => expect(screen.getByText(animation)).toBeTruthy(),
+        verify: (_result, { panel }) =>
+          expect(screen.getByText(panel.running_animation)).toBeTruthy(),
       }),
     )
   })
 
   describe('rotating demos', () => {
-    it('rotates all retained and panel-scale treatments in fixed twenty-second runs', async () => {
-      const rendered = render(<PipelineAnimationDemoPanel panel={panel} />)
-
-      expect(rendered.container.querySelector('[data-running-progress="radial"]')).not.toBeNull()
-      expect(rendered.container.textContent).toContain('Demo treatment · radial')
-      expect(rendered.container.textContent).toContain('Elapsed 0s')
-      expect(rendered.container.textContent).toContain('Expected ≈ 15s')
-
-      await act(async () => vi.advanceTimersByTime(20_000))
-      expect(rendered.container.querySelector('[data-running-progress="runway"]')).not.toBeNull()
-      expect(rendered.container.textContent).toContain('0:00/~0:15')
-
-      await act(async () => vi.advanceTimersByTime(20_000))
-      expect(rendered.container.querySelector('[data-running-progress="orbit"]')).not.toBeNull()
-
-      await act(async () => vi.advanceTimersByTime(20_000))
-      expect(
-        rendered.container.querySelector('[data-running-progress="signal-field"]'),
-      ).not.toBeNull()
-
-      await act(async () => vi.advanceTimersByTime(20_000))
-      expect(rendered.container.querySelector('[data-animation="telemetry-bloom"]')).not.toBeNull()
-
-      await act(async () => vi.advanceTimersByTime(20_000))
-      expect(rendered.container.querySelector('[data-animation="release-transit"]')).not.toBeNull()
-
-      await act(async () => vi.advanceTimersByTime(20_000))
-      expect(rendered.container.querySelector('[data-animation="status-weather"]')).not.toBeNull()
-
-      await act(async () => vi.advanceTimersByTime(20_000))
-      expect(rendered.container.querySelector('[data-animation="falling-shapes"]')).not.toBeNull()
-
-      await act(async () => vi.advanceTimersByTime(20_000))
-      expect(rendered.container.querySelector('[data-animation="snowman"]')).not.toBeNull()
-
-      await act(async () => vi.advanceTimersByTime(20_000))
-      expect(rendered.container.querySelector('[data-animation="flight-path"]')).not.toBeNull()
-
-      await act(async () => vi.advanceTimersByTime(20_000))
-      expect(rendered.container.querySelector('[data-running-progress="radial"]')).not.toBeNull()
-      expect(rendered.container.textContent).toContain('Elapsed 0s')
-      expect(rendered.container.textContent).not.toContain('Over estimate')
-    })
-
-    it('uses the real active-run overdue treatment for the final portion of each run', async () => {
-      const rendered = render(<PipelineAnimationDemoPanel panel={panel} />)
-
-      await act(async () => vi.advanceTimersByTime(16_000))
-      expect(
-        rendered.container.querySelector('[data-running-progress][data-overdue="true"]'),
-      ).not.toBeNull()
-      expect(rendered.container.textContent).toContain('Elapsed 16s')
-      expect(rendered.container.textContent).toContain('Over estimate')
-    })
-
-    it('uses the configured cycle duration while rotating treatments', async () => {
-      const rendered = render(
-        <PipelineAnimationDemoPanel panel={{ ...panel, demo_run_duration: duration('5s') }} />,
+    it(
+      'starts with radial timing at zero elapsed',
+      mint({
+        setup: () => ({ panel }),
+        exercise: ({ panel }) => render(<PipelineAnimationDemoPanel panel={panel} />),
+        verify: ({ container }) => {
+          expect(screen.getByText('radial')).toBeTruthy()
+          expect(container.textContent).toContain('Elapsed 0s')
+          expect(container.textContent).toContain('Expected ≈ 15s')
+        },
+      }),
+    )
+    for (const scenario of [
+      { elapsed: 20000, animation: 'runway' },
+      { elapsed: 40000, animation: 'orbit' },
+      { elapsed: 60000, animation: 'signal-field' },
+      { elapsed: 80000, animation: 'telemetry-bloom' },
+      { elapsed: 100000, animation: 'release-transit' },
+      { elapsed: 120000, animation: 'status-weather' },
+      { elapsed: 140000, animation: 'falling-shapes' },
+      { elapsed: 160000, animation: 'snowman' },
+      { elapsed: 180000, animation: 'flight-path' },
+      { elapsed: 200000, animation: 'radial' },
+    ])
+      it(
+        `rotates to ${scenario.animation} after ${scenario.elapsed}ms`,
+        mint({
+          setup: () => ({
+            ...scenario,
+            rendered: render(<PipelineAnimationDemoPanel panel={panel} />),
+          }),
+          exercise: async ({ rendered, elapsed }) => {
+            await act(async () => vi.advanceTimersByTime(elapsed))
+            return rendered
+          },
+          verify: ({ container }, { animation }) => {
+            expect(screen.getByText(animation)).toBeTruthy()
+            expect(container.textContent).toContain('Elapsed 0s')
+            expect(container.textContent).not.toContain('Over estimate')
+          },
+        }),
       )
-      await act(async () => vi.advanceTimersByTime(5_000))
-      expect(rendered.container.querySelector('[data-running-progress="runway"]')).not.toBeNull()
-    })
+    it(
+      'renders an overdue active run before the cycle ends',
+      mint({
+        setup: () => ({
+          rendered: render(<PipelineAnimationDemoPanel panel={panel} />),
+          elapsed: 16000,
+        }),
+        exercise: async ({ rendered, elapsed }) => {
+          await act(async () => vi.advanceTimersByTime(elapsed))
+          return rendered
+        },
+        verify: ({ container }) => {
+          expect(container.querySelector('[data-overdue="true"]')).not.toBeNull()
+          expect(container.textContent).toContain('Elapsed 16s')
+          expect(container.textContent).toContain('Over estimate')
+        },
+      }),
+    )
+    it(
+      'uses the configured rotation duration',
+      mint({
+        setup: () => ({
+          rendered: render(
+            <PipelineAnimationDemoPanel panel={{ ...panel, demo_run_duration: duration('5s') }} />,
+          ),
+          elapsed: 5000,
+        }),
+        exercise: async ({ rendered, elapsed }) => {
+          await act(async () => vi.advanceTimersByTime(elapsed))
+          return rendered
+        },
+        verify: () => expect(screen.getByText('runway')).toBeTruthy(),
+      }),
+    )
   })
-
   describe('focused demos', () => {
-    it.each([
+    for (const animation of [
       'radial',
       'runway',
       'orbit',
@@ -126,77 +140,110 @@ describe('PipelineAnimationDemoPanel', () => {
       'falling-shapes',
       'snowman',
       'flight-path',
-    ] as const)('keeps %s mounted and marks it overdue after its estimate', async (animation) => {
-      const rendered = render(
-        <PipelineAnimationDemoPanel
-          panel={{
-            ...panel,
-            running_animation: animation,
-            demo_review_duration: duration('10s'),
-          }}
-        />,
+    ] as const)
+      it(
+        `keeps ${animation} selected after its estimate`,
+        mint({
+          setup: () => ({
+            animation,
+            elapsed: 11000,
+            rendered: render(
+              <PipelineAnimationDemoPanel
+                panel={{
+                  ...panel,
+                  running_animation: animation,
+                  demo_review_duration: duration('10s'),
+                }}
+              />,
+            ),
+          }),
+          exercise: async ({ rendered, elapsed }) => {
+            await act(async () => vi.advanceTimersByTime(elapsed))
+            return rendered
+          },
+          verify: ({ container }, { animation }) => {
+            expect(screen.getByText(animation)).toBeTruthy()
+            expect(container.querySelector('[data-overdue="true"]')).not.toBeNull()
+            expect(container.textContent).toContain('Over estimate')
+          },
+        }),
       )
-
-      await act(async () => vi.advanceTimersByTime(11_000))
-      const treatment = rendered.container.querySelector(
-        `[data-overdue="true"][data-running-progress="${animation}"], [data-overdue="true"][data-animation="${animation}"]`,
-      )
-      expect(treatment).not.toBeNull()
-      expect(rendered.container.textContent).toContain('Over estimate')
-    })
-
-    it('holds a configured visible treatment for focused local review', async () => {
-      const rendered = render(
-        <PipelineAnimationDemoPanel panel={{ ...panel, running_animation: 'signal-field' }} />,
-      )
-
-      expect(
-        rendered.container.querySelector('[data-running-progress="signal-field"]'),
-      ).not.toBeNull()
-      await act(async () => vi.advanceTimersByTime(40_000))
-      expect(
-        rendered.container.querySelector('[data-running-progress="signal-field"]'),
-      ).not.toBeNull()
-      expect(rendered.container.textContent).toContain('Demo treatment · signal-field')
-      expect(rendered.container.textContent).toContain('0:40/~5:00')
-    })
-
-    it('uses the configured focused-review duration', async () => {
-      const rendered = render(
-        <PipelineAnimationDemoPanel
-          panel={{
-            ...panel,
-            running_animation: 'signal-field',
-            demo_review_duration: duration('7s'),
-          }}
-        />,
-      )
-      expect(rendered.container.textContent).toContain('Expected ≈ 7s')
-      await act(async () => vi.advanceTimersByTime(6_000))
-      expect(rendered.container.textContent).toContain('Elapsed 6s')
-      await act(async () => vi.advanceTimersByTime(2_000))
-      expect(rendered.container.textContent).toContain('Over estimate')
-    })
-
-    it('remounts the decorative field when a focused demo run resets', async () => {
-      const rendered = render(
-        <PipelineAnimationDemoPanel
-          panel={{
-            ...panel,
-            running_animation: 'falling-shapes',
-            demo_review_duration: duration('2s'),
-          }}
-        />,
-      )
-      const firstField = rendered.container.querySelector('[data-running-field]')
-      expect(firstField).not.toBeNull()
-
-      await act(async () => vi.advanceTimersByTime(3_000))
-
-      const secondField = rendered.container.querySelector('[data-running-field]')
-      expect(secondField).not.toBeNull()
-      expect(secondField).not.toBe(firstField)
-      expect(rendered.container.textContent).toContain('Elapsed 0s')
-    })
+    it(
+      'holds a configured treatment through multiple rotation intervals',
+      mint({
+        setup: () => ({
+          rendered: render(
+            <PipelineAnimationDemoPanel panel={{ ...panel, running_animation: 'signal-field' }} />,
+          ),
+          elapsed: 40000,
+        }),
+        exercise: async ({ rendered, elapsed }) => {
+          await act(async () => vi.advanceTimersByTime(elapsed))
+          return rendered
+        },
+        verify: ({ container }) => {
+          expect(screen.getByText('signal-field')).toBeTruthy()
+          expect(container.textContent).toContain('0:40/~5:00')
+        },
+      }),
+    )
+    it(
+      'uses the configured estimate before the review cycle resets',
+      mint({
+        setup: () => ({
+          rendered: render(
+            <PipelineAnimationDemoPanel
+              panel={{
+                ...panel,
+                running_animation: 'signal-field',
+                demo_review_duration: duration('7s'),
+              }}
+            />,
+          ),
+          elapsed: 8000,
+        }),
+        exercise: async ({ rendered, elapsed }) => {
+          await act(async () => vi.advanceTimersByTime(elapsed))
+          return rendered
+        },
+        verify: ({ container }) => {
+          expect(container.textContent).toContain('Expected ≈ 7s')
+          expect(container.textContent).toContain('Elapsed 8s')
+          expect(container.textContent).toContain('Over estimate')
+        },
+      }),
+    )
+    it(
+      'remounts a decorative field when the focused run resets',
+      mint({
+        setup: () => {
+          const rendered = render(
+            <PipelineAnimationDemoPanel
+              panel={{
+                ...panel,
+                running_animation: 'falling-shapes',
+                demo_review_duration: duration('2s'),
+              }}
+            />,
+          )
+          return {
+            rendered,
+            firstField: rendered.container.querySelector('[data-running-field]'),
+            elapsed: 3000,
+          }
+        },
+        exercise: async ({ rendered, elapsed }) => {
+          await act(async () => vi.advanceTimersByTime(elapsed))
+          return rendered
+        },
+        verify: ({ container }, { firstField }) => {
+          expect(firstField).not.toBeNull()
+          const next = container.querySelector('[data-running-field]')
+          expect(next).not.toBeNull()
+          expect(next).not.toBe(firstField)
+          expect(container.textContent).toContain('Elapsed 0s')
+        },
+      }),
+    )
   })
 })

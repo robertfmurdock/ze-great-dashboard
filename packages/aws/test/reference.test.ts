@@ -1,267 +1,202 @@
+// biome-ignore-all lint/suspicious/noTemplateCurlyInString: CloudFormation substitution names are literal artifact data.
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { describe, expect, it } from 'vitest'
-import { parse } from 'yaml'
-import { packageLambda } from '../src/index.ts'
+import { parse, type YAMLSeq } from 'yaml'
 
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url))
 const referenceDirectory = join(repositoryRoot, 'reference')
-
+// Preserve intrinsic expressions as declarations; this does not evaluate CloudFormation.
 const cloudFormationTags = [
+  ...['Sub', 'Not', 'Equals', 'If'].map((name) => ({
+    tag: `!${name}`,
+    collection: 'seq' as const,
+    resolve: (value: YAMLSeq) => ({ [name]: value.toJSON() }),
+  })),
   { tag: '!Ref', resolve: (value: string) => ({ Ref: value }) },
   { tag: '!Sub', resolve: (value: string) => ({ Sub: value }) },
   { tag: '!GetAtt', resolve: (value: string) => ({ GetAtt: value }) },
 ]
-
-describe('persistent consumer reference', () => {
-  it('keeps its checked-in consumer inputs compatible with the generated template', async () => {
-    const parameters = JSON.parse(
-      await readFile(join(referenceDirectory, 'aws-dashboard-parameters.json'), 'utf8'),
-    ) as { ParameterKey: string; ParameterValue: string }[]
-    expect(parameters).toEqual([
-      { ParameterKey: 'Name', ParameterValue: 'ze-great-dashboard-reference' },
-      {
-        ParameterKey: 'LambdaArtifactBucket',
-        ParameterValue: 'ze-great-dashboard-reference-artifacts',
-      },
-    ])
-
-    const outputDir = await mkdtemp('/tmp/dashboard-reference-package-')
-    const release = await packageLambda({
-      boardConfigPath: join(referenceDirectory, 'board.yaml'),
-      outputDir,
-      version: '1.2.3',
-      secretReference: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dashboard',
-    })
-    const template = await readFile(join(outputDir, 'template.yml'), 'utf8')
-    expect(template).toContain('Name: { Type: String, Default: dashboard }')
-    expect(template).toContain('LambdaArtifactBucket: { Type: String }')
-    expect(template).toContain(`Default: "${release.artifactKey}"`)
-    expect(template).toContain(`Default: "${release.assetPath}"`)
-  })
-
-  it('keeps the reference composition consumer-owned and forwards both credential paths', async () => {
-    const composition = parse(
-      await readFile(join(referenceDirectory, 'consumer-composition.yml'), 'utf8'),
-      { customTags: cloudFormationTags },
-    ) as {
-      Resources: Record<
-        string,
-        { Type: string; Properties: { TemplateURL: unknown; Parameters: Record<string, unknown> } }
-      >
-      Outputs: Record<string, { Value: unknown }>
-    }
-    expect(Object.keys(composition.Resources)).toEqual([
-      'SecretsApplication',
-      'ParameterApplication',
-    ])
-    const sharedParameters = {
-      LambdaArtifactBucket: { Ref: 'LambdaArtifactBucket' },
-      LambdaArtifactKey: { Ref: 'LambdaArtifactKey' },
-      AssetPath: { Ref: 'AssetPath' },
-      BoardConfigPath: { Ref: 'BoardConfigPath' },
-    }
-    expect(composition.Resources.SecretsApplication).toEqual({
-      Type: 'AWS::CloudFormation::Stack',
+type Statement = { Sid?: string; Action?: unknown; Resource?: unknown }
+type ReferenceTemplate = {
+  Resources: Record<
+    string,
+    {
+      Type: string
       Properties: {
-        TemplateURL: { Ref: 'ApplicationTemplateUrl' },
-        Parameters: {
-          Name: { Ref: 'SecretsName' },
-          ...sharedParameters,
-          SecretReference: { Ref: 'SecretsReference' },
-        },
+        TemplateURL?: unknown
+        Parameters?: Record<string, unknown>
+        Policies?: { PolicyDocument: { Statement: Statement[] } }[]
+      }
+    }
+  >
+  Outputs: Record<string, { Value: unknown }>
+}
+describe('consumer reference packaging', () => {
+  it(
+    'passes the checked-in board and consumer parameters through the packaging CLI',
+    mint({
+      setup: async ({ scope }) => {
+        const outputDir = await scope.using(
+          'reference release',
+          () => mkdtemp('/tmp/dashboard-reference-'),
+          (path) => rm(path, { recursive: true, force: true }),
+        )
+        const parametersPath = join(referenceDirectory, 'aws-dashboard-parameters.json')
+        const parameters = JSON.parse(await readFile(parametersPath, 'utf8')) as {
+          ParameterKey: string
+          ParameterValue: string
+        }[]
+        return {
+          outputDir,
+          parametersPath,
+          parameters,
+          boardPath: join(referenceDirectory, 'board.yaml'),
+          version: '1.2.3',
+        }
       },
-    })
-    expect(composition.Resources.ParameterApplication).toEqual({
-      Type: 'AWS::CloudFormation::Stack',
-      Properties: {
-        TemplateURL: { Ref: 'ApplicationTemplateUrl' },
-        Parameters: {
-          Name: { Ref: 'ParameterName' },
-          ...sharedParameters,
-          SecretReference: { Ref: 'ParameterReference' },
-        },
+      exercise: async ({ outputDir, parametersPath, boardPath, version }) => {
+        const summary = execFileSync(
+          process.execPath,
+          [
+            join(repositoryRoot, 'packages/aws/dist/cli.js'),
+            'package',
+            '--board-config',
+            boardPath,
+            '--parameters',
+            parametersPath,
+            '--output',
+            outputDir,
+            '--version',
+            version,
+          ],
+          { encoding: 'utf8' },
+        )
+        return {
+          summary,
+          resolved: JSON.parse(await readFile(join(outputDir, 'parameters.json'), 'utf8')) as {
+            ParameterKey: string
+            ParameterValue: string
+          }[],
+          release: JSON.parse(await readFile(join(outputDir, 'release.json'), 'utf8')) as {
+            artifactKey: string
+            assetPath: string
+          },
+        }
       },
-    })
-    expect(composition.Outputs).toMatchObject({
-      AssetPath: {
-        Value: {
-          Ref: 'AssetPath',
-        },
+      verify: ({ summary, resolved, release }, { parameters }) => {
+        for (const parameter of parameters) expect(resolved).toContainEqual(parameter)
+        expect(resolved).toContainEqual({
+          ParameterKey: 'LambdaArtifactKey',
+          ParameterValue: release.artifactKey,
+        })
+        expect(resolved).toContainEqual({
+          ParameterKey: 'AssetPath',
+          ParameterValue: release.assetPath,
+        })
+        expect(summary).toContain('Complete parameters:')
       },
-      LambdaArtifactKey: { Value: { Ref: 'LambdaArtifactKey' } },
-      SecretsFunctionArn: { Value: { GetAtt: 'SecretsApplication.Outputs.ServerFunctionArn' } },
-      ParameterFunctionArn: { Value: { GetAtt: 'ParameterApplication.Outputs.ServerFunctionArn' } },
-    })
-  })
-
-  it('scopes the reference identities and deploys before publication', async () => {
-    const infrastructure = await readFile(join(repositoryRoot, 'infra/stack.yml'), 'utf8')
-    const bootstrap = await readFile(join(repositoryRoot, 'infra/bootstrap.yml'), 'utf8')
-    expect(infrastructure).toContain('BucketName: ze-great-dashboard-reference-artifacts')
-    expect(infrastructure).toContain('VersioningConfiguration: { Status: Suspended }')
-    expect(infrastructure).toContain('SSEAlgorithm: AES256')
-    expect(infrastructure).toContain('ref:refs/heads/main')
-    expect(infrastructure).toContain('stack/ze-great-dashboard-reference/*')
-    expect(infrastructure).toContain('function:ze-great-dashboard-reference')
-    expect(infrastructure).toContain('role/ze-great-dashboard-reference-*')
-    expect(infrastructure).toContain('ZeGreatDashboardReferenceSmoke')
-    expect(infrastructure).toContain('ReferenceCredentialSmokeSecret')
-    expect(infrastructure).toContain('"GITHUB_TOKEN":"smoke-placeholder"')
-    expect(infrastructure).toContain('ecs:CreateCluster')
-    expect(infrastructure).toContain('ecs:StopTask')
-    expect(infrastructure).toContain('Sid: DeleteSmokeCluster')
-    const smokeClusterArn = [
-      'arn:',
-      ['$', '{AWS::Partition}'].join(''),
-      ':ecs:',
-      ['$', '{AWS::Region}'].join(''),
-      ':',
-      ['$', '{AWS::AccountId}'].join(''),
-      ':cluster/ze-great-dashboard-smoke-*',
-    ].join('')
-    const infrastructureDocument = parse(infrastructure, { customTags: cloudFormationTags }) as {
-      Resources: {
-        GitHubReferenceSmokeRole: {
+    }),
+    30000,
+  )
+})
+describe('parsed consumer composition declarations', () => {
+  it(
+    'forwards both credential paths through consumer-owned nested stacks',
+    mint({
+      setup: async () => ({
+        source: await readFile(join(referenceDirectory, 'consumer-composition.yml'), 'utf8'),
+      }),
+      exercise: ({ source }) =>
+        parse(source, { customTags: cloudFormationTags }) as ReferenceTemplate,
+      verify: (composition) => {
+        expect(Object.keys(composition.Resources)).toEqual([
+          'SecretsApplication',
+          'ParameterApplication',
+        ])
+        const sharedParameters = {
+          LambdaArtifactBucket: { Ref: 'LambdaArtifactBucket' },
+          LambdaArtifactKey: { Ref: 'LambdaArtifactKey' },
+          AssetPath: { Ref: 'AssetPath' },
+          BoardConfigPath: { Ref: 'BoardConfigPath' },
+        }
+        expect(composition.Resources.SecretsApplication).toEqual({
+          Type: 'AWS::CloudFormation::Stack',
           Properties: {
-            Policies: {
-              PolicyDocument: {
-                Statement: { Sid?: string; Action?: unknown; Resource?: unknown }[]
-              }
-            }[]
-          }
-        }
-      }
-    }
-    expect(
-      infrastructureDocument.Resources.GitHubReferenceSmokeRole.Properties.Policies[0]?.PolicyDocument.Statement.find(
-        ({ Sid }) => Sid === 'DeleteSmokeCluster',
-      ),
-    ).toMatchObject({ Action: 'ecs:DeleteCluster', Resource: { Sub: smokeClusterArn } })
-    const smokeStatements =
-      infrastructureDocument.Resources.GitHubReferenceSmokeRole.Properties.Policies[0]
-        ?.PolicyDocument.Statement ?? []
-    expect(smokeStatements.find(({ Sid }) => Sid === 'RegisterSmokeTaskDefinition')).toMatchObject({
-      Action: 'ecs:RegisterTaskDefinition',
-      Resource: {
-        Sub:
-          'arn:$' +
-          '{AWS::Partition}:ecs:$' +
-          '{AWS::Region}:$' +
-          '{AWS::AccountId}:task-definition/ze-great-dashboard-smoke-*:*',
+            TemplateURL: { Ref: 'ApplicationTemplateUrl' },
+            Parameters: {
+              Name: { Ref: 'SecretsName' },
+              ...sharedParameters,
+              SecretReference: { Ref: 'SecretsReference' },
+            },
+          },
+        })
+        expect(composition.Resources.ParameterApplication).toEqual({
+          Type: 'AWS::CloudFormation::Stack',
+          Properties: {
+            TemplateURL: { Ref: 'ApplicationTemplateUrl' },
+            Parameters: {
+              Name: { Ref: 'ParameterName' },
+              ...sharedParameters,
+              SecretReference: { Ref: 'ParameterReference' },
+            },
+          },
+        })
+        expect(composition.Outputs).toMatchObject({
+          AssetPath: {
+            Value: {
+              Ref: 'AssetPath',
+            },
+          },
+          LambdaArtifactKey: { Value: { Ref: 'LambdaArtifactKey' } },
+          SecretsFunctionArn: { Value: { GetAtt: 'SecretsApplication.Outputs.ServerFunctionArn' } },
+          ParameterFunctionArn: {
+            Value: { GetAtt: 'ParameterApplication.Outputs.ServerFunctionArn' },
+          },
+        })
       },
-    })
-    expect(
-      smokeStatements.find(({ Sid }) => Sid === 'DeregisterSmokeTaskDefinition'),
-    ).toMatchObject({ Action: 'ecs:DeregisterTaskDefinition', Resource: '*' })
-    expect(infrastructure).toContain('ReferenceSmokeRoleArn')
-    expect(infrastructure).toContain('ReferenceCredentialSmokeSecretArn')
-    expect(infrastructure).toContain('ReferenceCredentialSmokeParameterArn')
-    expect(infrastructure).toContain('MaintainReferenceCredentialSmokeParameter')
-    expect(infrastructure).toContain('ssm:PutParameter')
-    expect(bootstrap).toContain('iam:GetRolePolicy')
-    const executionStatements = (
-      (infrastructureDocument.Resources as Record<string, unknown>)
-        .ReferenceCloudFormationExecutionRole as {
-        Properties: {
-          Policies: { PolicyDocument: { Statement: { Sid?: string; Resource?: unknown }[] } }[]
-        }
-      }
-    ).Properties.Policies[0]?.PolicyDocument.Statement
-    expect(
-      executionStatements?.find(({ Sid }) => Sid === 'ReadReferenceArtifact')?.Resource,
-    ).toContainEqual({ Sub: '$' + '{ReferenceArtifactBucket.Arn}/lambda/*' })
-    expect(bootstrap).toContain('ze-great-dashboard-reference-artifacts')
-    expect(bootstrap).toContain('ZeGreatDashboardReferenceCloudFormationExecution')
-    expect(bootstrap).toContain('ZeGreatDashboardReferenceDeploy')
-    expect(bootstrap).toContain('ZeGreatDashboardReferenceSmoke')
-    expect(bootstrap).toContain('ReferenceCredentialSmokeSecret')
-    expect(bootstrap).toContain('secretsmanager:CreateSecret')
-
-    const workflow = await readFile(join(repositoryRoot, '.github/workflows/main.yml'), 'utf8')
-    const tarball = workflow.indexOf('Build the exact-version npm tarballs')
-    const assets = workflow.indexOf('Publish candidate client assets from the tarball')
-    const reference = workflow.indexOf(
-      'Deploy and check the exact tarball as the consumer reference',
-    )
-    const candidate = workflow.indexOf('Save verified release candidate')
-    const publish = workflow.indexOf('Publish the same npm tarball')
-    const registry = workflow.indexOf('Confirm the published versions are visible')
-    const tag = workflow.indexOf('Tag verified release')
-    expect(
-      [tarball, assets, reference, candidate, publish, registry, tag].every((index) => index >= 0),
-    ).toBe(true)
-    expect(tarball).toBeLessThan(assets)
-    expect(assets).toBeLessThan(reference)
-    expect(reference).toBeLessThan(candidate)
-    expect(reference).toBeLessThan(publish)
-    expect(publish).toBeLessThan(registry)
-    expect(registry).toBeLessThan(tag)
-    expect(workflow).toContain('--pack client-package.tgz --pack aws-package.tgz')
-    expect(workflow).toContain('tar -xzf client-package.tgz -C .candidate-client')
-    expect(workflow).toContain('client_dir=.candidate-client/package/client')
-    expect(workflow).toContain('aws s3api head-object')
-    expect(workflow).toContain('Immutable S3 collision')
-    expect(workflow).toContain('--checksum-algorithm SHA256')
-    expect(workflow).toContain('--publish-tarball client-package.tgz')
-    expect(workflow).toContain('--publish-tarball aws-package.tgz')
-    expect(workflow).not.toContain('publish-assets')
-    expect(workflow).toContain('bash scripts/deploy-reference-composition.sh')
-    expect(workflow).toContain('verified-release-candidate')
-    expect(workflow).not.toContain('Deploy application 🚀')
-    expect(workflow).toContain('reference_artifact_bucket')
-    expect(workflow).toContain('reference_execution_role_arn')
-    expect(workflow).toContain('reference_credential_smoke_secret_arn')
-    expect(workflow).toContain('reference_credential_smoke_parameter_arn')
-    expect(workflow).toContain('credential-smoke-board.yaml')
-    expect(workflow).toContain(
-      'npm install --prefix .reference-consumer --ignore-scripts --save-exact',
-    )
-    expect(workflow).toContain('cp reference/aws-dashboard-parameters.json .reference-consumer/')
-    expect(workflow).toContain('ParameterKey":"SecretReference')
-    expect(workflow).toContain('aws ssm put-parameter')
-    expect(workflow).toContain('--type SecureString')
-    expect(infrastructure).toContain('cloudformation:DeleteStack')
-    const compositionScript = join(repositoryRoot, 'scripts/deploy-reference-composition.sh')
-    execFileSync('bash', ['-n', compositionScript])
-    expect(workflow).toContain('for attempt in {1..60}')
-    expect(workflow).toContain('Assume Docker smoke-test credentials')
-    expect(workflow).toContain('Run ephemeral ECS Docker smoke test')
-    expect(workflow).toContain('for attempt in 1 2 3')
-    expect(workflow).toContain('if bash scripts/test-ecs-image.sh; then')
-    expect(workflow).toContain('retrying in 10 seconds')
-    expect(workflow).toContain('failed after 3 attempts')
-    expect(workflow).toContain('build-args:')
-    expect(workflow).toContain('--prefer-index=false')
-    expect(workflow).toContain('{{.Manifest.Digest}}')
-    expect(workflow).toContain('Refuse partially published release version')
-    expect(workflow).toContain('Reconcile the Git tag or choose a new version before retrying.')
-    expect(workflow).toContain(
-      `ASSET_PATH=https://public-assets.zegreatrob.com/dashboard/${String.fromCharCode(36)}{{ steps.version.outputs.version }}`,
-    )
-    expect(workflow).toContain('run: bash scripts/check-provider-bootstrap.sh')
-    expect(workflow.indexOf('Check provider bootstrap before provisioning')).toBeLessThan(
-      workflow.indexOf('Provision AWS infrastructure'),
-    )
-    expect(workflow).not.toContain('aws ecs create-service')
-    expect(workflow).not.toContain('AWS::ElasticLoadBalancingV2')
-
-    const smokeScript = join(repositoryRoot, 'scripts/test-ecs-image.sh')
-    execFileSync('bash', ['-n', smokeScript])
-    const smoke = await readFile(smokeScript, 'utf8')
-    expect(smoke).not.toContain('ASSET_PATH is required')
-    expect(smoke).not.toContain('name:"ASSET_PATH"')
-    expect(smoke).toContain('local test_status=$?')
-    expect(smoke).toContain('cleanup failed')
-    expect(smoke).toContain('trap cleanup EXIT')
-    expect(smoke).toContain('aws ecs create-cluster')
-    expect(smoke).toContain('healthCheck')
-    expect(smoke).toContain('/nodejs/bin/node')
-    expect(smoke).toContain('/app/docker-healthcheck.mjs')
-    expect(smoke).toContain('aws ecs stop-task')
-    expect(smoke).toContain('aws ecs deregister-task-definition')
-    expect(smoke).toContain('aws ecs delete-cluster')
-  })
+    }),
+  )
+})
+describe('parsed reference IAM declarations', () => {
+  it(
+    'scopes smoke task and cluster operations and artifact reads',
+    mint({
+      setup: async () => ({
+        source: await readFile(join(repositoryRoot, 'infra/stack.yml'), 'utf8'),
+      }),
+      exercise: ({ source }) =>
+        parse(source, { customTags: cloudFormationTags }) as ReferenceTemplate,
+      verify: (document) => {
+        const smoke =
+          document.Resources.GitHubReferenceSmokeRole?.Properties.Policies?.[0]?.PolicyDocument
+            .Statement
+        expect(smoke?.find(({ Sid }) => Sid === 'DeleteSmokeCluster')).toMatchObject({
+          Action: 'ecs:DeleteCluster',
+          Resource: {
+            Sub: 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/ze-great-dashboard-smoke-*',
+          },
+        })
+        expect(smoke?.find(({ Sid }) => Sid === 'RegisterSmokeTaskDefinition')).toMatchObject({
+          Action: 'ecs:RegisterTaskDefinition',
+          Resource: {
+            Sub: 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/ze-great-dashboard-smoke-*:*',
+          },
+        })
+        expect(smoke?.find(({ Sid }) => Sid === 'DeregisterSmokeTaskDefinition')).toMatchObject({
+          Action: 'ecs:DeregisterTaskDefinition',
+          Resource: '*',
+        })
+        const execution =
+          document.Resources.ReferenceCloudFormationExecutionRole?.Properties.Policies?.[0]
+            ?.PolicyDocument.Statement
+        expect(
+          execution?.find(({ Sid }) => Sid === 'ReadReferenceArtifact')?.Resource,
+        ).toContainEqual({ Sub: '${ReferenceArtifactBucket.Arn}/lambda/*' })
+      },
+    }),
+  )
 })

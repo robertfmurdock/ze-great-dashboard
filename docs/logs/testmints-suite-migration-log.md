@@ -763,3 +763,56 @@ import-map scenario already owns exact and prefix mappings. The scaffolding titl
 expected manifest from explicit inputs rather than unexercised determinism. The consistency test's
 redundant JSON round-trip assertion was also removed; actual CLI JSON output remains covered through
 the CLI interface. These are assertion-ownership corrections, with no production changes.
+
+### Remaining Vitest scenarios: ownership before phase conversion
+
+The remaining native Vitest scenarios are now migrated, including the partially migrated doctor,
+usePanelSignals, and animation-demo files. Node-runner scripts, Playwright suites, and experiment
+fixtures remain on their own runners; this is completion of the production Vitest-suite migration,
+not a change to those execution interfaces. No dependencies, production behavior, reporting, or
+shared Testmints infrastructure were added.
+
+The client work separates the contracts that had accumulated in RunningField: PipelinePanel owns
+selection, timing, source links, and re-entry/rerender behavior; RunningField owns inert decorative
+presentation; flight geometry now has its own direct public-function scenarios. Arbitrary aircraft,
+cloud, marker, and trail DOM counts were retired rather than carried into parent tests. Demo tests
+exercise individual controlled-time schedules and reset behavior rather than harvesting a long
+sequence of DOM snapshots. Uniform mappings use branch-free descriptors. Snowfall simulation
+scenarios distinguish accumulation, rolling progression, scheduling, toppling thresholds, replay,
+and pose projection; repeated advancement is retained where physical progression or deterministic
+replay is the behavior. Assertions on the same result stay together. Titles no longer claim
+unexercised determinism or visual color validation.
+
+usePanelSignals now uses renderHook and reads its live result in bounded verification waits.
+Callback Probe plumbing, unfinished result snapshots, empty act callbacks, and duplicated cleanup
+were removed, including from its already-migrated test-total scenario. Initial in-flight and
+settled schedules, missed updates and recovery, and rejected versus newly accepted evidence now
+have separate subject actions. Setup may await the initial poll when arranging a later poll as
+the subject; that is a condition on live schedule state, not a generic event-loop pump. Controlled
+poll time and asynchronous completion are separate operations. The scheduling composition test
+checks that the next due time follows settlement within a bounded window; exact cadence resolution
+remains owned by polling-schedule tests.
+
+AWS doctor and packaging scenarios now own and dispose their temporary files. Mixed admission and
+acceptance cases were split, and each invalid consumer-parameter input executes the real CLI once,
+checking both its error and the absence of a release directory. The reference's checked-in board
+and parameter file now actually pass through the CLI, with resolved consumer values compared to
+the original input. Its old test merely read the parameters and then packaged without using them.
+Standalone application-template inspection dissolved into the existing produced-artifact scenario.
+Bootstrap metadata, compute-mode resolution, required parameters, merge behavior, captured stacks,
+and template declarations are grouped at their own public boundaries.
+
+The consumer-bootstrap file's prose/workflow substring scans and the reference test's long source
+scan were retired. They did not execute deployment ordering, approval prompts, or GitHub Actions.
+Existing bootstrap/CLI/package behavior remains covered through those real interfaces. The useful
+shell syntax checks now live together under administrator-scripts; reference credential forwarding
+and IAM resource declarations are retained as parsed YAML contracts. Intrinsic expressions are
+preserved as data rather than evaluated. These local checks do not prove AWS authorization,
+CloudFormation deployment, administrator approval behavior, or workflow execution: those require
+real provider/CI evidence. No local replacement is claimed for the removed symbolic assertions.
+
+Representative reversible faults were detected at the intended evidence boundary: dropped hook
+publication, omitted aborts, incorrect demo cadence and camera centering, wrong falling-field fill
+and snowman duration threshold, substituted reference CLI parameters, weakened bucket declarations,
+and broken administrator-script syntax. Every fault was restored before the unified gate. These
+controls validate the changed test boundaries; they did not reveal or fix a production defect.

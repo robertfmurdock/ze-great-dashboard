@@ -183,6 +183,10 @@ compare the resulting public or collaborator evidence to those same values in `v
 repeat meaningful inputs as disconnected literals across phases; phase boundaries should reveal the
 scenario's actual data flow.
 
+Prefer one location for each arranged value in the setup result. Reference a value through its
+existing owner when practical instead of returning aliases or duplicate owner/child fields. Keep
+distinct before-action snapshots when the earlier state is part of the contract.
+
 One input scenario has one visible exercise. Split cases with materially different inputs, actions,
 or contracts; repeat an exercise only when repetition is itself the behavior under test. Group
 scenarios by contract boundary with `describe`. Construct an app, client, store, or other enabling
