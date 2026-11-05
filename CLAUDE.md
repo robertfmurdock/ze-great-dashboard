@@ -124,8 +124,10 @@ neither may register a test or hide its subject action. Add helpers, fixture bui
 only when they make the scenario easier to read at the call site. Static, context-free defaults may
 be file-scoped; scenario-specific values and fresh mutable collaborators remain setup-owned. Keep
 expected-rejection wrappers local until the adapter supports them natively: fail if the action
-resolves, return the error to `verify` if it rejects. Use `scope.using()` for resources that must be
-released after any phase.
+resolves, return the error to `verify` if it rejects. Keep shared teardown in Vitest `afterEach`
+or existing suite hooks; do not repeat it in scenario setup just to use Testmints cleanup. Reserve
+`scope.using()` and scoped cleanup for one-time resources or cleanup specific to that scenario’s
+setup, such as a temporary directory or server acquired there.
 
 ```ts
 test(

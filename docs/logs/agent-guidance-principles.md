@@ -268,3 +268,19 @@ small reversible faults as negative controls where the working feature already e
 that the intended behavioral assertion fails before restoring green. This is promoted into both
 current guidance files as a contract-level evidence discipline, not a requirement for a mutation
 framework, per-assertion executions, or additional shared Testmints infrastructure.
+
+## Shared teardown belongs in ordinary runner hooks — 2026-11-05
+
+Reviewing the outgoing Testmints migrations, Rob corrected the tendency to relocate every teardown
+into each scenario's setup:
+
+> i'm still seeing in outgoing changes a tendency to force all cleanups into the setup cleanup,
+> even when using the vitest after would be sufficient. the testmints cleanup functionality is best
+> suited to one time cleanup operations specific to one test's setup, not a place to repeat code
+> for the sake of repeating code
+
+The client already has shared React cleanup in its Vitest setup file. Global/mock restoration and
+startup clock/environment teardown can likewise stay in suite `afterEach` hooks. Core's disposable
+release directories remain scenario-owned resources acquired and released through `scope.using()`.
+This distinction is promoted into AGENTS.md and CLAUDE.md: phase clarity does not require moving
+ordinary runner lifecycle behavior into every Testmints setup.

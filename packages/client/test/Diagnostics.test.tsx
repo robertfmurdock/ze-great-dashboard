@@ -1,20 +1,26 @@
+import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { Diagnostics } from '../src/Diagnostics.tsx'
 import { BrowserDiagnosticStore } from '../src/diagnostics.ts'
+import type { UpdateActivitySnapshot } from '../src/update-activity.ts'
+import { env } from './client-test-fixture.tsx'
 
-const env: ClientEnv = {
-  assetPath: 'https://assets.example.com/dashboard/1.0.7',
-  assetPathId: 'sha256:3f454a601d3791a603e550652cec7ca1fb4359489df99605e72e051dd5b02731',
-  proxyPath: '/api',
-  board: 'ze-great-team',
-}
+type Retention = { eventsPrunedByAge: number; eventsPrunedByCount: number }
 
-function log() {
+function log(retention?: Retention) {
   const values = new Map<string, string>()
+  if (retention)
+    values.set(
+      'ze-great-dashboard.diagnostics.v2',
+      JSON.stringify({
+        schemaVersion: 2,
+        retention,
+        events: [],
+      }),
+    )
   return new BrowserDiagnosticStore(
     env,
     {
@@ -26,117 +32,193 @@ function log() {
   )
 }
 
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
+function fixture(retention?: Retention) {
+  return { user: userEvent.setup(), diagnosticLog: log(retention) }
+}
+
+async function openFixture() {
+  const world = fixture()
+  render(<Diagnostics log={world.diagnosticLog} />)
+  await world.user.click(screen.getByRole('button', { name: /Diagnostics/ }))
+  return world
+}
 
 describe('Diagnostics control', () => {
-  it('discloses its retained count and keeps actions hidden until opened', async () => {
-    const user = userEvent.setup()
-    const diagnosticLog = log()
-    render(<Diagnostics log={diagnosticLog} />)
-    expect(
-      screen.getByRole('button', { name: /Diagnostics \(1\)/ }).getAttribute('aria-expanded'),
-    ).toBe('false')
-    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull()
-    await user.click(screen.getByRole('button', { name: /Diagnostics/ }))
-    expect(screen.getByRole('button', { name: 'Download' })).not.toBeNull()
-    expect(screen.getByText(/Client dev · assets https:\/\/assets\.example\.com/)).not.toBeNull()
-    expect(screen.getByText(/Update failures: 0; board fetch failures: 0/)).not.toBeNull()
-    act(() => {
-      diagnosticLog.record({
-        kind: 'panel-fetch-start',
-        panelId: 'build',
-        path: '/api/panel/build',
-      })
-    })
-    expect(screen.getByRole('button', { name: /Diagnostics \(2\)/ })).not.toBeNull()
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
-  it('downloads its JSON evidence and only clears after confirmation', async () => {
-    const user = userEvent.setup()
-    const diagnosticLog = log()
-    const createObjectURL = vi.fn((_blob: Blob) => 'blob:test')
-    const revokeObjectURL = vi.fn()
-    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL })
-    vi.stubGlobal(
-      'confirm',
-      vi.fn(() => false),
-    )
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-    render(
-      <Diagnostics
-        log={diagnosticLog}
-        updateActivity={() => ({
+  test(
+    'discloses its retained count and keeps actions hidden while collapsed',
+    mint({
+      setup: () => fixture(),
+      exercise: ({ diagnosticLog }) => render(<Diagnostics log={diagnosticLog} />),
+      verify: (_output, { diagnosticLog }) => {
+        expect(
+          screen
+            .getByRole('button', { name: `Diagnostics (${diagnosticLog.count()})` })
+            .getAttribute('aria-expanded'),
+        ).toBe('false')
+        expect(screen.queryByRole('button', { name: 'Download' })).toBeNull()
+        expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
+      },
+    }),
+  )
+
+  test(
+    'opens its actions and client summary',
+    mint({
+      setup: () => {
+        const world = fixture()
+        render(<Diagnostics log={world.diagnosticLog} />)
+        return world
+      },
+      exercise: ({ user }) => user.click(screen.getByRole('button', { name: /Diagnostics/ })),
+      verify: () => {
+        expect(screen.getByRole('button', { name: 'Download' })).not.toBeNull()
+        expect(screen.getByRole('button', { name: 'Clear' })).not.toBeNull()
+        expect(screen.getByText(`Client dev · assets ${env.assetPath}`)).not.toBeNull()
+        expect(screen.getByText(/Update failures: 0; board fetch failures: 0/)).not.toBeNull()
+      },
+    }),
+  )
+
+  test(
+    'updates the retained count when new evidence arrives',
+    mint({
+      setup: async () => {
+        const world = await openFixture()
+        return {
+          ...world,
+          initialCount: world.diagnosticLog.count(),
+          event: {
+            kind: 'panel-fetch-start' as const,
+            panelId: 'build',
+            path: '/api/panel/build',
+          },
+        }
+      },
+      exercise: ({ diagnosticLog, event }) => act(() => diagnosticLog.record(event)),
+      verify: (_output, { initialCount }) => {
+        expect(
+          screen.getByRole('button', { name: `Diagnostics (${initialCount + 1})` }),
+        ).not.toBeNull()
+      },
+    }),
+  )
+
+  test(
+    'downloads JSON evidence with the supplied update activity',
+    mint({
+      setup: async () => {
+        const world = fixture()
+        const updateActivity: UpdateActivitySnapshot = {
           capturedAt: '2026-08-21T12:00:00.000Z',
           window: { from: '2026-08-21T11:50:00.000Z', to: '2026-08-21T12:00:00.000Z' },
           schedules: [],
-        })}
-      />,
-    )
-    await user.click(screen.getByRole('button', { name: /Diagnostics/ }))
-    await user.click(screen.getByRole('button', { name: 'Download' }))
-    expect(createObjectURL).toHaveBeenCalled()
-    const blob = createObjectURL.mock.calls[0]?.[0]
-    if (!blob) throw new Error('Expected diagnostics download blob.')
-    expect(JSON.parse(await blob.text())).toMatchObject({
-      updateActivity: { window: { from: '2026-08-21T11:50:00.000Z' }, schedules: [] },
-    })
-    expect(click).toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: 'Clear' }))
-    expect(diagnosticLog.count()).toBe(1)
-    vi.stubGlobal(
-      'confirm',
-      vi.fn(() => true),
-    )
-    await user.click(screen.getByRole('button', { name: 'Clear' }))
-    expect(diagnosticLog.count()).toBe(0)
-    click.mockRestore()
-  })
-
-  it('warns when retention has pruned older evidence', async () => {
-    const user = userEvent.setup()
-    const values = new Map<string, string>()
-    values.set(
-      'ze-great-dashboard.diagnostics.v2',
-      JSON.stringify({
-        schemaVersion: 2,
-        retention: { eventsPrunedByAge: 2, eventsPrunedByCount: 5 },
-        events: [],
-      }),
-    )
-    const diagnosticLog = new BrowserDiagnosticStore(
-      env,
-      {
-        getItem: (key) => values.get(key) ?? null,
-        setItem: (key, value) => values.set(key, value),
-        removeItem: (key) => values.delete(key),
+        }
+        const url = 'blob:test'
+        const createObjectURL = vi.fn((_blob: Blob) => url)
+        const revokeObjectURL = vi.fn()
+        vi.stubGlobal('URL', { createObjectURL, revokeObjectURL })
+        const click = vi
+          .spyOn(HTMLAnchorElement.prototype, 'click')
+          .mockImplementation(() => undefined)
+        render(<Diagnostics log={world.diagnosticLog} updateActivity={() => updateActivity} />)
+        await world.user.click(screen.getByRole('button', { name: /Diagnostics/ }))
+        return { ...world, updateActivity, url, createObjectURL, revokeObjectURL, click }
       },
-      () => new Date('2026-08-21T12:00:00Z'),
-    )
-    render(<Diagnostics log={diagnosticLog} />)
-    await user.click(screen.getByRole('button', { name: /Diagnostics/ }))
-    expect(screen.getByRole('alert').textContent).toContain('Earlier evidence was pruned: 5')
-  })
+      exercise: ({ user }) => user.click(screen.getByRole('button', { name: 'Download' })),
+      verify: async (_output, { updateActivity, url, createObjectURL, revokeObjectURL, click }) => {
+        expect(createObjectURL).toHaveBeenCalledTimes(1)
+        const blob = createObjectURL.mock.calls[0]?.[0]
+        if (!blob) throw new Error('Expected diagnostics download blob.')
+        expect(blob.type).toBe('application/json')
+        expect(JSON.parse(await blob.text())).toMatchObject({ updateActivity })
+        expect(click).toHaveBeenCalledTimes(1)
+        expect(revokeObjectURL).toHaveBeenCalledWith(url)
+      },
+    }),
+  )
 
-  it('shows per-panel failures in its summary', async () => {
-    const user = userEvent.setup()
-    const diagnosticLog = log()
-    diagnosticLog.record({
-      kind: 'panel-fetch-failure',
-      panelId: 'build',
-      path: '/api/panel/build',
-      message: 'offline',
-    })
-    render(<Diagnostics log={diagnosticLog} />)
-    await user.click(screen.getByRole('button', { name: /Diagnostics/ }))
-    expect(
-      screen.getByText(
-        (_content, element) =>
-          element?.tagName === 'P' &&
-          element.textContent?.includes('build') === true &&
-          element.textContent.includes('parse/network failures 0/1'),
-      ),
-    ).not.toBeNull()
-  })
+  test(
+    'retains evidence when clearing is declined',
+    mint({
+      setup: async () => {
+        const world = await openFixture()
+        const confirm = vi.fn(() => false)
+        vi.stubGlobal('confirm', confirm)
+        return { ...world, confirm, original: world.diagnosticLog.export() }
+      },
+      exercise: ({ user }) => user.click(screen.getByRole('button', { name: 'Clear' })),
+      verify: (_output, { diagnosticLog, confirm, original }) => {
+        expect(confirm).toHaveBeenCalledTimes(1)
+        expect(diagnosticLog.export()).toEqual(original)
+        expect(
+          screen.getByRole('button', { name: `Diagnostics (${diagnosticLog.count()})` }),
+        ).not.toBeNull()
+      },
+    }),
+  )
+
+  test(
+    'clears retained evidence after confirmation',
+    mint({
+      setup: async () => {
+        const world = await openFixture()
+        const confirm = vi.fn(() => true)
+        vi.stubGlobal('confirm', confirm)
+        return { ...world, confirm }
+      },
+      exercise: ({ user }) => user.click(screen.getByRole('button', { name: 'Clear' })),
+      verify: (_output, { diagnosticLog, confirm }) => {
+        expect(confirm).toHaveBeenCalledTimes(1)
+        expect(diagnosticLog.count()).toBe(0)
+        expect(screen.getByRole('button', { name: 'Diagnostics (0)' })).not.toBeNull()
+      },
+    }),
+  )
+
+  test(
+    'warns when retention has pruned older evidence',
+    mint({
+      setup: () => {
+        const retention = { eventsPrunedByAge: 2, eventsPrunedByCount: 5 }
+        const { user, diagnosticLog } = fixture(retention)
+        render(<Diagnostics log={diagnosticLog} />)
+        return { user, retention }
+      },
+      exercise: ({ user }) => user.click(screen.getByRole('button', { name: /Diagnostics/ })),
+      verify: (_output, { retention }) => {
+        expect(screen.getByRole('alert').textContent).toContain(
+          `Earlier evidence was pruned: ${retention.eventsPrunedByCount}`,
+        )
+      },
+    }),
+  )
+
+  test(
+    'shows per-panel failures in its summary',
+    mint({
+      setup: () => {
+        const world = fixture()
+        const event = {
+          kind: 'panel-fetch-failure' as const,
+          panelId: 'build',
+          path: '/api/panel/build',
+          message: 'offline',
+        }
+        world.diagnosticLog.record(event)
+        render(<Diagnostics log={world.diagnosticLog} />)
+        return { ...world, event }
+      },
+      exercise: ({ user }) => user.click(screen.getByRole('button', { name: /Diagnostics/ })),
+      verify: (_output, { event }) => {
+        expect(screen.getByText(/parse\/network failures 0\/1/).textContent).toContain(
+          event.panelId,
+        )
+      },
+    }),
+  )
 })

@@ -572,3 +572,65 @@ feature contracts. Where the inflection point is later than mounting, setup now 
 rendered hook world and its initial state; exercise contains only the poll, unmount, rerender, or
 timeout transition that owns that scenario. The cancellation evidence remains grouped with shutdown
 because both are observable results of the same unmount action.
+
+### Follow-up: client controls and board configuration
+
+`LayoutWarning`, `Diagnostics`, and `useBoardConfig` now use the installed Testmints Vitest
+adapter. Diagnostics separates collapsed presentation, opening, live count updates, download,
+declined clearing, confirmed clearing, retention disclosure, and panel-failure summary. Setup
+establishes an open control for later actions instead of combining several inflection points in
+exercise. Layout dismissal follows the same boundary. Scoped cleanup restores React, globals,
+and download spies even if a phase fails; no shared migration infrastructure was added.
+
+The board hook still runs through its real fetch/React lifecycle. Its successful response input
+also supplies the expected board and compact diagnostic summary; malformed JSON must publish an
+empty board and record a parse failure without an additional network failure. Reversible negative
+controls confirmed that retained dialogs after Escape, clearing despite declined confirmation,
+and duplicate network classification of parse failures fail at their intended observable
+assertions. All production files were restored afterward.
+
+The unified gate exposed unrelated Markdown formatting failures across unchanged files under the
+installed Biome version. Those files remain outside this migration rather than expanding a test
+conversion into a documentation-formatting sweep.
+
+A review against earlier migrations removed the Diagnostics summary assertion's paragraph-tag
+coupling and made retention setup construct only its intended store. Board loading now compares
+the actual fetch URL and its diagnostic path to one setup-owned expectation. A reversible fault
+that requested a different board while preserving the correct diagnostic path failed at the fetch
+assertion, showing that diagnostic claims alone cannot substitute for request evidence.
+
+### Follow-up: remaining server and core contracts
+
+The remaining server suites (development startup, Entra Compose configuration, and captured GitHub
+Actions fixtures) and core consumer-release suite now use the installed Vitest adapter throughout.
+Core separates example-board validation from asset-URL generation and misplaced modelines from
+malformed modelines. Expected rejection stays a local wrapper; disposable board/release directories
+use `scope.using()` so failed phases do not leak files. Density inputs flow from one setup-owned
+panel list into the serialized input and both parsed and emitted evidence.
+
+Development startup no longer hides its subject call inside a timer/environment helper. Setup owns
+the fake clock, environment, logger, and upstream responses; exercise visibly calls `startup()` and
+drives its retry clock. Deadline evidence includes the settlement time as well as the source path
+and original cause, so early failure cannot masquerade as correct bounded retry. Reversible early
+and late deadline faults both failed at the settlement-time assertion. Separate controls detected
+lost modeline canonicalization, a writable token-directory mount, and a wrong fixture conclusion;
+every fault was restored before the green run.
+
+The inherited core determinism test ran identical YAML twice, leaving its equivalent-input claim
+unproved. An initial replacement varied formatting and panel-property order, but disabling YAML
+key sorting still passed because schema parsing already normalizes those properties. The final
+scenario serializes the same two-board configuration with reversed board-key order and different
+indentation, assembles each once, and compares emitted boards and artifact checksums. Disabling
+sorting now fails the checksum comparison. This is the useful negative-control lesson: vary an
+input dimension that reaches the implementation boundary being claimed, rather than one already
+normalized by an earlier layer. No production behavior or dependencies changed.
+
+### Cleanup ownership correction
+
+Rob's review corrected the preceding slices' overuse of scoped cleanup. LayoutWarning now relies
+on the existing shared React teardown; Diagnostics and useBoardConfig use ordinary Vitest hooks
+for shared mock/global restoration, and development startup uses a shared hook for its clock,
+console, and environment. This supersedes the earlier descriptions of those operations as
+scenario-scoped cleanup. Core retains `scope.using()` for temporary release directories because
+those resources belong to individual setups. The current guidance now distinguishes shared runner
+teardown from one-time scenario resource disposal instead of encouraging repeated registrations.
