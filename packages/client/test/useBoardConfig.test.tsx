@@ -1,21 +1,9 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
-import { render } from '@testing-library/react'
-import { act } from 'react'
+import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import type { DiagnosticEventInput, DiagnosticSink } from '../src/diagnostics.ts'
+import type { DiagnosticEventInput } from '../src/diagnostics.ts'
 import { useBoardConfig } from '../src/useBoardConfig.ts'
 import { env } from './client-test-fixture.tsx'
-
-function Probe({
-  diagnostics,
-  onChange,
-}: {
-  diagnostics: DiagnosticSink
-  onChange: (value: ReturnType<typeof useBoardConfig>) => void
-}) {
-  onChange(useBoardConfig({ env, diagnostics }))
-  return null
-}
 
 function recordingSink() {
   const events: DiagnosticEventInput[] = []
@@ -40,15 +28,12 @@ describe('useBoardConfig', () => {
         vi.stubGlobal('fetch', fetcher)
         return { diagnostics, board, fetcher, expectedPath }
       },
-      exercise: async ({ diagnostics }) => {
-        let current: ReturnType<typeof useBoardConfig> | undefined
-        render(<Probe diagnostics={diagnostics} onChange={(value) => (current = value)} />)
-        await act(async () => {})
-        return current
-      },
-      verify: (current, { diagnostics, board, fetcher, expectedPath }) => {
-        expect(current?.loadedBoardName).toBe(env.board)
-        expect(current?.board).toEqual(board)
+      exercise: ({ diagnostics }) => renderHook(() => useBoardConfig({ env, diagnostics })),
+      verify: async ({ result }, { diagnostics, board, fetcher, expectedPath }) => {
+        await waitFor(() => {
+          expect(result.current.loadedBoardName).toBe(env.board)
+          expect(result.current.board).toEqual(board)
+        })
         expect(fetcher).toHaveBeenCalledExactlyOnceWith(expectedPath, expect.any(Object))
         expect(diagnostics.events).toContainEqual(
           expect.objectContaining({
@@ -79,15 +64,12 @@ describe('useBoardConfig', () => {
         vi.stubGlobal('fetch', fetcher)
         return { diagnostics, fetcher }
       },
-      exercise: async ({ diagnostics }) => {
-        let current: ReturnType<typeof useBoardConfig> | undefined
-        render(<Probe diagnostics={diagnostics} onChange={(value) => (current = value)} />)
-        await act(async () => {})
-        return current
-      },
-      verify: (current, { diagnostics, fetcher }) => {
-        expect(current?.board).toEqual({ panels: [] })
-        expect(current?.loadedBoardName).toBe(env.board)
+      exercise: ({ diagnostics }) => renderHook(() => useBoardConfig({ env, diagnostics })),
+      verify: async ({ result }, { diagnostics, fetcher }) => {
+        await waitFor(() => {
+          expect(result.current.board).toEqual({ panels: [] })
+          expect(result.current.loadedBoardName).toBe(env.board)
+        })
         expect(fetcher).toHaveBeenCalledTimes(1)
         expect(diagnostics.events.some((event) => event.kind === 'board-fetch-parse-failure')).toBe(
           true,

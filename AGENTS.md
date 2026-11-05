@@ -125,24 +125,47 @@ compare the results as one scenario where practical. Avoid wall-clock sleeps and
 setup; use fake or controlled time for timing behavior and reserve browser tests for behavior that
 requires a real browser.
 
-Test a component at its narrowest meaningful interface when that interface is stable: a presentational
-component with simple inputs should be tested directly, while its parent should retain tests for the
-composition relationship it owns. Do not repeat a child component's structural invariants in parent
-or browser tests. Browser tests that observe animation should synchronize on browser frames or
-animation events; fixed-duration sleeps are not a reliable substitute for the event being tested.
-
-For browser-facing unit tests, model user behavior through Testing Library's `user-event` as the
-default: query by accessible role and drive clicks, typing, keyboard navigation, and focus as a user
-would. Use `fireEvent` only when the test intentionally asserts a low-level event contract that
-`user-event` does not express, such as a synthetic pointer event, or when controlled time makes
-user-event's own interaction timers part of the behavior under test. This makes tests readable
-examples of the accessible interface, not just proof that an event handler happened to run.
-
 Keep test bodies linear and easy to preview. Test-case tables should declare scenarios and expected
 outcomes; they should not require the reader to execute branching logic in the test definition to
 discover which path is under test. When cases have different observable contracts, use separate
 tests or named case tables. Put shared branching in production-facing helpers or small test helpers,
 not in a conditional decision tree inside the assertion flow.
+
+For asynchronous behavior, await the subject’s completion or use a bounded condition-based wait
+for its observable result. Do not assume that one tick, microtask flush, or event-loop pump completes
+unrelated I/O. Keep assertions about controlled retry or polling time separate from completion of
+other asynchronous prerequisites.
+
+## React and browser tests
+
+Test components and hooks at their narrowest meaningful interface: render presentational components
+directly and use `renderHook` for hook state. Parent tests should verify the composition they own,
+not repeat child structural invariants. Assert accessible behavior and public state rather than
+incidental DOM tags or layout structure.
+
+Use Testing Library's `user-event` by default for clicks, typing, keyboard navigation, and focus.
+Query by accessible role and explicitly `await` asynchronous interactions so the completion boundary
+is visible in the test. `getBy*` and `queryBy*` queries are synchronous; `getBy*` throws when missing
+and `queryBy*` returns null. `findBy*` queries return promises and must be awaited. Use `fireEvent`
+only for a low-level event contract that `user-event` cannot express, such as a synthetic pointer
+event, or when controlled time makes user-event's own interaction timers part of the tested behavior.
+
+Await the actual asynchronous operation when its completion is available. Otherwise use bounded
+`waitFor` assertions against live hook state or `findBy*` for the expected UI. Do not capture an
+unfinished state snapshot and then wait on that stale value. Keep subject actions outside retrying
+assertion callbacks; in Testmints, observable assertions and their condition-based waits belong in
+`verify`.
+
+Use `act` to contain the actual operation that causes React updates when needed, such as releasing
+a controlled response or advancing timers. Do not use empty `act(async () => {})` callbacks or
+generic event-loop-pumping `settle` helpers as completion signals. Advancing fake time does not
+complete unrelated I/O; await its result separately. Browser animation tests should synchronize on
+frames or animation events rather than fixed-duration sleeps.
+
+Client tests already receive React `afterEach(cleanup)` from `packages/client/test/setup.ts`.
+Do not register duplicate React cleanup in individual tests or fixtures. Keep shared mock, global,
+and timer restoration in ordinary Vitest hooks; reserve scoped disposal for resources specific to
+one scenario's setup.
 
 ## Testmints migrations
 

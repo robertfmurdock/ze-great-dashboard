@@ -45,34 +45,49 @@ describe('waiting for a client that is still starting up', () => {
   )
 
   test(
-    'gives up at the configured deadline with the underlying error intact',
+    'preserves the retry deadline and underlying error when board loading finishes later',
     mint({
       setup: () => {
         const waitMillis = 1000
         const world = startupFixture('http://localhost:5173/__ASSET_PATH__', waitMillis)
         const failure = new Error('ECONNREFUSED')
-        const fetcher = vi.fn<typeof fetch>().mockRejectedValue(failure)
-        return { ...world, waitMillis, failure, fetcher }
-      },
-      exercise: async ({ fetcher, logger, waitMillis }) => {
+        const boardConfigUrl = 'https://config.example.test/board.yaml'
+        const boardReadDelay = waitMillis + 250
+        const boardText =
+          '# yaml-language-server: $schema=https://public-assets.zegreatrob.com/dashboard/0.18.0/board-config.schema.json\nboards: {team: {panels: [{id: build, type: pipeline-status}]}}\n'
+        vi.stubEnv('BOARD_CONFIG_URL', boardConfigUrl)
+        vi.stubEnv('BOARD', 'team')
+        const templateAttempts: number[] = []
         const startedAt = Date.now()
-        let settledAfter: number | undefined
-        let outcome: PromiseSettledResult<Awaited<ReturnType<typeof startup>>> | undefined
-        void startup({ fetcher, logger }).then(
-          (value) => {
-            settledAfter = Date.now() - startedAt
-            outcome = { status: 'fulfilled', value }
-          },
-          (reason: unknown) => {
-            settledAfter = Date.now() - startedAt
-            outcome = { status: 'rejected', reason }
-          },
-        )
-        await vi.advanceTimersByTimeAsync(waitMillis)
-        return { outcome, settledAfter }
+        const fetcher = vi.fn<typeof fetch>(async (input) => {
+          if (input === boardConfigUrl) {
+            await new Promise((resolve) => setTimeout(resolve, boardReadDelay))
+            return new Response(boardText)
+          }
+          templateAttempts.push(Date.now() - startedAt)
+          throw failure
+        })
+        return {
+          ...world,
+          waitMillis,
+          failure,
+          fetcher,
+          templateAttempts,
+          boardReadDelay,
+          boardConfigUrl,
+        }
       },
-      verify: ({ outcome, settledAfter }, { assetPath, failure, waitMillis }) => {
-        expect(settledAfter).toBe(waitMillis)
+      exercise: async ({ fetcher, logger, boardReadDelay }) => {
+        const outcome = Promise.allSettled([startup({ fetcher, logger })])
+        await vi.advanceTimersByTimeAsync(boardReadDelay)
+        return (await outcome)[0]
+      },
+      verify: (
+        outcome,
+        { assetPath, failure, waitMillis, templateAttempts, fetcher, boardConfigUrl },
+      ) => {
+        expect(templateAttempts.at(-1)).toBe(waitMillis)
+        expect(fetcher).toHaveBeenCalledWith(boardConfigUrl)
         expect(outcome).toMatchObject({
           status: 'rejected',
           reason: {

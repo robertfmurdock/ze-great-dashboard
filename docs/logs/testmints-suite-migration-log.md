@@ -634,3 +634,58 @@ console, and environment. This supersedes the earlier descriptions of those oper
 scenario-scoped cleanup. Core retains `scope.using()` for temporary release directories because
 those resources belong to individual setups. The current guidance now distinguishes shared runner
 teardown from one-time scenario resource disposal instead of encouraging repeated registrations.
+
+### Follow-up: remaining shared configuration contracts
+
+The remaining native scenarios in `board-config.test.ts` now use the installed Vitest adapter.
+Security policies, authorization variants, required fields, durations, credential choices, attention,
+and grouped HTTP-value shapes each expose one input and one subject action. Uniform mappings use
+small named descriptor tables; schema acceptance, parsed-value preservation, credential projection,
+and polling resolution retain their distinct verification contracts. Existing artifact-configuration
+scenarios remain in place. These subjects are synchronous, so no async wrappers or cleanup hooks
+were introduced.
+
+Review exposed an isolation problem in the inherited Azure DevOps missing-credentials case: its
+panel also lacked a pipeline definition, allowing either defect to explain rejection. The migrated
+case supplies a valid numeric pipeline; disabling the missing-credential guard now makes its
+observable assertion fail. The malformed schema/policy and HTTP-group variants likewise keep their
+other inputs valid. The four-fact acceptance case exercises the actual upper boundary alongside
+the existing five-fact rejection instead of relying on the old two-fact example to justify the
+"up to four" claim.
+
+Polling configuration preservation is exercised through schema parsing, while precedence resolution
+uses an already-parsed board in setup and visibly invokes the resolver once in exercise. Descriptor
+values and credential names flow from setup into verification rather than being restated as
+unconnected literals. Representative reversible faults detected removed security/authorization and
+credential guards, duplicate-panel admission, lost density, an enlarged HTTP fact limit, dropped
+credential names, reversed polling precedence, incorrect duration conversion, and leaked schema
+defaults. Every temporary source change was restored before final verification.
+
+### Startup deadline test miss: fake time did not settle real I/O
+
+Main Build run 42055284378 failed the migrated development-startup deadline scenario after local
+checks had passed. Its `settledAfter` snapshot was undefined: advancing the retry clock had not
+guaranteed completion of startup's separate board-configuration read. The test incorrectly equated
+the template retry deadline with completion of the entire startup operation. The failure did not
+demonstrate a production retry regression.
+
+Before changing the synchronization, setup was adapted to supply board configuration through the
+supported HTTP fetch boundary after the template deadline. That representative delayed prerequisite
+reproduced the same undefined-versus-1000 assertion on the prior test. Exact slow local-filesystem
+scheduling was not forced; the controlled response models the independently pending board load.
+The correction awaits startup's settled result and verifies the final template-attempt timestamp,
+source path, and original cause independently of board-load completion. Early and one-interval-late
+retry-cutoff faults both fail the timestamp assertion, and were restored before the green run.
+This supersedes the earlier claim that overall settlement time was suitable deadline evidence.
+
+### Board-hook synchronization follow-up
+
+The two `useBoardConfig` scenarios inherited empty `act(async () => {})` calls followed by a
+snapshot of a render callback. Temporarily delaying each fetch response reproduced failures at
+the board-state assertions: the event-loop pump did not establish completion. Both scenarios now
+exercise the hook through `renderHook` and use bounded `waitFor` assertions against its live result
+in verification. They pass with the same temporary response delay; the artificial latency was
+removed afterward so the normal feedback loop adds no deliberate sleep. Reversible faults that
+publish an incorrect successful board or suppress the empty failure board still fail the intended
+state assertions. Shared React cleanup remains authoritative; no new fixture infrastructure or
+production change was needed.

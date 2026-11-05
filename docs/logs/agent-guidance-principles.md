@@ -284,3 +284,31 @@ startup clock/environment teardown can likewise stay in suite `afterEach` hooks.
 release directories remain scenario-owned resources acquired and released through `scope.using()`.
 This distinction is promoted into AGENTS.md and CLAUDE.md: phase clarity does not require moving
 ordinary runner lifecycle behavior into every Testmints setup.
+
+## Await observable completion instead of assuming event-loop progress — 2026-11-05
+
+After a migrated startup deadline scenario passed locally but failed on main, Rob clarified:
+
+> generally we should await for our expectations to be fulfilled rather than assume that one tick
+> or event pump will be sufficient
+
+The test had advanced fake time and inspected a promise callback's mutable snapshot while real
+board-config I/O could still be pending. It now awaits startup completion and separately checks
+the last template-attempt time. A deliberately delayed board response reproduces the previously
+unprotected scheduling condition without relying on a slow CI disk. The general rule is promoted
+into AGENTS.md and CLAUDE.md: await completion or a bounded observable condition; an event-loop pump
+is not evidence that unrelated asynchronous prerequisites have finished.
+
+## Keep React testing lessons together — 2026-11-05
+
+After the empty-act review, Rob requested:
+
+> seems like we should consolidate some of our react specific test guidelines and add these
+> problems to that group
+
+AGENTS.md and CLAUDE.md now have a matching React/browser testing section covering interface choice,
+accessible interactions, explicit awaits and query semantics, live-state condition waits, meaningful
+`act` operations, animation synchronization, and the existing shared React cleanup hook. General
+async-completion guidance remains applicable outside React, while Testmints retains its general
+phase and resource-ownership rules. This consolidates current guidance without rewriting the earlier
+migration records that explain how these lessons were learned.

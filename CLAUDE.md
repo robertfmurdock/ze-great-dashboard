@@ -95,6 +95,42 @@ history when those details help a contributor change the project safely. Tighten
 material, but do not delete contributor information merely because it does not belong in a consumer
 guide; move it to the correctly named document when placement is the problem.
 
+For asynchronous behavior, await the subject’s completion or use a bounded condition-based wait
+for its observable result. Do not assume that one tick, microtask flush, or event-loop pump completes
+unrelated I/O. Keep assertions about controlled retry or polling time separate from completion of
+other asynchronous prerequisites.
+
+## React and browser tests
+
+Test components and hooks at their narrowest meaningful interface: render presentational components
+directly and use `renderHook` for hook state. Parent tests should verify the composition they own,
+not repeat child structural invariants. Assert accessible behavior and public state rather than
+incidental DOM tags or layout structure.
+
+Use Testing Library's `user-event` by default for clicks, typing, keyboard navigation, and focus.
+Query by accessible role and explicitly `await` asynchronous interactions so the completion boundary
+is visible in the test. `getBy*` and `queryBy*` queries are synchronous; `getBy*` throws when missing
+and `queryBy*` returns null. `findBy*` queries return promises and must be awaited. Use `fireEvent`
+only for a low-level event contract that `user-event` cannot express, such as a synthetic pointer
+event, or when controlled time makes user-event's own interaction timers part of the tested behavior.
+
+Await the actual asynchronous operation when its completion is available. Otherwise use bounded
+`waitFor` assertions against live hook state or `findBy*` for the expected UI. Do not capture an
+unfinished state snapshot and then wait on that stale value. Keep subject actions outside retrying
+assertion callbacks; in Testmints, observable assertions and their condition-based waits belong in
+`verify`.
+
+Use `act` to contain the actual operation that causes React updates when needed, such as releasing
+a controlled response or advancing timers. Do not use empty `act(async () => {})` callbacks or
+generic event-loop-pumping `settle` helpers as completion signals. Advancing fake time does not
+complete unrelated I/O; await its result separately. Browser animation tests should synchronize on
+frames or animation events rather than fixed-duration sleeps.
+
+Client tests already receive React `afterEach(cleanup)` from `packages/client/test/setup.ts`.
+Do not register duplicate React cleanup in individual tests or fixtures. Keep shared mock, global,
+and timer restoration in ordinary Vitest hooks; reserve scoped disposal for resources specific to
+one scenario's setup.
+
 ## Testmints migrations
 
 When porting a test to Testmints, use the installed Vitest adapter only; do not enable reporting or

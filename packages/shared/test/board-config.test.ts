@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { mint } from '@continuous-excellence/testmints-js/vitest'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import {
   boardConfigSchema,
@@ -11,41 +11,44 @@ import {
 import { parseDuration } from '../src/duration.ts'
 import { resolvePollingSettings } from '../src/polling-policy.ts'
 
+function panelConfig<PanelInput extends object>(panel: PanelInput) {
+  return { boards: { a: { panels: [panel] } } }
+}
+
+const validConfig = panelConfig({ id: 'api-build', type: 'pipeline-status' })
+
 describe('the example board configs', () => {
-  // Cheap, and it catches the schema drifting away from its own documentation — the example is
-  // what a new board author copies, so it being invalid is worse than a broken test.
-  const exampleUrl = new URL('../../../boards/example.yaml', import.meta.url)
+  const examplePath = fileURLToPath(new URL('../../../boards/example.yaml', import.meta.url))
 
-  it('validate against the schema', () => {
-    const raw = parseYaml(readFileSync(fileURLToPath(exampleUrl), 'utf-8'))
-    const result = boardConfigSchema.safeParse(raw)
+  test(
+    'validate against the schema',
+    mint({
+      setup: () => ({ config: parseYaml(readFileSync(examplePath, 'utf8')) }),
+      exercise: ({ config }) => boardConfigSchema.safeParse(config),
+      verify: (result) => {
+        expect(result.error?.issues ?? []).toEqual([])
+        expect(result.success).toBe(true)
+      },
+    }),
+  )
 
-    expect(result.error?.issues ?? []).toEqual([])
-    expect(result.success).toBe(true)
-  })
-
-  it('keeps credentials out of the file, naming env vars instead', () => {
-    const text = readFileSync(fileURLToPath(exampleUrl), 'utf-8')
-
-    expect(text).toContain('token_env:')
-    // The failure mode here is a PAT in git history, which is not a thing to discover later.
-    expect(text).not.toMatch(/token:\s*\S/)
-    expect(text).not.toMatch(/password:\s*\S/)
-  })
+  test(
+    'keeps credentials out of the file, naming env vars instead',
+    mint({
+      setup: () => ({ examplePath }),
+      exercise: ({ examplePath }) => readFileSync(examplePath, 'utf8'),
+      verify: (text) => {
+        expect(text).toContain('token_env:')
+        expect(text).not.toMatch(/token:\s*\S/)
+        expect(text).not.toMatch(/password:\s*\S/)
+      },
+    }),
+  )
 })
 
 describe('the board config schema', () => {
-  const validConfig = {
-    boards: {
-      'ze-great-team': {
-        refresh: '60s',
-        panels: [{ id: 'api-build', type: 'pipeline-status', source: 'ado-main' }],
-      },
-    },
-  }
-
   describe('test artifact configuration', () => {
-    it(
+    test(
       'accepts a standalone panel with bounded artifact configuration',
       mint({
         setup: () => ({
@@ -69,7 +72,7 @@ describe('the board config schema', () => {
         verify: (result) => expect(result.success).toBe(true),
       }),
     )
-    it(
+    test(
       'rejects a standalone panel without artifact configuration',
       mint({
         setup: () => ({
@@ -87,7 +90,7 @@ describe('the board config schema', () => {
         verify: (result) => expect(result.success).toBe(false),
       }),
     )
-    it(
+    test(
       'rejects an artifact entry outside the archive root',
       mint({
         setup: () => ({
@@ -124,7 +127,7 @@ describe('the board config schema', () => {
       },
     ]
     for (const scenario of sources) {
-      it(
+      test(
         scenario.name,
         mint({
           setup: () => ({
@@ -153,590 +156,797 @@ describe('the board config schema', () => {
     }
   })
 
-  it('accepts the deployment security policies and leaves omission as the warn behavior', () => {
-    for (const security of ['warn', 'required', 'unsecured'] as const)
-      expect(boardConfigSchema.safeParse({ ...validConfig, security }).success).toBe(true)
-    expect(boardConfigSchema.parse(validConfig).security).toBeUndefined()
-  })
-
-  it('rejects contradictory explicit public access and authentication', () => {
-    const result = boardConfigSchema.safeParse({
-      ...validConfig,
-      security: 'unsecured',
-      auth: {
-        issuer: 'https://login.example.test',
-        client_id: 'dashboard',
-        audience: 'dashboard-api',
-        allow: { subjects: ['person'] },
-      },
-    })
-    expect(result.success).toBe(false)
-    expect(result.error?.issues[0]?.message).toMatch(/unsecured.*auth/)
-  })
-
-  it('validates GitHub Actions-only pull-request build event restrictions', () => {
-    const config = {
-      sources: { github: { type: 'github-actions', repo: 'example-org/example-repo' } },
-      boards: {
-        team: {
-          panels: [
-            {
-              id: 'updates',
-              type: 'pull-request-health',
-              source: 'github',
-              build_events: ['push', 'workflow_dispatch'],
+  describe('deployment security', () => {
+    for (const security of ['warn', 'required', 'unsecured'] as const) {
+      test(
+        `accepts the ${security} deployment policy`,
+        mint({
+          setup: () => ({ config: { ...validConfig, security } }),
+          exercise: ({ config }) => boardConfigSchema.parse(config),
+          verify: (result, { config }) => expect(result.security).toBe(config.security),
+        }),
+      )
+    }
+    test(
+      'leaves an omitted security policy unset for warn behavior',
+      mint({
+        setup: () => ({ config: validConfig }),
+        exercise: ({ config }) => boardConfigSchema.parse(config),
+        verify: (result) => expect(result.security).toBeUndefined(),
+      }),
+    )
+    test(
+      'rejects contradictory explicit public access and authentication',
+      mint({
+        setup: () => ({
+          config: {
+            ...validConfig,
+            security: 'unsecured',
+            auth: {
+              issuer: 'https://login.example.test',
+              client_id: 'dashboard',
+              audience: 'dashboard-api',
+              allow: { subjects: ['person'] },
             },
-          ],
-        },
-      },
-    }
-
-    expect(boardConfigSchema.safeParse(config).success).toBe(true)
-    for (const build_events of [[], ['push', 'push'], ['typo-event']])
-      expect(
-        boardConfigSchema.safeParse({
-          ...config,
-          boards: {
-            team: { panels: [{ ...config.boards.team.panels[0], build_events }] },
           },
-        }).success,
-      ).toBe(false)
-    expect(
-      boardConfigSchema.safeParse({
-        ...config,
-        boards: {
-          team: {
-            panels: [
-              { id: 'build', type: 'pipeline-status', source: 'github', build_events: ['push'] },
-            ],
-          },
+        }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => {
+          expect(result.success).toBe(false)
+          expect(result.error?.issues[0]?.message).toMatch(/unsecured.*auth/)
         },
-      }).success,
-    ).toBe(false)
-  })
-
-  it('accepts canonical authenticated, subject, and claim authorization policies and the legacy migration form', () => {
-    const auth = { issuer: 'https://login.example.test', client_id: 'dashboard', audience: 'api' }
-    const policies = [
-      { authorization: { mode: 'authenticated' } },
-      { authorization: { mode: 'subjects', subjects: ['person'] } },
-      {
-        authorization: {
-          mode: 'claim',
-          claim: 'https://example.test/roles',
-          values: ['viewer'],
-          match: 'any',
-        },
-      },
-      { allow: { subjects: ['legacy-person'] } },
-    ]
-    for (const policy of policies)
-      expect(
-        boardConfigSchema.safeParse({ ...validConfig, auth: { ...auth, ...policy } }).success,
-      ).toBe(true)
-  })
-
-  it('rejects absent, competing, empty, and malformed authorization policies', () => {
-    const auth = { issuer: 'https://login.example.test', client_id: 'dashboard', audience: 'api' }
-    const policies = [
-      {},
-      { authorization: { mode: 'authenticated' }, allow: { subjects: ['legacy-person'] } },
-      { authorization: { mode: 'subjects', subjects: [] } },
-      { authorization: { mode: 'claim', claim: '', values: ['viewer'], match: 'any' } },
-      { authorization: { mode: 'claim', claim: 'groups', values: [], match: 'all' } },
-      { authorization: { mode: 'claim', claim: 'groups', values: ['viewer'], match: 'either' } },
-    ]
-    for (const policy of policies)
-      expect(
-        boardConfigSchema.safeParse({ ...validConfig, auth: { ...auth, ...policy } }).success,
-      ).toBe(false)
-  })
-
-  it('rejects configuring a token and GitHub App on the same source', () => {
-    const result = boardConfigSchema.safeParse({
-      sources: {
-        github: {
-          type: 'github-actions',
-          token_env: 'GITHUB_TOKEN',
-          github_app: {
-            app_id_env: 'GITHUB_APP_ID',
-            private_key_env: 'GITHUB_APP_PRIVATE_KEY',
-            installation_id_env: 'GITHUB_APP_INSTALLATION_ID',
-          },
-        },
-      },
-      boards: { board: { panels: [{ id: 'build', type: 'pipeline-status' }] } },
-    })
-
-    expect(result.success).toBe(false)
-    expect(result.error?.issues[0]?.message).toContain('token_env or github_app')
-  })
-
-  it('requires Azure DevOps pipeline panels to name a numeric definition and one credential mode', () => {
-    const base = {
-      sources: {
-        ado: {
-          type: 'azure-devops',
-          organization: 'example-org',
-          project: 'Example Project',
-          token_env: 'ADO_PAT',
-        },
-      },
-      boards: { board: { panels: [{ id: 'build', type: 'pipeline-status', source: 'ado' }] } },
-    }
-    expect(boardConfigSchema.safeParse(base).success).toBe(false)
-    expect(
-      boardConfigSchema.safeParse({
-        ...base,
-        boards: { board: { panels: [{ ...base.boards.board.panels[0], pipeline: 42 }] } },
-      }).success,
-    ).toBe(true)
-    expect(
-      boardConfigSchema.safeParse({
-        ...base,
-        sources: { ado: { ...base.sources.ado, token_env: undefined } },
-      }).success,
-    ).toBe(false)
-  })
-
-  it('accepts either Azure DevOps PAT or local Entra token-file authentication, but not both', () => {
-    const config = {
-      sources: {
-        ado: {
-          type: 'azure-devops',
-          organization: 'example-org',
-          project: 'Example Project',
-          entra_token_file_env: 'ADO_ENTRA_TOKEN_FILE',
-        },
-      },
-      boards: {
-        board: { panels: [{ id: 'build', type: 'pipeline-status', source: 'ado', pipeline: 42 }] },
-      },
-    }
-    expect(boardConfigSchema.safeParse(config).success).toBe(true)
-    expect(
-      boardConfigSchema.safeParse({
-        ...config,
-        sources: { ado: { ...config.sources.ado, token_env: 'ADO_PAT' } },
-      }).success,
-    ).toBe(false)
-  })
-
-  it('permits mixed source modes and reports only their declared credential names', () => {
-    const result = boardConfigSchema.parse({
-      sources: {
-        pat: { type: 'github-actions', token_env: 'GITHUB_TOKEN' },
-        app: {
-          type: 'github-actions',
-          github_app: {
-            app_id_env: 'GITHUB_APP_ID',
-            private_key_env: 'GITHUB_APP_PRIVATE_KEY',
-            installation_id_env: 'GITHUB_APP_INSTALLATION_ID',
-          },
-        },
-      },
-      boards: { board: { panels: [{ id: 'build', type: 'pipeline-status' }] } },
-    })
-
-    expect(Object.values(result.sources).flatMap(credentialEnvironmentNames)).toEqual([
-      'GITHUB_TOKEN',
-      'GITHUB_APP_ID',
-      'GITHUB_APP_PRIVATE_KEY',
-      'GITHUB_APP_INSTALLATION_ID',
-    ])
-  })
-
-  it('rejects duplicate panel ids loudly rather than picking one', () => {
-    const result = boardConfigSchema.safeParse({
-      boards: {
-        'ze-great-team': {
-          panels: [
-            { id: 'api-build', type: 'pipeline-status' },
-            { id: 'api-build', type: 'http-value' },
-          ],
-        },
-      },
-    })
-
-    // Ids key the allowlist and address panels in the proxy URL, so a duplicate resolving to
-    // "whichever came first" would silently repoint a URL. That makes this security-relevant.
-    expect(result.success).toBe(false)
-    expect(result.error?.issues[0]?.message).toMatch(/duplicate panel id "api-build"/)
-  })
-
-  it('requires an id and a type on every panel', () => {
-    expect(
-      boardConfigSchema.safeParse({
-        boards: { a: { panels: [{ type: 'pipeline-status' }] } },
-      }).success,
-    ).toBe(false)
-
-    expect(boardConfigSchema.safeParse({ boards: { a: { panels: [{ id: 'x' }] } } }).success).toBe(
-      false,
+      }),
     )
   })
 
-  it('treats position as optional, so a board without one still renders', () => {
-    expect(boardConfigSchema.safeParse(validConfig).success).toBe(true)
-  })
-
-  it('requires one board treatment when a panel opts into attention', () => {
-    const marked = {
-      boards: { a: { panels: [{ id: 'build', type: 'pipeline-status', attention: true }] } },
-    }
-    expect(boardConfigSchema.safeParse(marked).success).toBe(false)
-    expect(
-      boardConfigSchema.safeParse({
-        boards: { a: { attention: { treatment: 'beacon' }, panels: marked.boards.a.panels } },
-      }).success,
-    ).toBe(true)
-    expect(
-      boardConfigSchema.safeParse({
-        boards: { a: { attention: { treatment: 'flash' }, panels: marked.boards.a.panels } },
-      }).success,
-    ).toBe(false)
-  })
-
-  it('accepts the zero-size preserved-but-hidden position sentinel', () => {
-    expect(
-      boardConfigSchema.safeParse({
-        boards: {
-          a: {
-            panels: [
-              { id: 'hidden', type: 'pipeline-status', position: { x: 0, y: 0, w: 0, h: 0 } },
-            ],
+  describe('pull-request build event restrictions', () => {
+    const github = { type: 'github-actions', repo: 'example-org/example-repo' }
+    const panel = { id: 'updates', type: 'pull-request-health', source: 'github' }
+    test(
+      'accepts GitHub Actions pull-request build events',
+      mint({
+        setup: () => ({
+          config: {
+            sources: { github },
+            ...panelConfig({ ...panel, build_events: ['push', 'workflow_dispatch'] }),
           },
-        },
-      }).success,
-    ).toBe(true)
-    expect(
-      boardConfigSchema.safeParse({
-        boards: {
-          a: {
-            panels: [
-              { id: 'partial', type: 'pipeline-status', position: { x: 0, y: 0, w: 0, h: 1 } },
-            ],
-          },
-        },
-      }).success,
-    ).toBe(false)
-  })
-
-  it('accepts an optional presentation label while retaining the stable id', () => {
-    const panel = boardConfigSchema.parse({
-      boards: { a: { panels: [{ id: 'build-main', label: 'Build', type: 'pipeline-status' }] } },
-    }).boards.a?.panels[0]
-
-    expect(panel).toMatchObject({ id: 'build-main', label: 'Build' })
-  })
-
-  it('accepts omitted and supported density values', () => {
-    expect(
-      boardConfigSchema.safeParse({
-        boards: { a: { panels: [{ id: 'default', type: 'pipeline-status' }] } },
-      }).success,
-    ).toBe(true)
-    for (const density of ['auto', 'comfortable', 'compact'] as const) {
-      expect(
-        boardConfigSchema.parse({
-          boards: { a: { panels: [{ id: density, type: 'http-value', density }] } },
-        }).boards.a?.panels[0]?.density,
-      ).toBe(density)
-    }
-  })
-
-  it('rejects unknown density values and the removed display setting', () => {
-    expect(
-      boardConfigSchema.safeParse({
-        boards: { a: { panels: [{ id: 'x', type: 'pipeline-status', density: 'dense' }] } },
-      }).success,
-    ).toBe(false)
-    expect(
-      boardConfigSchema.safeParse({
-        boards: { a: { panels: [{ id: 'x', type: 'pipeline-status', display: 'primary' }] } },
-      }).success,
-    ).toBe(false)
-  })
-
-  it('rejects a malformed refresh instead of letting it become NaN later', () => {
-    const result = boardConfigSchema.safeParse({
-      boards: { a: { refresh: 'soon', panels: [{ id: 'x', type: 'y' }] } },
-    })
-
-    expect(result.success).toBe(false)
-  })
-
-  it('accepts active-run polling settings and resolves panel overrides first', () => {
-    const board = boardConfigSchema.parse({
-      boards: {
-        a: {
-          refresh: '60s',
-          running_refresh: '15s',
-          running_completion_refresh: '5s',
-          running_completion_window: '2m',
-          panels: [
-            {
-              id: 'build',
-              type: 'pipeline-status',
-              running_refresh: '10s',
-              running_completion_window: '1m',
+        }),
+        exercise: ({ config }) => boardConfigSchema.parse(config),
+        verify: (result, { config }) =>
+          expect(result.boards.a?.panels[0]?.build_events).toEqual(
+            config.boards.a.panels[0]?.build_events,
+          ),
+      }),
+    )
+    const invalidEvents = [
+      { name: 'empty', buildEvents: [] },
+      { name: 'duplicate', buildEvents: ['push', 'push'] },
+      { name: 'unknown', buildEvents: ['typo-event'] },
+    ]
+    for (const scenario of invalidEvents) {
+      test(
+        `rejects ${scenario.name} build events`,
+        mint({
+          setup: () => ({
+            config: {
+              sources: { github },
+              ...panelConfig({ ...panel, build_events: scenario.buildEvents }),
             },
-          ],
+          }),
+          exercise: ({ config }) => boardConfigSchema.safeParse(config),
+          verify: (result) => expect(result.success).toBe(false),
+        }),
+      )
+    }
+    test(
+      'rejects build events on pipeline-status panels',
+      mint({
+        setup: () => ({
+          config: {
+            sources: { github },
+            ...panelConfig({ ...panel, type: 'pipeline-status', build_events: ['push'] }),
+          },
+        }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
+  })
+
+  describe('authorization policies', () => {
+    const auth = { issuer: 'https://login.example.test', client_id: 'dashboard', audience: 'api' }
+    const acceptedPolicies = [
+      { name: 'authenticated', policy: { authorization: { mode: 'authenticated' } } },
+      { name: 'subjects', policy: { authorization: { mode: 'subjects', subjects: ['person'] } } },
+      {
+        name: 'claim',
+        policy: {
+          authorization: {
+            mode: 'claim',
+            claim: 'https://example.test/roles',
+            values: ['viewer'],
+            match: 'any',
+          },
         },
       },
-    }).boards.a
-    if (!board) throw new Error('expected board')
-    const panel = board.panels[0]
-    if (!panel) throw new Error('expected panel')
-    expect(resolvePollingSettings(board, panel)).toEqual({
-      refreshMillis: 60_000,
-      runningRefreshMillis: 10_000,
-      runningCompletionRefreshMillis: 5_000,
-      runningCompletionWindowMillis: 60_000,
-    })
+      { name: 'legacy migration', policy: { allow: { subjects: ['legacy-person'] } } },
+    ]
+    for (const scenario of acceptedPolicies) {
+      test(
+        `accepts the ${scenario.name} policy`,
+        mint({
+          setup: () => ({ config: { ...validConfig, auth: { ...auth, ...scenario.policy } } }),
+          exercise: ({ config }) => boardConfigSchema.safeParse(config),
+          verify: (result) => expect(result.success).toBe(true),
+        }),
+      )
+    }
+    const rejectedPolicies = [
+      { name: 'absent authorization', policy: {} },
+      {
+        name: 'competing authorization forms',
+        policy: {
+          authorization: { mode: 'authenticated' },
+          allow: { subjects: ['legacy-person'] },
+        },
+      },
+      {
+        name: 'empty subject lists',
+        policy: { authorization: { mode: 'subjects', subjects: [] } },
+      },
+      {
+        name: 'empty claim names',
+        policy: { authorization: { mode: 'claim', claim: '', values: ['viewer'], match: 'any' } },
+      },
+      {
+        name: 'empty claim values',
+        policy: { authorization: { mode: 'claim', claim: 'groups', values: [], match: 'all' } },
+      },
+      {
+        name: 'invalid claim matching modes',
+        policy: {
+          authorization: { mode: 'claim', claim: 'groups', values: ['viewer'], match: 'either' },
+        },
+      },
+    ]
+    for (const scenario of rejectedPolicies) {
+      test(
+        `rejects ${scenario.name}`,
+        mint({
+          setup: () => ({ config: { ...validConfig, auth: { ...auth, ...scenario.policy } } }),
+          exercise: ({ config }) => boardConfigSchema.safeParse(config),
+          verify: (result) => expect(result.success).toBe(false),
+        }),
+      )
+    }
   })
 
-  it('rejects malformed and non-positive active-run durations', () => {
+  describe('GitHub source authentication', () => {
+    test(
+      'rejects configuring a token and GitHub App on the same source',
+      mint({
+        setup: () => ({
+          config: {
+            ...validConfig,
+            sources: {
+              github: {
+                type: 'github-actions',
+                repo: 'example/repo',
+                token_env: 'GITHUB_TOKEN',
+                github_app: {
+                  app_id_env: 'GITHUB_APP_ID',
+                  private_key_env: 'GITHUB_APP_PRIVATE_KEY',
+                  installation_id_env: 'GITHUB_APP_INSTALLATION_ID',
+                },
+              },
+            },
+          },
+        }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => {
+          expect(result.success).toBe(false)
+          expect(result.error?.issues[0]?.message).toContain('token_env or github_app')
+        },
+      }),
+    )
+  })
+
+  describe('Azure DevOps configuration', () => {
+    const ado = { type: 'azure-devops', organization: 'example-org', project: 'Example Project' }
+    const panel = { id: 'build', type: 'pipeline-status', source: 'ado', pipeline: 42 }
+    const acceptedCredentials = [
+      { name: 'PAT', credentials: { token_env: 'ADO_PAT' } },
+      { name: 'Entra token-file', credentials: { entra_token_file_env: 'ADO_ENTRA_TOKEN_FILE' } },
+    ]
+    for (const scenario of acceptedCredentials) {
+      test(
+        `accepts Azure DevOps ${scenario.name} authentication with a numeric pipeline`,
+        mint({
+          setup: () => ({
+            config: {
+              ...panelConfig(panel),
+              sources: { ado: { ...ado, ...scenario.credentials } },
+            },
+          }),
+          exercise: ({ config }) => boardConfigSchema.safeParse(config),
+          verify: (result) => expect(result.success).toBe(true),
+        }),
+      )
+    }
+    test(
+      'rejects an Azure DevOps panel without a pipeline definition',
+      mint({
+        setup: () => ({
+          config: {
+            ...panelConfig({ id: panel.id, type: panel.type, source: panel.source }),
+            sources: { ado: { ...ado, token_env: 'ADO_PAT' } },
+          },
+        }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
+    test(
+      'rejects Azure DevOps authentication without credentials',
+      mint({
+        setup: () => ({ config: { ...panelConfig(panel), sources: { ado } } }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
+    test(
+      'rejects competing Azure DevOps credential modes',
+      mint({
+        setup: () => ({
+          config: {
+            ...panelConfig(panel),
+            sources: {
+              ado: { ...ado, token_env: 'ADO_PAT', entra_token_file_env: 'ADO_ENTRA_TOKEN_FILE' },
+            },
+          },
+        }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
+  })
+
+  describe('credential-name projection', () => {
+    test(
+      'permits mixed source modes and reports only their declared credential names',
+      mint({
+        setup: () => {
+          const pat = { type: 'github-actions', repo: 'example/pat', token_env: 'GITHUB_TOKEN' }
+          const app = {
+            type: 'github-actions',
+            repo: 'example/app',
+            github_app: {
+              app_id_env: 'GITHUB_APP_ID',
+              private_key_env: 'GITHUB_APP_PRIVATE_KEY',
+              installation_id_env: 'GITHUB_APP_INSTALLATION_ID',
+            },
+          }
+          const parsed = boardConfigSchema.parse({ ...validConfig, sources: { pat, app } })
+          return {
+            sources: Object.values(parsed.sources),
+            expectedNames: [
+              pat.token_env,
+              app.github_app.app_id_env,
+              app.github_app.private_key_env,
+              app.github_app.installation_id_env,
+            ],
+          }
+        },
+        exercise: ({ sources }) => sources.flatMap(credentialEnvironmentNames),
+        verify: (names, { expectedNames }) => expect(names).toEqual(expectedNames),
+      }),
+    )
+  })
+
+  describe('panel identity', () => {
+    test(
+      'rejects duplicate panel ids loudly rather than picking one',
+      mint({
+        setup: () => {
+          const duplicateId = 'api-build'
+          return {
+            duplicateId,
+            config: {
+              boards: {
+                a: {
+                  panels: [
+                    { id: duplicateId, type: 'pipeline-status' },
+                    { id: duplicateId, type: 'http-value' },
+                  ],
+                },
+              },
+            },
+          }
+        },
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result, { duplicateId }) => {
+          expect(result.success).toBe(false)
+          expect(result.error?.issues[0]?.message).toContain(`duplicate panel id "${duplicateId}"`)
+        },
+      }),
+    )
+    const missingFields = [
+      { name: 'id', panel: { type: 'pipeline-status' } },
+      { name: 'type', panel: { id: 'x' } },
+    ]
+    for (const scenario of missingFields) {
+      test(
+        `requires a panel ${scenario.name}`,
+        mint({
+          setup: () => ({ config: panelConfig(scenario.panel) }),
+          exercise: ({ config }) => boardConfigSchema.safeParse(config),
+          verify: (result) => expect(result.success).toBe(false),
+        }),
+      )
+    }
+    test(
+      'preserves an optional presentation label while retaining the stable id',
+      mint({
+        setup: () => {
+          const panel = { id: 'build-main', type: 'pipeline-status', label: 'Build' }
+          return { panel, config: panelConfig(panel) }
+        },
+        exercise: ({ config }) => boardConfigSchema.parse(config),
+        verify: (result, { panel }) => expect(result.boards.a?.panels[0]).toMatchObject(panel),
+      }),
+    )
+  })
+
+  describe('panel positioning', () => {
+    test(
+      'treats position as optional',
+      mint({
+        setup: () => ({ config: validConfig }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(true),
+      }),
+    )
+
+    test(
+      'preserves the zero-size preserved-but-hidden position sentinel',
+      mint({
+        setup: () => {
+          const panel = {
+            id: 'hidden',
+            type: 'pipeline-status',
+            position: { x: 0, y: 0, w: 0, h: 0 },
+          }
+          return { panel, config: panelConfig(panel) }
+        },
+        exercise: ({ config }) => boardConfigSchema.parse(config),
+        verify: (result, { panel }) => expect(result.boards.a?.panels[0]).toMatchObject(panel),
+      }),
+    )
+    test(
+      'rejects partially zero-sized positions',
+      mint({
+        setup: () => ({
+          config: panelConfig({
+            id: 'partial',
+            type: 'pipeline-status',
+            position: { x: 0, y: 0, w: 0, h: 1 },
+          }),
+        }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
+  })
+
+  describe('panel density', () => {
+    test(
+      'preserves omitted density',
+      mint({
+        setup: () => {
+          const panel = { id: 'default', type: 'pipeline-status' }
+          return { panel, config: panelConfig(panel) }
+        },
+        exercise: ({ config }) => boardConfigSchema.parse(config),
+        verify: (result, { panel }) => expect(result.boards.a?.panels[0]).toMatchObject(panel),
+      }),
+    )
+    for (const density of ['auto', 'comfortable', 'compact'] as const) {
+      test(
+        `preserves ${density} density`,
+        mint({
+          setup: () => {
+            const panel = { id: 'density', type: 'http-value', density }
+            return { panel, config: panelConfig(panel) }
+          },
+          exercise: ({ config }) => boardConfigSchema.parse(config),
+          verify: (result, { panel }) =>
+            expect(result.boards.a?.panels[0]?.density).toBe(panel.density),
+        }),
+      )
+    }
+    test(
+      'rejects unknown density',
+      mint({
+        setup: () => ({
+          config: panelConfig({ id: 'x', type: 'pipeline-status', density: 'dense' }),
+        }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
+    test(
+      'rejects the removed display setting',
+      mint({
+        setup: () => ({
+          config: panelConfig({ id: 'x', type: 'pipeline-status', display: 'primary' }),
+        }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
+  })
+
+  describe('panel animation settings', () => {
+    test(
+      'preserves the local pipeline animation demo with ordinary metadata',
+      mint({
+        setup: () => {
+          const panel = {
+            id: 'active-run-treatments',
+            type: 'pipeline-animation-demo',
+            density: 'auto',
+            position: { x: 0, y: 6, w: 12, h: 6 },
+          }
+          return { panel, config: panelConfig(panel) }
+        },
+        exercise: ({ config }) => boardConfigSchema.parse(config),
+        verify: (result, { panel }) => expect(result.boards.a?.panels[0]).toMatchObject(panel),
+      }),
+    )
+    test(
+      'preserves configurable animation-demo durations',
+      mint({
+        setup: () => {
+          const panel = {
+            id: 'demo',
+            type: 'pipeline-animation-demo',
+            demo_run_duration: '45s',
+            demo_review_duration: '2m',
+          }
+          return { panel, config: panelConfig(panel) }
+        },
+        exercise: ({ config }) => boardConfigSchema.parse(config),
+        verify: (result, { panel }) => expect(result.boards.a?.panels[0]).toMatchObject(panel),
+      }),
+    )
+    for (const animation of [
+      'radial',
+      'runway',
+      'orbit',
+      'signal-field',
+      'telemetry-bloom',
+      'release-transit',
+      'status-weather',
+      'falling-shapes',
+      'snowman',
+      'flight-path',
+      'off',
+    ] as const) {
+      test(
+        `preserves the ${animation} running animation`,
+        mint({
+          setup: () => {
+            const panel = { id: 'build', type: 'pipeline-status', running_animation: animation }
+            return { panel, config: panelConfig(panel) }
+          },
+          exercise: ({ config }) => boardConfigSchema.parse(config),
+          verify: (result, { panel }) =>
+            expect(result.boards.a?.panels[0]?.running_animation).toBe(panel.running_animation),
+        }),
+      )
+    }
+    test(
+      'rejects unknown running animations',
+      mint({
+        setup: () => ({
+          config: panelConfig({ id: 'build', type: 'pipeline-status', running_animation: 'laser' }),
+        }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
+  })
+
+  describe('board attention treatment', () => {
+    const panels = [{ id: 'build', type: 'pipeline-status', attention: true }]
+    test(
+      'rejects an opted-in panel without a board treatment',
+      mint({
+        setup: () => ({ config: { boards: { a: { panels } } } }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
+    test(
+      'accepts an opted-in panel with a board treatment',
+      mint({
+        setup: () => ({
+          config: { boards: { a: { panels, attention: { treatment: 'beacon' } } } },
+        }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(true),
+      }),
+    )
+    test(
+      'rejects an unknown board treatment',
+      mint({
+        setup: () => ({ config: { boards: { a: { panels, attention: { treatment: 'flash' } } } } }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
+  })
+
+  describe('polling duration configuration', () => {
+    test(
+      'rejects a malformed refresh instead of letting it become NaN later',
+      mint({
+        setup: () => ({
+          config: { boards: { a: { refresh: 'soon', panels: [{ id: 'x', type: 'y' }] } } },
+        }),
+        exercise: ({ config }) => boardConfigSchema.safeParse(config),
+        verify: (result) => expect(result.success).toBe(false),
+      }),
+    )
     for (const key of [
       'running_refresh',
       'running_completion_refresh',
       'running_completion_window',
-    ]) {
-      expect(
-        boardConfigSchema.safeParse({
-          boards: { a: { [key]: '0s', panels: [{ id: 'x', type: 'pipeline-status' }] } },
-        }).success,
-      ).toBe(false)
-      expect(
-        boardConfigSchema.safeParse({
-          boards: { a: { panels: [{ id: 'x', type: 'pipeline-status', [key]: 'soon' }] } },
-        }).success,
-      ).toBe(false)
+    ] as const) {
+      test(
+        `rejects zero ${key} at board level`,
+        mint({
+          setup: () => ({
+            config: {
+              boards: { a: { [key]: '0s', panels: [{ id: 'x', type: 'pipeline-status' }] } },
+            },
+          }),
+          exercise: ({ config }) => boardConfigSchema.safeParse(config),
+          verify: (result) => expect(result.success).toBe(false),
+        }),
+      )
+      test(
+        `rejects malformed ${key} at panel level`,
+        mint({
+          setup: () => ({
+            config: panelConfig({ id: 'x', type: 'pipeline-status', [key]: 'soon' }),
+          }),
+          exercise: ({ config }) => boardConfigSchema.safeParse(config),
+          verify: (result) => expect(result.success).toBe(false),
+        }),
+      )
     }
   })
 
-  it('preserves signal-specific fields it does not yet know about', () => {
-    const result = boardConfigSchema.parse({
-      boards: {
-        a: {
-          panels: [{ id: 'v', type: 'http-value', url: 'https://x/version', json_path: '$.v' }],
-        },
-      },
-    })
-
-    // Stage 2 tightens these per signal type; until then they must survive parsing rather than
-    // being stripped, or the adapters would receive a config missing the fields they need.
-    expect(result.boards.a?.panels[0]).toMatchObject({ json_path: '$.v' })
-  })
-
-  it('accepts up to four independently addressed http-value facts and rejects ambiguous shapes', () => {
-    const grouped = {
-      id: 'versions',
-      type: 'http-value',
-      facts: [
+  describe('HTTP-value configuration', () => {
+    describe('grouped HTTP value facts', () => {
+      const grouped = {
+        id: 'versions',
+        type: 'http-value',
+        facts: [
+          {
+            id: 'api',
+            label: 'API',
+            url: 'https://api.example.com/version',
+            json_path: '$.version',
+            link: 'https://status.example.com/api',
+          },
+          { id: 'web', label: 'Web', url: 'https://web.example.com/version' },
+        ],
+      }
+      test(
+        'preserves independently addressed HTTP facts and their public links',
+        mint({
+          setup: () => ({ panel: grouped, config: panelConfig(grouped) }),
+          exercise: ({ config }) => boardConfigSchema.parse(config),
+          verify: (result, { panel }) =>
+            expect(result.boards.a?.panels[0]?.facts).toEqual(panel.facts),
+        }),
+      )
+      test(
+        'accepts four independently addressed facts',
+        mint({
+          setup: () => {
+            const facts = Array.from({ length: 4 }, (_, index) => ({
+              id: `fact-${index}`,
+              label: `Fact ${index}`,
+              url: `https://example.com/${index}`,
+            }))
+            return { facts, config: panelConfig({ ...grouped, facts }) }
+          },
+          exercise: ({ config }) => boardConfigSchema.parse(config),
+          verify: (result, { facts }) => expect(result.boards.a?.panels[0]?.facts).toEqual(facts),
+        }),
+      )
+      const rejectedGroups = [
         {
-          id: 'api',
-          label: 'API',
-          url: 'https://api.example.com/version',
-          json_path: '$.version',
-          link: 'https://status.example.com/api',
+          name: 'a competing panel URL',
+          panel: { ...grouped, url: 'https://example.com/ambiguous' },
         },
-        { id: 'web', label: 'Web', url: 'https://web.example.com/version' },
+        {
+          name: 'more than four facts',
+          panel: {
+            ...grouped,
+            facts: Array.from({ length: 5 }, (_, index) => ({
+              id: `fact-${index}`,
+              label: `Fact ${index}`,
+              url: `https://example.com/${index}`,
+            })),
+          },
+        },
+        {
+          name: 'duplicate fact ids',
+          panel: { ...grouped, facts: [grouped.facts[0], { ...grouped.facts[0], label: 'Copy' }] },
+        },
+        {
+          name: 'malformed public links',
+          panel: { ...grouped, facts: [{ ...grouped.facts[0], link: 'not a URL' }] },
+        },
+        {
+          name: 'facts without labels',
+          panel: { ...grouped, facts: [{ id: 'api', url: 'https://api.example.com/version' }] },
+        },
+      ]
+      for (const scenario of rejectedGroups) {
+        test(
+          `rejects ${scenario.name}`,
+          mint({
+            setup: () => ({ config: panelConfig(scenario.panel) }),
+            exercise: ({ config }) => boardConfigSchema.safeParse(config),
+            verify: (result) => expect(result.success).toBe(false),
+          }),
+        )
+      }
+    })
+
+    describe('editor-visible fields', () => {
+      test(
+        'preserves signal-specific HTTP value fields',
+        mint({
+          setup: () => {
+            const panel = {
+              id: 'v',
+              type: 'http-value',
+              url: 'https://x/version',
+              json_path: '$.v',
+            }
+            return { panel, config: panelConfig(panel) }
+          },
+          exercise: ({ config }) => boardConfigSchema.parse(config),
+          verify: (result, { panel }) => expect(result.boards.a?.panels[0]).toMatchObject(panel),
+        }),
+      )
+
+      const invalidFields = [
+        { name: 'malformed URLs', fields: { url: 'not a URL' } },
+        {
+          name: 'malformed JSON paths',
+          fields: { url: 'https://example.com', json_path: 'version' },
+        },
+      ]
+      for (const scenario of invalidFields) {
+        test(
+          `rejects ${scenario.name}`,
+          mint({
+            setup: () => ({
+              config: panelConfig({ id: 'versions', type: 'http-value', ...scenario.fields }),
+            }),
+            exercise: ({ config }) => boardConfigSchema.safeParse(config),
+            verify: (result) => expect(result.success).toBe(false),
+          }),
+        )
+      }
+    })
+  })
+})
+
+const pollingConfig = {
+  boards: {
+    a: {
+      refresh: '60s',
+      running_refresh: '15s',
+      running_completion_refresh: '5s',
+      running_completion_window: '2m',
+      panels: [
+        {
+          id: 'build',
+          type: 'pipeline-status',
+          running_refresh: '10s',
+          running_completion_window: '1m',
+        },
       ],
-    }
-    const parsed = boardConfigSchema.parse({ boards: { a: { panels: [grouped] } } })
-    expect(parsed.boards.a?.panels[0]?.facts?.[0]?.link).toBe('https://status.example.com/api')
-    expect(
-      boardConfigSchema.safeParse({
-        boards: { a: { panels: [{ ...grouped, url: 'https://example.com/ambiguous' }] } },
-      }).success,
-    ).toBe(false)
-    expect(
-      boardConfigSchema.safeParse({
-        boards: {
-          a: {
-            panels: [
-              {
-                ...grouped,
-                facts: Array.from({ length: 5 }, (_, index) => ({
-                  id: `fact-${index}`,
-                  label: `Fact ${index}`,
-                  url: `https://example.com/${index}`,
-                })),
-              },
-            ],
+    },
+  },
+}
+
+describe('active-run polling settings', () => {
+  test(
+    'preserves board durations and panel overrides during validation',
+    mint({
+      setup: () => ({ config: pollingConfig }),
+      exercise: ({ config }) => boardConfigSchema.parse(config),
+      verify: (result, { config }) => expect(result.boards.a).toMatchObject(config.boards.a),
+    }),
+  )
+  test(
+    'resolves panel overrides before board polling settings',
+    mint({
+      setup: () => {
+        const board = boardConfigSchema.parse(pollingConfig).boards.a
+        if (!board) throw new Error('Expected board fixture')
+        const panel = board.panels[0]
+        if (!panel) throw new Error('Expected panel fixture')
+        return {
+          board,
+          panel,
+          expectedSettings: {
+            refreshMillis: 60_000,
+            runningRefreshMillis: 10_000,
+            runningCompletionRefreshMillis: 5_000,
+            runningCompletionWindowMillis: 60_000,
           },
-        },
-      }).success,
-    ).toBe(false)
-    expect(
-      boardConfigSchema.safeParse({
-        boards: {
-          a: {
-            panels: [
-              {
-                ...grouped,
-                facts: [{ ...grouped.facts[0] }, { ...grouped.facts[0], label: 'Copy' }],
-              },
-            ],
-          },
-        },
-      }).success,
-    ).toBe(false)
-  })
-
-  it('rejects malformed public links on grouped http-value facts', () => {
-    expect(
-      boardConfigSchema.safeParse({
-        boards: {
-          a: {
-            panels: [
-              {
-                id: 'versions',
-                type: 'http-value',
-                facts: [
-                  {
-                    id: 'api',
-                    label: 'API',
-                    url: 'https://api.example.com/version',
-                    link: 'not a URL',
-                  },
-                ],
-              },
-            ],
-          },
-        },
-      }).success,
-    ).toBe(false)
-  })
-
-  it('rejects invalid editor-visible HTTP value fields', () => {
-    const board = (panel: object) => ({ boards: { a: { panels: [panel] } } })
-
-    expect(
-      boardConfigSchema.safeParse(board({ id: 'versions', type: 'http-value', url: 'not a URL' }))
-        .success,
-    ).toBe(false)
-    expect(
-      boardConfigSchema.safeParse(
-        board({
-          id: 'versions',
-          type: 'http-value',
-          url: 'https://example.com',
-          json_path: 'version',
-        }),
-      ).success,
-    ).toBe(false)
-    expect(
-      boardConfigSchema.safeParse(
-        board({
-          id: 'versions',
-          type: 'http-value',
-          facts: [{ id: 'api', url: 'https://api.example.com/version' }],
-        }),
-      ).success,
-    ).toBe(false)
-  })
-
-  it('preserves the local pipeline animation demo with ordinary panel metadata', () => {
-    const result = boardConfigSchema.parse({
-      boards: {
-        a: {
-          panels: [
-            {
-              id: 'active-run-treatments',
-              type: 'pipeline-animation-demo',
-              density: 'auto',
-              position: { x: 0, y: 6, w: 12, h: 6 },
-            },
-          ],
-        },
+        }
       },
-    })
-
-    expect(result.boards.a?.panels[0]).toMatchObject({
-      id: 'active-run-treatments',
-      type: 'pipeline-animation-demo',
-      density: 'auto',
-      position: { x: 0, y: 6, w: 12, h: 6 },
-    })
-  })
-
-  it.each([
-    'radial',
-    'runway',
-    'orbit',
-    'signal-field',
-    'telemetry-bloom',
-    'release-transit',
-    'status-weather',
-    'falling-shapes',
-    'snowman',
-    'flight-path',
-    'off',
-  ])('accepts the %s running animation', (animation) => {
-    const result = boardConfigSchema.parse({
-      boards: {
-        a: { panels: [{ id: 'build', type: 'pipeline-status', running_animation: animation }] },
-      },
-    })
-    expect(result.boards.a?.panels[0]?.running_animation).toBe(animation)
-  })
-
-  it('accepts configurable animation-demo durations', () => {
-    const result = boardConfigSchema.parse({
-      boards: {
-        a: {
-          panels: [
-            {
-              id: 'demo',
-              type: 'pipeline-animation-demo',
-              demo_run_duration: '45s',
-              demo_review_duration: '2m',
-            },
-          ],
-        },
-      },
-    })
-    expect(result.boards.a?.panels[0]).toMatchObject({
-      demo_run_duration: '45s',
-      demo_review_duration: '2m',
-    })
-  })
-
-  it('rejects an unknown running animation instead of silently changing the comparison', () => {
-    expect(
-      boardConfigSchema.safeParse({
-        boards: {
-          a: { panels: [{ id: 'build', type: 'pipeline-status', running_animation: 'laser' }] },
-        },
-      }).success,
-    ).toBe(false)
-  })
+      exercise: ({ board, panel }) => resolvePollingSettings(board, panel),
+      verify: (settings, { expectedSettings }) => expect(settings).toEqual(expectedSettings),
+    }),
+  )
 })
 
 describe('duration parsing', () => {
-  it('reads the units a board author would write', () => {
-    expect(parseDuration('500ms')).toBe(500)
-    expect(parseDuration('30s')).toBe(30_000)
-    expect(parseDuration('5m')).toBe(300_000)
-    expect(parseDuration('1h')).toBe(3_600_000)
-  })
-
-  it('rejects anything else', () => {
-    for (const bad of ['', 'soon', '30', '-5s', '0s', '5 s', '5S', '1d']) {
-      expect(parseDuration(bad), bad).toBeNull()
-    }
-  })
+  const acceptedDurations = [
+    { input: '500ms', expectedMillis: 500 },
+    { input: '30s', expectedMillis: 30_000 },
+    { input: '5m', expectedMillis: 300_000 },
+    { input: '1h', expectedMillis: 3_600_000 },
+  ]
+  for (const scenario of acceptedDurations) {
+    test(
+      `reads ${scenario.input} in milliseconds`,
+      mint({
+        setup: () => scenario,
+        exercise: ({ input }) => parseDuration(input),
+        verify: (millis, { expectedMillis }) => expect(millis).toBe(expectedMillis),
+      }),
+    )
+  }
+  for (const input of ['', 'soon', '30', '-5s', '0s', '5 s', '5S', '1d']) {
+    test(
+      `rejects the invalid duration ${JSON.stringify(input)}`,
+      mint({
+        setup: () => ({ input }),
+        exercise: ({ input }) => parseDuration(input),
+        verify: (millis) => expect(millis).toBeNull(),
+      }),
+    )
+  }
 })
 
 describe('the published board schema projection', () => {
-  it('is deterministic, valid JSON, and omits parser defaults', () => {
-    const first = serializeBoardConfigJsonSchema()
-
-    expect(serializeBoardConfigJsonSchema()).toBe(first)
-    expect(() => JSON.parse(first)).not.toThrow()
-    expect(first).not.toMatch(/"default"\s*:/)
-    expect(first).not.toMatch(/gitlab\.com/i)
-  })
+  test(
+    'is deterministic, valid JSON, and omits parser defaults',
+    mint({
+      setup: () => ({}),
+      exercise: () => ({
+        first: serializeBoardConfigJsonSchema(),
+        second: serializeBoardConfigJsonSchema(),
+      }),
+      verify: ({ first, second }) => {
+        expect(second).toBe(first)
+        expect(() => JSON.parse(first)).not.toThrow()
+        expect(first).not.toMatch(/"default"\s*:/)
+        expect(first).not.toMatch(/gitlab\.com/i)
+      },
+    }),
+  )
 })
