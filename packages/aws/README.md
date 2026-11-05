@@ -7,6 +7,7 @@ templates. The matching immutable browser client is published separately as
 another exact asset URL.
 
 This package is for teams that already operate AWS and can provide a protected entry path:
+
 - Lambda requires a consumer-owned API Gateway, ALB, or equivalent gateway with private invocation
   permission.
 - ECS requires consumer-owned subnets, security groups, and protected load balancing or routing for
