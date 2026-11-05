@@ -5,9 +5,7 @@ import type {
   Panel,
   PipelineStatus,
   Source,
-  TestCount,
-  TestEvidence,
-  TestResultsArtifact,
+  TestHistory,
 } from '@ze-great-dashboard/shared'
 import {
   githubActionsBuildEventSchema,
@@ -21,13 +19,17 @@ import { type CredentialResolver, environmentCredentials } from '../credentials.
 import { createGithubClient, GithubAuthenticationError, type GithubClient } from '../github-auth.ts'
 import {
   type AdapterResult,
-  publicErrorMessage,
   safeNetworkCode,
   upstreamErrorEnvelope,
   upstreamErrorKind,
   observedAt as upstreamObservedAt,
 } from '../upstream.ts'
-import { readTestResultsArtifact, testResultsSummarySchema } from '../workflow-artifact-summary.ts'
+import {
+  currentTestEvidence,
+  inspectGithubTestArtifact,
+  type TestArtifactFailure,
+  testArtifactHttpFailure,
+} from './github-test-evidence.ts'
 import type { PermittedCall } from './types.ts'
 
 const pipelinePanelSchema = z.object({
@@ -72,12 +74,6 @@ const runSchema = z.object({
   run_started_at: z.string().nullable().optional(),
   updated_at: z.string().optional(),
   created_at: z.string().optional(),
-})
-
-const artifactsSchema = z.object({
-  artifacts: z.array(
-    z.object({ id: z.number().int().positive(), name: z.string().min(1), expired: z.boolean() }),
-  ),
 })
 
 const runsSchema = z.object({ workflow_runs: z.array(runSchema) })
@@ -154,13 +150,15 @@ export async function fetchGithubActionsTestCount(args: {
       return testCountEnvelope(
         noRunEnvelope(panel.id, source, panel.pipeline, selected.response.headers.get('date')),
       )
-    const evidence = await readGithubRunTestEvidence(
-      { ...args, source, githubClient },
-      {
-        run: selected.run,
-        observedAt: selected.observedAt,
-      },
-      panel.test_results,
+    const evidence = currentTestEvidence(
+      await inspectGithubTestArtifact(
+        { ...args, source, githubClient },
+        {
+          run: selected.run,
+          observedAt: selected.observedAt,
+        },
+        panel.test_results,
+      ),
     )
     return testCountEnvelope({ ...evidence, panelId: panel.id, link: selected.run.html_url })
   } catch (error) {
@@ -171,91 +169,6 @@ export async function fetchGithubActionsTestCount(args: {
         error,
         sourceLinkForWorkflow(source, panel.pipeline),
       ),
-    )
-  }
-}
-
-async function readGithubRunTestEvidence(
-  args: { source: GithubActionsSource; githubClient: GithubClient; fetcher: typeof fetch },
-  selected: { run: z.infer<typeof runSchema>; observedAt: string },
-  artifactConfig: TestResultsArtifact,
-): Promise<TestEvidence> {
-  const { run, observedAt: runObservedAt } = selected
-  const { source, githubClient } = args
-  const noValidators = new Headers()
-  let failureObservedAt = runObservedAt
-  const evidenceError = (kind: ErrorKind, at = failureObservedAt): TestEvidence => ({
-    state: 'error',
-    observedAt: at,
-    error: { kind, message: publicErrorMessage(kind) },
-  })
-  const failedResponse = (response: Response) =>
-    evidenceError(errorKind(response.status), observedAt(response.headers.get('date')))
-  try {
-    if (!run.id) return evidenceError('upstream-error')
-    if (run.status !== 'completed')
-      return {
-        state: 'ok',
-        observedAt: runObservedAt,
-        signal: { type: 'test-count', status: 'pending' } satisfies TestCount,
-      }
-
-    const artifactsResponse = await githubFetch(
-      githubArtifactsCall(source, run.id, artifactConfig),
-      {
-        ...args,
-        source,
-        requestHeaders: noValidators,
-        githubClient,
-      },
-    )
-    if (!artifactsResponse.ok) return failedResponse(artifactsResponse)
-    const artifactObservedAt = observedAt(artifactsResponse.headers.get('date'))
-    failureObservedAt = oldestObservation(runObservedAt, artifactObservedAt)
-    const artifacts = artifactsSchema.parse(await artifactsResponse.json()).artifacts
-    const matches = artifacts.filter((artifact) => artifact.name === artifactConfig.artifact)
-    if (matches.length === 0)
-      return {
-        state: 'ok',
-        observedAt: oldestObservation(runObservedAt, artifactObservedAt),
-        signal: { type: 'test-count', status: 'not-reported' } satisfies TestCount,
-      }
-    const [artifact] = matches
-    if (matches.length !== 1 || !artifact || artifact.expired)
-      return evidenceError('upstream-error')
-    const archiveResponse = await githubFetch(githubArtifactDownloadCall(source, artifact.id), {
-      ...args,
-      source,
-      requestHeaders: noValidators,
-      githubClient,
-    })
-    if (!archiveResponse.ok) return failedResponse(archiveResponse)
-    const archiveObservedAt = observedAt(archiveResponse.headers.get('date'))
-    failureObservedAt = oldestObservation(runObservedAt, artifactObservedAt, archiveObservedAt)
-    const summary = testResultsSummarySchema.parse(
-      JSON.parse(await readTestResultsArtifact(archiveResponse, artifactConfig.entry)),
-    )
-    if (
-      summary.runId !== run.id ||
-      summary.runAttempt !== run.run_attempt ||
-      summary.headSha !== run.head_sha
-    )
-      throw new Error('Test-results manifest does not belong to the selected workflow run.')
-    return {
-      state: 'ok',
-      observedAt: oldestObservation(runObservedAt, artifactObservedAt, archiveObservedAt),
-      signal: {
-        type: 'test-count',
-        status: 'reported',
-        total: summary.total,
-        ...(summary.passed === undefined ? {} : { passed: summary.passed }),
-        ...(summary.failed === undefined ? {} : { failed: summary.failed }),
-        ...(summary.skipped === undefined ? {} : { skipped: summary.skipped }),
-      } satisfies TestCount,
-    }
-  } catch (error) {
-    return evidenceError(
-      error instanceof GithubAuthenticationError ? 'unauthorized' : 'upstream-error',
     )
   }
 }
@@ -602,10 +515,12 @@ export async function fetchGithubActionsPipeline(args: {
       if (activity) signal.activity = activity
     }
     if (parsedPanel.test_results) {
-      signal.testResults = await readGithubRunTestEvidence(
-        { ...args, source: parsedSource, githubClient },
-        { run, observedAt: selected.observedAt },
-        parsedPanel.test_results,
+      signal.testResults = currentTestEvidence(
+        await inspectGithubTestArtifact(
+          { ...args, source: parsedSource, githubClient },
+          { run, observedAt: selected.observedAt },
+          parsedPanel.test_results,
+        ),
       )
     }
     const envelope: Envelope = {
@@ -763,27 +678,6 @@ function githubJobsCall(source: GithubActionsSource, runId: number): PermittedCa
   return { url: url.toString(), headers: new Headers() }
 }
 
-function githubArtifactsCall(
-  source: GithubActionsSource,
-  runId: number,
-  testResults: TestResultsArtifact,
-): PermittedCall {
-  const url = new URL(`https://api.github.com/repos/${source.repo}/actions/runs/${runId}/artifacts`)
-  url.searchParams.set('name', testResults.artifact)
-  url.searchParams.set('per_page', '100')
-  return { url: url.toString(), headers: new Headers() }
-}
-
-function githubArtifactDownloadCall(
-  source: GithubActionsSource,
-  artifactId: number,
-): PermittedCall {
-  return {
-    url: `https://api.github.com/repos/${source.repo}/actions/artifacts/${artifactId}/zip`,
-    headers: new Headers(),
-  }
-}
-
 function noRunEnvelope(
   panelId: string,
   source: GithubActionsSource,
@@ -878,4 +772,91 @@ function sourceLinkForWorkflow(source: GithubActionsSource, pipeline: string): s
 
 function observedAt(value: string | null): string {
   return upstreamObservedAt(value)
+}
+
+/** One bounded page; no provider history is retained by the server. */
+export async function fetchGithubTestHistory(args: {
+  signal?: AbortSignal
+  panel: Panel
+  source: Source
+  fetcher: typeof fetch
+  githubClient: GithubClient
+}): Promise<Response> {
+  const source = githubActionsSourceSchema.parse(args.source)
+  const fetcher: typeof fetch = (input, init) =>
+    args.fetcher(input, { ...init, ...(args.signal ? { signal: args.signal } : {}) })
+  const artifact = testResultsArtifactSchema.parse(args.panel.test_results)
+  const workflow = z.string().min(1).parse(args.panel.pipeline)
+  const now = Date.now()
+  const cutoff = now - 14 * 86400000
+  const history: TestHistory = {
+    inspectedAt: new Date(now).toISOString(),
+    inspectedRuns: 0,
+    complete: true,
+    samples: [],
+  }
+  let stop = false
+  const recordFailure = (failure: TestArtifactFailure) => {
+    history.complete = false
+    if (failure.errorKind === 'unauthorized' || failure.httpStatus === 429) stop = true
+    if (
+      failure.retryAt &&
+      (!history.retryAt || Date.parse(failure.retryAt) > Date.parse(history.retryAt))
+    )
+      history.retryAt = failure.retryAt
+  }
+  try {
+    const call = githubRunsCall(
+      source,
+      workflow,
+      source.branch,
+      undefined,
+      8,
+      new Date(cutoff).toISOString(),
+    )
+    const url = new URL(call.url)
+    url.searchParams.set('status', 'completed')
+    const response = await githubFetch(
+      { ...call, url: url.toString() },
+      { ...args, fetcher, source, requestHeaders: new Headers() },
+    )
+    if (!response.ok) recordFailure(testArtifactHttpFailure(response))
+    else {
+      const runs = runsSchema.parse(await response.json()).workflow_runs.slice(0, 8)
+      for (const run of runs) {
+        if (stop || args.signal?.aborted) {
+          history.complete = false
+          break
+        }
+        if (run.status !== 'completed') continue
+        if (run.updated_at && Date.parse(run.updated_at) < cutoff) continue
+        history.inspectedRuns++
+        const inspection = await inspectGithubTestArtifact(
+          { ...args, fetcher, source },
+          { run, observedAt: observedAt(response.headers.get('date')) },
+          artifact,
+        )
+        switch (inspection.kind) {
+          case 'failed':
+            recordFailure(inspection)
+            break
+          case 'reported': {
+            const { run: identity, total } = inspection.tests
+            if (identity) history.samples.push({ ...identity, total })
+            else history.complete = false
+            break
+          }
+          case 'absent':
+          case 'expired':
+            break
+          case 'pending':
+            history.complete = false
+            break
+        }
+      }
+    }
+  } catch {
+    history.complete = false
+  }
+  return Response.json(history, { headers: { 'cache-control': 'no-store' } })
 }

@@ -1708,3 +1708,64 @@ test('keeps the showcase signal-field visual inside its three-row panel', async 
   expect(geometry.panelFits).toBe(true)
   expect(geometry.tracksDisplay).toBe('flex')
 })
+
+test.describe('test-count direction', () => {
+  test.use({ hasTouch: true })
+  test('fits wall and narrow panels and reveals an explanation on touch', async ({
+    page,
+  }, testInfo) => {
+    const wideViewport = { width: 1920, height: 1080 }
+    const narrowViewport = { width: 360, height: 900 }
+    await page.setViewportSize(wideViewport)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    const panel = {
+      id: 'tests',
+      type: 'test-count',
+      refresh: '1s',
+      position: { x: 0, y: 0, w: 12, h: 8 },
+    }
+    const earlier = { id: '1', total: 100, updatedAt: new Date(Date.now() - 120000).toISOString() }
+    const current = { id: '2', total: 120, updatedAt: new Date(Date.now() - 60000).toISOString() }
+    const observations = [earlier, current]
+    let observationIndex = 0
+    await stubDashboard(page, { panels: [panel] })
+    await page.route('**/api/panel/**', (route) => {
+      const observation =
+        observations[Math.min(observationIndex++, observations.length - 1)] ?? current
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          panelId: panel.id,
+          state: 'ok',
+          observedAt: observation.updatedAt,
+          link: null,
+          signal: {
+            type: 'test-count',
+            status: 'reported',
+            total: observation.total,
+            run: { id: observation.id, attempt: 1, updatedAt: observation.updatedAt },
+          },
+        }),
+      })
+    })
+    await page.goto('/')
+    const renderedPanel = page.locator(`[data-panel-id="${panel.id}"]`)
+    const summary = renderedPanel.getByRole('button', { name: `${current.total} tests` })
+    const chart = renderedPanel.locator('svg')
+    await expect(chart).toBeVisible()
+    expect((await renderedTextGeometry(summary)).contained).toBe(true)
+    await page.screenshot({ path: testInfo.outputPath('test-direction-wide.png') })
+
+    await page.setViewportSize(narrowViewport)
+    await expect(chart).toBeHidden()
+    expect((await renderedTextGeometry(summary)).contained).toBe(true)
+    await summary.tap()
+    const explanation = page.getByRole('tooltip')
+    await expect(explanation).toBeVisible()
+    const bounds = await explanation.boundingBox()
+    expect(bounds).not.toBeNull()
+    expect((bounds?.x ?? -1) >= 0).toBe(true)
+    expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeLessThanOrEqual(narrowViewport.width)
+    await page.screenshot({ path: testInfo.outputPath('test-direction-narrow.png') })
+  })
+})

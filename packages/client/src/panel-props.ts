@@ -27,6 +27,7 @@ export type HttpValueFactObservation = {
 }
 
 export type PanelProps = {
+  testDirection?: import('./test-direction.ts').TestDirection
   panel: Panel
   envelope: Envelope | undefined
   attentionActive?: boolean

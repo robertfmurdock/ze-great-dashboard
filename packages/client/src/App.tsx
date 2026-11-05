@@ -61,12 +61,13 @@ function Dashboard({
   )
   useClientUpdate({ env, diagnostics, auth })
   const { board, loadedBoardName } = useBoardConfig({ env, diagnostics, auth })
-  const { signals, updateHealth, factSignals, schedules, rejectedPipelines } = usePanelSignals({
-    board: loadedBoardName === env.board ? board : undefined,
-    env,
-    diagnostics,
-    auth,
-  })
+  const { signals, updateHealth, factSignals, schedules, rejectedPipelines, testDirections } =
+    usePanelSignals({
+      board: loadedBoardName === env.board ? board : undefined,
+      env,
+      diagnostics,
+      auth,
+    })
   const layout = useMemo(() => (board ? analyzeBoardLayout(board.panels) : undefined), [board])
   const attentionDrivers = useMemo(
     () => projectAttention({ board, signals, updateHealth, factSignals }),
@@ -127,6 +128,7 @@ function Dashboard({
               updateHealth={updateHealth[panel.id]}
               rejectedPipeline={rejectedPipelines[panel.id]}
               facts={factSignals[panel.id]}
+              testDirection={testDirections[panel.id]}
             />
           ))}
       </main>

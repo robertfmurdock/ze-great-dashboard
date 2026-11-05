@@ -31,6 +31,7 @@ const diagnosticKinds = [
   'panel-fetch-parse-failure',
   'panel-fetch-failure',
   'panel-rendered',
+  'test-history-repair',
 ] as const
 
 export type CacheMetadata = Partial<
@@ -59,6 +60,7 @@ type EventMetadata = {
 }
 
 export type RenderedPanelDiagnostic = {
+  testDirection?: ReturnType<typeof import('./test-direction.ts').projectTestDirection>
   tests?: TestEvidenceDiagnostic
   state: Envelope['state']
   status?: string
@@ -72,6 +74,14 @@ export type FailedObservation = {
 }
 
 export type DiagnosticEventInput =
+  | {
+      kind: 'test-history-repair'
+      panelId: string
+      path: string
+      outcome: 'complete' | 'partial' | 'failed'
+      inspectedRuns: number
+      samples: number
+    }
   | { kind: 'session-start' }
   | { kind: 'client-update-check'; path: string }
   | {

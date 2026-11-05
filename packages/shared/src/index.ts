@@ -113,3 +113,12 @@ export {
   type SecurityDetailsResponse,
   securityDetailsResponseSchema,
 } from './security-details.ts'
+
+export {
+  retryAfterTime,
+  type TestHistory,
+  type TestHistorySample,
+  testHistoryHeader,
+  testHistorySampleSchema,
+  testHistorySchema,
+} from './test-history.ts'

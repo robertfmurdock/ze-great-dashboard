@@ -22,6 +22,7 @@ const basicDiagnostic: PanelFeature['projectDiagnostic'] = (envelope) => ({
 /** Exhaustive feature contracts: a renderer cannot be registered without polling and diagnostics. */
 export const panelFeatures = {
   'pipeline-status': {
+    testHistory: true,
     symbol: { glyph: '▣', label: 'Pipeline status' },
     Renderer: PipelinePanel,
     polling: singlePolling,
@@ -54,6 +55,7 @@ export const panelFeatures = {
     projectDiagnostic: basicDiagnostic,
   },
   'test-count': {
+    testHistory: true,
     symbol: { glyph: '≡', label: 'Test count' },
     Renderer: TestCountPanel,
     polling: singlePolling,
@@ -81,6 +83,7 @@ export function PanelRenderer({
   updateHealth,
   rejectedPipeline,
   facts,
+  testDirection,
 }: PanelRendererProps) {
   const Renderer = panelFeature(panel.type)?.Renderer
   return Renderer ? (
@@ -91,6 +94,7 @@ export function PanelRenderer({
       updateHealth={updateHealth}
       rejectedPipeline={rejectedPipeline}
       facts={facts}
+      testDirection={testDirection}
     />
   ) : (
     <PanelPlaceholder label={panel.type} hint="Not wired yet" wide />

@@ -7,6 +7,7 @@ import {
   normalizeBoardLayout,
   schemaUrlForAssetPath,
   securityDetailsResponseSchema,
+  testHistoryHeader,
 } from '@ze-great-dashboard/shared'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
@@ -232,6 +233,29 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
       { boardId: boardName, panelId, operation: 'read', destination: fact.url },
     )
   })
+  app.get('/api/panel/:board/:panelId/test-history', async (c) => {
+    const boardName = c.req.param('board')
+    const panelId = c.req.param('panelId')
+    const panel = deps.boardConfig?.boards[boardName]?.panels.find(
+      (candidate) => candidate.id === panelId,
+    )
+    const source = panel?.source ? deps.boardConfig?.sources[panel.source] : undefined
+    if (!panel || !source || !permitsPanelOperation(allowlist, boardName, panelId, 'test-history'))
+      return rejected(c, { boardId: boardName, panelId, operation: 'test-history' })
+    const adapter = readPanelAdapter(panel, source)
+    if (!adapter?.testHistory)
+      return rejected(c, { boardId: boardName, panelId, operation: 'test-history' })
+    return adapter.testHistory({
+      panel,
+      source,
+      signal: c.req.raw.signal,
+      requestHeaders: new Headers(),
+      fetcher: deps.fetcher ?? globalThis.fetch,
+      credentials,
+      githubClient,
+    })
+  })
+
   app.get('/api/panel/:board/:panelId', async (c) => {
     const boardName = c.req.param('board')
     const panelId = c.req.param('panelId')
@@ -259,7 +283,7 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
         credentials,
         githubClient,
       })
-      return observation(c, result, {
+      const response = await observation(c, result, {
         boardId: boardName,
         panelId,
         operation: 'read',
@@ -267,6 +291,8 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
         ...(source ? { sourceType: source.type } : {}),
         destination: adapter.destination(panel, source),
       })
+      if (adapter.testHistory) response.headers.set(testHistoryHeader, 'supported')
+      return response
     }
     return c.notFound()
   })

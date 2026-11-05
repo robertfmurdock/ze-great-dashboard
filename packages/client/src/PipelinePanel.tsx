@@ -28,6 +28,7 @@ export function PipelinePanel({
   attentionActive,
   updateHealth,
   rejectedPipeline,
+  testDirection,
 }: PanelProps) {
   if (!envelope && rejectedPipeline)
     return <RejectedPipelinePanel panel={panel} rejected={rejectedPipeline} />
@@ -82,6 +83,7 @@ export function PipelinePanel({
       panel={panel}
       envelope={envelope}
       signal={signal.data}
+      testDirection={testDirection}
       updateHealth={updateHealth}
       attentionActive={attentionActive}
     />
@@ -133,10 +135,12 @@ function PipelineSignalPanel({
   signal,
   updateHealth,
   attentionActive,
+  testDirection,
 }: {
   panel: Panel
   envelope: Envelope
   signal: PipelineStatus
+  testDirection?: PanelProps['testDirection']
   updateHealth?: PanelProps['updateHealth']
   attentionActive?: boolean
 }) {
@@ -190,7 +194,9 @@ function PipelineSignalPanel({
             className={styles.activity}
           />
         )}
-        {signal.testResults && <RunTestResults envelope={signal.testResults} />}
+        {signal.testResults && (
+          <RunTestResults envelope={signal.testResults} direction={testDirection} />
+        )}
         {signal.branch && (
           <PanelMetadata
             glyph="⎇"

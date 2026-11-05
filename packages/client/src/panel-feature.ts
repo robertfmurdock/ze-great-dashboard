@@ -8,6 +8,8 @@ type PollingPaths = { initialPaths: (panel: Panel, root: string) => string[] }
 export type RemotePanelPolling = PollingPaths &
   ({ kind: 'single' } | { kind: 'facts' } | { kind: 'pull-request-health' })
 export type PanelFeature = {
+  /** This feature displays completed-run test totals and participates in local comparisons. */
+  testHistory?: true
   symbol: { glyph: string; label: string }
   Renderer: ComponentType<PanelProps>
   polling: RemotePanelPolling | { kind: 'local' }

@@ -3,6 +3,7 @@ import { fetchAzureDevOpsPipeline, permittedAzureDevOpsCalls } from './adapters/
 import {
   fetchGithubActionsPipeline,
   fetchGithubActionsTestCount,
+  fetchGithubTestHistory,
   permittedGithubActionsCalls,
   testCountCapabilities,
 } from './adapters/github-actions.ts'
@@ -13,6 +14,7 @@ import type { GithubClient } from './github-auth.ts'
 import type { AdapterResult } from './upstream.ts'
 
 type ReadArgs = {
+  signal?: AbortSignal
   panel: Panel
   source?: Source
   requestHeaders: Headers
@@ -23,6 +25,7 @@ type ReadArgs = {
 
 export type ReadPanelAdapter = {
   destination: (panel: Panel, source: Source | undefined) => string
+  testHistory?: (args: ReadArgs) => Promise<Response>
   fetch?: (args: ReadArgs) => Promise<AdapterResult>
 }
 
@@ -37,6 +40,12 @@ export function readPanelAdapter(
   if (panel.type === 'pipeline-status' && source?.type === 'github-actions') {
     permittedGithubActionsCalls(panel, source)
     return {
+      ...(panel.test_results
+        ? {
+            testHistory: ({ source: _source, ...args }: ReadArgs) =>
+              fetchGithubTestHistory({ ...args, source }),
+          }
+        : {}),
       destination: () => 'https://api.github.com',
       fetch: ({ source: _configuredSource, ...args }) =>
         fetchGithubActionsPipeline({ ...args, source }),
@@ -45,6 +54,12 @@ export function readPanelAdapter(
   if (panel.type === 'test-count' && source?.type === 'github-actions') {
     testCountCapabilities(panel, source)
     return {
+      ...(panel.test_results
+        ? {
+            testHistory: ({ source: _source, ...args }: ReadArgs) =>
+              fetchGithubTestHistory({ ...args, source }),
+          }
+        : {}),
       destination: () => 'https://api.github.com',
       fetch: ({ source: _configuredSource, ...args }) =>
         fetchGithubActionsTestCount({ ...args, source }),

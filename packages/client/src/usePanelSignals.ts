@@ -3,17 +3,13 @@ import {
   type ClientEnv,
   type Envelope,
   envelopeSchema,
+  testHistoryHeader,
 } from '@ze-great-dashboard/shared/browser'
 import { useEffect, useRef, useState } from 'react'
 import type { DashboardAuth } from './dashboard-fetch.ts'
 import { dashboardFetch } from './dashboard-fetch.ts'
-import { cacheMetadata, type DiagnosticSink } from './diagnostics.ts'
-import {
-  httpValueFactsDiagnosticChanged,
-  panelDiagnosticChanged,
-  projectHttpValueFactsDiagnostic,
-  projectPanelDiagnostic,
-} from './panel-diagnostics.ts'
+import { cacheMetadata, type DiagnosticSink, type RenderedPanelDiagnostic } from './diagnostics.ts'
+import { projectHttpValueFactsDiagnostic, projectPanelDiagnostic } from './panel-diagnostics.ts'
 import { BrowserPanelMemory, resolvePanelMemoryIdentity } from './panel-memory.ts'
 import { readPanelObservation } from './panel-observation.ts'
 import type {
@@ -21,6 +17,7 @@ import type {
   PanelUpdateHealth,
   RejectedPipelinePresentation,
 } from './panel-props.ts'
+import { panelFeature } from './panel-registry.tsx'
 import { applyPipelinePresentation, reconcilePipelineResponse } from './pipeline-reconciliation.ts'
 import {
   initialPollingSchedule,
@@ -30,6 +27,8 @@ import {
 } from './polling-panels.ts'
 import { type PollingScheduleSnapshot, resolveNextPoll } from './polling-schedule.ts'
 import { rollupPullRequestHealth } from './pull-request-rollup.ts'
+import { projectTestDirection, type TestDirection } from './test-direction.ts'
+import { TestHistoryRepair } from './test-history-repair.ts'
 
 export function usePanelSignals({
   board,
@@ -44,6 +43,10 @@ export function usePanelSignals({
   memory?: BrowserPanelMemory
   auth?: DashboardAuth
 }) {
+  const [testDirections, setTestDirections] = useState<Record<string, TestDirection | undefined>>(
+    {},
+  )
+  const testDirectionsRef = useRef<Record<string, TestDirection | undefined>>({})
   const [signals, setSignals] = useState<Record<string, Envelope | undefined>>({})
   const [updateHealth, setUpdateHealth] = useState<Record<string, PanelUpdateHealth | undefined>>(
     {},
@@ -66,6 +69,8 @@ export function usePanelSignals({
     signalsRef.current = {}
     factSignalsRef.current = {}
     setSignals({})
+    setTestDirections({})
+    testDirectionsRef.current = {}
     setUpdateHealth({})
     setFactSignals({})
     setSchedules([])
@@ -73,6 +78,56 @@ export function usePanelSignals({
     if (!board) return
 
     let cancelled = false
+    const memory = memoryRef.current
+    if (!memory) return
+    const rendered = new Map<string, RenderedPanelDiagnostic>()
+    const recordRendered = (
+      panel: Board['panels'][number],
+      projection: RenderedPanelDiagnostic,
+    ) => {
+      if (JSON.stringify(rendered.get(panel.id)) === JSON.stringify(projection)) return
+      rendered.set(panel.id, projection)
+      diagnostics.record({
+        kind: 'panel-rendered',
+        panelId: panel.id,
+        path: panelProxyPath(env, panel.id),
+        rendered: projection,
+      })
+    }
+    const publish = (panel: Board['panels'][number], envelope: Envelope) => {
+      if (cancelled) return
+      const direction = panelFeature(panel.type)?.testHistory
+        ? memory.testDirection(env.board, panel, envelope)
+        : undefined
+      const projected = projectTestDirection(direction)
+      recordRendered(panel, {
+        ...projectPanelDiagnostic(panel, envelope),
+        ...(projected ? { testDirection: projected } : {}),
+      })
+      testDirectionsRef.current = { ...testDirectionsRef.current, [panel.id]: direction }
+      setTestDirections(testDirectionsRef.current)
+      signalsRef.current = { ...signalsRef.current, [panel.id]: envelope }
+      setSignals(signalsRef.current)
+    }
+    const publishFacts = (
+      panel: Board['panels'][number],
+      facts: Record<string, HttpValueFactObservation | undefined>,
+    ) => {
+      if (cancelled) return
+      recordRendered(panel, projectHttpValueFactsDiagnostic(facts))
+      factSignalsRef.current = { ...factSignalsRef.current, [panel.id]: facts }
+      setFactSignals(factSignalsRef.current)
+    }
+    const repairs = new TestHistoryRepair({
+      board: env.board,
+      memory,
+      diagnostics,
+      fetcher: (input, init) => dashboardFetch(env, input, init, globalThis.fetch, auth),
+      onMerged: (panel) => {
+        const envelope = signalsRef.current[panel.id]
+        if (envelope) publish(panel, envelope)
+      },
+    })
     const timers = new Set<number>()
     const abortControllers = new Set<AbortController>()
     const panels = pollingPanels(board)
@@ -125,31 +180,68 @@ export function usePanelSignals({
           }
         })
       }
+      type CurrentPoll = { signal: AbortSignal; healthy: boolean; historySupported: boolean }
+      const poll = async (read: (cycle: CurrentPoll) => Promise<void>) => {
+        if (cancelled || inFlight) return
+        inFlight = true
+        const controller = new AbortController()
+        const cycle: CurrentPoll = {
+          signal: controller.signal,
+          healthy: false,
+          historySupported: false,
+        }
+        abortControllers.add(controller)
+        repairs.currentStarted(panel.id)
+        updateSchedule(panel.id, {
+          inFlight: true,
+          lastRequestStartedAt: new Date().toISOString(),
+          nextDueAt: undefined,
+        })
+        try {
+          await read(cycle)
+        } catch (error) {
+          if (!cancelled && !cycle.signal.aborted) {
+            recordUpdateFailure(error)
+            if (!(error instanceof DiagnosticParseFailure))
+              diagnostics.record({
+                kind: 'panel-fetch-failure',
+                panelId: panel.id,
+                path,
+                message: errorMessage(error),
+              })
+          }
+        } finally {
+          inFlight = false
+          abortControllers.delete(controller)
+          if (!cancelled && !cycle.signal.aborted) {
+            const next = resolveNextPoll(lastEnvelope, Date.now(), settings)
+            updateSchedule(panel.id, {
+              inFlight: false,
+              cadence: next.cadence,
+              nextDueAt: new Date(Date.now() + next.delayMillis).toISOString(),
+            })
+            const timer = window.setTimeout(() => {
+              timers.delete(timer)
+              void poll(read)
+            }, next.delayMillis)
+            timers.add(timer)
+          }
+          repairs.currentSettled(panel, path, cycle.healthy, cycle.historySupported)
+        }
+      }
       switch (polling.kind) {
         case 'facts': {
           if (!panel.facts) break
           const facts = panel.facts
           const components = new Map<string, Envelope>()
-          let activeController: AbortController | undefined
-          const refreshFacts = async () => {
-            if (cancelled || inFlight) return
-            inFlight = true
-            updateSchedule(panel.id, {
-              inFlight: true,
-              lastRequestStartedAt: new Date().toISOString(),
-              nextDueAt: undefined,
-            })
-            activeController = new AbortController()
-            abortControllers.add(activeController)
-            const root = `${path}/facts`
+          void poll(async ({ signal }) => {
             const observations = await Promise.all(
               facts.map(async (fact) => {
-                const factPath = `${root}/${encodeURIComponent(fact.id)}`
                 const result = await readPanelObservation({
                   diagnostics,
                   panelId: panel.id,
-                  path: factPath,
-                  signal: activeController?.signal,
+                  path: `${path}/facts/${encodeURIComponent(fact.id)}`,
+                  signal,
                   cache: components,
                   fetcher: (input, init) =>
                     dashboardFetch(env, input, init, globalThis.fetch, auth),
@@ -157,91 +249,51 @@ export function usePanelSignals({
                 return [fact.id, result.error ? { failure: result.error } : result] as const
               }),
             )
-            if (!cancelled && !activeController.signal.aborted) {
-              const next = Object.fromEntries(observations)
-              const previous = factSignalsRef.current[panel.id]
-              if (httpValueFactsDiagnosticChanged(previous, next))
-                diagnostics.record({
-                  kind: 'panel-rendered',
-                  panelId: panel.id,
-                  path,
-                  rendered: projectHttpValueFactsDiagnostic(next),
-                })
-              factSignalsRef.current = { ...factSignalsRef.current, [panel.id]: next }
-              setFactSignals(factSignalsRef.current)
-            }
-            inFlight = false
-            abortControllers.delete(activeController)
-            if (!cancelled) {
-              const due = Date.now() + settings.refreshMillis
-              updateSchedule(panel.id, {
-                inFlight: false,
-                cadence: 'normal',
-                nextDueAt: new Date(due).toISOString(),
-              })
-              const timer = window.setTimeout(() => {
-                timers.delete(timer)
-                void refreshFacts()
-              }, settings.refreshMillis)
-              timers.add(timer)
-            }
-          }
-          void refreshFacts()
+            if (!signal.aborted) publishFacts(panel, Object.fromEntries(observations))
+          })
           continue
         }
         case 'pull-request-health': {
           const workflows = readUpdateWorkflows(panel)
           const components = new Map<string, Envelope>()
-          let activeController: AbortController | undefined
-          const request = async (componentPath: string) => {
-            const result = await readPanelObservation({
-              diagnostics,
-              panelId: panel.id,
-              path: componentPath,
-              signal: activeController?.signal,
-              cache: components,
-              fetcher: (input, init) => dashboardFetch(env, input, init, globalThis.fetch, auth),
-            })
-            if (result.envelope?.state === 'error') return { error: result.envelope.error.message }
-            return result
-          }
-          const refreshPullRequestHealth = async () => {
-            if (cancelled || inFlight) return
-            inFlight = true
-            updateSchedule(panel.id, {
-              inFlight: true,
-              lastRequestStartedAt: new Date().toISOString(),
-              nextDueAt: undefined,
-            })
-            activeController = new AbortController()
-            abortControllers.add(activeController)
-            const root = path
+          void poll(async ({ signal }) => {
+            const request = async (componentPath: string) => {
+              const result = await readPanelObservation({
+                diagnostics,
+                panelId: panel.id,
+                path: componentPath,
+                signal,
+                cache: components,
+                fetcher: (input, init) => dashboardFetch(env, input, init, globalThis.fetch, auth),
+              })
+              return result.envelope?.state === 'error'
+                ? { error: result.envelope.error.message }
+                : result
+            }
             const [candidateResult, ...workflowResults] = await Promise.all([
-              request(`${root}/pull-requests`),
+              request(`${path}/pull-requests`),
               ...workflows.map(({ workflow }) =>
-                request(`${root}/update-workflow/${encodeURIComponent(workflow)}`),
+                request(`${path}/update-workflow/${encodeURIComponent(workflow)}`),
               ),
             ])
+            if (cancelled || signal.aborted) return
             const candidates =
               candidateResult.envelope?.state === 'ok' &&
               isCandidates(candidateResult.envelope.signal)
                 ? candidateResult.envelope.signal.pullRequests
                 : []
-            if (cancelled || activeController.signal.aborted) {
-              abortControllers.delete(activeController)
-              return
-            }
             const buildResults = await Promise.all(
               candidates.map(
                 async (candidate) =>
                   [
                     candidate.branch,
                     await request(
-                      `${root}/pull-request-build?branch=${encodeURIComponent(candidate.branch)}`,
+                      `${path}/pull-request-build?branch=${encodeURIComponent(candidate.branch)}`,
                     ),
                   ] as const,
               ),
             )
+            if (cancelled || signal.aborted) return
             const rolled = rollupPullRequestHealth({
               panelId: panel.id,
               link: candidateResult.envelope?.link ?? null,
@@ -252,42 +304,12 @@ export function usePanelSignals({
               candidates: candidateResult,
               builds: new Map(buildResults),
             })
-            if (cancelled || activeController.signal.aborted) {
-              abortControllers.delete(activeController)
-              return
-            }
-            if (rolled && !cancelled) {
+            if (rolled) {
               lastEnvelope = rolled
               recordConfirmedUpdate()
-              const previous = signalsRef.current[panel.id]
-              if (panelDiagnosticChanged(previous, panel, rolled))
-                diagnostics.record({
-                  kind: 'panel-rendered',
-                  panelId: panel.id,
-                  path,
-                  rendered: projectPanelDiagnostic(panel, rolled),
-                })
-              signalsRef.current = { ...signalsRef.current, [panel.id]: rolled }
-              setSignals(signalsRef.current)
-            } else if (!cancelled) recordUpdateFailure('No usable pull-request observations.')
-            inFlight = false
-            abortControllers.delete(activeController)
-            if (!cancelled) {
-              const next = resolveNextPoll(lastEnvelope, Date.now(), settings)
-              const due = Date.now() + next.delayMillis
-              updateSchedule(panel.id, {
-                inFlight: false,
-                cadence: next.cadence,
-                nextDueAt: new Date(due).toISOString(),
-              })
-              const nextTimer = window.setTimeout(() => {
-                timers.delete(nextTimer)
-                void refreshPullRequestHealth()
-              }, next.delayMillis)
-              timers.add(nextTimer)
-            }
-          }
-          void refreshPullRequestHealth()
+              publish(panel, rolled)
+            } else recordUpdateFailure('No usable pull-request observations.')
+          })
           continue
         }
         case 'single':
@@ -295,187 +317,148 @@ export function usePanelSignals({
         default:
           polling satisfies never
       }
-      const refresh = () => {
-        if (cancelled || inFlight) return
-        inFlight = true
-        updateSchedule(panel.id, {
-          inFlight: true,
-          lastRequestStartedAt: new Date().toISOString(),
-          nextDueAt: undefined,
-        })
+      void poll(async (cycle) => {
         diagnostics.record({ kind: 'panel-fetch-start', panelId: panel.id, path })
-        dashboardFetch(env, path, undefined, globalThis.fetch, auth)
-          .then(async (response) => {
-            const transport = {
-              kind: 'panel-fetch-response' as const,
+        const response = await dashboardFetch(
+          env,
+          path,
+          { signal: cycle.signal },
+          globalThis.fetch,
+          auth,
+        )
+        cycle.historySupported =
+          panelFeature(panel.type)?.testHistory === true &&
+          response.headers.get(testHistoryHeader) === 'supported'
+        const transport = {
+          kind: 'panel-fetch-response' as const,
+          panelId: panel.id,
+          path,
+          status: response.status,
+          cache: cacheMetadata(response.headers),
+        }
+        if (response.status === 304) {
+          cycle.healthy = lastEnvelope?.state === 'ok'
+          diagnostics.record(transport)
+          recordConfirmedUpdate()
+          return
+        }
+        let envelope: Envelope
+        try {
+          const parsed = parseEnvelope(await response.json())
+          if (!parsed) {
+            diagnostics.record(transport)
+            diagnostics.record({
+              kind: 'panel-fetch-parse-failure',
               panelId: panel.id,
               path,
-              status: response.status,
-              cache: cacheMetadata(response.headers),
-            }
-            if (response.status === 304) {
-              diagnostics.record(transport)
-              recordConfirmedUpdate()
-              return undefined
-            }
-            try {
-              const value: unknown = await response.json()
-              const envelope = parseEnvelope(value)
-              if (!envelope) {
-                diagnostics.record(transport)
-                diagnostics.record({
-                  kind: 'panel-fetch-parse-failure',
-                  panelId: panel.id,
-                  path,
-                  message: 'Response was not a valid signal envelope.',
-                })
-                recordUpdateFailure('Response was not a valid signal envelope.')
-                return undefined
-              }
-              diagnostics.record({
-                ...transport,
-                envelope,
-                ...(envelope.state === 'error'
-                  ? { failure: failedObservation(envelope, response) }
+              message: 'Response was not a valid signal envelope.',
+            })
+            recordUpdateFailure('Response was not a valid signal envelope.')
+            return
+          }
+          envelope = parsed
+          diagnostics.record({
+            ...transport,
+            envelope,
+            ...(envelope.state === 'error'
+              ? { failure: failedObservation(envelope, response) }
+              : {}),
+          })
+          cycle.healthy = envelope.state === 'ok'
+          recordConfirmedUpdate()
+        } catch (error) {
+          diagnostics.record(transport)
+          diagnostics.record({
+            kind: 'panel-fetch-parse-failure',
+            panelId: panel.id,
+            path,
+            message: errorMessage(error),
+          })
+          throw new DiagnosticParseFailure(error)
+        }
+        if (cancelled || cycle.signal.aborted) return
+        const result = { status: response.status, cache: transport.cache }
+        if (panel.type === 'pipeline-status') {
+          const identity = resolvePanelMemoryIdentity(env.board, panel)
+          const accepted = memory.latest(identity)
+          const reconciliation = reconcilePipelineResponse({
+            envelope,
+            accepted,
+            estimatedDurationMs: memory.resolveEstimatedDuration(identity),
+          })
+          const presentation = applyPipelinePresentation({
+            current: signalsRef.current[panel.id],
+            reconciliation,
+            accepted,
+          })
+          if (reconciliation.kind === 'rejected' && accepted) {
+            const signal = reconciliation.signal
+            diagnostics.recordGithubConsistencyIncident({
+              panelId: panel.id,
+              endpoint: path,
+              identity: {
+                source: identity.source,
+                workflow: identity.workflow,
+                branch: identity.branch,
+              },
+              accepted,
+              regressed: {
+                sourceUpdatedAt: signal.sourceUpdatedAt,
+                status: signal.status,
+                link: envelope.link,
+              },
+              response: {
+                httpStatus: result.status,
+                date: result.cache?.date,
+                etag: result.cache?.etag,
+                cacheControl: result.cache?.cacheControl,
+              },
+            })
+            if (!cancelled)
+              setRejectedPipelines((current) => ({
+                ...current,
+                [panel.id]: presentation.rejected,
+              }))
+            return
+          }
+          if (reconciliation.kind === 'accepted') {
+            envelope = reconciliation.envelope
+            if (!cancelled && presentation.rejected === undefined)
+              setRejectedPipelines((current) => {
+                if (!current[panel.id]) return current
+                const next = { ...current }
+                delete next[panel.id]
+                return next
+              })
+            if (reconciliation.accepted) memory.rememberLatest(identity, reconciliation.accepted)
+            if (reconciliation.durationSample) {
+              const sample = {
+                link: reconciliation.durationSample.link,
+                ...(reconciliation.durationSample.sourceRunId
+                  ? { sourceRunId: reconciliation.durationSample.sourceRunId }
                   : {}),
-              })
-              recordConfirmedUpdate()
-              return { envelope, cache: transport.cache, status: response.status }
-            } catch (error) {
-              diagnostics.record(transport)
-              diagnostics.record({
-                kind: 'panel-fetch-parse-failure',
-                panelId: panel.id,
-                path,
-                message: errorMessage(error),
-              })
-              throw new DiagnosticParseFailure(error)
-            }
-          })
-          .then((result) => {
-            if (!result) return
-            let envelope = result.envelope
-            if (panel.type === 'pipeline-status') {
-              const identity = resolvePanelMemoryIdentity(env.board, panel)
-              const accepted = memory.latest(identity)
-              const reconciliation = reconcilePipelineResponse({
-                envelope,
-                accepted,
-                estimatedDurationMs: memory.resolveEstimatedDuration(identity),
-              })
-              const presentation = applyPipelinePresentation({
-                current: signalsRef.current[panel.id],
-                reconciliation,
-                accepted,
-              })
-              if (reconciliation.kind === 'rejected' && accepted) {
-                const signal = reconciliation.signal
-                diagnostics.recordGithubConsistencyIncident({
-                  panelId: panel.id,
-                  endpoint: path,
-                  identity: {
-                    source: identity.source,
-                    workflow: identity.workflow,
-                    branch: identity.branch,
-                  },
-                  accepted,
-                  regressed: {
-                    sourceUpdatedAt: signal.sourceUpdatedAt,
-                    status: signal.status,
-                    link: envelope.link,
-                  },
-                  response: {
-                    httpStatus: result.status,
-                    date: result.cache?.date,
-                    etag: result.cache?.etag,
-                    cacheControl: result.cache?.cacheControl,
-                  },
-                })
-                if (!cancelled)
-                  setRejectedPipelines((current) => ({
-                    ...current,
-                    [panel.id]: presentation.rejected,
-                  }))
-                return
+                durationMs: reconciliation.durationSample.durationMs,
+                sourceUpdatedAt: reconciliation.durationSample.sourceUpdatedAt,
               }
-              if (reconciliation.kind === 'accepted') {
-                envelope = reconciliation.envelope
-                if (!cancelled && presentation.rejected === undefined)
-                  setRejectedPipelines((current) => {
-                    if (!current[panel.id]) return current
-                    const next = { ...current }
-                    delete next[panel.id]
-                    return next
-                  })
-                if (reconciliation.accepted)
-                  memory.rememberLatest(identity, reconciliation.accepted)
-                if (reconciliation.durationSample) {
-                  const sample = {
-                    link: reconciliation.durationSample.link,
-                    ...(reconciliation.durationSample.sourceRunId
-                      ? { sourceRunId: reconciliation.durationSample.sourceRunId }
-                      : {}),
-                    durationMs: reconciliation.durationSample.durationMs,
-                    sourceUpdatedAt: reconciliation.durationSample.sourceUpdatedAt,
-                  }
-                  memory.recordRun(identity, sample, reconciliation.signal.status === 'passed')
-                }
-              }
+              memory.recordRun(identity, sample, reconciliation.signal.status === 'passed')
             }
-            lastEnvelope = envelope
-            if (!cancelled) {
-              const previous = signalsRef.current[panel.id]
-              if (panelDiagnosticChanged(previous, panel, envelope)) {
-                diagnostics.record({
-                  kind: 'panel-rendered',
-                  panelId: panel.id,
-                  path,
-                  rendered: projectPanelDiagnostic(panel, envelope),
-                })
-              }
-              signalsRef.current = { ...signalsRef.current, [panel.id]: envelope }
-              setSignals(signalsRef.current)
-            }
-          })
-          .catch((error) => {
-            recordUpdateFailure(error)
-            if (!(error instanceof DiagnosticParseFailure)) {
-              diagnostics.record({
-                kind: 'panel-fetch-failure',
-                panelId: panel.id,
-                path,
-                message: errorMessage(error),
-              })
-            }
-          })
-          .finally(() => {
-            inFlight = false
-            if (!cancelled) {
-              const next = resolveNextPoll(lastEnvelope, Date.now(), settings)
-              const due = Date.now() + next.delayMillis
-              updateSchedule(panel.id, {
-                inFlight: false,
-                cadence: next.cadence,
-                nextDueAt: new Date(due).toISOString(),
-              })
-              const nextTimer = window.setTimeout(() => {
-                timers.delete(nextTimer)
-                refresh()
-              }, next.delayMillis)
-              timers.add(nextTimer)
-            }
-          })
-      }
-      refresh()
+          }
+        }
+        lastEnvelope = envelope
+        if (panelFeature(panel.type)?.testHistory) memory.observeTests(env.board, panel, envelope)
+        publish(panel, envelope)
+      })
     }
+
     return () => {
       cancelled = true
+      repairs.dispose()
       for (const controller of abortControllers) controller.abort()
       for (const timer of timers) window.clearTimeout(timer)
     }
   }, [auth, board, diagnostics, env])
 
-  return { signals, updateHealth, factSignals, schedules, rejectedPipelines }
+  return { signals, updateHealth, factSignals, schedules, rejectedPipelines, testDirections }
 }
 
 function failedObservation(envelope: Extract<Envelope, { state: 'error' }>, response: Response) {

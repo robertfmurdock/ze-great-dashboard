@@ -221,3 +221,50 @@ diagnostic projection under one required TypeScript contract. Supported client t
 that registry. The lifecycle handles a closed, exhaustively checked union of observation protocols,
 not a second enumeration of feature names. This records the reasoning behind the refactor; it does
 not add a new requirement for a general plugin framework or class hierarchy.
+
+## Symbol-first panel evidence — 2026-11-04
+
+While choosing how to expose recent test-count changes, Rob tightened the presentation goal:
+
+> try to stick to symbols and not words for communication, and save mouseover or some kind of
+> click on for further explanation. real estate is a premium here
+
+The resulting feature uses one direction symbol and signed count beside the current evidence,
+with a small neutral sparkline only when space allows. The interpretation changes with observed
+history; the visible explanation does not grow into another persistent row. Hover, keyboard focus,
+and tap expose the comparison and its limitations. This records the preference for compact panel
+evidence; it does not replace labels needed to understand status or inaccessible/error states.
+
+## Source history as a slowly repaired lens — 2026-11-05
+
+Rob clarified the attribution and intent of the architectural shorthand:
+
+> "lens not ledger" was an AI's summary of my perspective, but i think we can hold to that.
+
+He then described the desired priority for trend evidence:
+
+> this trend information is a sort of slow, self-healing process that happens on a more rare
+> cadence that doesn't disrupt the normal priorities of the board
+
+The accepted refinement bootstraps a clean browser and repairs a long-disconnected one from a
+bounded source-history window. The source owns the history; browser storage caches public readings
+for presentation. Rob selected daily eligibility plus recovery after an hour-long observation gap.
+Normal polling supplies scheduling opportunities rather than a separate history polling loop.
+This principle is deliberately reflected in the Signals and state guidance in AGENTS.md and
+CLAUDE.md: current evidence remains authoritative and historical context repairs opportunistically.
+
+## A passing test must be capable of exposing the claimed breakage — 2026-11-05
+
+After reviewing recent Testmints migration lessons, Rob raised the broader evidence concern:
+
+> this makes me wonder if we're consistently validating our tests do what they say they do when
+> the feature is broken in some way... the way humans have traditionally done this is by writing
+> the test before the feature exists and see it fail. a test that could never fail is actively
+> misleading
+
+The immediate examples were a throttle test masked by the separate daily-refresh condition and a
+cancellation test that never delivered the late result it claimed to suppress. The follow-up uses
+small reversible faults as negative controls where the working feature already exists, checking
+that the intended behavioral assertion fails before restoring green. This is promoted into both
+current guidance files as a contract-level evidence discipline, not a requirement for a mutation
+framework, per-assertion executions, or additional shared Testmints infrastructure.

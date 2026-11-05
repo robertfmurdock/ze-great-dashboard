@@ -11,7 +11,13 @@ import { projectTestEvidence, TestOutcomeSummary } from './TestEvidence.tsx'
 import { ObservedAt, UpdateHealth } from './TimeAge.tsx'
 
 /** Renders one workflow run's declared aggregate test evidence. */
-export function TestCountPanel({ panel, envelope, attentionActive, updateHealth }: PanelProps) {
+export function TestCountPanel({
+  panel,
+  envelope,
+  attentionActive,
+  updateHealth,
+  testDirection,
+}: PanelProps) {
   if (!envelope)
     return (
       <PanelFrame panel={panel} attentionActive={attentionActive}>
@@ -66,7 +72,7 @@ export function TestCountPanel({ panel, envelope, attentionActive, updateHealth 
       <PanelEvidence>
         <PanelStatus glyph="✓" label="Test results reported" compactOnly />
         <PanelValue>
-          <TestOutcomeSummary tests={signal} />
+          <TestOutcomeSummary tests={signal} direction={testDirection} />
         </PanelValue>
         <ObservedAt value={envelope.observedAt} />
         {updateHealth && <UpdateHealth health={updateHealth} />}

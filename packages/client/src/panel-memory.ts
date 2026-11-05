@@ -1,5 +1,20 @@
-import type { Panel, PipelineStatus } from '@ze-great-dashboard/shared/browser'
+import type {
+  Envelope,
+  Panel,
+  PipelineStatus,
+  TestHistory,
+} from '@ze-great-dashboard/shared/browser'
 import { browserLocalStorage, readBrowserJson, writeBrowserJson } from './browser-storage.ts'
+import { reportedTests, type TestSample } from './test-direction.ts'
+import {
+  completeTestRepair,
+  confirmTestObservation,
+  mergeTestReadings,
+  projectTestReadings,
+  startTestRepair,
+  type TestRepairState,
+  testRepairEligible,
+} from './test-history-model.ts'
 
 const storageKey = 'ze-great-dashboard.panel-memory.v1'
 const schemaVersion = 1
@@ -11,6 +26,7 @@ export type PanelMemoryIdentity = {
   source: string
   workflow: string
   branch: string
+  testArtifact?: string
 }
 
 export type AcceptedPipeline = {
@@ -26,6 +42,8 @@ export type DurationSample = {
   sourceUpdatedAt: string
 }
 type History = {
+  repair?: TestRepairState
+  tests?: TestSample[]
   latest?: AcceptedPipeline
   durations: Record<string, DurationSample>
   latestCompleted?: DurationSample
@@ -97,6 +115,69 @@ export class BrowserPanelMemory {
     return history.latestCompleted?.durationMs
   }
 
+  observeTests(board: string, panel: Panel, envelope: Envelope) {
+    const tests = reportedTests(envelope)
+    if (!tests?.run) return undefined
+    const history = this.testHistory(board, panel)
+    const current: TestSample = { ...tests.run, total: tests.total }
+    history.tests = mergeTestReadings(history.tests ?? [], [current], this.now().valueOf())
+    if (history.repair)
+      history.repair = { ...history.repair, hadSamples: Boolean(history.tests.length) }
+    this.persist()
+    return projectTestReadings(history.tests, current, history.repair?.partial)
+  }
+
+  testDirection(board: string, panel: Panel, envelope: Envelope) {
+    const tests = reportedTests(envelope)
+    if (!tests?.run) return undefined
+    const history = this.testHistory(board, panel)
+    this.pruneHistory(history)
+    return projectTestReadings(
+      history.tests ?? [],
+      { ...tests.run, total: tests.total },
+      history.repair?.partial,
+    )
+  }
+
+  confirmTestPoll(board: string, panel: Panel) {
+    const history = this.testHistory(board, panel)
+    history.repair = confirmTestObservation(history.repair, this.now().valueOf())
+    this.persist()
+  }
+
+  testRepairDue(board: string, panel: Panel) {
+    const history = this.testHistory(board, panel)
+    this.pruneHistory(history)
+    return testRepairEligible(history.repair, Boolean(history.tests?.length), this.now().valueOf())
+  }
+
+  beginTestRepair(board: string, panel: Panel) {
+    const history = this.testHistory(board, panel)
+    history.repair = startTestRepair(history.repair, this.now().valueOf())
+    this.persist()
+  }
+
+  finishTestRepair(board: string, panel: Panel, result?: TestHistory, retryAt?: number) {
+    const history = this.testHistory(board, panel)
+    const now = this.now().valueOf()
+    history.tests = mergeTestReadings(history.tests ?? [], result?.samples ?? [], now)
+    history.repair = completeTestRepair(
+      history.repair,
+      result,
+      Boolean(history.tests.length),
+      now,
+      retryAt,
+    )
+    this.persist()
+  }
+
+  private testHistory(board: string, panel: Panel) {
+    return this.history({
+      ...resolvePanelMemoryIdentity(board, panel),
+      testArtifact: JSON.stringify(panel.test_results ?? null),
+    })
+  }
+
   private history(identity: PanelMemoryIdentity) {
     const key = identityKey(identity)
     const existing = this.histories[key]
@@ -113,6 +194,7 @@ export class BrowserPanelMemory {
 
   private pruneHistory(history: History) {
     const cutoff = this.now().valueOf() - historyWindowMillis
+    if (history.tests) history.tests = mergeTestReadings(history.tests, [], this.now().valueOf())
     for (const [link, sample] of Object.entries(history.durations)) {
       const at = sourceTimestamp(sample.sourceUpdatedAt)
       if (at === undefined || at < cutoff) delete history.durations[link]
@@ -168,13 +250,15 @@ export function resolvePanelMemoryIdentity(board: string, panel: Panel): PanelMe
 }
 
 function identityKey(identity: PanelMemoryIdentity) {
-  return JSON.stringify([
+  const parts = [
     identity.board,
     identity.panelId,
     identity.source,
     identity.workflow,
     identity.branch,
-  ])
+  ]
+  if (identity.testArtifact !== undefined) parts.push(identity.testArtifact)
+  return JSON.stringify(parts)
 }
 
 function isHistories(value: unknown): value is Record<string, History> {
@@ -185,6 +269,41 @@ function isHistories(value: unknown): value is Record<string, History> {
 function isHistory(value: unknown): value is History {
   if (!isRecord(value) || !isRecord(value.durations)) return false
   if (!Object.values(value.durations).every(isDurationSample)) return false
+  if (value.repair !== undefined) {
+    if (
+      !isRecord(value.repair) ||
+      !Number.isInteger(value.repair.failures) ||
+      Number(value.repair.failures) < 0 ||
+      typeof value.repair.gapPending !== 'boolean'
+    )
+      return false
+    for (const key of ['lastConfirmedAt', 'lastCompleteAt', 'lastAttemptAt', 'nextAttemptAt']) {
+      const at = value.repair[key]
+      if (at !== undefined && (typeof at !== 'number' || !Number.isFinite(at) || at < 0))
+        return false
+    }
+    if (value.repair.partial !== undefined && typeof value.repair.partial !== 'boolean')
+      return false
+    if (value.repair.hadSamples !== undefined && typeof value.repair.hadSamples !== 'boolean')
+      return false
+  }
+  if (
+    value.tests !== undefined &&
+    (!Array.isArray(value.tests) ||
+      !value.tests.every(
+        (sample) =>
+          isRecord(sample) &&
+          typeof sample.id === 'string' &&
+          sample.id.length > 0 &&
+          Number.isInteger(sample.attempt) &&
+          Number(sample.attempt) > 0 &&
+          typeof sample.updatedAt === 'string' &&
+          Number.isFinite(Date.parse(sample.updatedAt)) &&
+          Number.isInteger(sample.total) &&
+          Number(sample.total) >= 0,
+      ))
+  )
+    return false
   return value.latestCompleted === undefined || isDurationSample(value.latestCompleted)
 }
 

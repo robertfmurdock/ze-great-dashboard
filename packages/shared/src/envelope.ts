@@ -74,6 +74,14 @@ export const testCountSchema = z.discriminatedUnion('status', [
     type: z.literal('test-count'),
     status: z.literal('reported'),
     total: z.number().int().nonnegative(),
+    /** Public identity for browser-local comparisons, never observation time. */
+    run: z
+      .object({
+        id: z.string().min(1),
+        attempt: z.number().int().positive(),
+        updatedAt: z.iso.datetime(),
+      })
+      .optional(),
     passed: z.number().int().nonnegative().optional(),
     failed: z.number().int().nonnegative().optional(),
     skipped: z.number().int().nonnegative().optional(),

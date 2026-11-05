@@ -51,6 +51,15 @@ is not reasonably possible (for example, a real provider session or browser priv
 that boundary and the nearest representative evidence before choosing the fix. A test that only
 looks plausible but still passes on the known-bad implementation is not regression evidence.
 
+**Behavioral evidence needs a negative control.** For a new or materially changed behavioral
+contract, name a concrete broken implementation the test must detect and demonstrate that it does.
+Prefer red/green against the prior implementation; when behavior already exists, use a small,
+reversible fault where practical. Check that failure comes from the intended observable assertion,
+not a syntax error, failed setup, or unrelated gate. Restore the implementation and run green.
+Isolate the condition being tested so another condition cannot make the assertion pass for the
+wrong reason. Apply this to meaningful contracts rather than multiplying executions per assertion;
+a passing test alone does not establish that the claimed behavior is protected.
+
 Use relevant focused checks while iterating to get feedback quickly, but every commit must still run
 the unified `npm run check` gate so unrelated effects cannot evade release evidence.
 
@@ -264,9 +273,13 @@ path, that test is the one that matters.
 
 ## Signals and state
 
-- **Stateless. No database, no persistence.** The dashboard is a lens, not a ledger. The one
-  exception is the in-memory template cache, and it is only allowed because a version's template is
-  immutable, keyed by asset path, and lost freely on restart.
+- **Stateless server. No database or persistent history.** The dashboard is a lens, not a ledger.
+  Its immutable template cache is keyed by asset path and lost freely on restart.
+- **Browser history is a bounded cache of public source readings, not an independent authority.**
+  Current polling renders first and remains authoritative. Missing, expired, or disconnected test
+  history can be repaired from a small source-history window on a sparse cadence. Repairs run
+  opportunistically, never delay current polling, and disclose incomplete evidence. Losing browser
+  storage loses context, not the underlying truth; no server history store is introduced.
 - **`state: "error"` is still HTTP 200.** An upstream being down is a fact to render, not a failure
   of the proxy. 5xx is reserved for the proxy's own breakage. Getting this backwards makes a broken
   upstream look like a broken dashboard.

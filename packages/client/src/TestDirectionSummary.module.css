@@ -1,0 +1,67 @@
+.summary {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.summary:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.delta {
+  display: inline-block;
+  margin-inline-start: 0.4em;
+  color: var(--ink-secondary);
+  white-space: nowrap;
+  font-size: 0.85em;
+}
+.emphasized {
+  border: 1px solid currentColor;
+  border-radius: 0.25em;
+  padding-inline: 0.2em;
+  font-weight: 700;
+}
+.sparkline {
+  display: inline-block;
+  width: 2.7em;
+  height: 1em;
+  margin-inline-start: 0.4em;
+  vertical-align: middle;
+  color: var(--ink-secondary);
+}
+.sparkline polyline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.explanation {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  width: min(20rem, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: 0.7rem;
+  border: 1px solid var(--ink-muted);
+  border-radius: 0.35rem;
+  background: var(--surface-raised);
+  color: var(--ink-primary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  box-shadow: 0 3px 12px #0008;
+}
+@container panel (max-width: 22rem) {
+  .sparkline {
+    display: none;
+  }
+}
+@container panel (max-height: 10rem) {
+  .sparkline {
+    display: none;
+  }
+}

@@ -14,6 +14,7 @@ import { readPanelAdapter } from './panel-adapters.ts'
  */
 export const panelOperations = [
   'read',
+  'test-history',
   'pull-requests',
   'update-workflow',
   'pull-request-build',
@@ -103,7 +104,9 @@ export function permitsPanelOperation(
 }
 
 function panelCapability(panel: Panel, source: Source | undefined): PanelCapability {
-  if (readPanelAdapter(panel, source)) return { kind: 'server', operations: ['read'] }
+  const adapter = readPanelAdapter(panel, source)
+  if (adapter)
+    return { kind: 'server', operations: adapter.testHistory ? ['read', 'test-history'] : ['read'] }
   if (panel.type === 'pull-request-health' && source?.type === 'github-actions') {
     // Parsing here proves this panel's dynamic request capabilities are bounded before startup.
     pullRequestHealthCapabilities(panel)

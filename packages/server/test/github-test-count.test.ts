@@ -22,6 +22,7 @@ const run = {
   name: 'CI',
   html_url: 'https://github.com/example/repo/actions/runs/42',
   created_at: '2026-10-27T12:00:00Z',
+  updated_at: '2026-10-27T12:05:00Z',
 }
 
 function archive(summary: object, extras: Record<string, Uint8Array> = {}) {
@@ -32,6 +33,27 @@ function archive(summary: object, extras: Record<string, Uint8Array> = {}) {
 }
 
 describe('GitHub Actions test-count evidence', () => {
+  test(
+    'an expired current artifact remains unavailable rather than silently unreported',
+    mint({
+      setup: () => {
+        const fetcher = vi.fn(async (url: string) =>
+          url.includes('/runs?')
+            ? Response.json({ workflow_runs: [run] })
+            : Response.json({
+                artifacts: [{ id: 8, name: panel.test_results.artifact, expired: true }],
+              }),
+        ) as unknown as typeof fetch
+        return { fetcher }
+      },
+      exercise: ({ fetcher }) =>
+        fetchGithubActionsTestCount({ panel, source, requestHeaders: new Headers(), fetcher }),
+      verify: (result, { fetcher }) => {
+        expect(result.envelope).toMatchObject({ state: 'error', error: { kind: 'upstream-error' } })
+        expect(fetcher).toHaveBeenCalledTimes(2)
+      },
+    }),
+  )
   test(
     'reads and binds one configured artifact summary to its selected workflow run',
     mint({
@@ -61,6 +83,11 @@ describe('GitHub Actions test-count evidence', () => {
           signal: {
             type: 'test-count',
             status: 'reported',
+            run: {
+              id: String(run.id),
+              attempt: run.run_attempt,
+              updatedAt: run.updated_at,
+            },
             ...counts,
           },
         })
@@ -272,7 +299,16 @@ describe('test evidence embedded in a run panel', () => {
             sourceRunId: String(selectedRun.id),
             testResults: {
               state: 'ok',
-              signal: { type: 'test-count', status: 'reported', ...counts },
+              signal: {
+                type: 'test-count',
+                status: 'reported',
+                ...counts,
+                run: {
+                  id: String(selectedRun.id),
+                  attempt: selectedRun.run_attempt,
+                  updatedAt: selectedRun.updated_at,
+                },
+              },
             },
           },
         })
