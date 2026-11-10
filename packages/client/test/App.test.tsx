@@ -287,35 +287,32 @@ describe('polling composition', () => {
       })
       return { resolve, reject, promise }
     })()
-    const requestsBeforePending = priorResponses.length
+    const responses = [...priorResponses, pending.promise]
+    const laterResponse = new Promise<Response>(() => {})
+    let markPendingRequested = () => {}
+    const pendingRequested = new Promise<void>((resolve) => {
+      markPendingRequested = resolve
+    })
     const board = {
       refresh: '10ms' as Board['refresh'],
       panels: [{ id: 'build', type: 'pipeline-status' }],
     }
-    const fetcher = vi.fn(async (input: string | URL, options?: RequestInit) => {
+    vi.stubGlobal('fetch', async (input: string | URL, options?: RequestInit) => {
       if (String(input).startsWith('/api/boards/')) return Response.json(board)
       if (String(input) === `${env.proxyPath}/client`)
         return Response.json({ ...env, serverVersion: 'test-server' })
       // Delivery is asynchronous; a canceled Strict Mode mount must not consume the next response.
       await Promise.resolve()
       options?.signal?.throwIfAborted()
-      const next = priorResponses.shift()
+      const next = responses.shift()
       if (next instanceof Error) throw next
-      return next ?? pending.promise.then((response) => response.clone())
+      if (next === pending.promise) markPendingRequested()
+      // Later polls stay in flight until this scenario ends.
+      return next ?? laterResponse
     })
-    vi.stubGlobal('fetch', fetcher)
     render(<App env={env} />)
     await screen.findByText('Passed')
-    await act(async () => {
-      await vi.waitUntil(
-        () =>
-          fetcher.mock.calls.filter(
-            ([path, options]) => String(path).includes('/panel/') && !options?.signal?.aborted,
-          ).length ===
-          requestsBeforePending + 1,
-        { interval: 1, timeout: 1000 },
-      )
-    })
+    await act(() => pendingRequested)
     return { pending }
   }
   test(

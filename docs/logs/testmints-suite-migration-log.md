@@ -923,3 +923,17 @@ installed adapter. Existing Playwright and Node-runner integrations retain their
 and apply the same behavioral principles; this guidance change does not introduce another adapter
 or rewrite those runner integrations. The completed migration is historical context, not an opt-in
 workflow for future Vitest tests.
+
+## 2026-11-10 — one failed request in the App polling fixture
+
+The sign-in change passed the Node, container, and browser stages on GitHub Actions, but the
+polling composition test for a missed update failed. The attached Vitest report showed the last
+successful reading alongside “Updates unavailable · offline” while the test expected “Updates
+delayed · offline.” The fixture returned the same rejected promise on every later request, so the
+normal poller turned one arranged failure into three or more observed failures. The earlier local
+pass depended on seeing the first warning before subsequent polls changed it.
+
+Delaying verification in a temporary copy reproduced the same failure before the fixture change.
+The corrected fixture supplies each arranged response once, awaits entry into the controlled
+request, and leaves later polls pending. The delayed reproduction then passed with the same
+assertions. The production polling cadence and warning escalation needed no changes.
