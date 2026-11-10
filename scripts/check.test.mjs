@@ -191,11 +191,11 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
       writeFileSync(${JSON.stringify(started)}, 'started')
       setInterval(() => {}, 1000)
     `
+    const processResult = start([{ id: 'long-running', command: nodeCommand(childSource) }], {
+      reportDirectory: join(directory, 'evidence'),
+    })
     try {
-      const processResult = start([{ id: 'long-running', command: nodeCommand(childSource) }], {
-        reportDirectory: join(directory, 'evidence'),
-      })
-      await waitFor(() => existsSync(started))
+      await waitForFixtureStart(processResult, started)
       processResult.child.kill(signal)
       const result = await processResult.done
       assert.equal(result.code, signal === 'SIGINT' ? 130 : 143)
@@ -208,6 +208,8 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
       const summary = JSON.parse(readFileSync(join(directory, 'evidence', 'summary.json'), 'utf8'))
       assert.equal(summary.interruptedBy, signal)
     } finally {
+      if (!processResult.child.killed) processResult.child.kill()
+      await processResult.done
       await rm(directory, { recursive: true, force: true })
     }
   })
@@ -247,10 +249,17 @@ function start(stages, options = {}) {
   }
 }
 
-async function waitFor(predicate) {
-  const deadline = Date.now() + 2_000
-  while (!predicate()) {
-    if (Date.now() > deadline) throw new Error('Timed out waiting for fixture process to start.')
+async function waitForFixtureStart({ child, done }, started) {
+  const deadline = performance.now() + 10_000
+  while (!existsSync(started)) {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      const { code, stderr } = await done
+      throw new Error(
+        `Check runner exited with code ${code} before the fixture was ready.\n${stderr}`,
+      )
+    }
+    if (performance.now() > deadline)
+      throw new Error('Timed out waiting for the signal fixture to become ready.')
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }

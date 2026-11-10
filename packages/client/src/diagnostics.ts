@@ -17,6 +17,7 @@ const maximumEvents = 2_000
 const maximumAgeMillis = 7 * 24 * 60 * 60 * 1_000
 const diagnosticKinds = [
   'session-start',
+  'auth-session',
   'client-update-check',
   'client-update-response',
   'client-update-failure',
@@ -83,6 +84,23 @@ export type DiagnosticEventInput =
       samples: number
     }
   | { kind: 'session-start' }
+  | ({ kind: 'auth-session' } & (
+      | { outcome: 'ready'; hasRefreshToken: boolean }
+      | { outcome: 'restoring'; trigger: 'startup' | 'expiry' }
+      | { outcome: 'sign-in-selected' | 'sign-out-selected' }
+      | {
+          outcome: 'failed'
+          phase: 'renewal' | 'callback' | 'navigation'
+          reason:
+            | 'login_required'
+            | 'interaction_required'
+            | 'consent_required'
+            | 'account_selection_required'
+            | 'invalid_grant'
+            | 'timeout'
+            | 'other'
+        }
+    ))
   | { kind: 'client-update-check'; path: string }
   | {
       kind: 'client-update-response'

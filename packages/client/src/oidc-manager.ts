@@ -48,6 +48,7 @@ export function createOidcManager(auth: NonNullable<ClientEnv['auth']>) {
     // PKCE transaction data, not tokens, must survive the provider redirect.
     stateStore: new WebStorageStateStore({ store: window.sessionStorage }),
     automaticSilentRenew: true,
+    maxSilentRenewTimeoutRetries: 1,
   })
   const bootstrap = consumeOidcTestBootstrap(window)
   if (bootstrap) {

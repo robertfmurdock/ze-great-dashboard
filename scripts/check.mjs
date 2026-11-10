@@ -21,7 +21,9 @@ const stages = [
     command: [
       process.execPath,
       '--test',
+      '--test-reporter=spec',
       '--test-reporter=junit',
+      '--test-reporter-destination=stdout',
       `--test-reporter-destination=${evidence.nodeJUnit}`,
       'scripts/auth0-functional-env.test.mjs',
       'scripts/check.test.mjs',

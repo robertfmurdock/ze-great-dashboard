@@ -87,11 +87,16 @@ token for this API, not only on an ID token or userinfo response.
 
 ## Operational behavior
 
-The callback and logout return to `/`. Tokens and rotated refresh tokens are held in browser memory
-only. After a reload, the browser first attempts a silent OIDC sign-in using the provider session;
-when the session is present this restores the dashboard without a visible prompt. If the provider
-requires interaction, has expired the session, or browser privacy controls block the provider
-cookie, the dashboard shows its ordinary Sign in control. No token is persisted in browser storage.
+The provider callback and logout return to `/`. Tokens and rotated refresh tokens stay in browser
+memory. The dashboard renews an open session in the background. On a reload, or when the token
+expires after background renewal fails, the dashboard briefly visits the provider in the same tab
+to reuse its session. This can work even when the browser blocks the provider's cookie in an
+embedded frame. If the provider needs interaction, the dashboard offers **Sign in**. Selecting
+**Sign out** disables automatic sign-in in that tab until you select **Sign in** again.
+
+If the dashboard unexpectedly asks you to sign in, open **Diagnostics** on that screen and select
+**Download**. The browser-local report includes when restoration started, whether renewal or the
+callback failed, and a short reason when available. It excludes tokens and provider error details.
 
 Provider discovery is checked at server startup; unavailable or malformed discovery prevents
 startup. The verifier refreshes remote JWKS when it encounters an unfamiliar key ID, supporting

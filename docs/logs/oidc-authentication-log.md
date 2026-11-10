@@ -145,3 +145,38 @@ Later in the repair session, a freshly authenticated AWS SSO session ran the liv
 the Docker alias. A second invocation could not re-assume the reader role and therefore skipped the
 live case, which is an environment-credential availability fluctuation rather than test evidence;
 the trusted-main run remains the durable confirmation.
+
+## 2026-11-10 — click-free restoration and auth diagnostics
+
+Returning to the dashboard could show Sign in even though the ordinary sign-in redirect
+immediately issued a token. The earlier investigation had already reproduced a blocked iframe
+with Auth0. The repeatable browser case here uses the built client, real OIDC SDK navigation and
+PKCE callback, and a fixture provider with a Chromium-enforced cross-site SameSite=Lax session
+cookie. The old client reached Sign in without requesting the protected board. The revised client
+used the same cookie on a top-level `prompt=none` round trip, returned to the named board, and
+requested its data with the newly issued bearer after reload. The fixture establishes browser and
+client behavior. The deployed Auth0 tenant session is still an acceptance boundary.
+
+The SDK continues rotating refresh tokens in memory while the board is open. If renewal fails and
+the token expires, the gate uses the same top-level recovery. A callback that requires interaction
+leaves the sign-in control available. The return board rides in the SDK's PKCE transaction state,
+and a tab-scoped sign-out flag prevents an automatic round trip from undoing explicit logout even
+if the provider session survives. The browser cases detected removal of expiry recovery, the
+callback failure event, and the sign-out guard separately.
+
+The old mocked startup test asserted an iframe invocation and could pass while the product showed
+Sign in. The replacement checks a browser-visible outcome and a protected request with the issued
+token. The sign-in screen now exposes the existing browser-local Diagnostics export. It records
+restoration triggers, token readiness and refresh-token availability, and allowlisted failure
+reasons. Raw provider errors and token values are excluded. This is available before manual sign-in
+so the next occurrence can be captured where it happens.
+
+The first verification used native Chromium against the loopback Vite preview. All four new OIDC
+scenarios then failed in the default Docker browser suite before they could exercise the provider.
+A focused reproduction confirmed that `http://host.docker.internal:4173` is an insecure browser
+context with no `crypto.subtle`, whereas native Chromium trusts the HTTP loopback origin. The
+fixture now serves the built preview through a routed HTTPS origin on a separate site from the
+provider. This preserves real Web Crypto and the cross-site cookie boundary in both runners.
+Provider callbacks use a new document navigation so Playwright can intercept the dashboard
+document, and diagnostic downloads are read through Playwright's stream across the browser
+connection.

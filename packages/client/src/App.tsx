@@ -33,7 +33,14 @@ export function App({ env }: { env: ClientEnv }) {
   if (env.security === 'blocked') return <SecurityNotice mode="blocked" />
   return env.auth ? (
     <OidcGate env={env} auth={env.auth}>
-      {(accessToken, denied) => <Dashboard env={env} accessToken={accessToken} onDenied={denied} />}
+      {(accessToken, denied, currentEnv, diagnostics) => (
+        <Dashboard
+          env={currentEnv}
+          accessToken={accessToken}
+          onDenied={denied}
+          diagnosticLog={diagnostics}
+        />
+      )}
     </OidcGate>
   ) : (
     <Dashboard env={env} />
@@ -44,14 +51,17 @@ function Dashboard({
   env,
   accessToken,
   onDenied,
+  diagnosticLog,
 }: {
   env: ClientEnv
   accessToken?: string
   onDenied?: () => void
+  diagnosticLog?: BrowserDiagnosticStore
 }) {
   const diagnosticsRef = useRef<BrowserDiagnosticStore | null>(null)
-  if (!diagnosticsRef.current) diagnosticsRef.current = new BrowserDiagnosticStore(env)
-  const diagnostics = diagnosticsRef.current
+  if (!diagnosticsRef.current)
+    diagnosticsRef.current = diagnosticLog ?? new BrowserDiagnosticStore(env)
+  const diagnostics = diagnosticLog ?? diagnosticsRef.current
   const auth = useMemo<DashboardAuth | undefined>(
     () =>
       accessToken

@@ -169,6 +169,10 @@ one scenario's setup.
 
 ## Writing tests with Testmints
 
+When writing or reviewing Testmints tests, use `$testmints` if installed. The
+[upstream Testmints skill](https://github.com/robertfmurdock/testmints/tree/master/skills/testmints)
+can be installed with `$skill-installer`.
+
 Testmints is the standard for this repository's Vitest tests. Write every new or changed Vitest
 scenario with `mint` from the installed Vitest adapter; keep ordinary Vitest suite and lifecycle
 hooks. Do not enable reporting or add shared Testmints infrastructure. Playwright browser tests and

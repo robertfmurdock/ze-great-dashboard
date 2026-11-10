@@ -117,3 +117,18 @@ reset, configured treatment timing, and overdue presentation; the real `RunningF
 and browser suites retain coverage for decorative markup, rendering, reduced motion, layout, and
 animation behavior. No production interface or runtime behavior changed, and the five-second
 Vitest timeout remains an honest constraint rather than a cost to mask.
+
+Recorded 2026-11-10.
+
+A pre-commit check failed in the Node SIGTERM scenario before sending the signal. The test waits
+for a real child to install its handler and write a readiness marker. Its two-second startup
+deadline could expire under the aggregate gate even when signal forwarding worked. The test
+passed in isolation. A temporary delay before the same marker reproduced the original timeout
+and passed with the revised wait. The startup wait still finishes on the marker, allows up to ten
+seconds, and checks for early runner exit. The fixture runner is stopped and awaited before the
+test removes its temporary files. The signal, cleanup, exit-code, and ledger assertions remain
+the evidence for the runner contract.
+
+The Node stage wrote its failure only to JUnit, leaving the hook's buffered failure output empty.
+Node now writes a console report alongside the JUnit file. The coordinator still prints stage
+output only on failure, and the existing JUnit consumer keeps the same report path.
