@@ -5,11 +5,11 @@ import {
   type PipelineStatus,
 } from '@ze-great-dashboard/shared'
 import { describe, expect, test, vi } from 'vitest'
-import { fetchGitlabCiPipeline, permittedGitlabCiCalls } from '../src/adapters/gitlab-ci.ts'
-import { deriveValidatedAllowlist } from '../src/allowlist.ts'
-import { createApp } from '../src/app.ts'
-import { loadConfig } from '../src/config.ts'
-import type { CredentialResolver } from '../src/credentials.ts'
+import { fetchGitlabCiPipeline, permittedGitlabCiCalls } from '../../src/adapters/gitlab-ci.ts'
+import { deriveValidatedAllowlist } from '../../src/allowlist.ts'
+import { createApp } from '../../src/app.ts'
+import { loadConfig } from '../../src/config.ts'
+import type { CredentialResolver } from '../../src/credentials.ts'
 
 describe('the GitLab CI pipeline adapter', () => {
   const panel = { id: 'service', type: 'pipeline-status', source: 'gitlab' } as const

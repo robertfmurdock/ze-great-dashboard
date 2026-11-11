@@ -1,7 +1,7 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import type { Panel, TestHistory, TestHistorySample } from '@ze-great-dashboard/shared/browser'
 import { describe, expect, test } from 'vitest'
-import { BrowserPanelMemory } from '../src/panel-memory.ts'
+import { BrowserPanelMemory } from '../../src/panel-memory.ts'
 
 const panel: Panel = {
   id: 'tests',

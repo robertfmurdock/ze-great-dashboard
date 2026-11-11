@@ -1,7 +1,7 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { RunningField } from '../src/RunningField.tsx'
+import { RunningField } from '../../src/RunningField.tsx'
 
 describe('decorative running fields', () => {
   for (const animation of [

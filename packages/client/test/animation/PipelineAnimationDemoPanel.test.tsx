@@ -3,12 +3,13 @@ import { render, screen } from '@testing-library/react'
 import type { Panel } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PipelineAnimationDemoPanel } from '../src/PipelineAnimationDemoPanel.tsx'
-import { PanelRenderer } from '../src/panel-registry.tsx'
+import { PipelineAnimationDemoPanel } from '../../src/PipelineAnimationDemoPanel.tsx'
+import { PanelRenderer } from '../../src/panel-registry.tsx'
 
-vi.mock('../src/RunningField.tsx', async () => {
-  const actual =
-    await vi.importActual<typeof import('../src/RunningField.tsx')>('../src/RunningField.tsx')
+vi.mock('../../src/RunningField.tsx', async () => {
+  const actual = await vi.importActual<typeof import('../../src/RunningField.tsx')>(
+    '../../src/RunningField.tsx',
+  )
   return {
     ...actual,
     // The demo owns treatment scheduling; RunningField owns decorative rendering.

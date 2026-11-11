@@ -7,10 +7,10 @@ import { describe, expect, test, vi } from 'vitest'
 import {
   fetchAzureDevOpsPipeline,
   permittedAzureDevOpsCalls,
-} from '../src/adapters/azure-devops.ts'
-import { createApp } from '../src/app.ts'
-import { loadConfig } from '../src/config.ts'
-import type { CredentialResolver } from '../src/credentials.ts'
+} from '../../src/adapters/azure-devops.ts'
+import { createApp } from '../../src/app.ts'
+import { loadConfig } from '../../src/config.ts'
+import type { CredentialResolver } from '../../src/credentials.ts'
 
 const panel = {
   id: 'service-build',

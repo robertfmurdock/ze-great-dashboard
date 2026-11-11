@@ -1,6 +1,6 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { describe, expect, it } from 'vitest'
-import { flightPosition } from '../src/FlightPathField.tsx'
+import { flightPosition } from '../../src/FlightPathField.tsx'
 
 describe('flight camera positions', () => {
   for (const scenario of [

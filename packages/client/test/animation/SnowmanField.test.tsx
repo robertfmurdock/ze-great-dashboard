@@ -2,7 +2,7 @@ import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { SnowmanField } from '../src/SnowmanField.tsx'
+import { SnowmanField } from '../../src/SnowmanField.tsx'
 
 function snowmanFixture(props: ComponentProps<typeof SnowmanField>) {
   vi.stubGlobal(

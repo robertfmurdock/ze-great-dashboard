@@ -9,7 +9,7 @@ import {
   startTestRepair,
   type TestRepairState,
   testRepairEligible,
-} from '../src/test-history-model.ts'
+} from '../../src/test-history-model.ts'
 
 const now = Date.parse('2026-11-05T00:00:00Z')
 const hour = 3600000

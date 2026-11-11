@@ -11,7 +11,7 @@ import {
   occupiedCellCount,
   shapeFits,
   targetCellCount,
-} from '../src/falling-shapes.ts'
+} from '../../src/falling-shapes.ts'
 
 const settled = (x: number, y: number): FallingShape => ({
   id: 1,

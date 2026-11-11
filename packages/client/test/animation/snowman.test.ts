@@ -13,7 +13,7 @@ import {
   snowmanSchedule,
   snowmanSpawnInterval,
   snowmanWind,
-} from '../src/snowman.ts'
+} from '../../src/snowman.ts'
 
 const dimensions = { width: 360, height: 180 }
 const estimated = { estimatedDurationMs: 10_000, seed: 7, dimensions }

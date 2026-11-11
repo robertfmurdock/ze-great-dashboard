@@ -1,13 +1,13 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { describe, expect, test } from 'vitest'
-import type { FallingShape } from '../src/falling-shapes.ts'
+import type { FallingShape } from '../../src/falling-shapes.ts'
 import {
   advanceFallingSimulation,
   createFallingSimulation,
   FALLING_PIECE_INTERVAL_MS,
   FALLING_TRAVEL_MS,
   visibleFallingShapes,
-} from '../src/falling-simulation.ts'
+} from '../../src/falling-simulation.ts'
 
 const wideField = { direction: 'horizontal' as const, columns: 12, rows: 3 }
 const ordinaryRun = { progress: 0.4, overdue: false, seed: 7 }

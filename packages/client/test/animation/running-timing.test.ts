@@ -2,7 +2,7 @@ import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { renderHook } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { useRunningTiming } from '../src/running-timing.ts'
+import { useRunningTiming } from '../../src/running-timing.ts'
 
 afterEach(() => vi.useRealTimers())
 describe('active-run clock', () => {

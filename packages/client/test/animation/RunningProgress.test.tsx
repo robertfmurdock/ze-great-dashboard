@@ -1,8 +1,8 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
-import { RunningFieldTiming } from '../src/RunningFieldTiming.tsx'
-import { RunningProgress } from '../src/RunningProgress.tsx'
+import { RunningFieldTiming } from '../../src/RunningFieldTiming.tsx'
+import { RunningProgress } from '../../src/RunningProgress.tsx'
 
 const timing = {
   elapsedMs: 120000,

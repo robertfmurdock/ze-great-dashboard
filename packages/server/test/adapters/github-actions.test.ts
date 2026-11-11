@@ -9,12 +9,12 @@ import {
   fetchGithubActionsPullRequestCandidates,
   fetchGithubActionsUpdateWorkflow,
   permittedGithubActionsCalls,
-} from '../src/adapters/github-actions.ts'
-import { createApp } from '../src/app.ts'
-import { loadConfig } from '../src/config.ts'
-import type { CredentialResolver } from '../src/credentials.ts'
+} from '../../src/adapters/github-actions.ts'
+import { createApp } from '../../src/app.ts'
+import { loadConfig } from '../../src/config.ts'
+import type { CredentialResolver } from '../../src/credentials.ts'
 
-const fixtureDirectory = new URL('../../../fixtures/github-actions/', import.meta.url)
+const fixtureDirectory = new URL('../../../../fixtures/github-actions/', import.meta.url)
 const panel = {
   id: 'web-build',
   type: 'pipeline-status',

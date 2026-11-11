@@ -2,8 +2,8 @@ import type { ResourceScope } from '@continuous-excellence/testmints-js'
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import type { Panel, TestHistory } from '@ze-great-dashboard/shared/browser'
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { BrowserPanelMemory } from '../src/panel-memory.ts'
-import { TestHistoryRepair } from '../src/test-history-repair.ts'
+import { BrowserPanelMemory } from '../../src/panel-memory.ts'
+import { TestHistoryRepair } from '../../src/test-history-repair.ts'
 
 afterEach(() => vi.useRealTimers())
 

@@ -1,10 +1,10 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import type { BoardConfig } from '@ze-great-dashboard/shared'
 import { describe, expect, test, vi } from 'vitest'
-import { fetchHttpValue } from '../src/adapters/http-value.ts'
-import { createApp } from '../src/app.ts'
-import { loadConfig } from '../src/config.ts'
-import type { ServerLogEvent } from '../src/logger.ts'
+import { fetchHttpValue } from '../../src/adapters/http-value.ts'
+import { createApp } from '../../src/app.ts'
+import { loadConfig } from '../../src/config.ts'
+import type { ServerLogEvent } from '../../src/logger.ts'
 
 const panel = {
   id: 'version',

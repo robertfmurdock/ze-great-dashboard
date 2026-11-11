@@ -3,10 +3,10 @@ import { renderHook } from '@testing-library/react'
 import { type Panel, type TestHistory, testHistoryHeader } from '@ze-great-dashboard/shared/browser'
 import { act } from 'react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import type { DiagnosticEventInput } from '../src/diagnostics.ts'
-import { BrowserPanelMemory } from '../src/panel-memory.ts'
-import { usePanelSignals } from '../src/usePanelSignals.ts'
-import { env } from './client-test-fixture.tsx'
+import type { DiagnosticEventInput } from '../../src/diagnostics.ts'
+import { BrowserPanelMemory } from '../../src/panel-memory.ts'
+import { usePanelSignals } from '../../src/usePanelSignals.ts'
+import { env } from '../client-test-fixture.tsx'
 
 const cases = [
   {

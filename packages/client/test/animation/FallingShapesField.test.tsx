@@ -1,7 +1,7 @@
 import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { FallingShapesField } from '../src/FallingShapesField.tsx'
+import { FallingShapesField } from '../../src/FallingShapesField.tsx'
 
 function fieldFixture(reducedMotion = false) {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
