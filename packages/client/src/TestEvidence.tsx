@@ -49,15 +49,15 @@ export function TestOutcomeSummary({
   return (
     <TestDirectionSummary direction={direction}>
       {allPassed ? (
-        <span className={styles.passed}>✓ {tests.total.toLocaleString()} passed</span>
+        <span className={styles.passed}>✓ {tests.total.toLocaleString()}</span>
       ) : (
         `${tests.total.toLocaleString()} tests`
       )}
       {!!tests.failed && (
-        <span className={styles.failed}> · ✕ {tests.failed.toLocaleString()} failed</span>
+        <span className={styles.failed}> · ✕ {tests.failed.toLocaleString()}</span>
       )}
       {!!tests.skipped && (
-        <span className={styles.warning}> · ↷ {tests.skipped.toLocaleString()} skipped</span>
+        <span className={styles.warning}> · ↷ {tests.skipped.toLocaleString()}</span>
       )}
     </TestDirectionSummary>
   )

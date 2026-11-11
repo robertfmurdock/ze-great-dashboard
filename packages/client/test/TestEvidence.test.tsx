@@ -24,7 +24,7 @@ describe('run test evidence', () => {
       exercise: ({ envelope }) => render(<RunTestResults envelope={envelope} />),
       verify: ({ container }, { counts }) => {
         expect(container.textContent).toContain(
-          `${counts.total} tests · ✕ ${counts.failed} failed · ↷ ${counts.skipped} skipped`,
+          `${counts.total} tests · ✕ ${counts.failed} · ↷ ${counts.skipped}`,
         )
         expect(container.textContent).not.toContain('passed')
       },
@@ -35,17 +35,17 @@ describe('run test evidence', () => {
       {
         name: 'all passing',
         counts: { total: 666, passed: 666, failed: 0, skipped: 0 },
-        expected: '✓ 666 passed',
+        expected: '✓ 666',
       },
       {
         name: 'failures',
         counts: { total: 12, passed: 10, failed: 2, skipped: 0 },
-        expected: '12 tests · ✕ 2 failed',
+        expected: '12 tests · ✕ 2',
       },
       {
         name: 'skips',
         counts: { total: 12, passed: 10, failed: 0, skipped: 2 },
-        expected: '12 tests · ↷ 2 skipped',
+        expected: '12 tests · ↷ 2',
       },
       {
         name: 'zero tests',

@@ -113,7 +113,7 @@ export function PanelStatus({
         </span>
       )}
       {glyph && label && ' '}
-      <span className={styles.statusText}>{label}</span>
+      <span className="screen-reader-only">{label}</span>
     </p>
   )
 }

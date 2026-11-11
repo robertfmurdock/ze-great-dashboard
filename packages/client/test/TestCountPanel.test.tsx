@@ -35,7 +35,7 @@ describe('TestCountPanel', () => {
         render(<TestCountPanel panel={panel} envelope={envelope} />),
       verify: ({ container }, { total, outcomes }) => {
         expect(container.textContent).toContain(
-          `${total} tests · ✕ ${outcomes.failed} failed · ↷ ${outcomes.skipped} skipped`,
+          `${total} tests · ✕ ${outcomes.failed} · ↷ ${outcomes.skipped}`,
         )
       },
     }),
