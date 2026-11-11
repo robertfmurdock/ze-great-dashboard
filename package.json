@@ -63,8 +63,8 @@
     "postinstall": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.6",
-    "@continuous-excellence/tagger": "3.7.0",
+    "@biomejs/biome": "^2.6.7",
+    "@continuous-excellence/tagger": "3.8.3",
     "@continuous-excellence/testmints-js": "0.0.7",
     "@playwright/test": "^1.64.0",
     "@testing-library/react": "^16.3.3",
