@@ -30,16 +30,25 @@ describe('pipeline signal activity', () => {
     )
   }
 
-  for (const { name, activity } of [
-    { name: 'an unknown kind', activity: { kind: 'task', name: 'build' } },
-    { name: 'an empty name', activity: { kind: 'job', name: '' } },
+  for (const { name, activity, path } of [
+    {
+      name: 'an unknown kind',
+      activity: { kind: 'task', name: 'build' },
+      path: ['activity', 'kind'],
+    },
+    { name: 'an empty name', activity: { kind: 'job', name: '' }, path: ['activity', 'name'] },
   ]) {
     test(
       `rejects activity metadata with ${name}`,
       mint({
-        setup: () => ({ signal: { ...base, activity } }),
+        setup: () => ({ signal: { ...base, activity }, path }),
         exercise: ({ signal }) => pipelineStatusSchema.safeParse(signal),
-        verify: (result) => expect(result.success).toBe(false),
+        verify: (result, { path }) => {
+          if (result.success) throw new Error(`Expected ${name} to be rejected.`)
+          expect(result.error.issues).toEqual(
+            expect.arrayContaining([expect.objectContaining({ path })]),
+          )
+        },
       }),
     )
   }
