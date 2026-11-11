@@ -110,14 +110,15 @@ function navigate(route: Route, target: string) {
   })
 }
 
-function admittedBoard(page: Page, accessToken: string) {
-  return page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === `/api/boards/${board}` &&
-      response.ok() &&
-      response.request().headers().authorization === `Bearer ${accessToken}`,
+async function admittedBoard(page: Page, accessToken: string) {
+  const request = await page.waitForRequest(
+    (request) =>
+      new URL(request.url()).pathname === `/api/boards/${board}` &&
+      request.headers().authorization === `Bearer ${accessToken}`,
     { timeout: 5_000 },
   )
+  const response = await request.response()
+  expect(response?.ok()).toBe(true)
 }
 
 test('restores the requested board on reload using a first-party provider session', async ({
