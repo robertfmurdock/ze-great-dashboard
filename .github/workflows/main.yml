@@ -95,7 +95,7 @@ jobs:
       - name: Calculate release version
         if: github.ref == 'refs/heads/main'
         id: version
-        uses: robertfmurdock/ze-great-tools/action.yml@main
+        uses: robertfmurdock/ze-great-tools@main
         with:
           command: calculate-version
           release-branch: main
@@ -531,7 +531,7 @@ jobs:
 
       - name: Tag verified release
         if: endsWith(needs.check.outputs.version, '-SNAPSHOT') != true
-        uses: robertfmurdock/ze-great-tools/action.yml@main
+        uses: robertfmurdock/ze-great-tools@main
         with:
           command: tag
           version: ${{ needs.check.outputs.version }}

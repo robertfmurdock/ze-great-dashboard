@@ -427,6 +427,9 @@ promotion, preserving the existing release boundary. The release checkout now ke
 token credentials so Tagger's `git push` can publish the annotated tag; the job already grants
 `contents: write`.
 
-This is an operational trial: the action's calculation and tag push have not yet run in this
-dashboard workflow. The post-tag remote check remains as confirmation. The action is referenced at
-`@main`, so its workflow implementation is not pinned even though its npm Tagger version is.
+The first pushed trial failed during Actions setup, before checks ran: GitHub downloaded the action
+repository but could not find its manifest because the workflow used a file path in the `uses`
+reference. The action is at the repository root, so both references now use
+`robertfmurdock/ze-great-tools@main`. Calculation and tag push have not yet run in this dashboard
+workflow. The post-tag remote check remains as confirmation. The action is referenced at `@main`,
+so its workflow implementation is not pinned even though its npm Tagger version is.
