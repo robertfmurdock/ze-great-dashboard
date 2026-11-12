@@ -385,3 +385,19 @@ AGENTS.md and CLAUDE.md now promote that principle together with the ongoing Tes
 for all new or changed Vitest scenarios. Their runner boundary remains explicit: Playwright browser
 and Node script suites retain their integrations and follow the same scenario and evidence rules.
 The fuller conversation is preserved in the migration log's closing entry.
+
+## 2026-11-12 — Browser scenario boundaries
+
+Rob: “we shouldn't design the tests for retries IMO”
+
+This came up after the running-board and test-count journeys began reusing a loaded
+dashboard. Choose scenario boundaries based on the behavior being proved and the
+setup it needs. Retry granularity should not drive where a journey is split.
+
+## 2026-11-12 — Testing Library principles in browser tests
+
+Rob: “generally imo e2e tests should attempt to follow the same princples as hte testing library tests for most normal situatiosn”
+
+This came up while improving browser evidence after the Testmints migration. For ordinary
+interactions, prefer accessible roles and names, user actions, and observable outcomes. Use
+browser measurements when the contract is itself geometry, motion, or document navigation.

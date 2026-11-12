@@ -937,3 +937,21 @@ Delaying verification in a temporary copy reproduced the same failure before the
 The corrected fixture supplies each arranged response once, awaits entry into the controlled
 request, and leaves later polls pending. The delayed reproduction then passed with the same
 assertions. The production polling cadence and warning escalation needed no changes.
+
+## 2026-11-12 — Browser scenarios
+
+The client browser suite now uses the Playwright adapter. Locator assertions in verification
+still wait for live rendering before layout measurements. Animation continuity remains one
+scenario because its evidence spans an iteration boundary. Running-field rendering, motion
+preference, and resizing have separate actions. Test-count resizing and touch disclosure also
+have separate scenarios, with the same two-observation fixture.
+
+The browser scenarios were then grouped by contract: startup, board layout, running animations,
+and board interactions. Layout cases that compare different panel types stay together because the
+board is the subject. Shared setup and geometry live in client support, while route responses and
+fixtures with a single consumer stay in their spec.
+
+The running-board and test-count pilots each reuse a loaded page for a sequence of related
+actions. This removes two boots and one wait for test-count history across the suite. Each
+journey still gets its own Playwright page. The exercise captures the narrow layout before the
+next action changes it, and verification compares the wide and narrow evidence.
