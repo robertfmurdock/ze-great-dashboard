@@ -414,3 +414,19 @@ cross-field and panel/source rules, proxy admission and bounded operations, sele
 credential resolution, and external availability remain runtime validation. The client build and
 published-package evidence now verify that the generated artifact, rather than a source copy, is
 what ships.
+
+---
+
+## Tagger GitHub Action trial (2026-11-12)
+
+The release workflow now uses the ze-great-tools composite action for both version calculation
+and tag creation, with `@continuous-excellence/tagger` pinned to `3.8.3` in each invocation. This
+removes the local tagger npm dependency and its version/tag wrapper scripts. Calculation still runs
+after fetching full release history; tag creation stays after artifact publication and image
+promotion, preserving the existing release boundary. The release checkout now keeps its workflow
+token credentials so Tagger's `git push` can publish the annotated tag; the job already grants
+`contents: write`.
+
+This is an operational trial: the action's calculation and tag push have not yet run in this
+dashboard workflow. The post-tag remote check remains as confirmation. The action is referenced at
+`@main`, so its workflow implementation is not pinned even though its npm Tagger version is.

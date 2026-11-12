@@ -81,9 +81,14 @@ test('reloads when the server starts serving a different client', ({ page }) =>
       await page.route(`**/api/boards/${scenario.board}`, (route) =>
         route.fulfill({ contentType: 'application/json', body: JSON.stringify({ panels: [] }) }),
       )
+      let resolveSecondIdentityCheck!: () => void
+      const secondIdentityCheck = new Promise<void>((resolve) => {
+        resolveSecondIdentityCheck = resolve
+      })
       await page.route('**/api/client', (route) => {
         const clientAssetPath =
           identityChecks++ === 0 ? scenario.replacementAssetPath : scenario.assetPath
+        if (identityChecks === 2) resolveSecondIdentityCheck()
         return route.fulfill({
           contentType: 'application/json',
           body: JSON.stringify({
@@ -93,10 +98,13 @@ test('reloads when the server starts serving a different client', ({ page }) =>
           }),
         })
       })
-      return { scenario, identityChecks: () => identityChecks }
+      return { scenario, identityChecks: () => identityChecks, secondIdentityCheck }
     },
     exercise: () => page.goto('/'),
-    verify: async (_, { scenario, identityChecks }) => {
+    verify: async (_, { scenario, identityChecks, secondIdentityCheck }) => {
+      await secondIdentityCheck
+      await expect.poll(identityChecks).toBe(2)
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText(scenario.board)
       await expect
         .poll(() =>
           page.evaluate(() =>
@@ -106,7 +114,5 @@ test('reloads when the server starts serving a different client', ({ page }) =>
           ),
         )
         .toEqual(['reload'])
-      await expect.poll(identityChecks).toBe(2)
-      await expect(page.getByRole('heading', { level: 1 })).toHaveText(scenario.board)
     },
   }))
