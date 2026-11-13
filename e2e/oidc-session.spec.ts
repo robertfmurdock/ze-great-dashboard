@@ -1,4 +1,5 @@
 import { text } from 'node:stream/consumers'
+import { mint } from '@continuous-excellence/testmints-js/playwright'
 import { expect, type Page, type Route, test } from '@playwright/test'
 
 const preview = process.env.PW_TEST_ORIGIN ?? 'http://127.0.0.1:4173'
@@ -110,91 +111,145 @@ function navigate(route: Route, target: string) {
   })
 }
 
-async function admittedBoard(page: Page, accessToken: string) {
+async function boardResponse(page: Page, accessToken: string) {
   const request = await page.waitForRequest(
     (request) =>
       new URL(request.url()).pathname === `/api/boards/${board}` &&
       request.headers().authorization === `Bearer ${accessToken}`,
     { timeout: 5_000 },
   )
-  const response = await request.response()
-  expect(response?.ok()).toBe(true)
+  return request.response()
 }
 
-test('restores the requested board on reload using a first-party provider session', async ({
+test('restores the requested board on reload using a first-party provider session', ({
   page,
   context,
-}) => {
-  await serveDashboard(page)
-  const { authorizationRequests } = await serveProvider(page)
-  await context.addCookies([providerSession])
+}) =>
+  mint({
+    setup: async () => {
+      await serveDashboard(page)
+      const { authorizationRequests } = await serveProvider(page)
+      await context.addCookies([providerSession])
+      const [initialResponse] = await Promise.all([
+        boardResponse(page, bearers[0]),
+        page.goto(boardUrl),
+      ])
+      return { authorizationRequests, initialResponse }
+    },
+    exercise: async () => {
+      const [response] = await Promise.all([boardResponse(page, bearers[1]), page.reload()])
+      return response
+    },
+    verify: async (response, { authorizationRequests, initialResponse }) => {
+      expect(initialResponse?.ok()).toBe(true)
+      expect(response?.ok()).toBe(true)
+      await expect(page).toHaveURL(boardUrl)
+      await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+      expect(authorizationRequests).toEqual([
+        { topLevel: true, prompt: 'none' },
+        { topLevel: true, prompt: 'none' },
+      ])
+    },
+  }))
 
-  await Promise.all([admittedBoard(page, bearers[0]), page.goto(boardUrl)])
-  await Promise.all([admittedBoard(page, bearers[1]), page.reload()])
+test('offers sign-in when the provider requires interaction', ({ page }) =>
+  mint({
+    setup: async () => {
+      await serveDashboard(page)
+      return serveProvider(page)
+    },
+    exercise: () => page.goto(boardUrl),
+    verify: async (_, { authorizationRequests }) => {
+      await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
+      await expect(page).toHaveURL(boardUrl)
+      expect(authorizationRequests).toEqual([{ topLevel: true, prompt: 'none' }])
+    },
+  }))
 
-  await expect(page).toHaveURL(boardUrl)
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
-  expect(authorizationRequests).toEqual([
-    { topLevel: true, prompt: 'none' },
-    { topLevel: true, prompt: 'none' },
-  ])
-})
+test('exports a sanitized diagnostic after failed session restoration', ({ page }) =>
+  mint({
+    setup: async () => {
+      await serveDashboard(page)
+      await serveProvider(page)
+      await page.goto(boardUrl)
+      await page.getByRole('button', { name: 'Sign in', exact: true }).waitFor()
+      await page.getByRole('button', { name: /Diagnostics/ }).click()
+    },
+    exercise: async () => {
+      const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        page.getByRole('button', { name: 'Download', exact: true }).click(),
+      ])
+      return text(await download.createReadStream())
+    },
+    verify: (diagnostic) => {
+      expect(
+        JSON.parse(diagnostic).events.filter(
+          ({ kind }: { kind: string }) => kind === 'auth-session',
+        ),
+      ).toEqual([
+        expect.objectContaining({ outcome: 'restoring', trigger: 'startup' }),
+        expect.objectContaining({ outcome: 'failed', phase: 'callback', reason: 'login_required' }),
+      ])
+      expect(diagnostic).not.toContain('fixture-private-provider-detail')
+    },
+  }))
 
-test('offers sign-in and a sanitized diagnostic when the provider requires interaction', async ({
-  page,
-}) => {
-  await serveDashboard(page)
-  const { authorizationRequests } = await serveProvider(page)
-  await page.goto(boardUrl)
-
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
-  await expect(page).toHaveURL(boardUrl)
-  await page.getByRole('button', { name: /Diagnostics/ }).click()
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Download', exact: true }).click(),
-  ])
-  const diagnostic = await text(await download.createReadStream())
-  expect(
-    JSON.parse(diagnostic).events.filter(({ kind }: { kind: string }) => kind === 'auth-session'),
-  ).toEqual([
-    expect.objectContaining({ outcome: 'restoring', trigger: 'startup' }),
-    expect.objectContaining({ outcome: 'failed', phase: 'callback', reason: 'login_required' }),
-  ])
-  expect(diagnostic).not.toContain('fixture-private-provider-detail')
-  expect(authorizationRequests).toEqual([{ topLevel: true, prompt: 'none' }])
-})
-
-test('recovers an open board after its access token expires and refresh fails', async ({
+test('recovers an open board after its access token expires and refresh fails', ({
   page,
   context,
-}) => {
-  await serveDashboard(page)
-  const { authorizationRequests, rejectedRefreshes } = await serveProvider(page, 120)
-  await context.addCookies([providerSession])
-  await page.clock.install()
-  await Promise.all([admittedBoard(page, bearers[0]), page.goto(boardUrl)])
+}) =>
+  mint({
+    setup: async () => {
+      await serveDashboard(page)
+      const provider = await serveProvider(page, 120)
+      await context.addCookies([providerSession])
+      await page.clock.install()
+      const [initialResponse] = await Promise.all([
+        boardResponse(page, bearers[0]),
+        page.goto(boardUrl),
+      ])
+      return { ...provider, initialResponse }
+    },
+    exercise: async () => {
+      const [response] = await Promise.all([
+        boardResponse(page, bearers[1]),
+        page.clock.fastForward(122_000),
+      ])
+      return response
+    },
+    verify: async (response, { authorizationRequests, rejectedRefreshes, initialResponse }) => {
+      expect(initialResponse?.ok()).toBe(true)
+      expect(response?.ok()).toBe(true)
+      await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+      expect(rejectedRefreshes).toEqual([refreshToken])
+      expect(authorizationRequests).toEqual([
+        { topLevel: true, prompt: 'none' },
+        { topLevel: true, prompt: 'none' },
+      ])
+    },
+  }))
 
-  await Promise.all([admittedBoard(page, bearers[1]), page.clock.fastForward(122_000)])
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
-  expect(rejectedRefreshes).toEqual([refreshToken])
-  expect(authorizationRequests).toEqual([
-    { topLevel: true, prompt: 'none' },
-    { topLevel: true, prompt: 'none' },
-  ])
-})
-
-test('respects explicit sign-out even when the provider session survives', async ({
-  page,
-  context,
-}) => {
-  await serveDashboard(page)
-  const { authorizationRequests } = await serveProvider(page)
-  await context.addCookies([providerSession])
-  await page.goto(boardUrl)
-
-  await page.getByRole('button', { name: 'Sign out' }).click()
-  await expect(page).toHaveURL(`${dashboard}/`)
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
-  expect(authorizationRequests).toEqual([{ topLevel: true, prompt: 'none' }])
-})
+test('respects explicit sign-out even when the provider session survives', ({ page, context }) =>
+  mint({
+    setup: async () => {
+      await serveDashboard(page)
+      const provider = await serveProvider(page)
+      await context.addCookies([providerSession])
+      const [initialResponse] = await Promise.all([
+        boardResponse(page, bearers[0]),
+        page.goto(boardUrl),
+      ])
+      return { ...provider, initialResponse }
+    },
+    exercise: () => page.getByRole('button', { name: 'Sign out' }).click(),
+    verify: async (_, { authorizationRequests, initialResponse }) => {
+      expect(initialResponse?.ok()).toBe(true)
+      await expect(page).toHaveURL(`${dashboard}/`)
+      await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
+      expect(await context.cookies(issuer)).toContainEqual(
+        expect.objectContaining({ name: providerSession.name, value: providerSession.value }),
+      )
+      expect(authorizationRequests).toEqual([{ topLevel: true, prompt: 'none' }])
+    },
+  }))

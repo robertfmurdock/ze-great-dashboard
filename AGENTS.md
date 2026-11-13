@@ -354,3 +354,5 @@ Most of the work ahead is visual, and `npm run dev` is the loop for it.
   contrast — if you change a status color, re-validate rather than eyeball it.
 - Status colors (good/warning/serious/critical) are reserved and never reused as categorical series
   colors.
+
+For shared layout transitions and animation objectives, see [Motion design](docs/motion-design.md).

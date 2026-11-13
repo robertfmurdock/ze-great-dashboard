@@ -166,6 +166,7 @@ function PipelineSignalPanel({
       panel={panel}
       envelope={envelope}
       attentionActive={attentionActive}
+      layoutMotionKey={signal.status}
       layout={usesField || usesLegacyProgress ? undefined : 'status-band'}
       field={
         usesField ? (
@@ -181,7 +182,12 @@ function PipelineSignalPanel({
       }
     >
       <div data-panel-anchor="status">
-        <PanelStatus status={signal.status} glyph={presentation.glyph} label={presentation.label} />
+        <PanelStatus
+          status={signal.status}
+          glyph={presentation.glyph}
+          label={presentation.label}
+          motionId="status"
+        />
       </div>
       <PanelEvidence className={styles.details} anchor="evidence">
         {signal.status === 'running' && (
@@ -195,12 +201,17 @@ function PipelineSignalPanel({
           />
         )}
         {signal.testResults && (
-          <RunTestResults envelope={signal.testResults} direction={testDirection} />
+          <RunTestResults
+            envelope={signal.testResults}
+            direction={testDirection}
+            motionId="tests"
+          />
         )}
         {signal.branch && (
           <PanelMetadata
             glyph="⎇"
             label="Branch"
+            motionId="branch"
             value={<span className={styles.branch}>{signal.branch}</span>}
             compact={{
               kind: 'short-value',
@@ -232,6 +243,7 @@ function PipelineSignalPanel({
           observedAt={envelope.observedAt}
           running={signal.status === 'running'}
           runStartedAt={signal.runStartedAt}
+          motionId="age"
         />
         {updateHealth && <UpdateHealth health={updateHealth} />}
       </PanelEvidence>

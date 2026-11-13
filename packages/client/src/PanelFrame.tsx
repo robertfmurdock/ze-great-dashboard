@@ -1,6 +1,7 @@
 import type { Envelope, Panel, PipelineStatus } from '@ze-great-dashboard/shared/browser'
 import type { ReactNode } from 'react'
 import styles from './PanelFrame.module.css'
+import { PanelLayoutMotion } from './PanelLayoutMotion.tsx'
 import { panelLayout } from './panel-layout.ts'
 import { panelTypeSymbol } from './panel-symbols.ts'
 
@@ -33,6 +34,7 @@ export function PanelMetadata({
   observed = false,
   emphasis,
   className,
+  motionId,
 }: {
   glyph: string
   label: string
@@ -43,11 +45,13 @@ export function PanelMetadata({
   observed?: boolean
   emphasis?: 'warning' | 'serious'
   className?: string
+  motionId?: string
 }) {
   return (
     <p
       className={`${styles.hint} ${observed ? styles.observed : ''} ${emphasis ? styles[emphasis] : ''} ${styles.meta} ${className ?? ''}`}
       data-panel-meta
+      data-panel-motion={motionId}
     >
       <span aria-hidden="true">{glyph}</span> <span className="screen-reader-only">{label}: </span>
       <span className={styles.metaValue} title={title}>
@@ -94,6 +98,7 @@ export function PanelStatus({
   glyph,
   label,
   compactOnly = false,
+  motionId,
 }: {
   status?: PanelStatusKind
   emphasis?: 'warning' | 'serious'
@@ -101,6 +106,7 @@ export function PanelStatus({
   label: string
   /** Render a compact state only in a portrait tile without changing ordinary cards. */
   compactOnly?: boolean
+  motionId?: string
 }) {
   return (
     <p
@@ -108,7 +114,7 @@ export function PanelStatus({
       data-panel-status
     >
       {glyph && (
-        <span className={styles.statusGlyph} aria-hidden="true">
+        <span className={styles.statusGlyph} aria-hidden="true" data-panel-motion={motionId}>
           {glyph}
         </span>
       )}
@@ -138,6 +144,7 @@ export function PanelFrame({
   error = false,
   field,
   layout,
+  layoutMotionKey,
   children,
 }: {
   panel: Panel
@@ -152,6 +159,8 @@ export function PanelFrame({
   field?: ReactNode
   /** Opt-in slots for health panels with a shared identity, state, and evidence band. */
   layout?: 'status-band'
+  /** Changing this key moves shared, marked content to its new layout positions. */
+  layoutMotionKey?: string
   children: ReactNode
 }) {
   const density = panel.density ?? 'auto'
@@ -160,52 +169,73 @@ export function PanelFrame({
   const shallow = position !== undefined && position.h <= 2
   const short = position !== undefined && position.h <= 3
   return (
-    <section
-      className={`${styles.panel} ${styles[`density-${density}`]} ${shallow ? styles.shallow : ''} ${short ? styles.short : ''} ${error ? styles.error : ''} ${attentionActive ? styles.attentionActive : ''}`}
-      id={`panel-${panel.id}`}
-      style={panelLayout(panel)}
-      aria-busy={busy === true ? true : envelope || busy === false ? undefined : true}
-      data-panel
-      data-panel-id={panel.id}
-      data-panel-position={
-        position ? `${position.x},${position.y},${position.w},${position.h}` : undefined
-      }
-      data-density={density}
-      data-shallow={shallow}
-      data-short={short}
-      data-error={error || undefined}
-      data-panel-type={panel.type}
-      data-attention-active={attentionActive || undefined}
-    >
-      {field}
-      <PanelSourceLink panelId={panel.id} link={envelope?.link ?? sourceLink} />
-      <div
-        className={`${styles.content} ${layout === 'status-band' ? styles.statusBand : ''}`}
-        data-panel-content
-        data-panel-layout={layout}
-      >
-        <h2 className={styles.label} data-panel-anchor="identity">
-          {typeSymbol && (
-            <span
-              className={styles.typeGlyph}
-              aria-hidden="true"
-              title={typeSymbol.label}
-              data-panel-type-glyph
+    <PanelLayoutMotion layoutKey={layoutMotionKey}>
+      {(root) => (
+        <section
+          ref={root}
+          className={`${styles.panel} ${styles[`density-${density}`]} ${shallow ? styles.shallow : ''} ${short ? styles.short : ''} ${error ? styles.error : ''} ${attentionActive ? styles.attentionActive : ''}`}
+          id={`panel-${panel.id}`}
+          style={panelLayout(panel)}
+          aria-busy={busy === true ? true : envelope || busy === false ? undefined : true}
+          data-panel
+          data-panel-id={panel.id}
+          data-panel-position={
+            position ? `${position.x},${position.y},${position.w},${position.h}` : undefined
+          }
+          data-density={density}
+          data-shallow={shallow}
+          data-short={short}
+          data-error={error || undefined}
+          data-panel-type={panel.type}
+          data-attention-active={attentionActive || undefined}
+        >
+          {field}
+          <PanelSourceLink
+            panelId={panel.id}
+            link={envelope?.link ?? sourceLink}
+            motionId={layoutMotionKey === undefined ? undefined : 'source'}
+          />
+          <div
+            className={`${styles.content} ${layout === 'status-band' ? styles.statusBand : ''}`}
+            data-panel-content
+            data-panel-layout={layout}
+          >
+            <h2
+              className={styles.label}
+              data-panel-anchor="identity"
+              data-panel-motion={layoutMotionKey === undefined ? undefined : 'title'}
             >
-              {typeSymbol.glyph}
-            </span>
-          )}
-          <span className={styles.identityText} data-panel-identity-text>
-            {panel.label ?? panel.id}
-          </span>
-        </h2>
-        {children}
-      </div>
-    </section>
+              {typeSymbol && (
+                <span
+                  className={styles.typeGlyph}
+                  aria-hidden="true"
+                  title={typeSymbol.label}
+                  data-panel-type-glyph
+                >
+                  {typeSymbol.glyph}
+                </span>
+              )}
+              <span className={styles.identityText} data-panel-identity-text>
+                {panel.label ?? panel.id}
+              </span>
+            </h2>
+            {children}
+          </div>
+        </section>
+      )}
+    </PanelLayoutMotion>
   )
 }
 
-function PanelSourceLink({ panelId, link }: { panelId: string; link?: string | null }) {
+function PanelSourceLink({
+  panelId,
+  link,
+  motionId,
+}: {
+  panelId: string
+  link?: string | null
+  motionId?: string
+}) {
   if (!link) return null
 
   return (
@@ -218,6 +248,7 @@ function PanelSourceLink({ panelId, link }: { panelId: string; link?: string | n
       title={`View source for ${panelId} (opens in a new tab)`}
       data-panel-action="source"
       data-panel-link
+      data-panel-motion={motionId}
     >
       <span aria-hidden="true">↗</span>
       <span className="screen-reader-only">View source</span>

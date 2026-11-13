@@ -7,15 +7,18 @@ import type { TestDirection } from './test-direction.ts'
 export function RunTestResults({
   envelope,
   direction,
+  motionId,
 }: {
   envelope: TestEvidence
   direction?: TestDirection
+  motionId?: string
 }) {
   if (envelope.state === 'error')
     return (
       <PanelMetadata
         glyph="⚠"
         label="Tests"
+        motionId={motionId}
         value={`Test results unavailable: ${envelope.error.message}`}
       />
     )
@@ -25,6 +28,7 @@ export function RunTestResults({
       <PanelMetadata
         glyph="≡"
         label="Tests"
+        motionId={motionId}
         value={tests.status === 'pending' ? 'Tests pending' : 'No test results published'}
       />
     )
@@ -32,6 +36,7 @@ export function RunTestResults({
     <PanelMetadata
       glyph="≡"
       label="Tests"
+      motionId={motionId}
       value={<TestOutcomeSummary tests={tests} direction={direction} />}
     />
   )

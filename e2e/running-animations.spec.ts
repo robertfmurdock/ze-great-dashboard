@@ -707,3 +707,209 @@ test('keeps the showcase signal-field visual inside its three-row panel', ({ pag
       expect(geometry.tracksDisplay).toBe('flex')
     },
   }))
+
+const runningBuild = { status: 'running', label: 'Running' } as const
+const failedBuild = { status: 'failed', label: 'Failed' } as const
+type BuildUpdate = typeof runningBuild | typeof failedBuild
+
+async function arrangeBuildMotion(page: Page, reducedMotion: 'reduce' | 'no-preference') {
+  const id = 'moving-build'
+  const running = runningPipelineEnvelope(id)
+  const response: { status: 'passed' | BuildUpdate['status'] } = { status: 'passed' }
+  const branch = 'main'
+  await page.clock.install()
+  await page.emulateMedia({ reducedMotion })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await stubDashboard(page, {
+    panels: [
+      {
+        id,
+        type: 'pipeline-status',
+        refresh: '1s',
+        running_refresh: '1s',
+        running_animation: 'telemetry-bloom',
+        position: { x: 0, y: 0, w: 8, h: 5 },
+      },
+    ],
+  })
+  await page.route('**/api/panel/**', (route) =>
+    route.fulfill({
+      json: {
+        ...running,
+        link: 'https://example.com/build',
+        signal: {
+          ...running.signal,
+          status: response.status,
+          branch,
+          testResults: {
+            state: 'ok',
+            observedAt: running.observedAt,
+            signal:
+              response.status === 'running'
+                ? { type: 'test-count', status: 'pending' }
+                : { type: 'test-count', status: 'reported', total: 42 },
+          },
+        },
+      },
+    }),
+  )
+  await page.goto('/')
+  const panel = page.locator(`[data-panel-id="${id}"]`)
+  const source = panel.getByRole('link', { name: /View source/ })
+  await source.focus()
+  const selector = `[data-panel-status] > [aria-hidden="true"], [data-panel-meta]:has([title="Branch: ${branch}"])`
+  const shared = panel.locator(selector)
+  const initial = await shared.evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect().y),
+  )
+  return { id, panel, shared, initial, response, selector }
+}
+
+type BuildMotion = Awaited<ReturnType<typeof arrangeBuildMotion>>
+type MotionSample = { start: number; midpoint: number; animating: boolean }
+
+async function observeBuildCommit({ panel, selector }: BuildMotion, { label }: BuildUpdate) {
+  await panel.evaluate(
+    (element, { label, selector }) => {
+      const observer = new MutationObserver(() => {
+        if (!element.querySelector('[data-panel-status]')?.textContent?.includes(label)) return
+        observer.disconnect()
+        const samples = Array.from(element.querySelectorAll(selector), (shared) => {
+          const animation = shared.getAnimations()[0]
+          if (animation) {
+            animation.pause()
+            animation.currentTime = 0
+          }
+          const start = shared.getBoundingClientRect().y
+          if (animation) animation.currentTime = 80
+          return {
+            start,
+            midpoint: shared.getBoundingClientRect().y,
+            animating: Boolean(animation),
+          }
+        })
+        const sourceFocused = document.activeElement === element.querySelector('[data-panel-link]')
+        element.setAttribute('data-motion-sample', JSON.stringify({ samples, sourceFocused }))
+      })
+      element.removeAttribute('data-motion-sample')
+      observer.observe(element, { subtree: true, childList: true, characterData: true })
+    },
+    { label, selector },
+  )
+}
+
+async function buildCommitSamples({
+  id,
+  panel,
+}: BuildMotion): Promise<{ samples: MotionSample[]; sourceFocused: boolean }> {
+  const sample = panel.page().locator(`[data-panel-id="${id}"][data-motion-sample]`)
+  await sample.waitFor({ state: 'attached' })
+  const value = await sample.getAttribute('data-motion-sample')
+  if (!value) throw new Error('Missing build commit sample')
+  return JSON.parse(value)
+}
+
+async function finishBuildGlide({ shared }: BuildMotion) {
+  return shared.evaluateAll(async (elements) => {
+    await Promise.all(
+      elements
+        .flatMap((element) => element.getAnimations())
+        .map((animation) => {
+          animation.play()
+          return animation.finished
+        }),
+    )
+    return elements.map((element) => element.getBoundingClientRect().y)
+  })
+}
+
+async function arrangeBuildMidGlide(page: Page) {
+  const build = await arrangeBuildMotion(page, 'no-preference')
+  await observeBuildCommit(build, runningBuild)
+  build.response.status = runningBuild.status
+  await page.clock.runFor(1000)
+  const { samples: running } = await buildCommitSamples(build)
+  return { build, running }
+}
+
+test('glides the status and branch when a build starts', ({ page }) =>
+  mint({
+    setup: async () => {
+      const build = await arrangeBuildMotion(page, 'no-preference')
+      await observeBuildCommit(build, runningBuild)
+      return build
+    },
+    exercise: async (build) => {
+      build.response.status = runningBuild.status
+      await page.clock.runFor(1000)
+      const commit = await buildCommitSamples(build)
+      return { ...commit, destination: await finishBuildGlide(build) }
+    },
+    verify: ({ samples, destination, sourceFocused }, build) => {
+      expect(samples).toHaveLength(2)
+      for (const [index, sample] of samples.entries()) {
+        expect(sample.animating).toBe(true)
+        expect(sample.start).toBeCloseTo(build.initial[index] ?? NaN, 0)
+        expect(destination[index]).not.toBeCloseTo(sample.start, 0)
+      }
+      expect(sourceFocused).toBe(true)
+    },
+  }))
+
+test('retargets an in-flight glide when a build fails', ({ page }) =>
+  mint({
+    setup: async () => {
+      const state = await arrangeBuildMidGlide(page)
+      await observeBuildCommit(state.build, failedBuild)
+      return state
+    },
+    exercise: async ({ build }) => {
+      build.response.status = failedBuild.status
+      await page.clock.runFor(1000)
+      const commit = await buildCommitSamples(build)
+      return { ...commit, destination: await finishBuildGlide(build) }
+    },
+    verify: ({ samples, destination, sourceFocused }, { build, running }) => {
+      const [status] = samples
+      expect(running[0]?.animating).toBe(true)
+      expect(running[0]?.midpoint).not.toBeCloseTo(build.initial[0] ?? NaN, 0)
+      expect(status?.animating).toBe(true)
+      expect(status?.start).toBeCloseTo(running[0]?.midpoint ?? NaN, 0)
+      expect(destination[0]).toBeCloseTo(build.initial[0] ?? NaN, 0)
+      expect(sourceFocused).toBe(true)
+    },
+  }))
+
+test('cancels an in-flight glide when reduced motion is enabled', ({ page }) =>
+  mint({
+    setup: () => arrangeBuildMidGlide(page),
+    exercise: () => page.emulateMedia({ reducedMotion: 'reduce' }),
+    verify: async (_result, { build, running }) => {
+      expect(running[0]?.animating).toBe(true)
+      const status = build.shared.first()
+      await expect.poll(() => status.evaluate((element) => element.getAnimations().length)).toBe(0)
+      const destination = await status.evaluate((element) => element.getBoundingClientRect().y)
+      expect(destination).not.toBeCloseTo(running[0]?.midpoint ?? NaN, 0)
+      await expect(build.panel.locator('[data-panel-status]')).toHaveText(/Running/)
+    },
+  }))
+
+test('updates a build directly to its new layout under reduced motion', ({ page }) =>
+  mint({
+    setup: async () => {
+      const build = await arrangeBuildMotion(page, 'reduce')
+      await observeBuildCommit(build, runningBuild)
+      return build
+    },
+    exercise: async (build) => {
+      build.response.status = runningBuild.status
+      await page.clock.runFor(1000)
+      return buildCommitSamples(build)
+    },
+    verify: ({ samples, sourceFocused }, build) => {
+      expect(samples).toHaveLength(2)
+      expect(samples.map(({ animating }) => animating)).toEqual([false, false])
+      expect(samples[0]?.start).not.toBeCloseTo(build.initial[0] ?? NaN, 0)
+      expect(sourceFocused).toBe(true)
+    },
+  }))

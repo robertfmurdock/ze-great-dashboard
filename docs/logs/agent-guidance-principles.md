@@ -401,3 +401,7 @@ Rob: “generally imo e2e tests should attempt to follow the same princples as h
 This came up while improving browser evidence after the Testmints migration. For ordinary
 interactions, prefer accessible roles and names, user actions, and observable outcomes. Use
 browser measurements when the contract is itself geometry, motion, or document navigation.
+
+## Preserve visual continuity through layout changes
+
+On 2026-11-13 Rob noticed that elements shared by stable build states and the pending state jumped when their positions changed. He asked that “these elements animated their way to their new positions by default” and wanted the design objectives captured “to lay a good foundation for future transition and animation work.” The build panel is the first application of the [motion design guidance](../motion-design.md).

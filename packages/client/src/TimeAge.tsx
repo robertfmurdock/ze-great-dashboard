@@ -10,17 +10,21 @@ export function PipelineAge({
   observedAt,
   running,
   runStartedAt,
+  motionId,
 }: {
   sourceUpdatedAt?: string
   observedAt: string
   running: boolean
   runStartedAt?: string
+  motionId?: string
 }) {
-  if (running && runStartedAt) return <TimeAge value={runStartedAt} label="Started" />
+  if (running && runStartedAt)
+    return <TimeAge value={runStartedAt} label="Started" motionId={motionId} />
   return (
     <TimeAge
       value={sourceUpdatedAt ?? observedAt}
       label={sourceUpdatedAt ? 'Last update' : 'Observed'}
+      motionId={motionId}
     />
   )
 }
@@ -46,7 +50,7 @@ export function LastConfirmedAge({ value }: { value: string }) {
   return <TimeAge value={value} label="Last confirmed" />
 }
 
-function TimeAge({ value, label }: { value: string; label: string }) {
+function TimeAge({ value, label, motionId }: { value: string; label: string; motionId?: string }) {
   const observed = new Date(value)
   const formatted = observed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const age = Date.now() - observed.getTime()
@@ -59,6 +63,7 @@ function TimeAge({ value, label }: { value: string; label: string }) {
       compact={{ kind: 'short-value', value: formatCompactAge(age) }}
       title={`${label} at ${formatted}`}
       observed
+      motionId={motionId}
     />
   )
 }

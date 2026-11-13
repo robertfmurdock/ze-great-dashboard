@@ -955,3 +955,15 @@ The running-board and test-count pilots each reuse a loaded page for a sequence 
 actions. This removes two boots and one wait for test-count history across the suite. Each
 journey still gets its own Playwright page. The exercise captures the narrow layout before the
 next action changes it, and verification compares the wide and narrow evidence.
+
+The Auth0 acceptance and OIDC session scenarios complete the browser migration. Reload and
+token-expiry recovery establish the initial authenticated request in setup, then capture the
+replacement response during the transition. Verification checks both responses. The diagnostic
+scenario keeps navigation and export together so the downloaded evidence comes from the same
+failed restoration attempt.
+
+A follow-up review separated session restoration from diagnostic export. The export starts with
+a completed failed restoration and the diagnostics drawer open. The sign-out and Auth0 acceptance
+scenarios now require evidence that the provider cookie survives and both protected endpoints
+respond successfully, respectively. Temporarily clearing the cookie during fixture logout and
+suppressing the client endpoint observation each failed at the corresponding new assertion.
