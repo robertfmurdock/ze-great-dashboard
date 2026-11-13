@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
+import type { ClientEnv } from '@ze-great-dashboard/shared/browser'
 
-const browserTestOrigin = process.env.PW_TEST_ORIGIN ?? 'http://127.0.0.1:4173'
-export const assetPath = `${browserTestOrigin}/__ASSET_PATH__`
+export const assetPath = `${process.env.PW_TEST_ASSET_ORIGIN}/build`
 
 /** Reads browser text geometry for visibility, size, and panel-boundary assertions. */
 export async function renderedTextGeometry(locator: Locator) {
@@ -50,11 +50,30 @@ function browserEnv(board = 'ze-great-team') {
   }
 }
 
-export function stubDashboard(page: Page, board: unknown, boardName = 'ze-great-team') {
+export function stubClientEnv(page: Page, env: ClientEnv) {
+  // The packaged entrypoint assigns its own env after Playwright's initialization scripts.
+  return page.addInitScript((fixture) => {
+    let value = fixture
+    let firstServerAssignment = true
+    Object.defineProperty(window, 'env', {
+      configurable: true,
+      get: () => value,
+      set: (next: typeof fixture) => {
+        if (firstServerAssignment) firstServerAssignment = false
+        else value = next
+      },
+    })
+  }, env)
+}
+
+export function stubDashboard(
+  page: Page,
+  board: unknown,
+  boardName = 'ze-great-team',
+  security?: ClientEnv['security'],
+) {
   return Promise.all([
-    page.addInitScript((env) => {
-      window.env = env
-    }, browserEnv(boardName)),
+    stubClientEnv(page, { ...browserEnv(boardName), security }),
     page.route(`**/api/boards/${boardName}`, (route) =>
       route.fulfill({ contentType: 'application/json', body: JSON.stringify(board) }),
     ),

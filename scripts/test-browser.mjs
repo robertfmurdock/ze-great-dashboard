@@ -2,9 +2,9 @@ import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { startAuth0BrowserFixture } from './auth0-browser-fixture.mjs'
 import { resolveAuth0FunctionalEnvironment } from './auth0-functional-env.mjs'
 import { requestAuth0Tokens } from './auth0-functional-provider.mjs'
+import { startBrowserFixture } from './browser-fixture.mjs'
 import { playwrightEvidenceOptions } from './check-evidence.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -16,44 +16,28 @@ const noBuild = process.argv.includes('--no-build')
 const playwrightArguments = process.argv.slice(2).filter((argument) => argument !== '--no-build')
 const checkResultsDirectory = process.env.CHECK_RESULTS_DIR
 const playwrightVersion = require('@playwright/test/package.json').version
-const dockerBrowserOrigin = 'http://host.docker.internal:4173'
 const composeProject = `ze-great-dashboard-browser-${process.pid}`
 const composeNetwork = `${composeProject}_default`
 const composeArgs = ['compose', '--project-name', composeProject, '-f', 'compose.playwright.yml']
 const npmCli = process.env.npm_execpath
 const npmCommand = npmCli ? process.execPath : 'npm'
-// The standalone command builds; the aggregate test command opts into reuse after test:unit.
-let clientScript = noBuild ? 'test:browser:no-build' : 'test:browser'
-
 const evidenceOptions = playwrightEvidenceOptions(checkResultsDirectory)
 if (evidenceOptions) {
   playwrightArguments.push(...evidenceOptions.arguments)
   process.env.PLAYWRIGHT_JUNIT_OUTPUT_FILE = evidenceOptions.junitOutputFile
 }
 
-const npmArgs = npmCli
-  ? [
-      npmCli,
-      'run',
-      clientScript,
-      '--workspace',
-      '@continuous-excellence/ze-great-dashboard-client',
-      ...(playwrightArguments.length > 0 ? ['--', ...playwrightArguments] : []),
-    ]
-  : [
-      'run',
-      clientScript,
-      '--workspace',
-      '@continuous-excellence/ze-great-dashboard-client',
-      ...(playwrightArguments.length > 0 ? ['--', ...playwrightArguments] : []),
-    ]
+const playwrightCli = require.resolve('@playwright/test/cli')
 
 let activeChild
 let interruptedBy
+const interruption = new AbortController()
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     interruptedBy ??= signal
+    if (interruption.signal.aborted) return
+    interruption.abort()
     activeChild?.kill(signal)
   })
 }
@@ -103,7 +87,7 @@ function browserTestEnvironment(environment) {
 
 let exitCode = 0
 let composeAttempted = false
-let auth0Fixture
+let dashboardFixture
 
 try {
   let testEnvironment = process.env
@@ -120,24 +104,15 @@ try {
     const tokens = await requestAuth0Tokens(auth0.credentials)
     auth0Bootstrap = JSON.stringify(tokens.allowedToken)
     sensitiveValues = [...auth0.credentials.secretValues, tokens.allowedToken.accessToken]
-    // The packaged-server fixture consumes the same immutable build that the regular browser
-    // suite does. Build here because this wrapper otherwise delegates it to the child command.
-    if (!noBuild) {
-      exitCode = (
-        await run(npmCommand, [
-          'run',
-          'build',
-          '--workspace',
-          '@continuous-excellence/ze-great-dashboard-client',
-        ])
-      ).exitCode
-      clientScript = 'test:browser:no-build'
-    }
   } else if (!process.env.AUTH0_FUNCTIONAL_SKIP && auth0.reason) {
     console.log(`SKIP Auth0 token browser acceptance: ${auth0.reason}`)
   }
 
-  if (exitCode === 0 && useDocker) {
+  if (!noBuild && !interruptedBy) {
+    exitCode = (await run(npmCommand, [...(npmCli ? [npmCli] : []), 'run', 'build'])).exitCode
+  }
+
+  if (exitCode === 0 && !interruptedBy && useDocker) {
     const composeEnvironment = { ...process.env, PLAYWRIGHT_VERSION: playwrightVersion }
     composeAttempted = true
     exitCode = (
@@ -155,33 +130,48 @@ try {
         testEnvironment = {
           ...process.env,
           PW_TEST_CONNECT_WS_ENDPOINT: websocketEndpoint(port.output),
-          PW_TEST_ORIGIN: dockerBrowserOrigin,
         }
       }
     }
   }
 
-  if (exitCode === 0 && auth0Bootstrap) {
-    auth0Fixture = await startAuth0BrowserFixture({
+  if (exitCode === 0 && !interruptedBy) {
+    dashboardFixture = await startBrowserFixture({
+      auth0: Boolean(auth0Bootstrap),
       sensitiveValues,
       network: useDocker ? composeNetwork : undefined,
+      signal: interruption.signal,
     })
     testEnvironment = {
       ...testEnvironment,
-      PW_AUTH0_BROWSER_ORIGIN: auth0Fixture.browserOrigin,
+      PW_TEST_ORIGIN: dashboardFixture.browserOrigin,
+      PW_TEST_HTTP_ORIGIN: dashboardFixture.httpOrigin,
+      PW_TEST_ASSET_ORIGIN: dashboardFixture.assetOrigin,
+      PW_TEST_FIXTURE_BEARER: dashboardFixture.fixtureBearer,
+      PW_TEST_HOSTS: JSON.stringify(dashboardFixture.hostnames),
+      PW_TEST_NATIVE_BROWSER: useDocker ? '0' : '1',
+      PW_AUTH0_BROWSER_ORIGIN: dashboardFixture.auth0Origin,
       PW_AUTH0_OIDC_BOOTSTRAP: auth0Bootstrap,
     }
   }
 
   if (exitCode === 0 && !interruptedBy) {
-    exitCode = (await run(npmCommand, npmArgs, { env: browserTestEnvironment(testEnvironment) }))
-      .exitCode
+    exitCode = (
+      await run(process.execPath, [playwrightCli, 'test', ...playwrightArguments], {
+        env: browserTestEnvironment(testEnvironment),
+      })
+    ).exitCode
   }
 } catch (error) {
   console.error(error)
   exitCode = 1
 } finally {
-  await auth0Fixture?.close()
+  try {
+    await dashboardFixture?.close()
+  } catch (error) {
+    console.error(error)
+    exitCode ||= 1
+  }
   if (composeAttempted) {
     try {
       const downExitCode = (

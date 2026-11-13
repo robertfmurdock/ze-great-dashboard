@@ -1,9 +1,12 @@
 import { text } from 'node:stream/consumers'
 import { mint } from '@continuous-excellence/testmints-js/playwright'
-import { expect, type Page, type Route, test } from '@playwright/test'
+import { type APIRequestContext, expect, type Page, type Route, test } from '@playwright/test'
 
-const preview = process.env.PW_TEST_ORIGIN ?? 'http://127.0.0.1:4173'
-// OIDC PKCE needs Web Crypto. The Docker browser reaches Vite over plain HTTP on a non-loopback host.
+const dashboardOrigin = new URL(process.env.PW_TEST_HTTP_ORIGIN ?? 'http://127.0.0.1')
+const publicHost = new URL(process.env.PW_TEST_ORIGIN ?? 'http://public.dashboard.test').host
+const assets = new URL(process.env.PW_TEST_ASSET_ORIGIN ?? 'http://127.0.0.1')
+const localAssets = `http://127.0.0.1:${assets.port}/build`
+// OIDC PKCE needs Web Crypto. Give the synthetic provider flow a secure browser origin.
 const dashboard = 'https://dashboard.fixture.test'
 const assetPath = `${dashboard}/__ASSET_PATH__`
 const issuer = 'https://oidc.example.test'
@@ -20,7 +23,7 @@ const providerSession = {
   secure: true,
 } as const
 
-async function serveDashboard(page: Page) {
+async function serveDashboard(page: Page, request: APIRequestContext) {
   await page.addInitScript(
     (env) => {
       window.env = {
@@ -39,8 +42,21 @@ async function serveDashboard(page: Page) {
   )
   await page.route(`${dashboard}/**`, async (route) => {
     const { pathname } = new URL(route.request().url())
-    const previewPath = pathname.startsWith('/__ASSET_PATH__/') ? pathname : '/__ASSET_PATH__/'
-    await route.fulfill({ response: await route.fetch({ url: `${preview}${previewPath}` }) })
+    const asset = pathname.startsWith('/__ASSET_PATH__/')
+    const response = asset
+      ? await request.get(`${localAssets}${pathname.slice('/__ASSET_PATH__'.length)}`)
+      : await request.get(dashboardOrigin.href, { headers: { host: publicHost } })
+    if (asset) {
+      await route.fulfill({ response })
+      return
+    }
+    const html = await response.text()
+    await route.fulfill({
+      response,
+      body: html
+        .replace(/<script>window\.env = .*?<\/script>/, '')
+        .replaceAll(`${assets.origin}/build`, assetPath),
+    })
   })
   await page.route('**/api/**', async (route) => {
     const authorization = await route.request().headerValue('authorization')
@@ -123,11 +139,12 @@ async function boardResponse(page: Page, accessToken: string) {
 
 test('restores the requested board on reload using a first-party provider session', ({
   page,
+  request,
   context,
 }) =>
   mint({
     setup: async () => {
-      await serveDashboard(page)
+      await serveDashboard(page, request)
       const { authorizationRequests } = await serveProvider(page)
       await context.addCookies([providerSession])
       const [initialResponse] = await Promise.all([
@@ -152,10 +169,10 @@ test('restores the requested board on reload using a first-party provider sessio
     },
   }))
 
-test('offers sign-in when the provider requires interaction', ({ page }) =>
+test('offers sign-in when the provider requires interaction', ({ page, request }) =>
   mint({
     setup: async () => {
-      await serveDashboard(page)
+      await serveDashboard(page, request)
       return serveProvider(page)
     },
     exercise: () => page.goto(boardUrl),
@@ -166,10 +183,10 @@ test('offers sign-in when the provider requires interaction', ({ page }) =>
     },
   }))
 
-test('exports a sanitized diagnostic after failed session restoration', ({ page }) =>
+test('exports a sanitized diagnostic after failed session restoration', ({ page, request }) =>
   mint({
     setup: async () => {
-      await serveDashboard(page)
+      await serveDashboard(page, request)
       await serveProvider(page)
       await page.goto(boardUrl)
       await page.getByRole('button', { name: 'Sign in', exact: true }).waitFor()
@@ -197,11 +214,12 @@ test('exports a sanitized diagnostic after failed session restoration', ({ page 
 
 test('recovers an open board after its access token expires and refresh fails', ({
   page,
+  request,
   context,
 }) =>
   mint({
     setup: async () => {
-      await serveDashboard(page)
+      await serveDashboard(page, request)
       const provider = await serveProvider(page, 120)
       await context.addCookies([providerSession])
       await page.clock.install()
@@ -230,10 +248,14 @@ test('recovers an open board after its access token expires and refresh fails', 
     },
   }))
 
-test('respects explicit sign-out even when the provider session survives', ({ page, context }) =>
+test('respects explicit sign-out even when the provider session survives', ({
+  page,
+  context,
+  request,
+}) =>
   mint({
     setup: async () => {
-      await serveDashboard(page)
+      await serveDashboard(page, request)
       const provider = await serveProvider(page)
       await context.addCookies([providerSession])
       const [initialResponse] = await Promise.all([

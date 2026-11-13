@@ -30,16 +30,17 @@ export { deploymentSecurityState } from './security-posture.ts'
  * in what they consider a valid start.
  */
 export async function startup(
-  options: { fetcher?: Fetcher; logger?: ServerLogger } = {},
+  options: { fetcher?: Fetcher; logger?: ServerLogger; env?: NodeJS.ProcessEnv } = {},
 ): Promise<StartupResult> {
   const logger = options.logger ?? consoleLogger
+  const env = options.env ?? process.env
   logger.log({
     event: 'server.starting',
-    serverVersion: process.env.SERVER_RELEASE ?? 'development',
+    serverVersion: env.SERVER_RELEASE ?? 'development',
   })
   let category: StartupFailureCategory = 'configuration'
   try {
-    const config = loadConfig()
+    const config = loadConfig(env)
     const fetcher = options.fetcher ?? globalThis.fetch
 
     // Local binds cannot enter the blocked posture, so retain the dev template-race behavior while
@@ -119,7 +120,7 @@ export async function startup(
     const failure = error instanceof StartupFailure ? error : new StartupFailure(category, error)
     logger.log({
       event: 'server.startup_failed',
-      serverVersion: process.env.SERVER_RELEASE ?? 'development',
+      serverVersion: env.SERVER_RELEASE ?? 'development',
       ...failure.diagnostic,
     })
     throw failure

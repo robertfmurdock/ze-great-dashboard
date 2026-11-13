@@ -1,18 +1,19 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const browserTestOrigin = process.env.PW_TEST_ORIGIN ?? 'http://127.0.0.1:4173'
-
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
   use: {
-    baseURL: `${browserTestOrigin}/__ASSET_PATH__/`,
+    baseURL: process.env.PW_TEST_ORIGIN,
     ...devices['Desktop Chrome'],
-  },
-  webServer: {
-    command:
-      'npm run preview --workspace @continuous-excellence/ze-great-dashboard-client -- --host 0.0.0.0',
-    url: 'http://127.0.0.1:4173/__ASSET_PATH__/',
-    reuseExistingServer: !process.env.CI,
+    ...(process.env.PW_TEST_NATIVE_BROWSER === '1'
+      ? {
+          launchOptions: {
+            args: [
+              '--host-resolver-rules=MAP *.dashboard.test 127.0.0.1, MAP local.ze-great-dashboard.test 127.0.0.1, MAP host.docker.internal 127.0.0.1',
+            ],
+          },
+        }
+      : {}),
   },
 })

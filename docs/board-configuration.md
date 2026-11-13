@@ -93,6 +93,39 @@ security-relevant proxy addresses; do not use a label rename to change one. `lab
 presentation-only text for the wall display and defaults to the id. Positions use a twelve-column
 grid: `x` and `y` locate the panel, while `w` and `h` define its size.
 
+### Serve boards on multiple hostnames
+
+Use `/boards/<name>` to serve several boards from one board configuration. All boards in that
+configuration share its authentication policy.
+
+A Docker or standalone Node server can also serve multiple independently configured hostnames
+on one listener. Set `DASHBOARD_HOSTS_FILE` to a YAML or JSON file readable by the server. For
+Docker, mount the file into the container and use its container path. Each hostname selects its
+own board configuration and immutable client version.
+
+```yaml
+engineering.example.com:
+  ASSET_PATH: https://assets.example.com/dashboard/1.2.3
+  BOARD_CONFIG_URL: /app/boards/engineering.yaml
+  BOARD: operations
+releases.example.com:
+  ASSET_PATH: https://assets.example.com/dashboard/1.2.3
+  BOARD_CONFIG_URL: /app/boards/engineering.yaml
+  BOARD: releases
+```
+
+Both hostnames in this example use the same authentication policy and expose the boards in
+`engineering.yaml` to users admitted by that policy. `BOARD` selects the default landing board.
+Use separate board configuration files when hostnames need different policies or board sets.
+Each file's schema modeline must match the client version selected for that hostname.
+
+Point DNS for each hostname at the server or its reverse proxy. Configure the proxy to preserve
+the original `Host` header and terminate HTTPS for each hostname. Unknown hostnames receive
+HTTP 404. For OIDC, register each HTTPS origin with the provider, including its root URL for
+login and logout callbacks. The process shares its bind address, port, and credential environment
+across all hostnames. Use separate processes for deployments requiring independent credential
+environments. Lambda deployments continue to use a single board configuration.
+
 ### Important-panel attention
 
 Use attention only for panels whose failed or unreadable evidence needs a wall-level cue. Mark the

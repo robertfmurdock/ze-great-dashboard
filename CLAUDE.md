@@ -252,9 +252,8 @@ Things that follow, and are load-bearing:
 - The entrypoint is served `cache-control: no-store`. The assets it names are immutable and cached
   hard; this document is not.
 
-`packages/server/test/immutable-web-app.test.ts` is the permanent gate on all of this: two fixture
-client versions with different hashed filenames, served over real HTTP. If you change the rendering
-path, that test is the one that matters.
+`e2e/hosted-deployments.spec.ts` checks this rendering path through the packaged server with
+two fixture client versions that have different hashed filenames.
 
 ## Things that are security-relevant, not stylistic
 

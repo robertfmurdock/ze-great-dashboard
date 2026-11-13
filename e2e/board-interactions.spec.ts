@@ -1,6 +1,6 @@
 import { mint } from '@continuous-excellence/testmints-js/playwright'
 import { expect, type Page, test } from '@playwright/test'
-import { assetPath, positionedBoard, renderedTextGeometry, stubDashboard } from './client-support'
+import { positionedBoard, renderedTextGeometry, stubDashboard } from './client-support'
 
 test.describe('attention rail', () => {
   test('important failures retain readable panel evidence and expose a reduced-motion attention rail', ({
@@ -10,34 +10,20 @@ test.describe('attention rail', () => {
       setup: async () => {
         const scenario = { board: 'attention', panel: 'build', label: 'Build', treatment: 'alarm' }
         await page.emulateMedia({ reducedMotion: 'reduce' })
-        await page.addInitScript(
-          (env) => {
-            window.env = {
-              assetPath: env.assetPath,
-              assetPathId:
-                'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
-              proxyPath: '/api',
-              board: env.board,
-              clientVersion: 'browser-test',
-            }
+        await stubDashboard(
+          page,
+          {
+            attention: { treatment: scenario.treatment },
+            panels: [
+              {
+                id: scenario.panel,
+                label: scenario.label,
+                type: 'pipeline-status',
+                attention: true,
+              },
+            ],
           },
-          { assetPath, board: scenario.board },
-        )
-        await page.route(`**/api/boards/${scenario.board}`, (route) =>
-          route.fulfill({
-            contentType: 'application/json',
-            body: JSON.stringify({
-              attention: { treatment: scenario.treatment },
-              panels: [
-                {
-                  id: scenario.panel,
-                  label: scenario.label,
-                  type: 'pipeline-status',
-                  attention: true,
-                },
-              ],
-            }),
-          }),
+          scenario.board,
         )
         await page.route(`**/api/panel/${scenario.board}/${scenario.panel}`, (route) =>
           route.fulfill({
@@ -55,9 +41,6 @@ test.describe('attention rail', () => {
               },
             }),
           }),
-        )
-        await page.route('**/api/client', (route) =>
-          route.fulfill({ contentType: 'application/json', body: JSON.stringify({ assetPath }) }),
         )
         return { scenario }
       },

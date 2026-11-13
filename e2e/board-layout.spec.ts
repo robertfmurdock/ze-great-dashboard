@@ -215,10 +215,7 @@ test('uses a compact two-column scan grid at intermediate widths', ({ page }) =>
           ),
       }
       await page.setViewportSize({ width: 1000, height: 1000 })
-      await stubDashboard(page, board)
-      await page.addInitScript(() => {
-        window.env = { ...window.env, security: 'warning' }
-      })
+      await stubDashboard(page, board, undefined, 'warning')
       await page.route('**/api/panel/**', (route) => {
         const panelId = decodeURIComponent(
           new URL(route.request().url()).pathname.split('/').at(-1) ?? '',

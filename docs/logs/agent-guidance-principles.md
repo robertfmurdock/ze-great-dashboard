@@ -405,3 +405,16 @@ browser measurements when the contract is itself geometry, motion, or document n
 ## Preserve visual continuity through layout changes
 
 On 2026-11-13 Rob noticed that elements shared by stable build states and the pending state jumped when their positions changed. He asked that “these elements animated their way to their new positions by default” and wanted the design objectives captured “to lay a good foundation for future transition and animation work.” The build panel is the first application of the [motion design guidance](../motion-design.md).
+
+## 2026-11-13 — Share the dashboard process across E2E scenarios
+
+After browser and hosted HTTP scenarios moved to one packaged dashboard process, Rob described
+his operating theory for sticking to one server process:
+
+> - ensure that useful features are added to the server
+> - minimize wasted time in e2e tests starting / stopping the server
+
+Hosting multiple dashboard configurations on one listener was the first example. Evaluate the
+theory by whether shared scenarios drive capabilities operators can use and reduce repeated
+startup and shutdown time. Tests whose subject is startup or a distinct packaging contract
+still own that lifecycle.

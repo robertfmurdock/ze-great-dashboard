@@ -1,17 +1,11 @@
 import { mint } from '@continuous-excellence/testmints-js/playwright'
 import { expect, test } from '@playwright/test'
-import { assetPath } from './client-support'
+import { assetPath, stubDashboard } from './client-support'
 
 test('the production client loads and renders with CDN modules', ({ page }) =>
   mint({
     setup: async () => {
-      const scenario = {
-        assetPath,
-        assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
-        board: 'ze-great-team',
-        clientVersion: 'browser-test',
-        serverVersion: 'browser-test-server',
-      }
+      const scenario = { board: 'public' }
       const browserErrors: string[] = []
       page.on('pageerror', (error) => browserErrors.push(error.message))
       page.on('console', (message) => {
@@ -21,35 +15,12 @@ test('the production client loads and renders with CDN modules', ({ page }) =>
         browserErrors.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText}`)
       })
 
-      await page.addInitScript((env) => {
-        window.env = {
-          assetPath: env.assetPath,
-          assetPathId: env.assetPathId,
-          proxyPath: '/api',
-          board: env.board,
-          clientVersion: env.clientVersion,
-        }
-      }, scenario)
-      await page.route(`**/api/boards/${scenario.board}`, (route) =>
-        route.fulfill({ contentType: 'application/json', body: JSON.stringify({ panels: [] }) }),
-      )
-      await page.route('**/api/client', (route) =>
-        route.fulfill({
-          contentType: 'application/json',
-          headers: { 'cache-control': 'no-store' },
-          body: JSON.stringify({
-            assetPath: scenario.assetPath,
-            assetPathId: scenario.assetPathId,
-            serverVersion: scenario.serverVersion,
-          }),
-        }),
-      )
       return { scenario, browserErrors }
     },
-    exercise: async () => {
+    exercise: async ({ scenario }) => {
       await page.goto('/')
       return {
-        board: await page.getByRole('heading', { name: 'ze-great-team' }).textContent(),
+        board: await page.getByRole('heading', { name: scenario.board }).textContent(),
         footer: await page.locator('[data-board-footer]').textContent(),
       }
     },
@@ -69,18 +40,7 @@ test('reloads when the server starts serving a different client', ({ page }) =>
         assetPath,
         replacementAssetPath: `${assetPath}/new`,
       }
-      await page.addInitScript((env) => {
-        window.env = {
-          assetPath: env.assetPath,
-          assetPathId: 'sha256:644e4b913dada33b64ab521018c8541df48c4b93e2b0c14de80112c4e58a9f21',
-          proxyPath: '/api',
-          board: env.board,
-          clientVersion: 'browser-test',
-        }
-      }, scenario)
-      await page.route(`**/api/boards/${scenario.board}`, (route) =>
-        route.fulfill({ contentType: 'application/json', body: JSON.stringify({ panels: [] }) }),
-      )
+      await stubDashboard(page, { panels: [] }, scenario.board)
       let resolveSecondIdentityCheck!: () => void
       const secondIdentityCheck = new Promise<void>((resolve) => {
         resolveSecondIdentityCheck = resolve

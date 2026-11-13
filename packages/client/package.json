@@ -13,8 +13,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test:browser": "npm run build && npm run test:browser:no-build --",
-    "test:browser:no-build": "playwright test --config ../../playwright.config.ts",
+    "test:browser": "npm --prefix ../.. run test:browser --",
+    "test:browser:no-build": "npm --prefix ../.. run test:browser:no-build --",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -135,3 +135,12 @@ path and explain the changed expectation in the change. Tests at separate packag
 the shared board validator and the AWS release validator—must agree on the accepted configuration
 shape. Cosmetic fields may use safe fallback behavior for newer values; security- and routing-
 relevant fields remain strictly validated.
+
+### Browser test server
+
+The root browser command starts one packaged dashboard container for the run. Browser specs and
+the hosted-deployment HTTP specs share it. A separate fixture host serves immutable assets,
+board configuration, and controlled upstream responses. Docker browsers resolve deployment
+hostnames on the Compose network. Native Chromium maps the same names to the container's
+ephemeral loopback port. Startup and single-deployment packaging checks retain their own
+fixtures because they exercise different entry points and startup conditions.
