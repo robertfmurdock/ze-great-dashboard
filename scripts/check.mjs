@@ -32,6 +32,7 @@ const stages = [
       `--test-reporter-destination=${evidence.nodeJUnit}`,
       ...nodeTestFiles,
     ],
+    dependsOn: ['build-packages'],
   },
   {
     id: 'vitest',

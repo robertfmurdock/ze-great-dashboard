@@ -41,3 +41,10 @@ a new identity. It observes main-frame navigation and the recovered board. With 
 navigation timing entries were unavailable in Chromium, so the scenario waits for Playwright's
 navigation event. The negative controls selected the authenticated host, supplied a different
 secret reference, and left the client identity unchanged. Each failed at the expected boundary.
+
+The first CI run after unifying the Node suite hit the dev-watcher test's five-second kill
+timer. The check graph had started that suite alongside the build that recreates its package
+inputs. The local test also passed with shared dist moved aside, so missing shared output alone
+did not reproduce the CI failure. The gate now orders the suite after the build, matching the
+focused command, and the test allows for slower startup while still waiting on actual process
+exit. On timeout it kills the process group and includes the captured output and exit signal.

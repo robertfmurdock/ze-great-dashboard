@@ -41,7 +41,7 @@ be reproduced, record the missing condition and the closest representative evide
 ## Local and CI execution
 
 - `npm run check` starts lint, typechecking, the package build, the container endpoint check,
-  the standalone Lambda build, and Node tests independently. Vitest, Playwright, example-board CLI
+  and the standalone Lambda build independently. Node tests, Vitest, Playwright, example-board CLI
   validation, and the package smoke test depend on the shared build. The package smoke stage consumes a fixed
   test release version. [Stage graph](../scripts/check.mjs)
 - The installed pre-commit hook and CI invoke `npm run check`. `npm run verify` is an alias.
