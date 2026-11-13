@@ -28,7 +28,6 @@ try {
       },
     },
   )
-  assert.equal(packageLayout.length, 2)
   assert.deepEqual(
     packageLayout.map(({ id }) => id),
     ['client', 'aws'],
@@ -106,7 +105,6 @@ try {
   assert.match(stagedReadme, /consumer-owned gateway/)
   assert.match(stagedReadme, /resolves configured `token_env` names only at\s+Lambda cold start/)
   assert.deepEqual(Object.keys(manifest.dependencies).sort(), ['fflate', 'yaml', 'zod'])
-  assert.equal(manifest.dependencies['@continuous-excellence/ze-great-dashboard-client'], undefined)
   const publishedFiles = []
   async function collect(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -168,10 +166,11 @@ try {
       { cwd: root, stdio: 'pipe' },
     )
     const parameters = JSON.parse(await readFile(parametersPath, 'utf8'))
-    parameters.push({
+    const secretReference = {
       ParameterKey: 'SecretReference',
       ParameterValue: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dashboard',
-    })
+    }
+    parameters.push(secretReference)
     await writeFile(parametersPath, `${JSON.stringify(parameters, null, 2)}\n`)
     execFileSync(
       process.execPath,
@@ -187,18 +186,15 @@ try {
       ],
       { cwd: root, stdio: 'pipe' },
     )
-    assert.deepEqual(parameters, [
-      { ParameterKey: 'LambdaArtifactBucket', ParameterValue: 'consumer-artifacts' },
-      {
-        ParameterKey: 'SecretReference',
-        ParameterValue: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dashboard',
-      },
-    ])
     const metadata = JSON.parse(await readFile(join(releasePath, 'release.json'), 'utf8'))
     assert.equal(metadata.dashboardVersion, '9.8.7')
     assert.match(metadata.artifactKey, /^lambda\/[a-f0-9]{64}\.zip$/)
     const releaseParameters = JSON.parse(
       await readFile(join(releasePath, 'parameters.json'), 'utf8'),
+    )
+    assert.deepEqual(
+      releaseParameters.find(({ ParameterKey }) => ParameterKey === secretReference.ParameterKey),
+      secretReference,
     )
     assert.equal(releaseParameters.length, 10)
     assert.equal(releaseParameters[2].ParameterValue, metadata.artifactKey)

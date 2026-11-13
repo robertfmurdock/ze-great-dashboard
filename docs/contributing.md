@@ -25,10 +25,12 @@ BOARD_CONFIG_URL="$PWD/boards/ze-great-team.yaml" npm run dev
 
 ## Quality gate
 
+See [Test architecture](test-architecture.md) for suite boundaries and release evidence.
+
 Run the full repository gate before handing off work:
 
 ```sh
-npm run verify
+npm run check
 ```
 
 | Command                                                                       | Purpose                                                                                                                                                                                                                                                                                                                                |
@@ -36,7 +38,6 @@ npm run verify
 | `npm run dev`                                                                 | Start the client and server development loop.                                                                                                                                                                                                                                                                                          |
 | `npm run ado-entra-token`                                                     | Write a short-lived local Azure CLI delegated token file.                                                                                                                                                                                                                                                                              |
 | `npm run check`                                                               | The same release evidence—lint, six TypeScript projects, one package build, unit and browser tests, packaged-container endpoint checks, example-board validation, and published-package smoke tests—run through a concise dependency-aware report. Independent checks run together; dependent checks wait for their declared artifact. |
-| `npm run verify`                                                              | Run `check`, then build the production client and Lambda bundle. This is the commit-hook gate.                                                                                                                                                                                                                                         |
 | `npm run test:browser`                                                        | Build the client and run browser tests independently through Docker by default.                                                                                                                                                                                                                                                        |
 | `npm run test:watch`                                                          | Run unit tests in watch mode.                                                                                                                                                                                                                                                                                                          |
 | `npm run build`                                                               | Build the production client.                                                                                                                                                                                                                                                                                                           |
@@ -44,9 +45,8 @@ npm run verify
 | `docker compose up`                                                           | Run the published GHCR server image against a published asset path.                                                                                                                                                                                                                                                                    |
 | `docker compose -f docker-compose.yml -f docker-compose.local.yml up --build` | Build and run the current source locally.                                                                                                                                                                                                                                                                                              |
 
-Contributions must pass `npm run verify`. The committed pre-commit hook runs this same gate, so
-production-build failures are found before a change enters history. Pushes do not run a second local
-gate; CI still runs its own checks and release builds.
+The pre-commit hook and CI both run `npm run check`, including the production client and standalone
+Lambda builds. `npm run verify` is an alias.
 
 New dependencies need a clear justification: the project deliberately keeps its dependency surface
 small.

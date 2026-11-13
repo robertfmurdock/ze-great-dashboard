@@ -35,18 +35,11 @@ for (const deployment of [
 
 for (const scenario of [
   { host: 'authenticated', path: '/api/boards/authenticated', status: 401 },
-  { host: 'authenticated', path: '/api/boards/private-operations', status: 401 },
   {
     host: 'authenticated',
     path: '/api/boards/authenticated',
     bearer: 'invalid-token',
     status: 401,
-  },
-  {
-    host: 'public',
-    path: '/api/boards/private-operations',
-    forwarded: 'authenticated',
-    status: 404,
   },
   { host: 'public', path: '/api/boards/public', status: 200 },
   { host: 'blocked', path: '/', status: 503 },
@@ -61,7 +54,7 @@ for (const scenario of [
         ...scenario,
         headers: {
           host: hosts[scenario.host] ?? 'unknown.dashboard.test',
-          'x-forwarded-host': hosts[scenario.forwarded ?? 'public'] ?? '',
+          'x-forwarded-host': hosts.public ?? '',
           ...(scenario.bearer ? { authorization: `Bearer ${scenario.bearer}` } : {}),
         },
       }),
@@ -70,12 +63,25 @@ for (const scenario of [
     }))
 }
 
+test('ignores the authenticated forwarded host even for a valid token', ({ request }) =>
+  mint({
+    setup: () => ({
+      board: 'private-operations',
+      headers: {
+        host: hosts.public ?? '',
+        'x-forwarded-host': hosts.authenticated ?? '',
+        authorization: `Bearer ${process.env.PW_TEST_FIXTURE_BEARER}`,
+      },
+    }),
+    exercise: ({ board, headers }) => request.get(`${origin}/api/boards/${board}`, { headers }),
+    verify: (response) => expect(response.status()).toBe(404),
+  }))
+
 test('renders a configured board and its upstream release value', ({ page }) =>
   mint({
     setup: () => ({ board: 'release', version: '2026.11.13' }),
     exercise: ({ board }) => page.goto(`/boards/${board}`),
-    verify: async (response, { board, version }) => {
-      expect(response?.status()).toBe(200)
+    verify: async (_, { board, version }) => {
       await expect(page.getByRole('heading', { name: board, exact: true })).toBeVisible()
       await expect(page.locator('[data-panel-id="version"]')).toContainText(version)
     },

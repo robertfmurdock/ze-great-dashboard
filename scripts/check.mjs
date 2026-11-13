@@ -1,5 +1,6 @@
 import { checkEvidencePaths } from './check-evidence.mjs'
 import { runCheck } from './check-runner.mjs'
+import { nodeTestFiles } from './node-test-files.mjs'
 
 const npm = process.env.npm_execpath ? [process.execPath, process.env.npm_execpath] : ['npm']
 const npmRun = (script) => [...npm, 'run', script]
@@ -15,6 +16,10 @@ const stages = [
     // The published-package smoke test consumes this exact versioned immutable client.
     environment: { RELEASE_VERSION: '9.8.7' },
   },
+  {
+    id: 'build-lambda',
+    command: [...npmRun('build:lambda'), '--workspace', '@ze-great-dashboard/server'],
+  },
   { id: 'container-endpoint', command: [process.execPath, 'scripts/container-endpoint.mjs'] },
   {
     id: 'node-tests',
@@ -25,9 +30,7 @@ const stages = [
       '--test-reporter=junit',
       '--test-reporter-destination=stdout',
       `--test-reporter-destination=${evidence.nodeJUnit}`,
-      'scripts/auth0-functional-env.test.mjs',
-      'scripts/check.test.mjs',
-      'scripts/test-summary.test.mjs',
+      ...nodeTestFiles,
     ],
   },
   {

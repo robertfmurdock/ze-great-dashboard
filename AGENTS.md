@@ -24,9 +24,9 @@ guidance; promote a settled principle into this file and `CLAUDE.md` deliberatel
 
 ## The two rules
 
-**1. `npm run check` before declaring anything done.** Lint, typecheck, and tests; about 1.5 seconds.
-It is also what the pre-commit hook runs, so a change that fails it cannot be committed anyway.
-Under ten seconds is a budget to defend as tests accumulate — it is the entire feedback loop.
+**1. `npm run check` before declaring anything done.** The pre-commit hook and CI run this same
+gate, including production builds and release checks. Keep focused checks fast and use the stage
+report to track the cost of the full gate.
 
 **2. New dependencies need justification.** A tool whose pitch is trustworthiness should not accrete
 packages. Say what it buys and what it costs in the change that adds it. This is the design doc's
@@ -262,7 +262,7 @@ test(
 
 |                      |                                                                     |
 | -------------------- | ------------------------------------------------------------------- |
-| `npm run check`      | The gate. Lint + typecheck + test.                                  |
+| `npm run check`      | The full gate. Lint, typecheck, builds, and tests.                  |
 | `npm run dev`        | Vite on 5173 + server on 3000, HMR through the real rendering path. |
 | `npm run test:watch` | Vitest in watch mode.                                               |
 | `npm run format`     | Biome, writing fixes.                                               |

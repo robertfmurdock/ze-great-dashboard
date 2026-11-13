@@ -9,5 +9,5 @@
 # than rarely, verification is too slow or too flaky, and that is the bug to fix.
 set -e
 
-echo "pre-commit: npm run verify"
-npm run verify
+echo "pre-commit: npm run check"
+npm run check
