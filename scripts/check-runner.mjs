@@ -238,7 +238,7 @@ async function writeEvidenceLedger(stages, state, startedAt, reportDirectory, in
         '',
         `Total: ${formatDuration(totalDurationMs)}${interruptedBy ? ` (interrupted by ${interruptedBy})` : ''}`,
         '',
-        `Native test results: [Node](${checkEvidence.nodeJUnit}), [Vitest](${checkEvidence.vitestJUnit}), [Playwright](${checkEvidence.playwrightJUnit}).`,
+        `Native test results: [Vitest](${checkEvidence.vitestJUnit}), [Playwright](${checkEvidence.playwrightJUnit}).`,
         `Playwright failure attachments, when produced, are in [${checkEvidence.playwrightArtifacts}/](${checkEvidence.playwrightArtifacts}/).`,
         '',
       ].join('\n'),

@@ -505,6 +505,7 @@ describe('duration-aware choreography', () => {
         expect(new Set([...late.cells, ...late.flakes].map((cell) => cell.id)).size).toBe(late.id)
       },
     }),
+    20_000,
   )
 
   it(

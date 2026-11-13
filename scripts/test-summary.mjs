@@ -28,11 +28,7 @@ export async function writeTestSummary({
   const runId = positiveInteger(environment.GITHUB_RUN_ID, 'GITHUB_RUN_ID')
   const runAttempt = positiveInteger(environment.GITHUB_RUN_ATTEMPT, 'GITHUB_RUN_ATTEMPT')
   const headSha = required(environment.GITHUB_SHA, 'GITHUB_SHA')
-  const reports = [
-    checkEvidence.nodeJUnit,
-    checkEvidence.vitestJUnit,
-    checkEvidence.playwrightJUnit,
-  ]
+  const reports = [checkEvidence.vitestJUnit, checkEvidence.playwrightJUnit]
   let xml
   try {
     xml = await Promise.all(

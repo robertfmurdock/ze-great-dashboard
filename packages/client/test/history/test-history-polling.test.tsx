@@ -85,7 +85,7 @@ async function pollingFixture(scenario: (typeof cases)[number]) {
     () =>
       hook.result.current.schedules[0]?.inFlight === false &&
       fetcher.mock.calls.some(([input]) => String(input).endsWith('/test-history')),
-    { interval: 1, timeout: 500 },
+    { interval: 10, timeout: 3_000 },
   )
   return {
     hook,
@@ -133,7 +133,7 @@ describe('current polling remains authoritative during repair', () => {
               expect(result.testDirections[panel.id]?.totals).toEqual([tests.total])
               expect(result.updateHealth[panel.id]).toBeUndefined()
             },
-            { interval: 1, timeout: 500 },
+            { interval: 10, timeout: 3_000 },
           )
         },
       }),
@@ -175,7 +175,7 @@ describe('current polling remains authoritative during repair', () => {
                 },
               })
             },
-            { interval: 1, timeout: 500 },
+            { interval: 10, timeout: 3_000 },
           )
         },
       }),
@@ -202,7 +202,7 @@ describe('current polling remains authoritative during repair', () => {
               expect.objectContaining({ kind: 'test-history-repair', outcome: 'failed' }),
             )
           },
-          { interval: 1, timeout: 500 },
+          { interval: 10, timeout: 3_000 },
         )
       },
     }),

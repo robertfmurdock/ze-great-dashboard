@@ -1,6 +1,5 @@
 import { checkEvidencePaths } from './check-evidence.mjs'
 import { runCheck } from './check-runner.mjs'
-import { nodeTestFiles } from './node-test-files.mjs'
 
 const npm = process.env.npm_execpath ? [process.execPath, process.env.npm_execpath] : ['npm']
 const npmRun = (script) => [...npm, 'run', script]
@@ -22,26 +21,14 @@ const stages = [
   },
   { id: 'container-endpoint', command: [process.execPath, 'scripts/container-endpoint.mjs'] },
   {
-    id: 'node-tests',
-    command: [
-      process.execPath,
-      '--test',
-      '--test-reporter=spec',
-      '--test-reporter=junit',
-      '--test-reporter-destination=stdout',
-      `--test-reporter-destination=${evidence.nodeJUnit}`,
-      ...nodeTestFiles,
-    ],
-    dependsOn: ['build-packages'],
-  },
-  {
     id: 'vitest',
     command: [
       process.execPath,
       'node_modules/vitest/vitest.mjs',
       'run',
+      '--reporter=default',
       '--reporter=junit',
-      `--outputFile=${evidence.vitestJUnit}`,
+      `--outputFile.junit=${evidence.vitestJUnit}`,
     ],
     dependsOn: ['build-packages'],
   },

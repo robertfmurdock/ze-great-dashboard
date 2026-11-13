@@ -132,7 +132,7 @@ async function boardResponse(page: Page, accessToken: string) {
     (request) =>
       new URL(request.url()).pathname === `/api/boards/${board}` &&
       request.headers().authorization === `Bearer ${accessToken}`,
-    { timeout: 5_000 },
+    { timeout: 15_000 },
   )
   return request.response()
 }

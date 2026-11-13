@@ -10,6 +10,14 @@ export default defineConfig({
     projects: [
       {
         test: {
+          name: 'scripts',
+          environment: 'node',
+          include: ['scripts/*.test.mjs'],
+          testTimeout: 35_000,
+        },
+      },
+      {
+        test: {
           name: 'shared',
           root: './packages/shared',
           environment: 'node',

@@ -418,3 +418,17 @@ Hosting multiple dashboard configurations on one listener was the first example.
 theory by whether shared scenarios drive capabilities operators can use and reduce repeated
 startup and shutdown time. Tests whose subject is startup or a distinct packaging contract
 still own that lifecycle.
+
+## Testmints is the standard for Playwright too — 2026-11-13
+
+Rob asked to make Testmints explicitly the standard for Playwright tests, on the same footing as
+Vitest. The browser suite already uses the Playwright adapter. AGENTS.md and CLAUDE.md now require
+the matching adapter for every new or changed scenario in either runner.
+
+## One standard for script tests — 2026-11-13
+
+Rob questioned whether the separate Node runner deserved special treatment without a concrete
+justification. The script tests now use the same Vitest and Testmints path as the package tests.
+Vitest can still run the real subprocess checks for watcher startup and signal forwarding.
+The CI summary combines the Vitest and Playwright reports under the existing summary schema.
+The native experiment templates remain comparison controls.

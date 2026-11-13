@@ -967,3 +967,16 @@ a completed failed restoration and the diagnostics drawer open. The sign-out and
 scenarios now require evidence that the provider cookie survives and both protected endpoints
 respond successfully, respectively. Temporarily clearing the cookie during fixture logout and
 suppressing the client endpoint observation each failed at the corresponding new assertion.
+
+## Check runner ordering evidence — 2026-11-13
+
+The script suite groups check-runner scenarios by the behavior each one exercises. Ordering
+scenarios now release a waiting subprocess when the runner reports the other stage's outcome.
+That creates the intended completion order even under load. In the ledger scenario the failed
+stage finishes first, so the final declaration-order assertion can distinguish the two orders.
+
+A subsequent commit hook run under heavier load hit three independent deadlines: the snowman
+replay computation, the polling fixture's readiness wait, and the browser's authenticated
+board request. The tests retain their existing completion conditions with more headroom.
+The check runner now keeps Vitest's terminal reporter alongside JUnit so the hook shows the
+failed scenarios directly.
