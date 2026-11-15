@@ -45,7 +45,7 @@ describe('run test evidence', () => {
       {
         name: 'skips',
         counts: { total: 12, passed: 10, failed: 0, skipped: 2 },
-        expected: '12 tests · ↷ 2',
+        expected: '✓ 12 · ↷ 2',
       },
       {
         name: 'zero tests',

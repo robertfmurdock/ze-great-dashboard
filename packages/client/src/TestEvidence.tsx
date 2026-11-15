@@ -50,7 +50,7 @@ export function TestOutcomeSummary({
   tests: Extract<TestCount, { status: 'reported' }>
   direction?: TestDirection
 }) {
-  const allPassed = tests.total > 0 && tests.passed === tests.total
+  const allPassed = tests.total > 0 && tests.failed === 0 && tests.passed !== undefined
   return (
     <TestDirectionSummary direction={direction}>
       {allPassed ? (
