@@ -40,16 +40,24 @@ Treatments respect reduced-motion preferences and can be selected per panel.
 
 ## Operating cost
 
-The live dashboard recorded 80,477 invocations from August 22–31, 2026, averaging 612 ms on a 256 MB
-Arm Lambda. At current `us-east-1` rates, that projects to roughly **$0.80/month** for
-[Lambda](https://aws.amazon.com/lambda/pricing/) and
-[HTTP API Gateway](https://aws.amazon.com/api-gateway/pricing/), before account-wide free-tier
-benefits or discounts. The smallest always-on ECS task (0.25 vCPU, 0.5 GB) is roughly **$9/month**
-for [Fargate compute](https://aws.amazon.com/fargate/pricing/) alone.
+In October 2026, one production dashboard in `us-east-1` handled about **545,000 API Gateway
+requests**, with **$0.55–$0.69** in estimated charges across the AWS resources examined. The
+dashboard ran on Lambda behind an API Gateway HTTP API, stored deployment packages in a dedicated
+S3 bucket, and logged to CloudWatch.
 
-The ECS figure excludes ingress and networking. The Lambda estimate represents one person's normal,
-always-open wallboard use. Viewer count, source traffic, Region, and account pricing affect the
-result.
+| AWS component        | October 2026 cost | How it was measured                                                                                                                                                         |
+| -------------------- | ----------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API Gateway HTTP API |         $0.545398 | Cost Explorer recorded 545,398 billed HTTP API requests in the region. The dashboard was the only HTTP API found there, and its CloudWatch metric counted 545,400 requests. |
+| Lambda               |             $0.00 | Cost Explorer showed zero Lambda charges across the account.                                                                                                                |
+| S3 artifact storage  |      Under $0.001 | Estimated from October storage charges and measured bucket size, which averaged 0.025 GiB.                                                                                  |
+| S3 requests          |         $0–$0.143 | The upper bound includes all S3 request charges in the account.                                                                                                             |
+| CloudWatch           |       $0–$0.00102 | The upper bound includes all CloudWatch charges in the account.                                                                                                             |
+
+The estimate uses October's unblended AWS charges and excludes external services, CI, and
+engineering time. [See the billing and attribution details.](https://github.com/robertfmurdock/ze-great-dashboard/issues/75)
+
+Your bill will depend on traffic, Region, account pricing, and free-tier treatment. If you deploy
+on ECS with an always-on task, you pay for compute even when nobody is viewing the dashboard.
 
 ## Next steps
 

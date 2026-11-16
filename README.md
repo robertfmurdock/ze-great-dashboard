@@ -37,9 +37,9 @@ collect history, or send your team’s signals to a hosted analytics service.
   depends on color alone, attention preserves its meaning with reduced motion, and every state is
   expressed in plain language.
 - **Value without lock-in.** The software is MIT-licensed: no hosted service, per-seat charge, or
-  license fee. You pay only for infrastructure you choose; one measured, always-open Lambda
-  wallboard projects to about **$0.80/month** in `us-east-1`, before free-tier benefits or
-  discounts. [See assumptions and ECS comparison.](docs/feature-tour.md#operating-cost)
+  license fee. One production AWS Lambda deployment handled about **545,000 API Gateway requests**
+  in October 2026, with **$0.55–$0.69** in estimated charges across the AWS resources examined.
+  [See the operating cost breakdown.](docs/feature-tour.md#operating-cost)
 
 See the [feature tour](docs/feature-tour.md) for the dashboard in use.
 
