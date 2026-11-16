@@ -73,83 +73,12 @@ describe('Update activity', () => {
           await user.click(screen.getByRole('button', { name: 'Update activity' }))
         },
         verify: () => {
-          const dialog = screen.getByRole('dialog', { name: 'Update activity' })
-          const close = screen.getByRole('button', { name: 'Close' })
-          expect(dialog.getAttribute('aria-modal')).toBe('true')
+          expect(screen.getByRole('dialog', { name: 'Update activity' })).not.toBeNull()
           expect(screen.getByText('Build')).not.toBeNull()
           expect(screen.getByText('● observed · ◇ expected')).not.toBeNull()
           expect(screen.getByLabelText(/Build, panel build; Normal cadence/)).not.toBeNull()
           expect(screen.getByTitle('Observed request: /api/panel/team/build')).not.toBeNull()
           expect(screen.getByTitle('Expected next poll')).not.toBeNull()
-          expect(document.activeElement).toBe(close)
-        },
-      }),
-    )
-
-    test(
-      'contains Tab focus on the close control while open',
-      mint({
-        setup: () => {
-          const diagnosticLog = log()
-          render(
-            <UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={diagnosticLog} />,
-          )
-          return { user: userEvent.setup() }
-        },
-        exercise: async ({ user }) => {
-          await user.click(screen.getByRole('button', { name: 'Update activity' }))
-          await user.tab()
-        },
-        verify: () => {
-          expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
-        },
-      }),
-    )
-  })
-
-  describe('explicit dismissal', () => {
-    test(
-      'returns focus to its trigger after Close',
-      mint({
-        setup: () => {
-          const diagnosticLog = log()
-          render(
-            <UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={diagnosticLog} />,
-          )
-          return { user: userEvent.setup() }
-        },
-        exercise: async ({ user }) => {
-          const trigger = screen.getByRole('button', { name: 'Update activity' })
-          await user.click(trigger)
-          await user.click(screen.getByRole('button', { name: 'Close' }))
-          return trigger
-        },
-        verify: (trigger) => {
-          expect(screen.queryByRole('dialog')).toBeNull()
-          expect(document.activeElement).toBe(trigger)
-        },
-      }),
-    )
-
-    test(
-      'returns focus to its trigger after Escape',
-      mint({
-        setup: () => {
-          const diagnosticLog = log()
-          render(
-            <UpdateActivity board={{ panels: [] }} schedules={[schedule]} log={diagnosticLog} />,
-          )
-          return { user: userEvent.setup() }
-        },
-        exercise: async ({ user }) => {
-          const trigger = screen.getByRole('button', { name: 'Update activity' })
-          await user.click(trigger)
-          await user.keyboard('{Escape}')
-          return trigger
-        },
-        verify: (trigger) => {
-          expect(screen.queryByRole('dialog')).toBeNull()
-          expect(document.activeElement).toBe(trigger)
         },
       }),
     )
@@ -173,7 +102,7 @@ describe('Update activity', () => {
         },
         verify: (trigger) => {
           expect(screen.queryByRole('dialog')).toBeNull()
-          expect(document.activeElement).toBe(trigger)
+          expect(trigger.getAttribute('aria-expanded')).toBe('false')
         },
       }),
     )
@@ -219,7 +148,7 @@ describe('Update activity', () => {
         },
         verify: (trigger) => {
           expect(screen.queryByRole('dialog')).toBeNull()
-          expect(document.activeElement).toBe(trigger)
+          expect(trigger.getAttribute('aria-expanded')).toBe('false')
         },
       }),
     )

@@ -45,41 +45,6 @@ describe('SecurityDetails', () => {
   )
 
   test(
-    'focuses the close control when opened',
-    mint({
-      setup: () => {
-        clientTestFixture()
-        render(<SecurityDetails env={env} auth={{ accessToken: 'access-token' }} />)
-        return { user: userEvent.setup() }
-      },
-      exercise: ({ user }) => user.click(screen.getByRole('button', { name: 'Security' })),
-      verify: async () => {
-        const close = await screen.findByRole('button', { name: 'Close' })
-        expect(document.activeElement).toBe(close)
-      },
-    }),
-  )
-
-  test(
-    'closes on Escape and returns focus to Security',
-    mint({
-      setup: async () => {
-        clientTestFixture()
-        render(<SecurityDetails env={env} auth={{ accessToken: 'access-token' }} />)
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', { name: 'Security' }))
-        await screen.findByRole('dialog')
-        return { user }
-      },
-      exercise: ({ user }) => user.keyboard('{Escape}'),
-      verify: () => {
-        expect(screen.queryByRole('dialog')).toBeNull()
-        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Security' }))
-      },
-    }),
-  )
-
-  test(
     'renders an unavailable alert without policy metadata after a failed request',
     mint({
       setup: () => {

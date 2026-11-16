@@ -923,3 +923,27 @@ test('fits populated single-screen team layout without clipping required content
       ).toBe('row')
     },
   }))
+
+test('wide boards increase readable text when root text size increases', ({ page }) =>
+  mint({
+    setup: async () => {
+      await stubDashboard(page, positionedBoard)
+      await page.setViewportSize({ width: 1920, height: 1080 })
+      await page.goto('/')
+      const title = page.getByRole('heading', { level: 1 })
+      const before = await title.evaluate((element) =>
+        parseFloat(getComputedStyle(element).fontSize),
+      )
+      return { before, title }
+    },
+    exercise: () =>
+      page.evaluate(() => {
+        document.documentElement.style.fontSize = '200%'
+      }),
+    verify: async (_output, { before, title }) => {
+      const after = await title.evaluate((element) =>
+        parseFloat(getComputedStyle(element).fontSize),
+      )
+      expect(after).toBeGreaterThan(before)
+    },
+  }))

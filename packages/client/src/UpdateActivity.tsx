@@ -1,5 +1,13 @@
 import type { Board } from '@ze-great-dashboard/shared/browser'
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import type { BrowserDiagnosticStore } from './diagnostics.ts'
 import type { PollingScheduleSnapshot } from './polling-schedule.ts'
 import styles from './UpdateActivity.module.css'
@@ -18,10 +26,12 @@ export function UpdateActivity({
 }) {
   const [now, setNow] = useState(() => new Date())
   const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const dialogRef = useRef<HTMLElement>(null)
-  const closeRef = useRef<HTMLButtonElement>(null)
-  const wasOpenRef = useRef(false)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+
+  const dismiss = useCallback(() => {
+    dialogRef.current?.close()
+    setOpen(false)
+  }, [])
   useSyncExternalStore(log.subscribe, log.snapshot, log.snapshot)
   useEffect(() => {
     if (!open) return
@@ -33,62 +43,35 @@ export function UpdateActivity({
     [log, now, schedules],
   )
 
-  useEffect(() => {
-    if (!open) {
-      if (wasOpenRef.current) triggerRef.current?.focus()
-      wasOpenRef.current = false
-      return
-    }
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current
+    if (!open || !dialog) return
+    dialog.showModal()
+    return () => dialog.close()
+  }, [open])
 
-    wasOpenRef.current = true
-    const dismiss = () => setOpen(false)
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!open || !dialog) return
     let timeout = window.setTimeout(dismiss, 60_000)
     const resetDismissal = () => {
       window.clearTimeout(timeout)
       timeout = window.setTimeout(dismiss, 60_000)
     }
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') dismiss()
-    }
-    const containFocus = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return
-      const focusable = [
-        ...(dialogRef.current?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ) ?? []),
-      ]
-      const first = focusable.at(0)
-      const last = focusable.at(-1)
-      if (!first || !last) return
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last?.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-    const dialog = dialogRef.current
-    dialog?.addEventListener('pointerdown', resetDismissal)
-    dialog?.addEventListener('keydown', resetDismissal)
-    dialog?.addEventListener('focusin', resetDismissal)
-    dialog?.addEventListener('keydown', containFocus)
-    window.addEventListener('keydown', closeOnEscape)
-    closeRef.current?.focus()
+    dialog.addEventListener('pointerdown', resetDismissal)
+    dialog.addEventListener('keydown', resetDismissal)
+    dialog.addEventListener('focusin', resetDismissal)
     return () => {
       window.clearTimeout(timeout)
-      dialog?.removeEventListener('pointerdown', resetDismissal)
-      dialog?.removeEventListener('keydown', resetDismissal)
-      dialog?.removeEventListener('focusin', resetDismissal)
-      dialog?.removeEventListener('keydown', containFocus)
-      window.removeEventListener('keydown', closeOnEscape)
+      dialog.removeEventListener('pointerdown', resetDismissal)
+      dialog.removeEventListener('keydown', resetDismissal)
+      dialog.removeEventListener('focusin', resetDismissal)
     }
-  }, [open])
+  }, [dismiss, open])
 
   return (
     <>
       <button
-        ref={triggerRef}
         className={styles.trigger}
         type="button"
         aria-expanded={open}
@@ -101,13 +84,15 @@ export function UpdateActivity({
         Update activity
       </button>
       {open && (
-        <section
+        <dialog
           ref={dialogRef}
           className={styles.dialog}
           data-update-activity
           id="update-activity-dialog"
-          role="dialog"
-          aria-modal="true"
+          onCancel={(event) => {
+            event.preventDefault()
+            dismiss()
+          }}
           aria-labelledby="update-activity-title"
         >
           <div className={styles.dialogHeader}>
@@ -117,12 +102,7 @@ export function UpdateActivity({
                 Browser-local proxy reads from the last 10 minutes. Panels schedule independently.
               </p>
             </div>
-            <button
-              ref={closeRef}
-              className={styles.close}
-              type="button"
-              onClick={() => setOpen(false)}
-            >
+            <button className={styles.close} type="button" onClick={dismiss}>
               Close
             </button>
           </div>
@@ -180,7 +160,7 @@ export function UpdateActivity({
               expected next poll, not an observed request.
             </p>
           </div>
-        </section>
+        </dialog>
       )}
     </>
   )

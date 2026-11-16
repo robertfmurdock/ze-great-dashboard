@@ -2,18 +2,13 @@
   font: inherit;
 }
 
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  display: grid;
-  place-items: center;
-  padding: var(--gap);
+.dialog::backdrop {
   background: rgb(0 0 0 / 62%);
 }
 
 .dialog {
-  width: min(32rem, 100%);
+  width: min(32rem, calc(100% - 2 * var(--gap)));
+  max-height: calc(100% - 2 * var(--gap));
   padding: 1rem;
   border: 1px solid var(--edge);
   border-radius: var(--radius);

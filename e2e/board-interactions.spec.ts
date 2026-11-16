@@ -80,10 +80,11 @@ test.describe('update activity', () => {
         const gridBefore = await page
           .locator('main')
           .evaluate((grid) => grid.getBoundingClientRect().toJSON())
-        return { gridBefore }
+        const trigger = page.getByRole('button', { name: 'Update activity' })
+        return { gridBefore, trigger }
       },
-      exercise: async () => {
-        await page.getByRole('button', { name: 'Update activity' }).click()
+      exercise: async ({ trigger }) => {
+        await trigger.click()
         const dialog = page.getByRole('dialog', { name: 'Update activity' })
         const modal = await dialog.evaluate((element) => {
           const rect = element.getBoundingClientRect()
@@ -105,7 +106,7 @@ test.describe('update activity', () => {
             .evaluate((grid) => grid.getBoundingClientRect().toJSON()),
         }
       },
-      verify: ({ modal, dialogCount, gridAfter }, { gridBefore }) => {
+      verify: async ({ modal, dialogCount, gridAfter }, { gridBefore, trigger }) => {
         expect(modal).toMatchObject({
           left: 0,
           top: 0,
@@ -114,6 +115,7 @@ test.describe('update activity', () => {
         })
         expect(dialogCount).toBe(0)
         expect(gridAfter).toEqual(gridBefore)
+        await expect(trigger).toBeFocused()
       },
     }))
 })

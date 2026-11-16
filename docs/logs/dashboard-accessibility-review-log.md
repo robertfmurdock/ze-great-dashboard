@@ -13,3 +13,13 @@ display. The footer toggle is local to the current page. It pauses continuous CS
 uses the existing static rendering paths for the snowman and falling shapes simulations. The
 browser scenario checks a running animation's playback state and the visible pipeline status.
 Short layout transitions continue to follow the operating-system preference.
+
+Both full-screen Update activity and Security overlays allowed wheel scrolling and programmatic
+focus on the board. Their earlier tests checked geometry, content, and keyboard handling without
+exercising browser background interaction. The browser regressions reproduced both escapes.
+Native modal dialogs supply the focus boundary, and scroll containment covers the dialog and its
+backdrop. Browsers without non-scrollable overscroll containment can still move the background.
+
+A fixed maximum body font size stopped the wide-board heading from growing under larger root text.
+The font bounds now use root-relative units, retaining the same bounds with the default root size.
+The Chromium test simulates root text growth. OS-level text settings were outside that test.

@@ -275,3 +275,73 @@ test('respects explicit sign-out even when the provider session survives', ({
       expect(authorizationRequests).toEqual([{ topLevel: true, prompt: 'none' }])
     },
   }))
+
+async function openDashboardModal(page: Page, request: APIRequestContext, name: string) {
+  await serveDashboard(page, request)
+  await serveProvider(page)
+  await page.context().addCookies([providerSession])
+  await page.route(`**/api/boards/${board}`, (route) =>
+    route.fulfill({
+      json: {
+        panels: Array.from({ length: 12 }, (_, index) => ({
+          id: `build-${index}`,
+          type: 'pipeline-status',
+        })),
+      },
+    }),
+  )
+  await page.goto(boardUrl)
+  const trigger = page.getByRole('button', { name, exact: true })
+  await trigger.click()
+  const dialog = page.getByRole('dialog')
+  await dialog.waitFor()
+  return { trigger, dialog }
+}
+
+for (const name of ['Security', 'Update activity']) {
+  test(`${name} prevents background interaction while open`, ({ page, request }) =>
+    mint({
+      setup: async () => {
+        await page.setViewportSize({ width: 390, height: 600 })
+        await openDashboardModal(page, request, name)
+        const background = page.getByRole('button', { name: 'Pause motion', includeHidden: true })
+        const scrollBefore = await page.evaluate(() => scrollY)
+        return { background, scrollBefore }
+      },
+      exercise: async ({ background }) => {
+        const backgroundFocused = await background.evaluate((button) => {
+          button.focus({ preventScroll: true })
+          return document.activeElement === button
+        })
+        // The Chromium command resolves after the whole gesture, including when scrolling is blocked.
+        const input = await page.context().newCDPSession(page)
+        try {
+          await input.send('Input.synthesizeScrollGesture', {
+            x: 8,
+            y: 8,
+            yDistance: 460,
+            speed: 4_000,
+            gestureSourceType: 'mouse',
+          })
+        } finally {
+          await input.detach()
+        }
+        return { backgroundFocused, scrollDuring: await page.evaluate(() => scrollY) }
+      },
+      verify: async (result, { scrollBefore }) => {
+        expect(scrollBefore).toBeGreaterThan(0)
+        expect(result).toEqual({ backgroundFocused: false, scrollDuring: scrollBefore })
+        await expect(page.getByRole('button', { name: 'Close' })).toBeFocused()
+      },
+    }))
+
+  test(`Escape closes ${name} and restores focus to its opener`, ({ page, request }) =>
+    mint({
+      setup: () => openDashboardModal(page, request, name),
+      exercise: () => page.keyboard.press('Escape'),
+      verify: async (_output, { trigger, dialog }) => {
+        await expect(dialog).toBeHidden()
+        await expect(trigger).toBeFocused()
+      },
+    }))
+}
