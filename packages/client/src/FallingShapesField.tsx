@@ -12,6 +12,7 @@ import {
   createFallingSimulation,
   visibleFallingShapes,
 } from './falling-simulation.ts'
+import { useReducedMotion } from './motion-preference.ts'
 
 const TICK_MS = 50
 type Geometry = { columns: number; rows: number; direction: FallingDirection }
@@ -32,7 +33,7 @@ export function FallingShapesField({
     ...fallingGrid('vertical'),
     direction: 'vertical',
   })
-  const [reducedMotion, setReducedMotion] = useState(false)
+  const reducedMotion = useReducedMotion()
   const [view, setView] = useState(createFallingSimulation)
   const geometryRef = useRef(geometry)
   const directionRef = useRef<FallingDirection | undefined>(undefined)
@@ -62,13 +63,6 @@ export function FallingShapesField({
     const observer = new ResizeObserver(update)
     observer.observe(root)
     return () => observer.disconnect()
-  }, [])
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const update = () => setReducedMotion(media.matches)
-    update()
-    media.addEventListener?.('change', update)
-    return () => media.removeEventListener?.('change', update)
   }, [])
   useEffect(() => {
     simulationRef.current = createFallingSimulation()

@@ -233,3 +233,26 @@
     grid-auto-rows: auto;
   }
 }
+
+.board[data-motion-paused],
+.board[data-motion-paused] *,
+.board[data-motion-paused]::before,
+.board[data-motion-paused]::after,
+.board[data-motion-paused] *::before,
+.board[data-motion-paused] *::after {
+  animation-play-state: paused;
+}
+
+.motionToggle {
+  border: 1px solid var(--edge);
+  border-radius: 0.25rem;
+  background: var(--surface-raised);
+  color: var(--ink-secondary);
+  font: inherit;
+  padding: 0.3em 0.55em;
+}
+
+.motionToggle[aria-pressed="true"] {
+  color: var(--ink-primary);
+  text-decoration: underline;
+}

@@ -2,11 +2,34 @@ import { mint } from '@continuous-excellence/testmints-js/vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { analyzeBoardLayout, type Board } from '@ze-great-dashboard/shared/browser'
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { LayoutWarning } from '../src/LayoutWarning.tsx'
 import { env } from './client-test-fixture.tsx'
 
 describe('LayoutWarning', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  test(
+    'reports a failed layout download in the open warning panel',
+    mint({
+      setup: async () => {
+        const layout = analyzeBoardLayout([
+          { id: 'overflow', type: 'pipeline-status', position: { x: 12, y: 0, w: 1, h: 1 } },
+        ])
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 503 })))
+        const user = userEvent.setup()
+        render(<LayoutWarning board={env.board} layout={layout} env={env} />)
+        await user.click(screen.getByRole('button', { name: 'Layout warnings (1)' }))
+        return { user }
+      },
+      exercise: ({ user }) =>
+        user.click(screen.getByRole('button', { name: 'Download authored layout' })),
+      verify: async () => {
+        expect((await screen.findByRole('alert')).textContent).toMatch(/could not download/i)
+      },
+    }),
+  )
+
   test(
     'opens a dialog with issue details and both layout downloads',
     mint({
@@ -38,7 +61,7 @@ describe('LayoutWarning', () => {
   )
 
   test(
-    'closes its open dialog with Escape',
+    'returns focus to the warning button after Escape closes the dialog',
     mint({
       setup: async () => {
         const layout = analyzeBoardLayout([
@@ -46,11 +69,16 @@ describe('LayoutWarning', () => {
         ])
         const user = userEvent.setup()
         render(<LayoutWarning board={env.board} layout={layout} env={env} />)
-        await user.click(screen.getByRole('button', { name: 'Layout warnings (1)' }))
-        return { user }
+        const trigger = screen.getByRole('button', { name: 'Layout warnings (1)' })
+        await user.click(trigger)
+        await user.tab()
+        return { user, trigger }
       },
       exercise: ({ user }) => user.keyboard('{Escape}'),
-      verify: () => expect(screen.queryByRole('dialog')).toBeNull(),
+      verify: (_output, { trigger }) => {
+        expect(screen.queryByRole('dialog')).toBeNull()
+        expect(document.activeElement).toBe(trigger)
+      },
     }),
   )
 })

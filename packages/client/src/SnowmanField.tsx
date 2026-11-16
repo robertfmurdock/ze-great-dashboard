@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useReducedMotion } from './motion-preference.ts'
 import styles from './SnowmanField.module.css'
 import {
   advanceSnowmanSimulation,
@@ -23,9 +24,7 @@ export function SnowmanField({
   const rootRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [dimensions, setDimensions] = useState({ width: 360, height: 180 })
-  const [reducedMotion, setReducedMotion] = useState(
-    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  )
+  const reducedMotion = useReducedMotion()
 
   const progressRef = useRef(progress)
   const overdueRef = useRef(overdue)
@@ -44,13 +43,6 @@ export function SnowmanField({
   useEffect(() => {
     overdueRef.current = overdue
   }, [overdue])
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const update = () => setReducedMotion(media.matches)
-    update()
-    media.addEventListener?.('change', update)
-    return () => media.removeEventListener?.('change', update)
-  }, [])
   useEffect(() => {
     const root = rootRef.current
     if (!root) return

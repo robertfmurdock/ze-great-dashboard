@@ -1,5 +1,5 @@
 import type { analyzeBoardLayout, ClientEnv } from '@ze-great-dashboard/shared/browser'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import styles from './App.module.css'
 import type { DashboardAuth } from './dashboard-fetch.ts'
 import { dashboardFetch } from './dashboard-fetch.ts'
@@ -17,27 +17,47 @@ export function LayoutWarning({
   auth?: DashboardAuth
 }) {
   const [open, setOpen] = useState(false)
+  const [downloadError, setDownloadError] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const dialogId = `layout-warning-${board}`
+
+  const closeWarning = useCallback(() => {
+    setOpen(false)
+    triggerRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     if (!open) return
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') closeWarning()
     }
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [open])
+  }, [closeWarning, open])
 
   const boardPath = `${env.proxyPath}/boards/${encodeURIComponent(board)}`
+  async function requestDownload(kind: 'rendered' | 'authored') {
+    setDownloadError(false)
+    try {
+      await downloadLayout(env, `${boardPath}/${kind}`, auth)
+    } catch {
+      setDownloadError(true)
+    }
+  }
+
   return (
     <div className={styles.layoutWarning} data-layout-warning>
       <button
+        ref={triggerRef}
         className={styles.layoutWarningButton}
         type="button"
         aria-label={`Layout warnings (${layout.issues.length})`}
         aria-expanded={open}
         aria-controls={dialogId}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (open) closeWarning()
+          else setOpen(true)
+        }}
       >
         <span aria-hidden="true">⚠</span>
         <span>{layout.issues.length}</span>
@@ -56,7 +76,7 @@ export function LayoutWarning({
               className={styles.layoutWarningClose}
               type="button"
               aria-label="Close layout warnings"
-              onClick={() => setOpen(false)}
+              onClick={closeWarning}
             >
               ×
             </button>
@@ -76,19 +96,14 @@ export function LayoutWarning({
             ))}
           </ul>
           <div className={styles.layoutWarningDownloads}>
-            <button
-              type="button"
-              onClick={() => void downloadLayout(env, `${boardPath}/rendered`, auth)}
-            >
+            <button type="button" onClick={() => void requestDownload('rendered')}>
               Download legal rendered layout
             </button>
-            <button
-              type="button"
-              onClick={() => void downloadLayout(env, `${boardPath}/authored`, auth)}
-            >
+            <button type="button" onClick={() => void requestDownload('authored')}>
               Download authored layout
             </button>
           </div>
+          {downloadError && <p role="alert">Could not download the layout. Try again.</p>}
           <p className={styles.layoutWarningNote}>
             The legal rendered layout normalizes the currently visible explicit area into 12×12 and
             makes the smallest deterministic adjustments needed to avoid collisions. The authored

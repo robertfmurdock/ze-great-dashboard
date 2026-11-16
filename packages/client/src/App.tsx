@@ -3,13 +3,14 @@ import {
   type ClientEnv,
   isZeroPosition,
 } from '@ze-great-dashboard/shared/browser'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import styles from './App.module.css'
 import { projectAttention } from './attention.ts'
 import { Diagnostics } from './Diagnostics.tsx'
 import type { DashboardAuth } from './dashboard-fetch.ts'
 import { BrowserDiagnosticStore } from './diagnostics.ts'
 import { LayoutWarning } from './LayoutWarning.tsx'
+import { MotionPaused } from './motion-preference.ts'
 import { OidcGate } from './OidcGate.tsx'
 import { PanelPlaceholder } from './PanelPlaceholder.tsx'
 import { PanelRenderer } from './panel-registry.tsx'
@@ -58,6 +59,7 @@ function Dashboard({
   onDenied?: () => void
   diagnosticLog?: BrowserDiagnosticStore
 }) {
+  const [motionPaused, setMotionPaused] = useState(false)
   const diagnosticsRef = useRef<BrowserDiagnosticStore | null>(null)
   if (!diagnosticsRef.current)
     diagnosticsRef.current = diagnosticLog ?? new BrowserDiagnosticStore(env)
@@ -98,6 +100,7 @@ function Dashboard({
   return (
     <div
       className={`${styles.board} ${attentionTreatment ? styles[`attention-${attentionTreatment}`] : ''}`}
+      data-motion-paused={motionPaused || undefined}
       data-attention-treatment={attentionTreatment}
       data-attention-active={attentionDrivers.length || undefined}
     >
@@ -127,20 +130,22 @@ function Dashboard({
       </header>
       <main className={styles.grid}>
         {!board && <PanelPlaceholder label="board" hint="Loading configuration…" wide />}
-        {board?.panels
-          .filter((panel) => !isZeroPosition(panel.position))
-          .map((panel) => (
-            <PanelRenderer
-              key={panel.id}
-              panel={panel}
-              envelope={signals[panel.id]}
-              attentionActive={activeAttentionPanels.has(panel.id)}
-              updateHealth={updateHealth[panel.id]}
-              rejectedPipeline={rejectedPipelines[panel.id]}
-              facts={factSignals[panel.id]}
-              testDirection={testDirections[panel.id]}
-            />
-          ))}
+        <MotionPaused.Provider value={motionPaused}>
+          {board?.panels
+            .filter((panel) => !isZeroPosition(panel.position))
+            .map((panel) => (
+              <PanelRenderer
+                key={panel.id}
+                panel={panel}
+                envelope={signals[panel.id]}
+                attentionActive={activeAttentionPanels.has(panel.id)}
+                updateHealth={updateHealth[panel.id]}
+                rejectedPipeline={rejectedPipelines[panel.id]}
+                facts={factSignals[panel.id]}
+                testDirection={testDirections[panel.id]}
+              />
+            ))}
+        </MotionPaused.Provider>
       </main>
 
       <footer className={styles.footer} data-board-footer>
@@ -165,6 +170,14 @@ function Dashboard({
               }
             }}
           />
+          <button
+            className={styles.motionToggle}
+            type="button"
+            aria-pressed={motionPaused}
+            onClick={() => setMotionPaused((paused) => !paused)}
+          >
+            Pause motion
+          </button>
           <UpdateActivity board={board} schedules={schedules} log={diagnostics} />
         </div>
       </footer>

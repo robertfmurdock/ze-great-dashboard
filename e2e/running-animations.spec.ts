@@ -126,6 +126,27 @@ async function stubRunningFields(page: Page) {
   await page.setViewportSize({ width: 1440, height: 900 })
 }
 
+test('pauses running animation while keeping pipeline status readable', ({ page }) =>
+  mint({
+    setup: async () => {
+      await page.emulateMedia({ reducedMotion: 'no-preference' })
+      await stubRunningFields(page)
+      await page.goto('/')
+      const panel = page.locator('#panel-fast-build')
+      const packet = panel.locator('[data-running-part="transit-packet"]').first()
+      const before = await packet.evaluate((element) => element.getAnimations()[0]?.playState)
+      return { before, packet, panel }
+    },
+    exercise: () => page.getByRole('button', { name: 'Pause motion' }).click({ timeout: 2_000 }),
+    verify: async (_output, { before, packet, panel }) => {
+      expect(before).toBe('running')
+      await expect
+        .poll(() => packet.evaluate((element) => element.getAnimations()[0]?.playState))
+        .toBe('paused')
+      await expect(panel).toContainText('Running')
+    },
+  }))
+
 test('renders panel-scale running fields behind readable content', ({ page }) =>
   mint({
     setup: async () => {
