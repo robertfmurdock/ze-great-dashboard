@@ -62,10 +62,10 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.8",
-    "@continuous-excellence/testmints-js": "0.0.8",
+    "@continuous-excellence/testmints-js": "0.0.9",
     "@playwright/test": "^1.64.0",
     "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.6.10",
+    "@testing-library/user-event": "^14.6.12",
     "@types/node": "^26.6.6",
     "concurrently": "^10.0.7",
     "npm-check-updates": "23.1.1",
