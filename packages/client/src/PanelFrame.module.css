@@ -54,16 +54,12 @@
 .statusBand {
   display: grid;
   flex: 1 1 0;
-  grid-template-rows: 2.6em minmax(0, 1fr) auto;
+  grid-template-rows: 2.6em minmax(0, 1fr) 5em;
   gap: 0;
 }
 .statusBand > [data-panel-anchor="status"] {
-  position: absolute;
-  inset-inline: 0;
-  top: 50%;
   grid-row: 2;
   align-self: center;
-  transform: translateY(-50%);
 }
 .statusBand > [data-panel-anchor="evidence"] {
   display: block;
@@ -263,6 +259,13 @@
   .content,
   .sourceAction {
     font-size: 0.8em;
+  }
+  .statusBand {
+    grid-template-rows: auto auto auto;
+    gap: 0.2em;
+  }
+  .statusBand > [data-panel-anchor="status"] {
+    align-self: start;
   }
 }
 @container panel (max-height: 7rem) {
