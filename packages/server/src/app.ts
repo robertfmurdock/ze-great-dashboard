@@ -87,8 +87,21 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
   app.use('/api/*', async (c, next) => {
     const id = requestId()
     c.set('dashboardRequestId', id)
-    await next()
-    c.header('x-dashboard-request-id', id)
+    const started = performance.now()
+    try {
+      await next()
+    } finally {
+      c.header('x-dashboard-request-id', id)
+      logger.log({
+        event: 'api.request_completed',
+        serverVersion: diagnosticContext.serverVersion,
+        requestId: id,
+        method: c.req.method,
+        route: apiRouteTemplate(c.req.path),
+        status: c.res.status,
+        elapsedMs: Math.round(performance.now() - started),
+      })
+    }
   })
   app.use('/api/*', async (c, next) => {
     if (!deps.boardConfig?.auth) return next()
@@ -479,6 +492,25 @@ export function createApp(deps: AppDependencies): Hono<AppEnvironment> {
   }
 
   return app
+}
+
+/** Reduce an incoming API path to a bounded route label; dynamic segments and query values never enter logs. */
+function apiRouteTemplate(path: string): string {
+  if (path === '/api/boards' || /^\/api\/boards\/[^/]+$/.test(path)) return '/api/boards/:board'
+  if (/^\/api\/boards\/[^/]+\/security$/.test(path)) return '/api/boards/:board/security'
+  if (/^\/api\/boards\/[^/]+\/(rendered|authored)$/.test(path)) return '/api/boards/:board/:layout'
+  if (/^\/api\/panel\/[^/]+\/[^/]+\/facts\/[^/]+$/.test(path))
+    return '/api/panel/:board/:panelId/facts/:factId'
+  if (/^\/api\/panel\/[^/]+\/[^/]+\/test-history$/.test(path))
+    return '/api/panel/:board/:panelId/test-history'
+  if (/^\/api\/panel\/[^/]+\/[^/]+\/pull-requests$/.test(path))
+    return '/api/panel/:board/:panelId/pull-requests'
+  if (/^\/api\/panel\/[^/]+\/[^/]+\/update-workflow\/[^/]+$/.test(path))
+    return '/api/panel/:board/:panelId/update-workflow/:workflow'
+  if (/^\/api\/panel\/[^/]+\/[^/]+\/pull-request-build$/.test(path))
+    return '/api/panel/:board/:panelId/pull-request-build'
+  if (/^\/api\/panel\/[^/]+\/[^/]+$/.test(path)) return '/api/panel/:board/:panelId'
+  return '/api/:unmatched'
 }
 
 function safeDownloadFilename(value: string): string {

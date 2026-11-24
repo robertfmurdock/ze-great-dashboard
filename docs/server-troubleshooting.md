@@ -12,6 +12,7 @@ This guide is for an engineer investigating a dashboard that cannot start, load 
 | A panel says source unavailable                       | `panel.observation_failed` with `errorKind: "unreachable"`    | Check DNS, routing, firewall rules, and the source service’s availability.                                                                                                                           |
 | A panel says its response is unreadable               | `panel.observation_failed` with `errorKind: "upstream-error"` | Check the source’s API health and whether its response still matches the configured panel type.                                                                                                      |
 | A browser request is rejected                         | `api.operation_rejected`                                      | Check the board and panel IDs. The proxy accepts only configured operations.                                                                                                                         |
+| Understand API traffic volume and outcomes            | `api.request_completed`                                       | Group by `route`, `status`, and time; use `elapsedMs` to find slow request classes.                                                                                                                  |
 
 The browser shows an opaque **support reference** for failed observations. It is the `requestId` of exactly one server event; it contains no source details or credentials.
 
@@ -24,6 +25,8 @@ The browser shows an opaque **support reference** for failed observations. It is
   claims, normalized before logging. They are not authentication or authorization evidence. Origins
   retain only scheme, host, and port; malformed and absent claims are omitted.
 - `requestId`: opaque server-generated support reference for an API request.
+- `method`, `route`, `status`, `elapsedMs`: bounded request-completion summary. `route` is a
+  fixed route template; board, panel, fact, and workflow path values are never included.
 - `boardId`, `panelId`, `operation`: configured object and permitted operation being observed.
 - `sourceName`, `sourceType`: configured source identity, when applicable.
 - `destinationOrigin`: only scheme, host, and port of the upstream destination; paths and query strings are omitted.

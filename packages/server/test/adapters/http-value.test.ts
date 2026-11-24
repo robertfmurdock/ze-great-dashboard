@@ -343,6 +343,7 @@ describe('the http-value panel route', () => {
             errorKind: 'unreachable',
             destinationOrigin: 'https://service.example.com',
           }),
+          expect.objectContaining({ event: 'api.request_completed', status: 200 }),
         ])
         expect(JSON.stringify({ events, reference })).not.toContain(secret)
       },
@@ -370,7 +371,41 @@ describe('the http-value panel route', () => {
             panelId: 'not-configured',
             operation: 'read',
           }),
+          expect.objectContaining({
+            event: 'api.request_completed',
+            requestId: response.headers.get('x-dashboard-request-id'),
+            method: 'GET',
+            route: '/api/panel/:board/:panelId',
+            status: 404,
+            elapsedMs: expect.any(Number),
+          }),
         ])
+      },
+    }),
+  )
+
+  test(
+    'logs a safe completion summary without retaining dynamic paths or query values',
+    mint({
+      setup: () => ({
+        ...diagnosticAppFixture(),
+        secret: 'sensitive-query-value',
+      }),
+      exercise: ({ app, secret }) => app.request(`/api/boards/example?token=${secret}`),
+      verify: (response, { events, secret }) => {
+        expect(response.status).toBe(200)
+        expect(events).toEqual([
+          expect.objectContaining({
+            event: 'api.request_completed',
+            requestId: response.headers.get('x-dashboard-request-id'),
+            method: 'GET',
+            route: '/api/boards/:board',
+            status: 200,
+            elapsedMs: expect.any(Number),
+          }),
+        ])
+        expect(JSON.stringify(events)).not.toContain(secret)
+        expect(JSON.stringify(events)).not.toContain('/api/boards/example')
       },
     }),
   )
@@ -390,13 +425,17 @@ describe('the http-value panel route', () => {
         }),
         exercise: ({ app, headers }) =>
           app.request('/api/panel/example/not-configured', { headers }),
-        verify: (_response, { events }) => {
+        verify: (response, { events }) => {
           expect(events).toEqual([
             expect.objectContaining({
               serverVersion: '1.4.0',
               clientVersion: 'client-2.0.0',
               clientOrigin: 'https://dashboard.example.test',
               clientAssetPathMatchesConfigured: true,
+            }),
+            expect.objectContaining({
+              event: 'api.request_completed',
+              requestId: response.headers.get('x-dashboard-request-id'),
             }),
           ])
           expect(JSON.stringify(events)).not.toContain('secret=value')
@@ -418,11 +457,15 @@ describe('the http-value panel route', () => {
         }),
         exercise: ({ app, headers }) =>
           app.request('/api/panel/example/not-configured', { headers }),
-        verify: (_response, { events }) => {
+        verify: (response, { events }) => {
           expect(events).toEqual([
             expect.objectContaining({
               serverVersion: '1.4.0',
               clientAssetPathMatchesConfigured: false,
+            }),
+            expect.objectContaining({
+              event: 'api.request_completed',
+              requestId: response.headers.get('x-dashboard-request-id'),
             }),
           ])
           expect(events[0]).not.toHaveProperty('clientVersion')
@@ -440,8 +483,14 @@ describe('the http-value panel route', () => {
         }),
         exercise: ({ app, headers }) =>
           app.request('/api/panel/example/not-configured', { headers }),
-        verify: (_response, { events }) => {
-          expect(events).toEqual([expect.objectContaining({ serverVersion: '1.4.0' })])
+        verify: (response, { events }) => {
+          expect(events).toEqual([
+            expect.objectContaining({ serverVersion: '1.4.0' }),
+            expect.objectContaining({
+              event: 'api.request_completed',
+              requestId: response.headers.get('x-dashboard-request-id'),
+            }),
+          ])
           expect(events[0]).not.toHaveProperty('clientAssetPathMatchesConfigured')
           expect(JSON.stringify(events)).not.toContain('private-client')
         },
@@ -476,6 +525,7 @@ describe('the http-value panel route', () => {
             errorKind: 'upstream-error',
             upstreamStatus: 503,
           }),
+          expect.objectContaining({ event: 'api.request_completed', status: 200 }),
         ])
         expect(JSON.stringify({ events, response: await response.text() })).not.toContain(body)
       },
@@ -511,6 +561,11 @@ describe('the http-value panel route', () => {
             event: 'server.unhandled_exception',
             requestId: reference,
             operation: 'route-handler',
+          }),
+          expect.objectContaining({
+            event: 'api.request_completed',
+            requestId: reference,
+            status: 500,
           }),
         ])
         expect(JSON.stringify(events)).not.toContain('credential text')

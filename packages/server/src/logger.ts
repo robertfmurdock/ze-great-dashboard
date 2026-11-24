@@ -17,6 +17,14 @@ export type ServerLogEvent = ServerIdentity &
     | ({ event: 'server.startup_failed' } & StartupFailureDiagnostic)
     | { event: 'server.no_auth_warning'; host: string; port: number }
     | { event: 'server.required_auth_missing'; host: string; port: number }
+    | {
+        event: 'api.request_completed'
+        requestId: string
+        method: string
+        route: string
+        status: number
+        elapsedMs: number
+      }
     | ({
         event: 'api.operation_rejected'
         requestId: string
